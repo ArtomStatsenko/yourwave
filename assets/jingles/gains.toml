@@ -1,0 +1,3 @@
+# Per-file loudness correction in dB, on top of automatic -16 LUFS normalization.
+# Use it when a sound measures right but feels too quiet or too loud by ear.
+"gigidelaromusic-calm-ether-loop-short-450954.mp3" = 5.0

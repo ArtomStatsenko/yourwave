@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radio</title>
+<style>
+/* layout: one narrow column, terminal-log feel; player on top, 12h timeline below */
+:root{--bg:#f2f2ee;--surface:#e7e7e1;--ink:#17170f;--muted:#5f5f55;--line:#cfcfc5;--accent:#c2410c;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
+--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121210;--surface:#1b1a17;--ink:#ece8dc;--muted:#9a968a;--line:#2e2d27;--accent:#ff6a3d;--accent-ink:#121210;--ok:#5fd08a;--warn:#f0b429;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121210;--surface:#1b1a17;--ink:#ece8dc;--muted:#9a968a;--line:#2e2d27;--accent:#ff6a3d;--accent-ink:#121210;--ok:#5fd08a;--warn:#f0b429;color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);padding-block:32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:960px;margin:0 auto;display:grid;gap:32px}
+h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.l{font-size:16px;color:var(--muted)}
+#np{display:grid;gap:8px}
+.title{font-size:34px;line-height:42px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}/* one line: a track change never moves the layout */
+/* A title wider than the line scrolls there and back (JS sets --mq, the distance, and --dur); without motion it keeps the ellipsis. */
+.title.typing{text-overflow:clip}                    /* no "…" while the new title is typed */
+.caret{display:inline-block;width:.14em;height:.85em;margin-left:.08em;background:var(--accent);vertical-align:-.08em}
+.caret[hidden]{display:none}                           /* display:inline-block above would otherwise win over [hidden]: the caret stayed on screen */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.title.mq #ttl{display:inline-block;animation:mq var(--dur) ease-in-out infinite;will-change:transform}
+@keyframes mq{0%,18%{transform:translateX(0)}50%,68%{transform:translateX(var(--mq))}100%{transform:translateX(0)}}
+#air{color:var(--accent)}
+#air.off{color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bar{flex:1;min-width:140px;height:4px;background:var(--line)}.bar i{display:block;height:4px;background:var(--accent);width:0}
+button{font:inherit;color:var(--ink);background:none;border:1px solid var(--line);border-radius:2px;padding:10px 20px;cursor:pointer}
+button:hover{border-color:var(--ink)}button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.4;cursor:default}button:disabled:hover{border-color:var(--line)}
+.dot{display:inline-block;width:12px;height:12px;border-radius:999px;margin-right:6px;background:var(--ok)}
+.lim{height:4px;background:var(--line);max-width:240px;flex:1;min-width:80px}.lim i{display:block;height:4px;background:var(--ok)}
+/* timeline: two columns (time, title), no lines or cards; special kinds are marked by a prefix inside the title */
+.it{border:0}
+.it.session{margin-top:18px;border-top:1px solid var(--line)}.it.session .tx{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.it.cur .tx{font-weight:600}.it.cur .tx::before{content:"▶ ";color:var(--accent)}
+.it.news .tx::before{content:"news  ";font-size:14px;font-weight:400;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.it.reminder .tx::before{content:"◆ ";color:var(--warn)}
+.it.weather .tx::before{content:"weather  ";color:var(--muted);font-size:14px;text-transform:uppercase;letter-spacing:.06em}
+.it.id .tx,.it.id .tm{opacity:.5}
+.hd{display:flex;align-items:baseline}
+.tg{display:flex;gap:10px;flex:1;min-width:0;padding:5px 8px;text-align:left;border:0;background:none;color:inherit;font:inherit;align-items:baseline}
+button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
+.rp{border:0;padding:2px 12px;font-size:20px;opacity:0;color:var(--muted)}.rp:hover{border:0;color:var(--accent)}
+.it:hover .rp,.rp:focus-visible,.rp.on{opacity:1}
+@media (hover:none){.rp{opacity:1}}
+.rp.on{font-size:16px;color:var(--ok);cursor:pointer}.rp.on:hover{color:var(--accent)}
+.tm.ch{width:auto}
+.tm{width:56px;color:var(--muted);font-size:16px;flex:none;font-variant-numeric:tabular-nums}
+.k{display:none}
+
+.tx{min-width:0;overflow-wrap:anywhere;flex:1;font-size:18px}
+.ex{margin:0 0 8px 74px;padding:2px 0 6px;color:var(--muted);display:grid;gap:8px;font-size:16px;line-height:24px}
+.ex p{margin:0}.ex .pt{margin-top:8px;font-weight:600;color:var(--muted)}.ex a{color:var(--accent)}
+@media (max-width:480px){.tm{width:48px}.ex{margin-left:66px}}
+.sub{white-space:pre-wrap}
+.q{color:var(--ok)}
+.err{color:var(--warn)}
+.pl{display:flex;gap:12px;align-items:baseline;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);
+  padding:12px 0;border-radius:0}
+.pl:hover{border:0;border-bottom:1px solid var(--line);background:var(--surface)}
+.pl .sw{flex:none;width:72px;font-size:16px;color:var(--muted)}.pl[aria-pressed="true"] .sw{color:var(--accent)}
+.pl .nm{flex:none;min-width:320px}.pl .ds{color:var(--muted);font-size:16px;flex:1;min-width:0}
+@media(max-width:640px){.pl{display:grid;grid-template-columns:72px minmax(0,1fr)}.pl .nm{min-width:0;overflow-wrap:anywhere}.pl .ds{grid-column:2}}
+#vol{width:112px;accent-color:var(--accent)}
+/* visualizer strip: a fixed 36px box, so whatever it draws (or off) never moves the layout */
+.strip{height:36px;overflow:hidden;contain:size layout paint}
+.strip pre{margin:0;font:inherit;font-size:18px;line-height:18px;height:36px;letter-spacing:0;white-space:pre;color:var(--accent);transition:color .6s}
+.strip pre.idle{color:var(--muted)}
+#ruler{position:absolute;visibility:hidden;font-size:18px;white-space:pre;font-family:var(--mono)}
+#vzb{border:0;padding:8px 4px;font-size:16px;color:var(--muted);min-width:9ch;text-align:left}#vzb:hover{border:0;color:var(--accent)}
+.tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.st{display:grid;gap:4px;padding:16px 0;border-bottom:1px solid var(--line)}
+.st .hd2{display:flex;justify-content:space-between;gap:16px}.st .v{font-variant-numeric:tabular-nums;color:var(--accent)}
+.st input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0}
+.st input[type=url],.st input[type=password]{box-sizing:border-box;width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
+.st .rs{border:0;padding:0 4px;font-size:16px;color:var(--accent);text-decoration:underline}.st .rs:hover{border:0}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.tabs button:hover{border:0;border-bottom:2px solid var(--muted)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom:2px solid var(--accent)}
+.tl{max-height:min(65vh,680px);overflow-y:auto}
+</style>
+</head>
+<body>
+<main>
+<section id="np" aria-label="Now playing">
+  <h1><span id="air">●</span> <span id="airtxt">on air</span></h1>
+  <div class="title"><span id="ttl" aria-hidden="true"></span><span id="caret" class="caret" aria-hidden="true" hidden></span></div>
+  <span id="ttl-sr" class="sr" aria-live="polite"></span>
+  <div class="strip"><pre id="viz" aria-hidden="true"></pre></div><span id="ruler" aria-hidden="true">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</span>
+  <div class="row"><button id="pp" aria-label="Listen">▶ listen</button><button id="nx" aria-label="Next">▶▶</button>
+    <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+    <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span><button id="vzb" title="change visual" aria-label="change visual"></button></div>
+  <div class="l row"><span>speech <span id="sp"></span>/<span id="splim"></span> min this hour</span><div class="lim"><i id="spb"></i></div>
+    <span style="margin-left:auto"><span class="dot" id="vd"></span><span id="vs"></span></span></div>
+  <div class="row"><button id="sk" aria-label="Skip bulletin">skip bulletin</button><button id="so" aria-label="Stop">■ stop</button>
+    <span class="l err" id="er"></span></div>
+</section>
+<section>
+  <div class="tabs" role="tablist" aria-label="Radio controls">
+    <button role="tab" id="tab-tl" aria-controls="tl" aria-selected="true" data-tab="tl">timeline · 12h</button>
+    <button role="tab" id="tab-in" aria-controls="integrations" aria-selected="false" tabindex="-1" data-tab="in">integrations</button>
+    <button role="tab" id="tab-ex" aria-controls="experiments" aria-selected="false" tabindex="-1" data-tab="ex">experiments</button>
+    <button role="tab" id="tab-st" aria-controls="stg" aria-selected="false" tabindex="-1" data-tab="st">settings</button>
+  </div>
+  <div class="tl" id="tl" role="tabpanel" aria-labelledby="tab-tl"></div>
+  <div id="integrations" role="tabpanel" aria-labelledby="tab-in" hidden>
+    <div id="integration-plugins"></div>
+    <form id="yt-form" class="st">
+      <label for="yt-playlist">YouTube Music playlist</label>
+      <input id="yt-playlist" type="url" value="https://music.youtube.com/playlist?list=LM" required>
+      <label for="yt-cookie">YouTube Music Cookie header</label>
+      <input id="yt-cookie" type="password" autocomplete="off" spellcheck="false" maxlength="60000" aria-describedby="yt-help">
+      <div id="yt-help" class="l">Copy only the Cookie header from a signed-in music.youtube.com request in browser developer tools. Stored only on this Mac; leave blank to refresh an existing connection.</div>
+      <div class="row"><button id="yt-connect" type="submit">connect / refresh</button><span id="yt-state" class="l" role="status" aria-live="polite"></span></div>
+      <div class="l">Applies after stop / play. First 500 songs; unavailable songs are skipped. Local music plays if YouTube is unreachable or all songs fail.</div>
+    </form>
+  </div>
+  <div id="experiments" role="tabpanel" aria-labelledby="tab-ex" hidden></div>
+  <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
+    <div id="features"></div>
+    <div id="settings"></div>
+  </div>
+</section>
+</main>
+<script>
+// Data comes from the radio daemon via /api/status (status + 12 h timeline). Rendering is always from state,
+// so a row expanded by its id stays expanded across the 2-second refresh.
+var TOKEN="__TOKEN__";
+var KIND={music:'song',news:'bulletin',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
+var items=[],st={state:'STOPPED'},open={},busy=false,pls=[],stg=[];
+function $(s){return document.getElementById(s)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function f(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
+function num(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n)}
+function api(path,body){return fetch(path,{method:body?'POST':'GET',headers:{'X-Radio-Token':TOKEN,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}).then(function(r){return r.json()})}
+// ---- listening: the station plays one live stream (/stream, same origin so Web Audio can read it). Pause and
+// volume are this page's own; next / skip / stop / replay are station commands for every listener.
+var hist=[],listening=false,au=null,ac=null,an=null,gn=null,fb=null,tb=null,lastT=-1,stuck=0,mtitle=null;
+function browser(){return st.output!=='speakers'}
+function lag(){if(!listening||!au||!au.buffered.length)return 0;return Math.max(0,au.buffered.end(au.buffered.length-1)-au.currentTime)}
+function connect(){au.src='/stream?'+Date.now();au.play().catch(function(){});lastT=-1;stuck=0}
+function listen(){
+  var was=listening;listening=true;
+  if(!au){au=new Audio();ac=new (window.AudioContext||window.webkitAudioContext)();
+    var src=ac.createMediaElementSource(au);an=ac.createAnalyser();an.fftSize=2048;an.smoothingTimeConstant=.6;an.maxDecibels=-10;
+    gn=ac.createGain();src.connect(an);an.connect(gn);gn.connect(ac.destination);fb=new Uint8Array(an.frequencyBinCount);tb=new Uint8Array(an.fftSize);
+    vol()}
+  if(!was)requestAnimationFrame(feed);
+  ac.resume();
+  if(!running())cmd('play').then(connect);else connect();
+  player()}
+function unlisten(){listening=false;au.pause();au.removeAttribute('src');au.load();player()}
+// a stream that stopped moving (station restarted, network hiccup) is reopened: it rejoins the live air
+function watchdog(){if(!listening||!running())return;
+  if(au.currentTime===lastT){if(++stuck>=2)connect()}else{lastT=au.currentTime;stuck=0}}
+function vol(){var v=+$('vol').value;if(gn)gn.gain.value=v;try{localStorage.setItem('vol',v)}catch(e){}}
+try{var sv=localStorage.getItem('vol');if(sv!==null)$('vol').value=sv}catch(e){}
+$('vol').oninput=vol;
+// 32 log-spaced bands, 40 Hz .. 16 kHz, 0..1 for radioViz
+function feed(){
+  if(listening&&!au.paused&&au.readyState>=3){an.getByteFrequencyData(fb);var a=[],ny=ac.sampleRate/2,n=fb.length;
+    for(var i=0;i<32;i++){var lo=Math.floor(40*Math.pow(400,i/32)/ny*n),hi=Math.max(lo+1,Math.floor(40*Math.pow(400,(i+1)/32)/ny*n)),m=0;
+      for(var j=lo;j<hi&&j<n;j++)m=Math.max(m,fb[j]);a.push(m/255)}
+    an.getByteTimeDomainData(tb);var w=[],dw=radioViz.dw();
+    for(var x=0;x<dw;x++)w.push(tb[Math.floor(x/dw*tb.length)]/255);
+    radioViz.set(a,w)}
+  if(listening)requestAnimationFrame(feed)}
+function media(ds){
+  if(!('mediaSession' in navigator))return;
+  var t=running()?(ds.current_title||''):'';if(t===mtitle)return;mtitle=t;
+  var p=t.split(' - '),music=ds.current_kind==='music'&&p.length>1;
+  navigator.mediaSession.metadata=new MediaMetadata({title:music?p.slice(1).join(' - '):t||'Personal Radio',
+    artist:music?p[0]:KIND[ds.current_kind]||'',album:'Personal Radio'})}
+if('mediaSession' in navigator){var ms=navigator.mediaSession;
+  ms.setActionHandler('play',function(){if(!listening)listen()});ms.setActionHandler('pause',function(){if(listening)unlisten()});
+  try{ms.setActionHandler('stop',function(){if(listening)unlisten()});ms.setActionHandler('nexttrack',function(){cmd('next')})}catch(e){}}
+function running(){return st.state==='PLAYING'||st.state==='PAUSED'}
+
+// The title line: text that fits stays still, a longer one scrolls to its end and back (no scrolling with reduced motion).
+function fitTitle(){
+  var box=$('ttl').parentNode,t=$('ttl');box.classList.remove('mq');
+  if(box.classList.contains('typing'))return;           // the marquee starts when the typing is done
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  var over=Math.ceil(t.getBoundingClientRect().width-box.clientWidth);
+  if(over<2)return;
+  box.style.setProperty('--mq',-over+'px');box.style.setProperty('--dur',Math.min(60,Math.max(8,over/12))+'s');
+  box.classList.add('mq')}
+/* Track change: a caret appears, the old letters are erased fast, the new text is typed fast, the caret goes
+   (at most 1230 ms for any length; titleFrame is pure and works from the elapsed time, not a timer per letter). */
+function titleFrame(oldT,newT,ms){
+  var o=Array.from(oldT),n=Array.from(newT),A=80,De=Math.min(50*o.length,450),Dt=Math.min(32*n.length,600),H=100,t;
+  if(ms>=A+De+Dt+H)return{text:newT,caret:false,done:true};
+  if(ms<A)return{text:oldT,caret:true,done:false};
+  t=ms-A;
+  if(t<De)return{text:o.slice(0,Math.round(o.length*(1-t/De))).join(''),caret:true,done:false};
+  t-=De;
+  return{text:t<Dt?n.slice(0,Math.round(n.length*t/Dt)).join(''):newT,caret:true,done:false}}
+var tfx={raf:0,shown:'',target:null,from:'',to:'',t0:0};
+function setTitle(text,instant){
+  if(text===tfx.target)return;                          // the poll repeats the same title every 250 ms
+  tfx.target=text;
+  var box=document.querySelector('.title'),el=$('ttl'),car=$('caret');
+  $('ttl-sr').textContent=text;box.title=text;           // a screen reader hears the finished title once
+  cancelAnimationFrame(tfx.raf);
+  /* no animation: first load, reduced motion, hidden tab, nothing shown yet, or messages instead of a track */
+  if(instant||matchMedia('(prefers-reduced-motion:reduce)').matches||document.hidden||!tfx.shown||text===tfx.shown){
+    el.textContent=tfx.shown=text;car.hidden=true;box.classList.remove('typing');box.scrollLeft=0;fitTitle();return}
+  tfx.from=tfx.shown;tfx.to=text;tfx.t0=performance.now();   // a change mid-animation restarts from the text on screen
+  box.classList.remove('mq');box.classList.add('typing');car.hidden=false;
+  (function step(){
+    var f=titleFrame(tfx.from,tfx.to,performance.now()-tfx.t0);
+    el.textContent=tfx.shown=f.text;
+    box.scrollLeft=box.scrollWidth;                      // a long title scrolls along with the caret
+    if(f.done){car.hidden=true;box.classList.remove('typing');box.scrollLeft=0;fitTitle();return}
+    tfx.raf=requestAnimationFrame(step)})()}
+window.addEventListener('resize',function(){if(tfx.target!==null)fitTitle()});
+var titleIsTrack=false;
+function player(){
+  var on=st.state==='PLAYING',run=running(),br=browser(),now=Date.now(),lg=lag(),
+    h=hist.filter(function(e){return e.t<=now-lg*1000}),d=(h[h.length-1]||hist[0]||{t:now,s:st});
+  var ds=d.s;
+  $('air').className=on?'':'off';$('air').textContent=on?'●':st.state==='PAUSED'?'❚❚':'○';
+  $('airtxt').textContent=st.auto_paused?'waiting for a listener':on?(br&&!listening?'on air · not listening':'on air'):st.state==='PAUSED'?'paused':st.state==='STOPPING'?'stopping':'off air';
+  var isTrack=run&&!!ds.current_title;   // only a track-to-track change is typed; messages and the first title appear at once
+  setTitle(run?(ds.current_title||'…'):'Radio is off — press '+(br?'▶ listen':'▶'),!(isTrack&&titleIsTrack));titleIsTrack=isTrack;
+  var len=ds.duration_sec||0,pos=(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-lg*1000-d.t)/1000:0);
+  if(len)pos=Math.min(pos,len);
+  media(ds);
+  $('fill').style.width=(run&&len?Math.min(100,pos/len*100):0)+'%';
+  $('time').textContent=run?(f(pos)+(len?' / '+f(len):'')):'';
+  var sp=(st.spoken_last_hour_sec||0)/60,lim=(st.speech_limit_sec||300)/60,near=sp>lim*0.8;
+  $('sp').textContent=sp.toFixed(1);$('splim').textContent=lim%1?lim.toFixed(1):lim;
+  $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=near?'var(--warn)':'var(--ok)';
+  var vok=st.voicestudio==='ok';
+  $('vd').style.background=!run?'var(--line)':!vok||near?'var(--warn)':'var(--ok)';
+  $('vs').textContent=!run?'voice: off':!vok?'voice: unavailable':near?'voice: limit near':'voice: ready';
+  if(br){$('pp').textContent=listening?'❚❚':'▶ listen';$('pp').setAttribute('aria-label',listening?'Pause':'Listen')}
+  else{$('pp').textContent=on?'❚❚':'▶';$('pp').setAttribute('aria-label',on?'Pause':'Play')}
+  $('vol').hidden=!br;
+  $('nx').disabled=$('so').disabled=!run;
+  $('sk').hidden=st.current_kind!=='news';
+  $('er').textContent=st.last_error||'';
+}
+function settingsView(){
+  var box=$('settings');if(box.contains(document.activeElement)&&document.activeElement.type==='range')return;  // not while dragging
+  var u=function(s,v){return v+(s.unit?' '+s.unit:'')};
+  box.innerHTML=stg.map(function(s){return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label><span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span></div>'
+    +'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">'
+    +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div></div>'}).join('')}
+$('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
+  var s=stg.find(function(x){return x.key===r.dataset.st});$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
+$('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
+  var s=stg.find(function(x){return x.key===r.dataset.st});s.value=+r.value;
+  api('/api/cmd',{cmd:'setting',key:s.key,value:+r.value}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView()}).catch(function(){$('er').textContent='could not save'})};
+$('stg').onclick=function(e){var b=e.target.closest('[data-rs]');if(!b)return;
+  api('/api/cmd',{cmd:'settings_reset',key:b.dataset.rs}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView()})};
+function pluginsView(){
+  var focused=document.activeElement&&document.activeElement.dataset.pl;
+  ['integrations','experiments','features'].forEach(function(section){
+    $(section==='integrations'?'integration-plugins':section).innerHTML=pls.filter(function(p){return p.section===section}).map(function(p){return '<button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'"><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.title)+'</span><span class="ds">'+esc(p.description)+'</span></button>'}).join('')});
+  if(focused){var b=document.querySelector('[data-pl="'+focused+'"]');if(b)b.focus({preventScroll:true})}}
+function togglePlugin(e){var b=e.target.closest('[data-pl]');if(!b)return;
+  var p=pls.find(function(x){return x.name===b.dataset.pl});if(!p)return;
+  p.on=!p.on;pluginsView();cmd('plugin',{name:p.name,on:p.on})};
+['integrations','experiments','features'].forEach(function(section){$(section).onclick=togglePlugin});
+var ytBusy=false,ytLoaded=false,ytMessage=false;
+$('yt-form').onsubmit=function(e){e.preventDefault();if(ytBusy)return;ytBusy=true;$('yt-connect').disabled=true;
+  ytMessage=true;
+  $('yt-state').textContent='connecting…';
+  var cookie=$('yt-cookie').value;$('yt-cookie').value='';
+  api('/api/cmd',{cmd:'ytmusic_connect',cookie:cookie,playlist:$('yt-playlist').value}).then(function(d){
+    if(!d.ok)throw Error(d.error||'Connection failed');$('yt-state').textContent=d.ytmusic.tracks+' songs connected; stop / play to use';refresh()
+  }).catch(function(e){$('yt-state').textContent=e.message}).finally(function(){ytBusy=false;$('yt-connect').disabled=false})};
+function isCur(x){return running()&&x===items.find(function(i){return i.kind!=='session'})}
+function rk(x){return 'music'}
+// queued comes from the daemon's real queue: it survives a reload, and a replay that went on air drops out
+function queued(x){return (st.replay_queue||[]).some(function(q){return q.kind===rk(x)&&q.ref===x.ref})}
+function row(x){
+  var P=x.parts||[],id=String(x.id),c=isCur(x),ex=P.some(function(p){return p.text||(p.links||[]).length}),o=ex&&!!open[id];
+  var inner='<span class="tm">'+esc(x.time)+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+KIND[x.kind]+'</span><span class="tx">'+esc(x.title)+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
+  var h='<div class="it '+x.kind+(c?' cur':'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
+  if(x.kind==='music'&&x.replayable)
+    h+=queued(x)?'<button class="rp on" data-dq="'+id+'" title="remove from the queue" aria-label="remove from the queue">queued ✕</button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
+  h+='</div>';
+  if(o){h+='<div class="ex">';
+    P.forEach(function(p,k){
+      if(P.length>1)h+='<p class="l pt">'+(k+1)+'. '+esc(p.title)+'</p>';  // one entry holds a whole break: tell the stories apart
+      if(p.text)h+='<p class="sub">'+esc(p.text)+'</p>';
+      var old=false;
+      (p.links||[]).forEach(function(ln){
+        if(!/^https?:\/\//.test(ln.url))return;
+        h+='<p><a href="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(ln.url.replace(/^https?:\/\//,''))+'</a></p>';
+        if(ln.stars_total)h+='<p class="l">★ '+esc(num(ln.stars_total))+(ln.stars_today?' (+'+esc(num(ln.stars_today))+' today)':'')+(ln.original?' · '+esc(ln.original):'')+'</p>';
+        else if(p.source==='github_trending')old=true;
+      });
+      if(old)h+='<p class="l">stars and description were not saved for older bulletins</p>'});
+    h+='</div>'}
+  return h+'</div>'}
+function timeline(){var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
+  var sc=$('tl').scrollTop;
+  $('tl').innerHTML=items.length?items.map(row).join(''):'<p class="l">nothing has aired yet</p>';
+  $('tl').scrollTop=sc;
+  if(a){var e=$('tl').querySelector('[data-id="'+a+'"]');if(e)e.focus({preventScroll:true})}}
+
+function cmd(name,extra){
+  if(busy)return Promise.resolve(null);busy=true;
+  var body={cmd:name};for(var k in extra||{})body[k]=extra[k];
+  return api('/api/cmd',body).then(function(r){if(r&&r.ok===false)$('er').textContent=r.error||'did not work';return r})
+    .catch(function(){$('er').textContent='the radio is not answering';return null})
+    .then(function(r){busy=false;refresh();return r})}
+function replay(id){
+  var x=items.find(function(i){return String(i.id)===id});if(!x)return;
+  if(!running()){$('er').textContent='start the radio first';return}
+  cmd('replay',{kind:rk(x),ref:x.ref})}
+function unqueue(id){
+  var x=items.find(function(i){return String(i.id)===id});if(x)cmd('unqueue',{kind:rk(x),ref:x.ref})}
+function refresh(){
+  return api('/api/status').then(function(d){st=d.status||{state:'STOPPED'};
+    if(d.ytmusic){
+      if(!ytLoaded&&document.activeElement!==$('yt-playlist')){$('yt-playlist').value=d.ytmusic.playlist;ytLoaded=true}
+      if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
+    }
+    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();watchdog();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];player();timeline();pluginsView();settingsView()})
+    .catch(function(){$('er').textContent='the page cannot reach the radio'})}
+
+function selectTab(b){
+  document.querySelectorAll('[data-tab]').forEach(function(t){var on=t===b;t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1;$(t.getAttribute('aria-controls')).hidden=!on})}
+$('tab-tl').parentNode.onclick=function(e){var b=e.target.closest('[data-tab]');if(b)selectTab(b)};
+$('tab-tl').parentNode.onkeydown=function(e){
+  var tabs=Array.from(this.querySelectorAll('[data-tab]')),i=tabs.indexOf(e.target);if(i<0)return;
+  if(e.key==='ArrowRight')i=(i+1)%tabs.length;else if(e.key==='ArrowLeft')i=(i+tabs.length-1)%tabs.length;
+  else if(e.key==='Home')i=0;else if(e.key==='End')i=tabs.length-1;else return;
+  e.preventDefault();selectTab(tabs[i]);tabs[i].focus()};
+$('tl').onclick=function(e){var q=e.target.closest('[data-q]');if(q){replay(q.dataset.q);return}
+  var dq=e.target.closest('[data-dq]');if(dq){unqueue(dq.dataset.dq);return}
+  var h=e.target.closest('[data-id]');if(h){open[h.dataset.id]=!open[h.dataset.id];timeline()}};
+$('pp').onclick=function(){
+  if(!browser())return cmd(st.state==='PLAYING'?'pause':st.state==='PAUSED'?'resume':'play');
+  listening?unlisten():listen()};
+$('nx').onclick=function(){cmd('next')};
+$('sk').onclick=function(){cmd('skip-news')};
+$('so').onclick=function(){cmd('stop')};
+// 2-second refresh: re-renders from state, so expanded rows (open) stay open
+setInterval(refresh,2000);
+setInterval(player,250);
+refresh();
+/* ---- visualizer: a braille strip under the title. pulse = spectrum mirrored around a centre line, scope = waveform.
+   Feed: radioViz.set(32 spectrum values 0..1, dw() waveform values 0..1). No feed (no sound): it settles into a flat
+   muted line and the loop stops. ---- */
+var radioViz=(function(){
+  var CELLS=64,DW=128,ROWS=2,DH=8,N=32,spec=new Array(N).fill(0),wave=new Array(DW).fill(.5),mode='pulse',fed=0,run=false,
+    el=$('viz'),BIT=[[1,2,4,64],[8,16,32,128]],MODES=['pulse','scope','off'],still=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  try{mode=localStorage.getItem('viz2')||'pulse'}catch(e){}
+  if(MODES.indexOf(mode)<0)mode='pulse';
+  // cells follow the box width (measured braille glyph), so the line never wraps or scrolls sideways
+  function layout(){var cw=$('ruler').getBoundingClientRect().width/20||9.6,w=el.parentNode.clientWidth,
+    c=Math.max(16,Math.min(96,Math.floor(w/cw)));if(c!==CELLS){CELLS=c;DW=c*2;wave=new Array(DW).fill(.5);draw()}}
+  function braille(g){var s='';for(var cy=0;cy<ROWS;cy++){for(var cx=0;cx<CELLS;cx++){var m=0;for(var dx=0;dx<2;dx++)for(var dy=0;dy<4;dy++)if(g[cy*4+dy][cx*2+dx])m|=BIT[dx][dy];s+=String.fromCharCode(0x2800+m)}s+='\n'}return s.slice(0,-1)}
+  function grid(){var g=[];for(var y=0;y<DH;y++)g.push(new Array(DW).fill(false));return g}
+  function band(x){var p=x/(DW-1)*(N-1),a=Math.floor(p),b=Math.min(N-1,a+1),f=p-a;return spec[a]*(1-f)+spec[b]*f}
+  function pulse(){var g=grid();for(var x=0;x<DW;x++){var h=Math.ceil(band(x)*DH/2);for(var y=0;y<DH;y++){var d=y<DH/2?DH/2-1-y:y-DH/2;if(d===0||d<h)g[y][x]=true}}return braille(g)}
+  function scope(){var g=grid(),py=null;for(var x=0;x<DW;x++){var y=Math.max(0,Math.min(DH-1,Math.round((1-wave[x])*(DH-1))));g[y][x]=true;if(py!==null){for(var k=Math.min(py,y);k<=Math.max(py,y);k++)g[k][x]=true}py=y}return braille(g)}
+  function quiet(){return spec.every(function(v){return v<.02})}
+  function draw(){el.className=quiet()?'idle':'';el.textContent=mode==='off'?'':mode==='pulse'?pulse():scope()}
+  function mark(){$('vzb').textContent=mode+' ▸'}
+  $('vzb').onclick=function(){mode=MODES[(MODES.indexOf(mode)+1)%3];try{localStorage.setItem('viz2',mode)}catch(x){}mark();draw()};
+  // runs only while there is sound or the line is still settling; stops once it is flat
+  function tick(now){var live=fed&&now-fed<=500;
+    if(!live){for(var i=0;i<N;i++)spec[i]*=.8;for(var j=0;j<DW;j++)wave[j]+=(.5-wave[j])*.2}
+    if(!live&&quiet()&&wave.every(function(v){return Math.abs(v-.5)<.01})){spec.fill(0);wave.fill(.5);draw();run=false;return}
+    draw();setTimeout(function(){requestAnimationFrame(tick)},50)}
+  window.addEventListener('resize',layout);
+  mark();layout();draw();
+  return{dw:function(){return DW},
+    set:function(a,w){if(still)return;fed=performance.now();for(var i=0;i<N;i++)spec[i]=a[i]||0;for(var j=0;j<DW;j++)wave[j]=w[j]==null?.5:w[j];
+      if(!run){run=true;requestAnimationFrame(tick)}}}})();
+</script>
+</body>
+</html>

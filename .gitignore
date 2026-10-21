@@ -1,0 +1,27 @@
+spike/
+__pycache__/
+examples/**/*.wav
+examples/*.mp3
+recordings/
+.DS_Store
+.env
+.env.*
+!.env.example
+.venv/
+config.toml
+cookies.txt
+*.sqlite
+*.sqlite3
+*.db
+.github-writing/
+
+# Local audio pack: stock, previews and unverified exports are not redistributed.
+assets/**/*.mp3
+assets/**/*.wav
+examples/**/*.mp3
+
+# Minimal audio pack for the private repository; public redistribution is unverified.
+!assets/stinger_in.wav
+!assets/bed.wav
+!assets/stinger_out.wav
+!assets/separator.wav

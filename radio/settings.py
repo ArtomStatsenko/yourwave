@@ -1,0 +1,88 @@
+"""Numbers you tune while listening (how long music plays between news, how long a news break is, the speech limit
+per hour...), set from the UI. Like plugins.json: the values live in DATA_DIR/settings.json, config.toml only gives
+the defaults, and the daemon picks a change up live, without a restart."""
+import json
+import os
+
+from . import config
+
+# key -> (section, name, title, hint, min, max, step, unit)
+SETTINGS = {
+    "music_set_minutes": ("broadcast", "music_set_minutes", "Music between breaks",
+                          "How much music plays in a row before the next news break. More — breaks come less often",
+                          5, 90, 5, "min"),
+    "max_break_speech_sec": ("broadcast", "max_break_speech_sec", "News break length",
+                             "How much speech one break holds while there are enough ready stories. More — a longer "
+                             "break", 30, 600, 10, "s"),
+    "max_spoken_seconds_per_rolling_hour": ("broadcast", "max_spoken_seconds_per_rolling_hour", "Speech limit per hour",
+                                            "How many seconds the host speaks in a rolling hour, in total. Breaks "
+                                            "wait when it is used up", 60, 900, 30, "s"),
+    "new_every_sets": ("broadcast", "new_every_sets", "New tracks: every Nth set",
+                       "Every Nth set is made of new songs. 0 — never", 0, 10, 1, ""),
+    "station_id_every_songs": ("broadcast", "station_id_every_songs", "Station IDs: every N songs",
+                               "A station ID after every N songs inside a set. 0 — none", 0, 10, 1, ""),
+    "lead_min": ("reminders", "lead_min", "Reminders: minutes ahead",
+                 "How many minutes before a calendar event or a Todoist task to remind", 1, 60, 1, "min"),
+}
+
+
+def _path():
+    return config.DATA_DIR / "settings.json"
+
+
+def _clamp(key: str, value) -> int:
+    lo, hi = SETTINGS[key][4], SETTINGS[key][5]
+    return max(lo, min(hi, int(round(float(value)))))
+
+
+def _saved() -> dict:
+    try:
+        data = json.loads(_path().read_text(encoding="utf-8"))
+        return {k: _clamp(k, v) for k, v in data.items() if k in SETTINGS}
+    except (FileNotFoundError, ValueError, TypeError):
+        return {}
+
+
+def base(cfg: dict) -> dict:
+    """The config.toml values (the defaults)."""
+    return {k: cfg[s[0]][s[1]] for k, s in SETTINGS.items()}
+
+
+def set_setting(key: str, value) -> None:
+    if key not in SETTINGS:
+        raise ValueError(f"unknown setting {key}")
+    try:
+        number = _clamp(key, value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{key}: a number is expected")
+    saved = _saved()
+    saved[key] = number
+    _write(saved)
+
+
+def reset(key: str | None = None) -> None:
+    """Back to config.toml: one setting, or all of them."""
+    saved = _saved()
+    for k in ([key] if key else list(saved)):
+        saved.pop(k, None)
+    _write(saved)
+
+
+def _write(saved: dict) -> None:
+    tmp = _path().with_suffix(".tmp")
+    tmp.write_text(json.dumps(saved, indent=1), encoding="utf-8")
+    os.replace(tmp, _path())
+
+
+def apply(cfg: dict, defaults: dict) -> None:
+    """Puts the saved values (else the defaults) into a loaded config. The daemon calls it before it decides."""
+    saved = _saved()
+    for k, s in SETTINGS.items():
+        cfg[s[0]][s[1]] = saved.get(k, defaults[k])
+
+
+def listing(cfg: dict) -> list[dict]:
+    """For the page. cfg is a freshly loaded config (the defaults)."""
+    saved, d = _saved(), base(cfg)
+    return [{"key": k, "title": s[2], "hint": s[3], "min": s[4], "max": s[5], "step": s[6], "unit": s[7],
+             "value": saved.get(k, d[k]), "default": d[k]} for k, s in SETTINGS.items()]

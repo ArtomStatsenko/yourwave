@@ -1,0 +1,17 @@
+# How Latin words are spoken: "as written" = "as said". Whole words, case-insensitive.
+# Applied only to the text sent to TTS; history and logs keep the original spelling.
+"GitHub" = "Гитхаб"
+"Claude Code" = "Клод Код"
+"Claude" = "Клод"
+"Anthropic" = "Антропик"
+"Python" = "Пайтон"
+"JavaScript" = "Джаваскрипт"
+"TypeScript" = "Тайпскрипт"
+"Trending" = "Трендинг"
+"Mae Sot" = "Мэсот"
+"Siam Rath" = "Сиам Рат"
+"สยามรัฐ" = "Сиам Рат"
+"Tak" = "Так"
+"Shwe Kokko" = "Шве Кокко"
+"Myawaddy" = "Мьявади"
+"scam compounds" = "скам-компаунды"

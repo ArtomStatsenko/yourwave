@@ -1,0 +1,22 @@
+name: Предложение
+description: Улучшение радио или новый сценарий использования
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу нужно решить?
+      description: Опишите конкретный сценарий и то, чего сейчас не хватает.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Ожидаемое поведение
+      description: Что изменится для слушателя или владельца станции?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы и контекст
+      description: Что уже пробовали? Если есть подходящий пример, добавьте ссылку.

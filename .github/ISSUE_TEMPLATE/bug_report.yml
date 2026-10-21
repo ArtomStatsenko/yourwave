@@ -1,0 +1,31 @@
+name: Ошибка
+description: Проблема с эфиром, интерфейсом или интеграцией
+body:
+  - type: markdown
+    attributes:
+      value: Не прикладывайте cookies, токены, секретные ссылки календаря, личные события или полный конфиг.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Шаги воспроизведения
+      description: Что нужно сделать, чтобы получить ошибку?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Ожидаемый и фактический результат
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Окружение
+      description: Коммит проекта, версия macOS, Python, FFmpeg и Liquidsoap; источник музыки и затронутая интеграция.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Логи и примеры
+      description: При необходимости приложите очищенный фрагмент лога, скриншот или короткий аудиопример без личных данных.

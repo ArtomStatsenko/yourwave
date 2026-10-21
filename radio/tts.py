@@ -1,0 +1,146 @@
+import hashlib
+import json
+import os
+import re
+import subprocess
+import shutil
+import socket
+import tomllib
+import urllib.request
+from pathlib import Path
+
+from . import config
+
+MAX_CHARS = 4000  # VoiceStudio limit is 4096 per request
+
+
+class VoiceStudio:
+    def __init__(self, base_url: str, voice_id: str, language: str, speed: float = 1.0, instruct: str = "",
+                 seed: int | None = None):
+        self.base_url, self.voice_id, self.language = base_url.rstrip("/"), voice_id, language
+        self.speed, self.instruct, self.seed = speed, instruct, seed
+
+    def _get(self, path: str, timeout=3):
+        with urllib.request.urlopen(self.base_url + path, timeout=timeout) as r:
+            return json.load(r)
+
+    def health(self) -> bool:
+        try:
+            return self._get("/health").get("status") == "ok"
+        except Exception:
+            return False
+
+    def voices(self) -> list[dict]:
+        return self._get("/v1/audio/voices")["voices"]
+
+    def synthesize(self, text: str, out: Path) -> None:
+        if len(text) > MAX_CHARS:
+            raise ValueError("text too long for one TTS request")
+        req_body = {"model": "tts-1", "voice": self.voice_id, "input": text, "language": self.language,
+                    "response_format": "wav", "speed": self.speed}
+        if self.instruct:
+            req_body["instruct"] = self.instruct  # voice design: the built-in voice is described, not cloned
+        if self.seed is not None:
+            req_body["seed"] = self.seed  # same seed -> same designed voice in every clip
+        body = json.dumps(req_body).encode()
+        req = urllib.request.Request(self.base_url + "/v1/audio/speech", body, {"Content-Type": "application/json"})
+        tmp = out.with_suffix(".tmp.wav")
+        with urllib.request.urlopen(req, timeout=600) as r:
+            tmp.write_bytes(r.read())
+        os.replace(tmp, out)
+
+    def cache_key(self, text: str) -> str:
+        key = f"voicestudio|{self.voice_id}|{self.language}|{self.speed}|{self.instruct}|{self.seed}|{text}"
+        return hashlib.sha256(key.encode()).hexdigest()[:32]
+
+
+def start_backend(project: str, port: int, log) -> subprocess.Popen:
+    """Starts the VoiceStudio voice server by itself, as the app would, but without the app: no window, no Dock
+    icon. Same server, same voice: a clip made this way is identical to one made through the app (measured:
+    same length and loudness). The app's own analytics stay off (it is off by default, this also kills it)."""
+    root = Path(project).expanduser()
+    python = root / ".venv/bin/python"
+    if not python.exists() or not (root / "backend/main.py").exists():
+        raise FileNotFoundError(f"no VoiceStudio server in {root}")
+    env = dict(os.environ, OMNIVOICE_PORT=str(port), OMNIVOICE_ANALYTICS_DISABLED="1",
+               PYTHONDONTWRITEBYTECODE="1", PYTHONUNBUFFERED="1")
+    for name, tool in (("FFMPEG_PATH", "ffmpeg"), ("FFPROBE_PATH", "ffprobe"), ("OMNIVOICE_FFPROBE_PATH", "ffprobe")):
+        if found := shutil.which(tool):
+            env[name] = found
+    return subprocess.Popen([str(python), "-m", "uvicorn", "main:app", "--app-dir", str(root / "backend"),
+                             "--host", "127.0.0.1", "--port", str(port)], cwd="/", env=env, stdout=log,
+                            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+
+
+def port_open(port: int) -> bool:
+    with socket.socket() as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+class MockTTS:
+    """Test stand-in: a tone as long as the text would take to speak, with a speech-like spectrum
+    so it passes audio.speech_problem."""
+    voice_id = "mock"
+
+    def __init__(self, chars_per_sec=14.0):
+        self.cps = chars_per_sec
+
+    def health(self) -> bool:
+        return True
+
+    def voices(self) -> list[dict]:
+        return [{"voice_id": "mock"}]
+
+    def synthesize(self, text: str, out: Path) -> None:
+        d = max(1.0, len(text) / self.cps)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                        f"aevalsrc=0.1*sin(2*PI*1200*t)+0.1*sin(2*PI*2400*t)+0.1*sin(2*PI*3300*t):s=24000:d={d}", "-ar", "24000", "-ac", "1", str(out)], check=True)
+
+    def cache_key(self, text: str) -> str:
+        return hashlib.sha256(f"mock|{text}".encode()).hexdigest()[:32]
+
+
+def pronounce(text: str) -> str:
+    """Replaces Latin words the Russian voice reads letter by letter ("GitHub" -> "Гит хуб") with their spoken form.
+    Longer entries first, so "Claude Code" wins over "Claude"."""
+    f = config.ASSETS_DIR / "pronunciation.toml"
+    words = tomllib.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    for k in sorted(words, key=len, reverse=True):
+        text = re.sub(rf"(?<![\w-]){re.escape(k)}(?![\w-])", words[k], text, flags=re.I)
+    return text
+
+
+def cached_synthesize(tts, text: str, check=None) -> Path:
+    """TTS with a cache keyed by the text. `check(path) -> error|None` rejects broken audio: with a fixed seed the
+    engine is deterministic, so a text that came out as noise is retried with other punctuation (same words, same
+    voice), then with neighbouring seeds. The first good take is cached under the original text."""
+    text = pronounce(text)
+    out = config.DATA_DIR / "cache/tts" / f"{tts.cache_key(text)}.wav"
+    if out.exists():
+        out.touch()  # reused clips (topic names) stay out of the 48 h cache cleanup
+        return out
+    if check is None:
+        tts.synthesize(text, out)
+        return out
+    takes = [(text, None), (text.replace(", ", " — "), None), (text.rstrip(".!?…") + "…", None)]
+    if getattr(tts, "seed", None) is not None:
+        takes += [(text, tts.seed + d) for d in (2, 5)]
+    tmp, errors = out.with_suffix(".take.wav"), []
+    seed0 = getattr(tts, "seed", None)
+    try:
+        for variant, seed in dict.fromkeys(takes):
+            if seed is not None:
+                tts.seed = seed
+            tts.synthesize(variant, tmp)
+            if seed is not None:
+                tts.seed = seed0
+            if not (err := check(tmp)):
+                os.replace(tmp, out)
+                return out
+            errors.append(err)
+    finally:
+        tmp.unlink(missing_ok=True)
+        if seed0 is not None:
+            tts.seed = seed0
+    raise RuntimeError(f"TTS audio invalid after {len(errors)} takes: {errors[-1]}")
