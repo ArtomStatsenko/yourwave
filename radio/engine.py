@@ -20,14 +20,29 @@ class Liquidsoap:
         self.sock = config.RUN_DIR / "liq.sock"
         self.proc: asyncio.subprocess.Process | None = None
 
-    async def start(self, on_event) -> None:
+    async def start(self, on_event, resume: str = "") -> None:
+        """resume: a playlist line to air first (with liq_cue_in for the position): the output starts paused
+        until it is loaded, so the shuffle cannot take the first slot. Not loaded in 30 s: the shuffle starts."""
+        await self._start(on_event, resume)
+        if not resume:
+            return
+        rid = (await self.command(f"news.push {resume}")).strip()
+        for _ in range(300):
+            if await self.command("news.ready") == "true":
+                break
+            await asyncio.sleep(.1)
+        else:
+            await self.remove(rid)
+        await self.command("resume")
+
+    async def _start(self, on_event, paused: str) -> None:
         self.sock.unlink(missing_ok=True)
         events = config.RUN_DIR / "events.jsonl"
         events.write_text("")
         env = dict(os.environ, RADIO_EVENTS=str(events), RADIO_M3U=str(self.m3u), RADIO_LIQ_SOCK=str(self.sock), RADIO_XFADE=str(self.xfade),
                    RADIO_LIQ_LOG=str(config.DATA_DIR / "logs/liquidsoap.log"), RADIO_OUTPUT=self.output,
                    RADIO_SINK_CMD=self.sink_command(), RADIO_DATA_DIR=str(config.DATA_DIR),
-                   RADIO_FALLBACK_M3U=str(self.fallback_m3u or ""),
+                   RADIO_FALLBACK_M3U=str(self.fallback_m3u or ""), RADIO_START_PAUSED="1" if paused else "",
                    RADIO_YTMUSIC_COUNT=str(len(ytmusic.library()["tracks"])) if self.m3u.name == "ytmusic.m3u" else "0",
                    RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]))
         self.proc = await asyncio.create_subprocess_exec(

@@ -1190,6 +1190,9 @@ class MusicTests(unittest.TestCase):
 
 
 class EndToEnd(unittest.TestCase):
+    def setUp(self):
+        (config.RUN_DIR / "session.json").unlink(missing_ok=True)  # each run starts fresh, not resumed
+
     @classmethod
     def setUpClass(cls):
         music = TMP / "music"

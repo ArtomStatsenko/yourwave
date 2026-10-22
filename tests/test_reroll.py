@@ -181,6 +181,76 @@ class RerollTests(unittest.TestCase):
         self.assertGreater(power(refs[following]), power(refs[current]) * 10,
                            'The old song is still audible 350 ms after manual skip')
 
+    def test_restart_within_minutes_continues_session_set_and_song(self):
+        self.svc.set_started, self.svc.songs_since_break = 900, 3
+        self.svc.current['started'] = 940
+        session = self.svc.session
+        self.svc._save_session()
+        with patch('radio.daemon.time.time', return_value=1060):
+            restarted = Service(self.cfg, tts=MockTTS(), output='x')
+            self.addCleanup(restarted.db.close)
+            restarted.engine = self.svc.engine
+            self.assertTrue(restarted._restore_session())
+            self.assertEqual(restarted.session, session)
+            self.assertEqual(restarted.set_started, 960)                    # the set keeps its 100 s
+            self.assertEqual(restarted.songs_since_break, 2)                # the song counts again when it airs
+            self.assertIn('liq_cue_in="60.00",', restarted._resume_line())
+            self.assertIn('ref="/tmp/current.wav"', restarted._resume_line())
+            restarted.on_event({'kind': 'music', 'ref': '/tmp/current.wav'})
+        self.assertEqual(restarted.current['started'], 1000)
+        self.assertEqual(restarted.set_started, 960)
+        self.assertFalse(restarted.resume_offset)
+
+    def test_late_restart_starts_a_new_session(self):
+        session = self.svc.session
+        self.svc._save_session()
+        with patch('radio.daemon.time.time', return_value=1000 + 301):
+            restarted = Service(self.cfg, tts=MockTTS(), output='x')
+            self.addCleanup(restarted.db.close)
+            self.assertFalse(restarted._restore_session())
+        self.assertNotEqual(restarted.session, session)
+        self.assertFalse((config.RUN_DIR / 'session.json').exists())
+
+    def test_engine_resumes_a_song_at_its_position_before_the_shuffle(self):
+        import math
+        from array import array
+        def tone(frequency, seconds):
+            return array('h', (v for i in range(44100 * seconds)
+                               for v in (int(4000 * math.sin(2 * math.pi * frequency * i / 44100)),) * 2)).tobytes()
+        song, other = config.DATA_DIR / 'song.wav', config.DATA_DIR / 'other.wav'
+        for path, frames in ((song, tone(440, 10) + tone(880, 10)), (other, tone(1320, 20))):
+            with wave.open(str(path), 'wb') as out:
+                out.setnchannels(2)
+                out.setsampwidth(2)
+                out.setframerate(44100)
+                out.writeframes(frames)
+        m3u = config.RUN_DIR / 'resume.m3u'
+        m3u.write_text(f'annotate:kind="music",ref="{other}":{other}\n')
+        out = config.DATA_DIR / 'resume-output.wav'
+        engine = Liquidsoap(m3u, .1, str(out))
+        events = []
+        async def scenario():
+            await engine.start(events.append, f'annotate:kind="music",ref="{song}",liq_cue_in="12":{song}')
+            try:
+                deadline = time.monotonic() + 10
+                while not events and time.monotonic() < deadline:
+                    await asyncio.sleep(.05)
+                await asyncio.sleep(.5)
+            finally:
+                await engine.stop()
+        self.clock.stop()
+        asyncio.run(scenario())
+        self.assertEqual(events[0]['ref'], str(song))
+        with wave.open(str(out), 'rb') as recording:
+            samples = array('h', recording.readframes(recording.getnframes()))[::2]
+        start = next(i for i, v in enumerate(samples) if abs(v) > 500)
+        window = samples[start + 4410:start + 8820]
+        def power(frequency):
+            return abs(sum(v * complex(math.cos(2 * math.pi * frequency * i / 44100),
+                                       math.sin(2 * math.pi * frequency * i / 44100)) for i, v in enumerate(window)))
+        self.assertGreater(power(880), power(440) * 10, 'The song did not resume at 12 s')
+        self.assertGreater(power(880), power(1320) * 10, 'The shuffle took the first slot')
+
     def test_engine_replaces_prefetch_and_queued_replay_without_skipping_current(self):
         m3u = config.RUN_DIR / 'test.m3u'
         files = []

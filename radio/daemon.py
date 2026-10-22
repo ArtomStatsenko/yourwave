@@ -25,6 +25,8 @@ VOICE_LEAD_SEC = 5 * 60
 LATE_ASSEMBLY_SEC = 60  # a news break (time check, next song) is assembled when the song has this much left
 REMIND_LATE_SEC = 40    # optional host inserts wait; timed reminders need enough time for synthesis
 BREAK_SEP = "|"         # a break airs several packages as one request: ref = their ids joined
+RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
+RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
 
 
 def log(*a):
@@ -79,6 +81,7 @@ class Service:
         self.id_pending = False
         self.queued_break = None
         self.all_sources_checked = False  # set only after a *successful* check of every enabled source
+        self.resume_offset: dict[str, float] = {}  # ref -> seconds already played, for the song resumed at start
 
     # ---- lifecycle ----
     async def run(self) -> None:
@@ -116,10 +119,11 @@ class Service:
             raise SystemExit(f"NO_MUSIC: no playable files in {m['path']}")
         self.engine = Liquidsoap(m3u, m["crossfade_sec"], self.output, os.environ.get("RADIO_RECORD", ""),
                                  self.cfg["output"], fallback_m3u=fallback_m3u)
-        await self.engine.start(self.on_event)
+        resumed = self._restore_session()
+        await self.engine.start(self.on_event, self._resume_line())
         self.state = "PLAYING"
         store.log_event(self.db, self.session, "SESSION_STARTED")
-        log("session", self.session, "started,", len(files), "tracks")
+        log("session", self.session, "resumed," if resumed else "started,", len(files), "tracks")
         threading.Thread(target=music.measure_missing, args=(store.connect(), files, self.stop_measure),
                          daemon=True).start()
         config.SOCK.unlink(missing_ok=True)
@@ -142,6 +146,7 @@ class Service:
         if self.stopping:
             return
         self.stopping = True
+        self._save_session()
         await self._stop_voice()
         self.stop_measure.set()
         await self.engine.stop()
@@ -150,6 +155,44 @@ class Service:
         store.log_event(self.db, self.session, "SESSION_STOPPED")
         log("session stopped")
         self.done.set()
+
+    def _save_session(self) -> None:
+        at = self.paused_at if self.state == "PAUSED" else time.time()
+        cur, songs, count = self.current, self.set_songs, self.songs_since_break
+        song = None
+        if cur and cur["kind"] == "music" and cur.get("duration") and at - cur["started"] < cur["duration"] - RESUME_TAIL_SEC:
+            song = {"ref": cur["ref"], "position": at - cur["started"]}
+            count = max(0, count - 1)  # the resumed song counts again when it airs
+            if songs and songs[-1] == music.song(self.db, cur["ref"]):
+                songs = songs[:-1]
+        (config.RUN_DIR / "session.json").write_text(json.dumps({
+            "session": self.session, "stopped_at": time.time(), "song": song, "songs_since_break": count,
+            "set_songs": songs, "set_elapsed": at - self.set_started if self.set_started else None}))
+
+    def _restore_session(self) -> bool:
+        path = config.RUN_DIR / "session.json"
+        try:
+            saved = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return False
+        finally:
+            path.unlink(missing_ok=True)
+        if time.time() - saved["stopped_at"] > RESUME_WITHIN_SEC:
+            return False
+        self.session, self.songs_since_break = saved["session"], saved["songs_since_break"]
+        self.set_songs = [tuple(s) for s in saved["set_songs"]]
+        if saved["set_elapsed"] is not None:
+            self.set_started = time.time() - saved["set_elapsed"]
+        if saved["song"]:
+            self.resume_offset = {saved["song"]["ref"]: saved["song"]["position"]}
+        return True
+
+    def _resume_line(self) -> str:
+        """The resumed song's playlist line (its gain and windows), starting at its position."""
+        for ref, position in self.resume_offset.items():
+            line = self.engine.music_choices(ref).get(ref, "")
+            return line.replace("annotate:", f'annotate:liq_cue_in="{position:.2f}",', 1) if line else ""
+        return ""
 
     async def _pause(self) -> None:
         await self.engine.command("pause")
@@ -245,8 +288,10 @@ class Service:
         self.replays.pop(m.get("replay_id") or "", None)  # on air now: no longer queued
         self.fresh_queued.pop(m.get("ref") or "", None)
         self.next_track = ""
+        played = self.resume_offset.pop(m.get("ref") or "", 0.0)
+        self.resume_offset.clear()  # only the first track can be the resumed song
         self.current = {"kind": m.get("kind") or "music", "ref": m.get("ref") or m.get("filename", ""),
-                        "started": time.time(), "transition_sec": self.next_transition_sec
+                        "started": time.time() - played, "transition_sec": self.next_transition_sec
                         if self.next_transition_sec is not None else self.cfg['music']['crossfade_sec']}
         self.next_transition_sec = None
         if self.current["kind"] == "news":

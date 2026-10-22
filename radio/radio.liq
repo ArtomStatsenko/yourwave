@@ -164,7 +164,7 @@ radio = limit(threshold=-1.5, radio)  # gentle; the ffmpeg sink's alimiter is th
 
 # Pause = the output keeps running on silence; the radio source is not pulled meanwhile, so it stays in place.
 # (Stopping the output would end the ffmpeg sink process and restart the recording file.)
-paused = ref(false)
+paused = ref(environment.get(default="", "RADIO_START_PAUSED") == "1")  # a resumed song is queued first
 program = radio
 radio = switch(track_sensitive=false, [({paused()}, blank()), ({true}, radio)])
 server.register("pause", fun (_) -> begin paused := true; "OK" end)
