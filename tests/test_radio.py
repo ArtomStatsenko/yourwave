@@ -835,6 +835,37 @@ class SchedulingTests(unittest.TestCase):
             svc.current = {"kind": kind, "ref": "x", "started": time.time()}
             self.assertEqual(svc.status()["current_title"], title)           # status must not fail on these
 
+    def test_stop_ends_a_horizon_run_in_flight(self):
+        import threading
+        from unittest.mock import patch
+        from radio import horizon
+        h = horizon.folder(self.cfg)
+        (h / "data").mkdir(parents=True, exist_ok=True)
+        (h / "data/config.json").write_text("{}")
+        bin_dir = TMP / "fake-uv"
+        bin_dir.mkdir(exist_ok=True)
+        (bin_dir / "uv").write_text("#!/bin/sh\nsleep 30\n")          # a child process, as uv starts horizon
+        (bin_dir / "uv").chmod(0o755)
+        errors = []
+        def run():
+            try:
+                horizon.run(self.cfg)
+            except Exception as e:
+                errors.append(e)
+        with patch.object(horizon, "_proxy", object()), \
+             patch.dict(os.environ, {"PATH": f"{bin_dir}:{os.environ['PATH']}"}):
+            worker = threading.Thread(target=run)
+            worker.start()
+            while horizon._running is None:
+                time.sleep(.05)
+            started = time.monotonic()
+            horizon.stop()
+            worker.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertLess(time.monotonic() - started, 3)
+        self.assertIsInstance(errors[0], RuntimeError)
+        self.assertIsNone(horizon._running)
+
     def test_voicestudio_server_started_and_stopped_with_the_radio(self):
         from radio import plugins
         from radio import tts as tts_mod

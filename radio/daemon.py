@@ -147,6 +147,7 @@ class Service:
             return
         self.stopping = True
         self._save_session()
+        horizon.stop()
         await self._stop_voice()
         self.stop_measure.set()
         await self.engine.stop()

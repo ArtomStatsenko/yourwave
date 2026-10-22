@@ -2,7 +2,9 @@
 English Markdown briefing it writes. Horizon does the picking and ranking; the radio retells and voices."""
 import hashlib
 import html
+import os
 import re
+import signal
 import subprocess
 from pathlib import Path
 
@@ -10,6 +12,17 @@ from . import config, ollama_proxy
 
 PROXY_PORT = 11435  # Horizon's data/config.json points ai.base_url here (see ollama_proxy)
 _proxy = None
+_running: subprocess.Popen | None = None
+
+
+def stop() -> None:
+    """Ends a run in flight with uv's children (own process group), so a stopping radio exits at once
+    instead of waiting up to the run's timeout and holding PROXY_PORT."""
+    if (proc := _running) and proc.poll() is None:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
 
 
 def folder(cfg: dict) -> Path:
@@ -24,10 +37,20 @@ def run(cfg: dict, timeout: int = 1800) -> Path:
     h = folder(cfg)
     if not (h / "data/config.json").exists():
         raise RuntimeError(f"Horizon is not set up in {h}")
-    r = subprocess.run(["uv", "run", "horizon", "--hours", str(cfg["sources"]["horizon"]["hours"])],
-                       cwd=h, capture_output=True, text=True, timeout=timeout)
-    if r.returncode:
-        raise RuntimeError(f"horizon exited {r.returncode}: {(r.stderr or r.stdout)[-300:]}")
+    global _running
+    proc = _running = subprocess.Popen(["uv", "run", "horizon", "--hours", str(cfg["sources"]["horizon"]["hours"])],
+                                       cwd=h, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                       start_new_session=True)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        stop()
+        proc.communicate()
+        raise
+    finally:
+        _running = None
+    if proc.returncode:
+        raise RuntimeError(f"horizon exited {proc.returncode}: {(err or out)[-300:]}")
     lang = cfg["sources"]["horizon"]["language"]  # must match ai.languages in Horizon's data/config.json
     briefings = sorted((h / "data/summaries").glob(f"horizon-*-{lang}.md"), key=lambda p: p.stat().st_mtime)
     if not briefings:
