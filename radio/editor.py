@@ -9,7 +9,7 @@ import threading
 import time
 import urllib.request
 
-from . import config, openrouter
+from . import chatgpt, config, openrouter
 
 PROMPT_VERSION = 4
 PROMPT = """Ты ведущий на радио. Расскажи слушателю по-русски, простыми словами, про проект с GitHub:
@@ -51,7 +51,8 @@ def target(cfg: dict) -> dict:
     e = cfg["editor"]
     if e["provider"] == "openai":
         root, model = e["openai_base_url"], e["openai_model"]
-        key = e["openai_api_key"] or os.environ.get("OPENAI_API_KEY", "")
+        # Sign in with ChatGPT wins over a key: its token is an OpenAI key for the Responses API, on the plan
+        key = chatgpt.token() or e["openai_api_key"] or os.environ.get("OPENAI_API_KEY", "")
     elif e["provider"] == "openrouter":
         root, model, key = "https://openrouter.ai/api", e["openrouter_model"], openrouter.key()
     elif e["provider"] == "ollama":
@@ -123,23 +124,38 @@ class Editor:
         if self.calls >= self.max_calls:
             return None
         self.calls += 1
+        if t["provider"] == "openai":
+            return self._finish(cached, name, output_text(self._post(t, "/v1/responses", {
+                "model": t["model"], "input": prompt, "max_output_tokens": 300})))
         body = {"model": t["model"], "messages": [{"role": "user", "content": prompt}], "temperature": 0}
         if t["provider"] == "ollama":
             body.update(max_tokens=200, reasoning_effort="none")  # no "thinking": it eats the token budget
-        elif t["provider"] == "openai":
-            body["max_completion_tokens"] = 200
         else:
             body["max_tokens"] = 200
+        answer = self._post(t, "/v1/chat/completions", body)
+        return self._finish(cached, name, answer["choices"][0]["message"].get("content") or "")
+
+    @staticmethod
+    def _post(t: dict, path: str, body: dict) -> dict:
         headers = {"Content-Type": "application/json"}
         if t["key"]:
             headers["Authorization"] = "Bearer " + t["key"]
-        req = urllib.request.Request(t["root"] + "/v1/chat/completions", json.dumps(body).encode(), headers)
+        req = urllib.request.Request(t["root"] + path, json.dumps(body).encode(), headers)
         with urllib.request.urlopen(req, timeout=180) as r:
-            raw = json.load(r)["choices"][0]["message"].get("content") or ""
-            text = check(fix_name(raw, name) if name else raw)
+            return json.load(r)
+
+    @staticmethod
+    def _finish(cached, name: str, raw: str) -> str | None:
+        text = check(fix_name(raw, name) if name else raw)
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(text or "", encoding="utf-8")  # an empty file caches a SKIP: no second call
         return text
+
+
+def output_text(response: dict) -> str:
+    """The text of a Responses API answer (its message items' output_text parts)."""
+    return "".join(c.get("text", "") for item in response.get("output", []) if item.get("type") == "message"
+                   for c in item.get("content", []) if c.get("type") == "output_text")
 
 
 def fix_name(text: str, name: str) -> str:

@@ -1278,13 +1278,13 @@ class LlmProviderTests(unittest.TestCase):
 
         def fake_open(req, timeout):
             seen.append((req.full_url, req.headers.get("Authorization"), json.loads(req.data)))
-            return io.BytesIO(json.dumps({"choices": [{"message": {"content": "Проект помогает быстро писать код."}}]}).encode())
+            return io.BytesIO(json.dumps({"output": [{"type": "message", "content": [
+                {"type": "output_text", "text": "Проект помогает быстро писать код."}]}]}).encode())
         with patch.object(urllib.request, "urlopen", fake_open):
             self.assertEqual(editor.Editor(cfg)._ask("prompt"), "Проект помогает быстро писать код.")
         url, auth, body = seen[0]
-        self.assertEqual((url, auth), ("http://upstream.test/v1/chat/completions", "Bearer sk-test"))
-        self.assertEqual((body["model"], body["max_completion_tokens"]), ("gpt-4.1-mini", 200))
-        self.assertNotIn("reasoning_effort", body)
+        self.assertEqual((url, auth), ("http://upstream.test/v1/responses", "Bearer sk-test"))
+        self.assertEqual((body["model"], body["input"], body["max_output_tokens"]), ("gpt-4.1-mini", "prompt", 300))
 
         got = []
 
@@ -1294,21 +1294,65 @@ class LlmProviderTests(unittest.TestCase):
 
             def do_POST(self):
                 got.append((self.path, self.headers.get("Authorization"), json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
+                out = json.dumps({"id": "r1", "status": "completed", "output": [{"type": "message", "content": [
+                    {"type": "output_text", "text": '{"ok": 1}'}]}], "usage": {"input_tokens": 5, "output_tokens": 2}}).encode()
                 self.send_response(200)
-                self.send_header("Content-Length", "2")
+                self.send_header("Content-Length", str(len(out)))
                 self.end_headers()
-                self.wfile.write(b"{}")
+                self.wfile.write(out)
         up = HTTPServer(("127.0.0.1", 0), Upstream)
         threading.Thread(target=up.serve_forever, daemon=True).start()
         cfg["editor"]["openai_base_url"] = f"http://127.0.0.1:{up.server_port}/v1"
         proxy = ollama_proxy.start(0, lambda: editor.target(cfg))
+        chat = {"model": "qwen3.5:4b", "messages": [{"role": "user", "content": "json please"}], "max_tokens": 50,
+                "response_format": {"type": "json_object"}}
         try:
-            urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{proxy.server_port}/v1/chat/completions",
-                                                          json.dumps({"model": "qwen3.5:4b"}).encode(), {"Content-Type": "application/json"}))
+            with urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{proxy.server_port}/v1/chat/completions",
+                                                               json.dumps(chat).encode(), {"Content-Type": "application/json"})) as r:
+                answer = json.load(r)
         finally:
             proxy.shutdown()
             up.shutdown()
-        self.assertEqual(got, [("/v1/chat/completions", "Bearer sk-test", {"model": "gpt-4.1-mini"})])
+        self.assertEqual(got, [("/v1/responses", "Bearer sk-test", {"model": "gpt-4.1-mini", "input": chat["messages"],
+                                "max_output_tokens": 50, "text": {"format": {"type": "json_object"}}})])
+        self.assertEqual((answer["choices"][0]["message"]["content"], answer["usage"]["completion_tokens"]), ('{"ok": 1}', 2))
+
+    def test_sign_in_with_chatgpt(self):
+        import io
+        import urllib.parse
+        import urllib.request
+        from unittest.mock import patch
+        from radio import chatgpt, editor
+        url = urllib.parse.urlparse(chatgpt.login_url("http://127.0.0.1:8765/auth/callback"))
+        q = {k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
+        self.assertEqual((q["client_id"], q["redirect_uri"], q["code_challenge_method"]),
+                         ("dynamic_agent_client", "http://127.0.0.1:8765/auth/callback", "S256"))
+        self.assertIn("chatgpt.tokens.use.direct", q["scope"])
+        self.assertTrue(q["ext_agent_host_id"].startswith("urn:uuid:"))
+        forms = []
+
+        def fake_open(req, timeout):
+            forms.append(dict(urllib.parse.parse_qsl(req.data.decode())))
+            n = len(forms)
+            return io.BytesIO(json.dumps({"access_token": f"at{n}", "refresh_token": f"rt{n}", "expires_in": 3600 if n == 1 else 7200,
+                                          "scope": "openid offline_access chatgpt.tokens.use.direct", "id_token": "x"}).encode())
+        with patch.object(urllib.request, "urlopen", fake_open):
+            with self.assertRaises(ValueError):
+                chatgpt.finish("forged", "code", "client-1")
+            chatgpt.finish(q["state"], "code", "client-1")
+            self.assertEqual((forms[0]["grant_type"], forms[0]["client_id"], forms[0]["resource"]),
+                             ("authorization_code", "client-1", "https://api.openai.com/v1"))
+            cfg = config.load()
+            cfg["editor"]["provider"] = "openai"
+            self.assertEqual(editor.target(cfg)["key"], "at1")  # the sign-in wins over an API key
+            data = json.loads((config.DATA_DIR / "chatgpt.json").read_text())
+            data["expires"] = 0
+            (config.DATA_DIR / "chatgpt.json").write_text(json.dumps(data))
+            self.assertEqual(chatgpt.token(), "at2")  # refreshed
+            self.assertEqual((forms[1]["grant_type"], forms[1]["refresh_token"]), ("refresh_token", "rt1"))
+        self.assertEqual((config.DATA_DIR / "chatgpt.json").stat().st_mode & 0o777, 0o600)
+        chatgpt.sign_out()
+        self.assertFalse(chatgpt.signed_in())
 
 
 class SignInTests(unittest.TestCase):

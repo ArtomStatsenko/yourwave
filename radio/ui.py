@@ -12,7 +12,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import config, openrouter, plugins, settings, ytmusic
+from . import chatgpt, config, openrouter, plugins, settings, ytmusic
 from .timeline import timeline
 
 PAGE = Path(__file__).with_name("ui.html")
@@ -100,15 +100,22 @@ def serve(port: int) -> None:
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
-            elif self.path.split("?")[0] == "/openrouter/callback":
-                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            elif self.path.split("?")[0] in ("/openrouter/callback", "/auth/callback"):
+                q = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
+                service = "OpenRouter" if self.path.startswith("/openrouter/") else "ChatGPT"
                 try:
-                    openrouter.finish(q.get("state", [""])[0], q.get("code", [""])[0])
-                    kind, note, detail = "", "Signed in to OpenRouter.", "You can close this tab, or go back to the radio."
+                    if q.get("error"):
+                        raise ValueError(f"{service} said: {q['error'][:100]}")
+                    if service == "OpenRouter":
+                        openrouter.finish(q.get("state", ""), q.get("code", ""))
+                    else:
+                        chatgpt.finish(q.get("state", ""), q.get("code", ""), q.get("client_id", ""))
+                    kind, note, detail = "", f"Signed in to {service}.", "You can close this tab, or go back to the radio."
                 except (ValueError, OSError) as e:
-                    kind, note = "fail", "OpenRouter sign-in failed."
-                    detail = str(e) if isinstance(e, ValueError) else "OpenRouter did not answer; try again."
+                    kind, note = "fail", f"{service} sign-in failed."
+                    detail = str(e) if isinstance(e, ValueError) else f"{service} did not answer; try again."
                 body = (CALLBACK.read_text(encoding="utf-8").replace("__CLASS__", kind)
+                        .replace("__SERVICE__", service.upper())
                         .replace("__NOTE__", html.escape(note)).replace("__DETAIL__", html.escape(detail))).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -175,6 +182,11 @@ def serve(port: int) -> None:
                 resp = {"ok": True, "ytmusic": result}
             elif cmd == "openrouter_login":
                 resp = {"ok": True, "url": openrouter.login_url(f"http://127.0.0.1:{port}/openrouter/callback")}
+            elif cmd == "chatgpt_login":  # OpenAI accepts only a 127.0.0.1 callback; the port may vary
+                resp = {"ok": True, "url": chatgpt.login_url(f"http://127.0.0.1:{port}/auth/callback")}
+            elif cmd == "chatgpt_logout":
+                chatgpt.sign_out()
+                resp = {"ok": True, "settings": settings.listing(cfg)}
             elif cmd == "openrouter_logout":
                 openrouter.sign_out()
                 resp = {"ok": True, "settings": settings.listing(cfg)}

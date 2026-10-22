@@ -9,6 +9,33 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
+def to_responses_request(chat: dict) -> dict:
+    """A chat.completions request (Horizon's: messages, max tokens, temperature, json_object) as a Responses one."""
+    body = {"model": chat["model"], "input": chat.get("messages", [])}
+    tokens = chat.get("max_completion_tokens") or chat.get("max_tokens")
+    if tokens:
+        body["max_output_tokens"] = tokens
+    if "temperature" in chat:
+        body["temperature"] = chat["temperature"]
+    fmt = chat.get("response_format") or {}
+    if fmt.get("type") == "json_object":
+        body["text"] = {"format": {"type": "json_object"}}
+    elif fmt.get("type") == "json_schema":
+        body["text"] = {"format": {"type": "json_schema", **fmt.get("json_schema", {})}}
+    return body
+
+
+def to_chat_response(resp: dict) -> dict:
+    from .editor import output_text
+    usage = resp.get("usage") or {}
+    return {"id": resp.get("id", ""), "object": "chat.completion", "created": resp.get("created_at", 0),
+            "model": resp.get("model", ""),
+            "choices": [{"index": 0, "finish_reason": "length" if resp.get("status") == "incomplete" else "stop",
+                         "message": {"role": "assistant", "content": output_text(resp)}}],
+            "usage": {"prompt_tokens": usage.get("input_tokens", 0), "completion_tokens": usage.get("output_tokens", 0),
+                      "total_tokens": usage.get("total_tokens", 0)}}
+
+
 def start(port: int, get_target) -> ThreadingHTTPServer:
     """get_target() -> editor.target(cfg), asked per request so a provider switch is live."""
     class Handler(BaseHTTPRequestHandler):
@@ -17,22 +44,27 @@ def start(port: int, get_target) -> ThreadingHTTPServer:
 
         def _forward(self, body: bytes | None):
             t = get_target()
+            path, to_responses = self.path, False
             if body and self.path.endswith("/chat/completions"):
                 try:
                     data = json.loads(body)
                     data["model"] = t["model"]  # Horizon's config.json names an Ollama model
                     if t["provider"] == "ollama":
                         data.setdefault("reasoning_effort", "none")
+                    if t["provider"] == "openai":  # a ChatGPT sign-in token only reaches the Responses API
+                        data, path, to_responses = to_responses_request(data), "/v1/responses", True
                     body = json.dumps(data).encode()
                 except ValueError:
                     pass
             headers = {"Content-Type": self.headers.get("Content-Type", "application/json")}
             if t["key"]:
                 headers["Authorization"] = "Bearer " + t["key"]
-            req = urllib.request.Request(t["root"] + self.path, data=body, method=self.command, headers=headers)
+            req = urllib.request.Request(t["root"] + path, data=body, method=self.command, headers=headers)
             try:
                 with urllib.request.urlopen(req, timeout=600) as r:
                     status, ctype, out = r.status, r.headers.get("Content-Type", "application/json"), r.read()
+                if to_responses:
+                    out = json.dumps(to_chat_response(json.loads(out))).encode()
             except urllib.error.HTTPError as e:
                 status, ctype, out = e.code, e.headers.get("Content-Type", "application/json"), e.read()
             self.send_response(status)

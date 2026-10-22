@@ -4,7 +4,7 @@ the defaults, and the daemon picks a change up live, without a restart."""
 import json
 import os
 
-from . import config, editor, openrouter
+from . import chatgpt, config, editor, openrouter
 
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
@@ -14,7 +14,7 @@ SETTINGS = {
                      "Who retells news, repositories and calendar days", 1, 20, None, ""),
     # one model row per provider; the page shows the selected provider's
     "ollama_model": ("editor", "model", "Model", "A local Ollama model", 1, 200, None, ""),
-    "openai_model": ("editor", "openai_model", "Model", "An OpenAI model. The API key is in config.toml", 1, 200, None, ""),
+    "openai_model": ("editor", "openai_model", "Model", "An OpenAI model", 1, 200, None, ""),
     "openrouter_model": ("editor", "openrouter_model", "Model", "Any model on OpenRouter, billed to your OpenRouter "
                          "credits", 1, 200, None, ""),
     "music_set_minutes": ("broadcast", "music_set_minutes", "Music between breaks",
@@ -122,6 +122,9 @@ def listing(cfg: dict) -> list[dict]:
             if provider == "openrouter":
                 row["action"] = ({"label": "Sign out of OpenRouter", "cmd": "openrouter_logout"} if openrouter.key()
                                  else {"label": "Sign in with OpenRouter", "cmd": "openrouter_login"})
+            elif provider == "openai":
+                row["action"] = ({"label": "Sign out of ChatGPT", "cmd": "chatgpt_logout"} if chatgpt.signed_in()
+                                 else {"label": "Sign in with ChatGPT", "cmd": "chatgpt_login"})
         rows.append(row)
     return rows
 
@@ -130,6 +133,9 @@ def _llm_note(live: dict) -> str:
     e = live["editor"]
     if e["provider"] == "openrouter":
         return ". Signed in" if openrouter.key() else ". Not signed in yet"
-    if e["provider"] == "openai" and not (e["openai_api_key"] or os.environ.get("OPENAI_API_KEY")):
-        return ". No OpenAI key yet: add openai_api_key to config.toml"
+    if e["provider"] == "openai":
+        if chatgpt.signed_in():
+            return ". Signed in with ChatGPT: uses your ChatGPT plan"
+        if not (e["openai_api_key"] or os.environ.get("OPENAI_API_KEY")):
+            return ". Not signed in yet (or put an API key in config.toml)"
     return ""
