@@ -416,7 +416,8 @@ function saveKey(provider,key){
   keyBusy=true;settingsView(true);
   api('/api/cmd',{cmd:'llm_key',provider:provider,key:key}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;
     keyFb=key?{cls:'ok',text:'Key saved. Checking it now…',checking:true}:{cls:'',text:'Key removed.'};$('llm-key').value=''})
-  .catch(function(e){keyFb={cls:'bad',text:(e.message||'Could not save the key')+'.',invalid:true}}).finally(function(){keyBusy=false;settingsView(true)})}
+  .catch(function(e){keyFb={cls:'bad',text:(e.message||'Could not save the key')+'.',invalid:true}}).finally(function(){keyBusy=false;settingsView(true);
+    var f=$('llm-key');if(f&&keyFb.invalid&&key){f.value=key;f.focus();f.select()}})}  // a failed key stays, selected: a paste replaces it
 function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model (design system: AiSettings)
   var c=p.connection,st=c.state,known=st==='ok'||st==='no_model',parts=c.detail.split(' · ');
   if(keyFb.checking&&st!=='checking')keyFb=st==='bad_key'?{cls:'bad',text:'The provider rejected this key. Paste the key again, exactly as the provider shows it.',invalid:true}:{cls:'ok',text:'Key saved.'};
