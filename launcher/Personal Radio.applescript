@@ -6,4 +6,22 @@ do shell script "export PATH=/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$
 	"if ! curl -s -o /dev/null " & radioURL & "; then " & ¬
 	"BROWSER=true nohup \"$HOME/PersonalRadio/bin/radio\" ui > \"" & logFile & "\" 2>&1 & " & ¬
 	"for i in $(seq 1 50); do curl -s -o /dev/null " & radioURL & " && break; sleep 0.2; done; fi"
+-- An open radio tab in Chrome is reloaded and shown (a restarted radio has a new page token) instead of a new tab.
+if application id "com.google.Chrome" is running then
+	tell application id "com.google.Chrome"
+		repeat with w in windows
+			set i to 0
+			repeat with t in tabs of w
+				set i to i + 1
+				if URL of t starts with radioURL then
+					tell t to reload
+					set active tab index of w to i
+					set index of w to 1
+					activate
+					return
+				end if
+			end repeat
+		end repeat
+	end tell
+end if
 open location radioURL
