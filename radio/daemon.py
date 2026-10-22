@@ -37,6 +37,10 @@ RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, th
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
 
 
+NUMBER_WORD = re.compile(r"(ноль|один|одна|одно|одну|одного|двух|трёх|трех|четыре|пять|шесть|семь|восемь|девять|десять|\w+надцать|"
+                         r"\w+дцать|сорок|\w+десят|девяносто|двести|триста|\w+сот|тысяч\w*|миллион\w*)$")
+
+
 def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
 
@@ -1158,7 +1162,8 @@ class Service:
     def _say(self, text: str) -> Path:
         """Voice a text, checked twice: the spectrum (no noise) and, for a fresh take, a local Whisper transcript that
         must contain most of the text's words (no noise, no swallowed or garbled words)."""
-        words = {w[:5] for w in re.findall(r"[а-яё]{4,}", text.casefold())}  # 5-letter stems: endings may differ
+        # 5-letter stems (endings may differ); number words left out: Whisper writes "пятнадцать" as "15"
+        words = {w[:5] for w in re.findall(r"[а-яё]{4,}", text.casefold()) if not NUMBER_WORD.match(w)}
 
         def check(path):
             if error := self._speech_check(path):
