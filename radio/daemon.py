@@ -1,5 +1,6 @@
 """One process per session: owns Liquidsoap, prepares news in the background, serves the CLI socket."""
 import asyncio
+import fcntl
 import hashlib
 import os
 import json
@@ -92,7 +93,7 @@ class Service:
         self.weather_hold: dict[str, float] = {}
         self.gap_voice: list[tuple[str, Path]] = []  # gap filler lines, rendered ahead: a gap leaves seconds
         self.gap_song, self.gap_said = 0.0, 0.0      # the song last checked, when the host last covered a gap
-        self.opener_retry = 0.0                      # next try to pre-render the startup opener  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
+        self.opener_retry = self.gap_retry = 0.0     # next try to pre-render the startup opener, the gap lines  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
 
     # ---- lifecycle ----
     async def run(self) -> None:
@@ -130,19 +131,25 @@ class Service:
             raise SystemExit(f"NO_MUSIC: no playable files in {m['path']}")
         self.engine = Liquidsoap(m3u, m["crossfade_sec"], self.output, os.environ.get("RADIO_RECORD", ""),
                                  self.cfg["output"], fallback_m3u=fallback_m3u)
-        resumed = self._restore_session()
+        restored = self._restore_session()
         resumed = self._resume_line()
-        # YouTube Music needs seconds for its first song: an opener goes first instead of silence or a local song.
-        opens = self.ytmusic_active and (not resumed or "ytmusic:" in resumed)
-        await self.engine.start(self.on_event, [line for line in (self._opener_line() if opens else "", resumed) if line])
-        self.state = "PLAYING"
-        store.log_event(self.db, self.session, "SESSION_STARTED")
-        log("session", self.session, "resumed," if resumed else "started,", len(files), "tracks")
-        threading.Thread(target=music.measure_missing, args=(store.connect(), files, self.stop_measure),
-                         daemon=True).start()
+        # Answer on the socket while the engine starts: the page then sees a radio starting, not a stopped one it
+        # would start a second time.
         config.SOCK.unlink(missing_ok=True)
         server = await asyncio.start_unix_server(self.handle_client, str(config.SOCK))
         config.SOCK.chmod(0o600)
+        # YouTube Music needs seconds for its first song: an opener goes first instead of silence or a local song.
+        opens = self.ytmusic_active and (not resumed or "ytmusic:" in resumed)
+        await self.engine.start(self.on_event, [line for line in (self._opener_line() if opens else "", resumed) if line])
+        if self.stopping:  # stopped while starting
+            await self.done.wait()
+            server.close()
+            return
+        self.state = "PLAYING"
+        store.log_event(self.db, self.session, "SESSION_STARTED")
+        log("session", self.session, "resumed," if restored else "started,", len(files), "tracks")
+        threading.Thread(target=music.measure_missing, args=(store.connect(), files, self.stop_measure),
+                         daemon=True).start()
         asyncio.create_task(self.content_loop())
         asyncio.create_task(self.watch_engine())
         asyncio.create_task(self.trending_loop())
@@ -268,7 +275,7 @@ class Service:
 
     async def _gap_tick(self) -> None:
         if self.ytmusic_active and time.time() >= self.opener_retry and not self._opener_file().exists():
-            self.opener_retry = time.time() + 600  # the voice server may still be starting: try again later
+            self.opener_retry = time.time() + 60  # the voice server may still be starting: try again later
             try:
                 await asyncio.to_thread(self._prepare_opener)
             except Exception as e:
@@ -282,8 +289,10 @@ class Service:
         if not plugins.on(self.cfg, "gap_filler") or not self.ytmusic_active or self.state != "PLAYING":
             return
         if not self.gap_voice:
-            self.gap_voice = [(text, await asyncio.to_thread(cached_synthesize, self.tts, text, self._speech_check))
-                              for text in GAP_LINES]
+            if time.time() >= self.gap_retry:
+                self.gap_retry = time.time() + 60  # the voice server may still be starting: not every second
+                self.gap_voice = [(text, await asyncio.to_thread(cached_synthesize, self.tts, text, self._speech_check))
+                                  for text in GAP_LINES]
             return
         cur = self.current
         if not cur or cur["kind"] != "music" or not cur.get("duration") or cur["started"] == self.gap_song:
@@ -2140,6 +2149,13 @@ def listeners() -> int:
 
 def main(output: str = "device") -> None:
     cfg = config.load()
+    # One daemon: a second one (a start while this one is still starting) would run a second engine beside it.
+    lock = open(config.RUN_DIR / "daemon.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log("another radio daemon is running: not starting a second one")
+        return
     svc = Service(cfg, output=output)
 
     async def runner():

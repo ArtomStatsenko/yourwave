@@ -4,6 +4,8 @@ import json
 import os
 import re
 import shlex
+import signal
+import subprocess
 import sys
 from pathlib import Path
 
@@ -19,6 +21,8 @@ class Liquidsoap:
         self.sink = sink or {"mode": "speakers"}  # cfg["output"]: where the device sink sends the sound
         self.sock = config.RUN_DIR / "liq.sock"
         self.proc: asyncio.subprocess.Process | None = None
+        self.stopped = False
+        self.pidfile = config.RUN_DIR / "liquidsoap.pid"
 
     async def start(self, on_event, first: list[str] | tuple = ()) -> None:
         """first: request lines to air before the shuffle (a host opener, a resumed song with liq_cue_in): the
@@ -27,15 +31,19 @@ class Liquidsoap:
         await self._start(on_event, bool(first))
         if not first:
             return
-        rids = [(await self.command(f"news.push {line}")).strip() for line in first]
-        for _ in range(300):
-            if await self.command("news.ready") == "true":
-                break
-            await asyncio.sleep(.1)
-        else:
-            for rid in rids:
-                await self.remove(rid)
-        await self.command("resume")
+        try:
+            rids = [(await self.command(f"news.push {line}")).strip() for line in first]
+            for _ in range(300):
+                if await self.command("news.ready") == "true":
+                    break
+                await asyncio.sleep(.1)
+            else:
+                for rid in rids:
+                    await self.remove(rid)
+            await self.command("resume")
+        except (OSError, asyncio.IncompleteReadError, asyncio.TimeoutError):
+            if not self.stopped:
+                raise  # else: stopped while starting
 
     async def _start(self, on_event, paused: str) -> None:
         self.sock.unlink(missing_ok=True)
@@ -47,9 +55,11 @@ class Liquidsoap:
                    RADIO_FALLBACK_M3U=str(self.fallback_m3u or ""), RADIO_START_PAUSED="1" if paused else "",
                    RADIO_YTMUSIC_COUNT=str(len(ytmusic.library()["tracks"])) if self.m3u.name == "ytmusic.m3u" else "0",
                    RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]))
+        self._end_orphan()
         self.proc = await asyncio.create_subprocess_exec(
             "liquidsoap", str(config.PKG_DIR / "radio.liq"), env=env,
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        self.pidfile.write_text(str(self.proc.pid))
         asyncio.create_task(self._tail_events(self.proc, events, on_event))
         for _ in range(100):  # socket appears once the script is compiled and running
             if self.sock.exists():
@@ -196,7 +206,20 @@ class Liquidsoap:
                 return
             await asyncio.sleep(.05)
 
+    def _end_orphan(self) -> None:
+        """A Liquidsoap left by a daemon that died without stopping it still plays into the same output and the
+        same stream: two engines interleave as stutter. End it before starting this one."""
+        try:
+            pid = int(self.pidfile.read_text())
+            command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
+        except (OSError, ValueError):
+            return
+        if "liquidsoap" in command and str(config.PKG_DIR / "radio.liq") in command:
+            os.kill(pid, signal.SIGTERM)
+            print("ended a Liquidsoap left by a previous daemon:", pid, flush=True)
+
     async def stop(self) -> None:
+        self.stopped = True
         if self.proc and self.proc.returncode is None:
             self.proc.terminate()
             try:

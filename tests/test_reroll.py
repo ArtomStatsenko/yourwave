@@ -237,6 +237,38 @@ class RerollTests(unittest.TestCase):
         self.assertTrue(events, 'Silence: nothing played while the primary song could not load')
         self.assertEqual(events[0]['ref'], str(local))
 
+    def test_engine_ends_a_liquidsoap_its_dead_daemon_left_and_stops_while_starting(self):
+        song = config.DATA_DIR / 'song.wav'
+        with wave.open(str(song), 'wb') as out:
+            out.setnchannels(2)
+            out.setsampwidth(2)
+            out.setframerate(44100)
+            out.writeframes(b'\1\0\1\0' * 44100 * 4)
+        m3u = config.RUN_DIR / 'orphan.m3u'
+        m3u.write_text(f'annotate:kind="music",ref="song":{song}\n')
+        left, fresh = (Liquidsoap(m3u, .1, str(config.DATA_DIR / f'{n}.wav')) for n in ('left', 'fresh'))
+        async def scenario():
+            await left.start(lambda e: None)                                # its daemon dies: nobody stops it
+            await fresh.start(lambda e: None)
+            await asyncio.wait_for(left.proc.wait(), 5)
+            await fresh.stop()
+            waiting = Liquidsoap(m3u, .1, str(config.DATA_DIR / 'waiting.wav'))
+            start = asyncio.create_task(waiting.start(lambda e: None, [f'annotate:kind="music",ref="x":{config.DATA_DIR / "missing.wav"}']))
+            await asyncio.sleep(1.5)                                        # still waiting for a line that never loads
+            await waiting.stop()
+            await asyncio.wait_for(start, 5)                                # returns quietly, not with a socket error
+        self.clock.stop()
+        asyncio.run(scenario())
+
+    def test_a_second_daemon_does_not_start(self):
+        import fcntl
+        from radio import daemon
+        with open(config.RUN_DIR / 'daemon.lock', 'w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with patch.object(daemon, 'Service') as service:
+                daemon.main('x')
+            service.assert_not_called()
+
     def test_engine_airs_the_opener_then_the_resumed_song_before_the_shuffle(self):
         paths = {}
         for name, seconds in (('opener', 2), ('song', 4), ('other', 4)):
