@@ -959,6 +959,13 @@ class SchedulingTests(unittest.TestCase):
             settings.apply(svc.cfg, d)
             self.assertEqual(svc.cfg["broadcast"]["music_set_minutes"], d["music_set_minutes"])
             self.assertEqual(svc.cfg["broadcast"]["new_every_sets"], 0)
+            settings.set_setting("station_name", "  Ночной \n  эфир ")                         # a text: one line
+            settings.apply(svc.cfg, d)
+            self.assertEqual(svc.cfg["broadcast"]["station_name"], "Ночной эфир")
+            settings.set_setting("station_name", "x" * 100)
+            self.assertEqual(len({r["key"]: r for r in settings.listing(config.load())}["station_name"]["value"]), 40)
+            with self.assertRaises(ValueError):
+                settings.set_setting("station_name", "   ")
             path.write_text("not json")                                                          # a broken file changes nothing
             settings.apply(svc.cfg, d)
             self.assertEqual(svc.cfg["broadcast"]["new_every_sets"], d["new_every_sets"])

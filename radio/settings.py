@@ -6,8 +6,10 @@ import os
 
 from . import config
 
-# key -> (section, name, title, hint, min, max, step, unit)
+# key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
+    "station_name": ("broadcast", "station_name", "Station name",
+                     "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
     "music_set_minutes": ("broadcast", "music_set_minutes", "Music between breaks",
                           "How much music plays in a row before the next news break. More — breaks come less often",
                           5, 90, 5, "min"),
@@ -30,8 +32,13 @@ def _path():
     return config.DATA_DIR / "settings.json"
 
 
-def _clamp(key: str, value) -> int:
-    lo, hi = SETTINGS[key][4], SETTINGS[key][5]
+def _clamp(key: str, value) -> int | str:
+    lo, hi, step = SETTINGS[key][4], SETTINGS[key][5], SETTINGS[key][6]
+    if step is None:
+        text = " ".join(str(value).split())[:hi]  # one line: the host reads it aloud
+        if len(text) < lo:
+            raise ValueError(f"{key}: enter {lo}-{hi} characters")
+        return text
     return max(lo, min(hi, int(round(float(value)))))
 
 
@@ -53,8 +60,8 @@ def set_setting(key: str, value) -> None:
         raise ValueError(f"unknown setting {key}")
     try:
         number = _clamp(key, value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{key}: a number is expected")
+    except (TypeError, ValueError) as e:
+        raise ValueError(str(e) if SETTINGS[key][6] is None else f"{key}: a number is expected")
     saved = _saved()
     saved[key] = number
     _write(saved)

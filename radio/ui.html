@@ -150,7 +150,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .st{display:grid;gap:4px;padding:16px 0;border-bottom:1px solid var(--line)}
 .st .hd2{display:flex;justify-content:space-between;gap:16px}.st .v{font-variant-numeric:tabular-nums;color:var(--accent)}
 .st input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0}
-.st input[type=url],.st input[type=password],.st select{box-sizing:border-box;width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
+.st input[type=url],.st input[type=password],.st input[type=text],.st select{box-sizing:border-box;width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
 .st .rs{border:0;padding:0 4px;font-size:16px;color:var(--accent);text-decoration:underline}.st .rs:hover{border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .tabs button:hover{border:0;border-bottom:2px solid var(--muted)}
@@ -390,10 +390,11 @@ function player(){
   $('er').textContent=st.last_error||rerollError||'';
 }
 function settingsView(){
-  var box=$('settings');if(box.contains(document.activeElement)&&document.activeElement.type==='range')return;  // not while dragging
+  var box=$('settings');if(box.contains(document.activeElement)&&['range','text'].includes(document.activeElement.type))return;  // not while dragging or typing
   var u=function(s,v){return v+(s.unit?' '+s.unit:'')};
-  box.innerHTML=stg.map(function(s){return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label><span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span></div>'
-    +'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">'
+  box.innerHTML=stg.map(function(s){return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
+    +(s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
+      :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
     +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div></div>'}).join('')}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
@@ -402,10 +403,10 @@ $('audio-preset').onchange=function(){
   }).catch(function(){$('audio-preset-hint').textContent='could not save audio preset'})
 };
 $('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
-  var s=stg.find(function(x){return x.key===r.dataset.st});$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
+  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.step!==null)$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
-  var s=stg.find(function(x){return x.key===r.dataset.st});s.value=+r.value;
-  api('/api/cmd',{cmd:'setting',key:s.key,value:+r.value}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView()}).catch(function(){$('er').textContent='could not save'})};
+  var s=stg.find(function(x){return x.key===r.dataset.st}),value=s.step===null?r.value:+r.value;s.value=value;
+  api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView()}).catch(function(e){$('er').textContent=e.message||'could not save'})};
 $('stg').onclick=function(e){var b=e.target.closest('[data-rs]');if(!b)return;
   api('/api/cmd',{cmd:'settings_reset',key:b.dataset.rs}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView()})};
 function pluginsView(){
