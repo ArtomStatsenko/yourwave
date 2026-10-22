@@ -20,19 +20,21 @@ class Liquidsoap:
         self.sock = config.RUN_DIR / "liq.sock"
         self.proc: asyncio.subprocess.Process | None = None
 
-    async def start(self, on_event, resume: str = "") -> None:
-        """resume: a playlist line to air first (with liq_cue_in for the position): the output starts paused
-        until it is loaded, so the shuffle cannot take the first slot. Not loaded in 30 s: the shuffle starts."""
-        await self._start(on_event, resume)
-        if not resume:
+    async def start(self, on_event, first: list[str] | tuple = ()) -> None:
+        """first: request lines to air before the shuffle (a host opener, a resumed song with liq_cue_in): the
+        output starts paused until the first one is loaded, so the shuffle cannot take the first slot; the
+        others load meanwhile. The first not loaded in 30 s: they are dropped and the shuffle starts."""
+        await self._start(on_event, bool(first))
+        if not first:
             return
-        rid = (await self.command(f"news.push {resume}")).strip()
+        rids = [(await self.command(f"news.push {line}")).strip() for line in first]
         for _ in range(300):
             if await self.command("news.ready") == "true":
                 break
             await asyncio.sleep(.1)
         else:
-            await self.remove(rid)
+            for rid in rids:
+                await self.remove(rid)
         await self.command("resume")
 
     async def _start(self, on_event, paused: str) -> None:

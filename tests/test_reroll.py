@@ -237,6 +237,45 @@ class RerollTests(unittest.TestCase):
         self.assertTrue(events, 'Silence: nothing played while the primary song could not load')
         self.assertEqual(events[0]['ref'], str(local))
 
+    def test_engine_airs_the_opener_then_the_resumed_song_before_the_shuffle(self):
+        paths = {}
+        for name, seconds in (('opener', 2), ('song', 4), ('other', 4)):
+            paths[name] = config.DATA_DIR / f'{name}.wav'
+            with wave.open(str(paths[name]), 'wb') as out:
+                out.setnchannels(2)
+                out.setsampwidth(2)
+                out.setframerate(44100)
+                out.writeframes(b'\1\0\1\0' * 44100 * seconds)
+        m3u = config.RUN_DIR / 'opener.m3u'
+        m3u.write_text(f'annotate:kind="music",ref="other":{paths["other"]}\n')
+        engine = Liquidsoap(m3u, .1, str(config.DATA_DIR / 'opener-output.wav'))
+        events = []
+        async def scenario():
+            await engine.start(events.append, [f'annotate:kind="gap",ref="hello":{paths["opener"]}',
+                                               f'annotate:kind="music",ref="song":{paths["song"]}'])
+            try:
+                deadline = time.monotonic() + 10
+                while len(events) < 3 and time.monotonic() < deadline:
+                    await asyncio.sleep(.05)
+            finally:
+                await engine.stop()
+        self.clock.stop()
+        asyncio.run(scenario())
+        self.assertEqual([e['ref'] for e in events[:3]], ['hello', 'song', 'other'])
+
+    def test_opener_is_the_jingle_until_the_voice_is_rendered(self):
+        self.svc.cfg['jingles']['stinger_in'] = ['/tmp/stinger.wav']
+        self.assertEqual(self.svc._opener_line(), 'annotate:kind="id",ref="startup":/tmp/stinger.wav')
+        def render(voice, chime, out):
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(b'RIFF')
+        with patch('radio.daemon.cached_synthesize', return_value=Path('/tmp/voice.wav')), \
+             patch('radio.audio.render_notice', side_effect=render):
+            self.svc._prepare_opener()
+        line = self.svc._opener_line()
+        self.assertTrue(line.startswith('annotate:kind="gap",ref="В эфире «Personal Radio».'), line)
+        self.assertTrue(line.endswith(str(self.svc._opener_file())))
+
     def test_engine_resumes_a_song_at_its_position_before_the_shuffle(self):
         import math
         from array import array
@@ -256,7 +295,7 @@ class RerollTests(unittest.TestCase):
         engine = Liquidsoap(m3u, .1, str(out))
         events = []
         async def scenario():
-            await engine.start(events.append, f'annotate:kind="music",ref="{song}",liq_cue_in="12":{song}')
+            await engine.start(events.append, [f'annotate:kind="music",ref="{song}",liq_cue_in="12":{song}'])
             try:
                 deadline = time.monotonic() + 10
                 while not events and time.monotonic() < deadline:

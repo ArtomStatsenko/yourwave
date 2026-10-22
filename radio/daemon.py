@@ -91,7 +91,8 @@ class Service:
         self.resume_offset: dict[str, float] = {}
         self.weather_hold: dict[str, float] = {}
         self.gap_voice: list[tuple[str, Path]] = []  # gap filler lines, rendered ahead: a gap leaves seconds
-        self.gap_song, self.gap_said = 0.0, 0.0      # the song last checked, when the host last covered a gap  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
+        self.gap_song, self.gap_said = 0.0, 0.0      # the song last checked, when the host last covered a gap
+        self.opener_retry = 0.0                      # next try to pre-render the startup opener  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
 
     # ---- lifecycle ----
     async def run(self) -> None:
@@ -130,7 +131,10 @@ class Service:
         self.engine = Liquidsoap(m3u, m["crossfade_sec"], self.output, os.environ.get("RADIO_RECORD", ""),
                                  self.cfg["output"], fallback_m3u=fallback_m3u)
         resumed = self._restore_session()
-        await self.engine.start(self.on_event, self._resume_line())
+        resumed = self._resume_line()
+        # YouTube Music needs seconds for its first song: an opener goes first instead of silence or a local song.
+        opens = self.ytmusic_active and (not resumed or "ytmusic:" in resumed)
+        await self.engine.start(self.on_event, [line for line in (self._opener_line() if opens else "", resumed) if line])
         self.state = "PLAYING"
         store.log_event(self.db, self.session, "SESSION_STARTED")
         log("session", self.session, "resumed," if resumed else "started,", len(files), "tracks")
@@ -244,7 +248,34 @@ class Service:
                 log("gap filler:", type(e).__name__)
             await asyncio.sleep(1)
 
+    def _opener_text(self) -> str:
+        return host.startup(self.cfg["broadcast"]["station_name"])
+
+    def _opener_file(self) -> Path:
+        name = hashlib.sha256((self._opener_text() + str(self.cfg["jingles"]["stinger_in"])).encode()).hexdigest()[:16]
+        return config.DATA_DIR / "cache/packages" / f"opener-{name}.wav"
+
+    def _opener_line(self) -> str:
+        """The rendered opener (jingle and voice), or the intro jingle alone until one is rendered."""
+        path = self._opener_file()
+        if path.exists():
+            return f'annotate:kind="gap",ref="{self._opener_text().replace(chr(34), "")}":{path}'
+        return f'annotate:kind="id",ref="startup":{self.cfg["jingles"]["stinger_in"][0]}'
+
+    def _prepare_opener(self) -> None:
+        voice = cached_synthesize(self.tts, self._opener_text(), self._speech_check)
+        audio.render_notice(voice, Path(self.cfg["jingles"]["stinger_in"][0]), self._opener_file())
+
     async def _gap_tick(self) -> None:
+        if self.ytmusic_active and time.time() >= self.opener_retry and not self._opener_file().exists():
+            self.opener_retry = time.time() + 600  # the voice server may still be starting: try again later
+            try:
+                await asyncio.to_thread(self._prepare_opener)
+            except Exception as e:
+                log("startup opener:", type(e).__name__)
+        await self._gap_line()
+
+    async def _gap_line(self) -> None:
         """Experiment: YouTube Music has not loaded the next song by the end of this one -> a ready edition (news,
         weather, a music story) airs now; with nothing ready, one line about it before the local song the engine
         plays instead (radio.liq: local songs cover a song not loaded). Never silence."""

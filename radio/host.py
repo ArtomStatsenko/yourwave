@@ -48,6 +48,11 @@ def _quoted(station: str) -> str:
     return f"«{station}»" if station.isascii() else station
 
 
+def startup(station: str) -> str:
+    """Said at the start while YouTube Music loads the first song (pre-rendered: the voice may still be starting)."""
+    return f"В эфире {_quoted(station)}. Первая песня уже на подходе — YouTube Music её догружает, а мы пока здороваемся."
+
+
 def opener(air_time: datetime, station: str, recent: dict, seed: str) -> str:
     text = _rotate(OPENERS, "host_opener", recent, seed).format(time=time_words(air_time), station=_quoted(station))
     return text[0].upper() + text[1:]
