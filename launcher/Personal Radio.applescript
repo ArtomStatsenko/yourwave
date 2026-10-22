@@ -1,4 +1,7 @@
 -- Personal Radio: starts the radio page (radio ui) in the background if it is not running, then opens it.
+-- Build: osacompile -o ~/Applications/Personal\ Radio.app this file; then give it its own identity, or macOS lists it
+-- as "applet" under Automation: PlistBuddy -c "Add :CFBundleIdentifier string local.personalradio.launcher" and
+-- "Add :CFBundleDisplayName string Personal Radio" on Contents/Info.plist, and codesign --force --sign - the app.
 -- Apps start without the Terminal PATH, so Homebrew (python3, liquidsoap, ffmpeg) and uv are added explicitly.
 set radioURL to "http://127.0.0.1:8765/"
 set logFile to "$HOME/Library/Application Support/PersonalRadioClaude/logs/ui.log"
