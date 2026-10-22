@@ -1067,7 +1067,7 @@ class SchedulingTests(unittest.TestCase):
                          {"github_trending", "github_new", "horizon", "reminders_calendar", "reminders_todoist", "weather", "ytmusic", "music_facts"})
         self.assertNotIn("voicestudio", grouped)
         self.assertNotIn("voice_over", grouped)
-        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "reroll_next", "gap_filler"})
+        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "reroll_next", "gap_filler", "duo_hosts"})
         self.assertEqual({n for n, p in grouped.items() if p["section"] == "features"},
                          {"station_ids", "host_links", "new_tracks"})
         self.assertTrue(grouped["horizon"]["on"])  # grouping preserves the existing saved switches
@@ -1140,6 +1140,22 @@ class SchedulingTests(unittest.TestCase):
         finally:
             svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
+
+    def test_two_hosts_alternate_and_hand_over_by_name(self):
+        svc = self.svc
+        svc.tts2 = object()  # the co-host's voice (only its identity matters here)
+        svc.cfg["broadcast"].update(host_name="Артём", cohost_name="Маша")
+        segs = [("Добрый вечер.", False), ("Новость один.", False), ("Новость два.", True), ("Новость три.", True),
+                ("Дальше музыка.", False)]
+        owners = ["seed", "a", "b", "c", "seed"]
+        s, o, v = svc._duo(segs, owners, [{"id": "a"}, {"id": "b"}, {"id": "c"}], "seed")
+        texts = [t for t, _ in s]
+        self.assertEqual(v, [None, None, None, svc.tts2, svc.tts2, None, None])  # A, B, A; host lines stay with A
+        self.assertIn("Маша", texts[2])          # the host hands over to the co-host by name
+        self.assertTrue(texts[3].endswith("Новость два."))
+        self.assertIn("Артём", texts[4])         # and back
+        self.assertEqual(len(texts), 7)
+        svc.tts2 = svc.tts
 
     def test_every_fresh_take_is_checked_by_transcript(self):
         from unittest.mock import Mock

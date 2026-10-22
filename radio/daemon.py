@@ -51,6 +51,9 @@ class Service:
         self.defaults = None  # the config.toml values, taken at the first decision; settings.json (the UI) overrides them
         v = cfg["voice"]
         self.tts = tts or VoiceStudio(v["base_url"], v["voice_id"], v["language"], v["speed"], v["instruct"], v["seed"])
+        # plugin "Two hosts": the same server, a second designed voice (a mock in tests: the same mock)
+        self.tts2 = self.tts if tts else VoiceStudio(v["base_url"], v["voice_id"], v["language"], v["speed"],
+                                                     v["cohost_instruct"], v["cohost_seed"])
         self.db = store.connect()
         self.session = uuid.uuid4().hex[:12]
         self.state = "STARTING"
@@ -1155,11 +1158,11 @@ class Service:
         self.db.execute("UPDATE packages SET status='READY',audio_path=?,speech_sec=?,duration_sec=? WHERE item_id=? AND status='PENDING'",
                         (str(wav), audio.duration(wav), audio.duration(wav), item_id))
 
-    def _segment_voice(self, package_id, text):
+    def _segment_voice(self, package_id, text, voice=None):
         item = self.db.execute('SELECT i.kind FROM packages p JOIN items i ON i.id=p.item_id WHERE p.id=?', (package_id,)).fetchone()
-        return self._render_weather(text) if item and item['kind'] == 'weather' else self._say(text)
+        return self._render_weather(text) if item and item['kind'] == 'weather' else self._say(text, voice)
 
-    def _say(self, text: str) -> Path:
+    def _say(self, text: str, voice=None) -> Path:
         """Voice a text, checked twice: the spectrum (no noise) and, for a fresh take, a local Whisper transcript that
         must contain most of the text's words (no noise, no swallowed or garbled words)."""
         # 5-letter stems (endings may differ); number words left out: Whisper writes "пятнадцать" as "15"
@@ -1178,7 +1181,7 @@ class Service:
                 return None
             return None if len(words & heard) >= len(words) * 0.6 else "speech does not match the text"
 
-        return cached_synthesize(self.tts, text, check)
+        return cached_synthesize(voice or self.tts, text, check)
 
     def _render_weather(self, text: str) -> Path:
         expected = set(re.findall(r"[а-яё]{4,}", text.casefold()))
@@ -1352,7 +1355,10 @@ class Service:
             if links:
                 segs.append((host.set_opener(b["music_set_minutes"], first, self.recent_jingles, seed, novelty), False))
                 owners.append(seed)
-            voices = [self._segment_voice(owner, text) for (text, _), owner in zip(segs, owners)]
+            speakers = [None] * len(segs)
+            if plugins.on(self.cfg, "duo_hosts") and len(pkgs) > 1:
+                segs, owners, speakers = self._duo(segs, owners, pkgs, seed)
+            voices = [self._segment_voice(owner, text, voice) for (text, _), owner, voice in zip(segs, owners, speakers)]
             jingles = self.pkg_jingles.get(seed) or self._jingles_for(seed)
             key = hashlib.sha256(BREAK_SEP.join(p["id"] for p in pkgs).encode()).hexdigest()[:16]
             out = config.DATA_DIR / "cache/packages" / f"break-{key}.wav"
@@ -1373,6 +1379,26 @@ class Service:
             self.last_error = f"assembly {pkgs[0]['id']}: {e}"
             log(self.last_error, "- airing the first bulletin pre-rendered")
             return None
+
+    def _duo(self, segs, owners, pkgs, seed):
+        """Two hosts: bulletins alternate between the voices (host lines stay with the main one); when the voice
+        changes, the one finishing hands over by name and the next starts with a short thanks."""
+        b = self.cfg["broadcast"]
+        names = {None: b["host_name"], self.tts2: b["cohost_name"]}
+        turn = {p["id"]: (self.tts2 if k % 2 else None) for k, p in enumerate(pkgs)}
+        out_s, out_o, out_v, cur = [], [], [], None
+        for (text, sound), owner in zip(segs, owners):
+            voice = turn.get(owner)  # host lines (owner = the break seed) are not bulletins: main voice
+            if voice is not cur and out_s:
+                out_s.append((host.handoff(names[voice], self.recent_jingles, seed + owner), False))
+                out_o.append(out_o[-1])
+                out_v.append(cur)
+                text = host.ack(names[cur], self.recent_jingles, seed + owner) + text
+            out_s.append((text, sound))
+            out_o.append(owner)
+            out_v.append(voice)
+            cur = voice
+        return out_s, out_o, out_v
 
     # ---- CLI ----
     async def handle_client(self, reader, writer) -> None:

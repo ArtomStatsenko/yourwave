@@ -30,6 +30,8 @@ max_package_speech_sec = 90 # long digests are split verbatim into parts of abou
 package_cache_ttl_hours = 48
 voice_bed_gain_db = -23     # bed level under the voice, relative to the voice
 separator_heavy_chars = 350 # a digest paragraph longer than this (~25 s) gets a separator sound around it
+host_name = "Артём"         # plugin "Two hosts": the main voice and the co-host (voice.cohost_*) call each other by name
+cohost_name = "Маша"
 station_name = "Personal Radio"  # said in host links; a Latin name is voiced in «quotes» (reads as English)
 host_links = true           # news break: back-sell of the last songs, time check, ... set opener for the next music
 talkover_share = 0.5        # without lyrics: share of bulletins that end with the host talking over the next song's start
@@ -113,6 +115,8 @@ language = "ru"
 speed = 1.1                 # 0.25..4.0
 instruct = "male, young adult, moderate pitch"
 seed = 42                   # fixed seed keeps the designed voice the same in every clip
+cohost_instruct = "female, young adult, moderate pitch"  # plugin "Two hosts": the second designed voice
+cohost_seed = 7            # picked by ear from 7 / 21 / 99
 chars_per_sec = 14.0        # speech-length estimate, measured on this voice
 server_dir = "~/Library/Application Support/com.debpalash.omnivoice-studio/project"  # plugin "VoiceStudio": the
                             # radio starts the voice server from here (installed by the VoiceStudio app), without the app

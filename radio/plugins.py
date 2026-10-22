@@ -21,6 +21,9 @@ PLUGINS = {
                    "current one, a ready host edition airs now; with nothing ready, the host says so in one line "
                    "(at most every 10 minutes, within the speech limit) before a song from the local library",
                    lambda c: False),
+    "duo_hosts": ("Two hosts", "Two voices share a news break: stories alternate and the hosts hand over to each other "
+                  "by name. The co-host's lines are voiced when the break is assembled, so it takes a little longer",
+                  lambda c: False),
     "reroll_next": ("Reroll next track", "Choose a different random next track from Next or the air editor; the current song keeps playing. Applies immediately", lambda c: False),
     "music_facts": ("Music stories", "Light music links when no news is waiting. MusicBrainz and Wikidata facts, "
                     "cached locally, without LLM calls. Uses the normal music-set interval", lambda c: False),
@@ -46,7 +49,7 @@ PLUGINS = {
 SOURCE_PLUGIN = {"weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
 INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction"}
 
-EXPERIMENTS = {"air_direction", "reroll_next", "gap_filler"}
+EXPERIMENTS = {"air_direction", "reroll_next", "gap_filler", "duo_hosts"}
 
 
 def _path():

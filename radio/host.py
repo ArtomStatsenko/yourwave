@@ -89,6 +89,19 @@ _COMMON_STARTS = {"этот", "эта", "это", "эту", "этой", "пес�
                   "по", "за", "изначально", "когда", "у"}
 
 
+# Two hosts: the one who finishes hands over by name, the next one starts with a short thanks (or nothing).
+HANDOFFS = ["{name}, что у тебя?", "{name}, тебе слово.", "Передаю слово — {name}.", "{name}, продолжишь?"]
+ACKS = ["Спасибо, {name}. ", "Да, спасибо. ", "", "Спасибо! "]
+
+
+def handoff(to: str, recent: dict, seed: str) -> str:
+    return _rotate(HANDOFFS, "duo_handoff", recent, seed).format(name=to)
+
+
+def ack(to: str, recent: dict, seed: str) -> str:
+    return _rotate(ACKS, "duo_ack", recent, seed).format(name=to)
+
+
 def music_link(song: tuple[str, str] | None, facts: str, recent: dict, seed: str) -> str:
     """A back-sell of the song that just played (the same phrases as before a break), an optional fact, a closer."""
     lead = ""

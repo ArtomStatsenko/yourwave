@@ -8,6 +8,9 @@ from . import chatgpt, config, editor, openrouter
 
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
+    "host_name": ("broadcast", "host_name", "Host's name", "The main voice, as the co-host calls him (Two hosts)",
+                  1, 30, None, ""),
+    "cohost_name": ("broadcast", "cohost_name", "Co-host's name", "The second voice (Two hosts)", 1, 30, None, ""),
     "station_name": ("broadcast", "station_name", "Station name",
                      "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
     "llm_provider": ("editor", "provider", "Provider", "Where the host's words come from", 1, 20, None, ""),
