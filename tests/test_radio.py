@@ -1377,7 +1377,7 @@ class SignInTests(unittest.TestCase):
         self.assertIn("LOGIN", text)
         self.assertNotIn("secret", text)
         self.assertNotIn("evilyoutube", text)
-        with patch.object(ytmusic.subprocess, "run", lambda args, **kw: Path(args[args.index("--cookies") + 1]).write_text("")):
+        with patch.object(ytmusic.subprocess, "run", lambda args, **kw: Path(args[args.index("--cookies") + 1]).write_text(".bank.example\tTRUE\t/\tTRUE\t0\tsession\tsecret\n")):
             with self.assertRaisesRegex(ValueError, "Sign in to YouTube Music in Chrome"):
                 ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
 

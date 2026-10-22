@@ -126,12 +126,19 @@ def browser_jar(browser, url, out):
     if browser not in BROWSERS:
         raise ValueError("Unknown browser")
     try:
-        subprocess.run(["yt-dlp", "--ignore-config", "--no-warnings", "--cookies-from-browser", browser,
-                        "--cookies", str(out), "--skip-download", "--flat-playlist", "--playlist-end", "1", url],
-                       capture_output=True, timeout=120)
+        p = subprocess.run(["yt-dlp", "--ignore-config", "--no-warnings", "--cookies-from-browser", browser,
+                            "--cookies", str(out), "--skip-download", "--flat-playlist", "--playlist-end", "1", url],
+                           capture_output=True, text=True, timeout=120)
         lines = Path(out).read_text(errors="replace").splitlines()
     except (OSError, subprocess.TimeoutExpired):
-        raise ValueError(f"Could not read the YouTube sign-in from {browser.title()}") from None
+        lines, p = [], None
+    err = (getattr(p, "stderr", "") or "").lower()  # only matched against, never shown: it may carry account details
+    if not lines and ("could not find" in err or "not permitted" in err):
+        raise ValueError(f"Could not open {browser.title()}'s cookie store; quit {browser.title()} and try again")
+    if not lines and ("keyring" in err or "keychain" in err or "safe storage" in err or "decrypt" in err):
+        raise ValueError(f"macOS did not allow access to {browser.title()}'s key; connect again and choose Allow")
+    if not lines:
+        raise ValueError(f"Could not read the YouTube sign-in from {browser.title()}")
     def youtube(ln):
         domain = ln.split("\t", 1)[0].removeprefix("#HttpOnly_").lstrip(".")
         return "\t" in ln and (domain == "youtube.com" or domain.endswith(".youtube.com"))

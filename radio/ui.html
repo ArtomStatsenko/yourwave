@@ -394,14 +394,14 @@ function player(){
   $('sk').hidden=st.current_kind!=='news';
   $('er').textContent=st.last_error||'';
 }
-function settingsView(){
-  var box=$('settings');if(box.contains(document.activeElement)&&['range','text','select-one'].includes(document.activeElement.type))return;  // not while dragging or typing
+function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
+  var box=$('settings'),f=document.activeElement;if(!force&&box.contains(f)&&['range','text','select-one'].includes(f.type))return;  // not while dragging or typing
   var u=function(s,v){return v+(s.unit?' '+s.unit:'')};
   box.innerHTML=stg.map(function(s){return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
     +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div>'
-    +(s.action?'<div class="row"><button type="button" data-act="'+esc(s.action.cmd)+'">'+esc(s.action.label)+'</button></div>':'')+'</div>'}).join('')}
+    +(s.action?'<div class="row"><button type="button" data-act="'+esc(s.action.cmd)+'">'+esc(s.action.label)+'</button></div>':'')+'</div>'}).join('');if(force&&f&&f.id&&box.contains(f)===false&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
     $('audio-preset-hint').textContent=d.ok===false?d.error:'Applies after stop / play. Personal sounds stay on this Mac.';
@@ -412,12 +412,12 @@ $('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st});if(s.step!==null)$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st}),value=s.step===null?r.value:+r.value;s.value=value;
-  api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView()}).catch(function(e){$('er').textContent=e.message||'could not save'})};
+  api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save'})};
 $('stg').onclick=function(e){var a=e.target.closest('[data-act]');
-  if(a){var w=a.dataset.act==='openrouter_login'?window.open('about:blank'):null;  // opened in the click: no popup block
-    api('/api/cmd',{cmd:a.dataset.act}).then(function(d){if(d.url&&w)w.location=d.url;else if(w)w.close();if(d.settings)stg=d.settings;settingsView()}).catch(function(){if(w)w.close();$('er').textContent='could not reach the radio'});return}
+  if(a){api('/api/cmd',{cmd:a.dataset.act}).then(function(d){if(d.url){location.href=d.url;return}  // same tab: no popup to block; the callback page links back
+      if(d.settings)stg=d.settings;settingsView(true)}).catch(function(){$('er').textContent='could not reach the radio'});return}
   var b=e.target.closest('[data-rs]');if(!b)return;
-  api('/api/cmd',{cmd:'settings_reset',key:b.dataset.rs}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView()})};
+  api('/api/cmd',{cmd:'settings_reset',key:b.dataset.rs}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView(true)})};
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
   var focused=document.activeElement&&document.activeElement.dataset.pl;
