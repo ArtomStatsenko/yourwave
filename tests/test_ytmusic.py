@@ -176,7 +176,7 @@ class YouTubeMusicTests(unittest.TestCase):
 
 
 class LiquidsoapSkipTests(unittest.TestCase):
-    def test_skip_one_bad_song_and_fallback_only_when_source_fails(self):
+    def test_local_songs_cover_loading_and_a_bad_song_does_not_switch_the_source(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             tone = root / "tone.wav"
@@ -199,6 +199,8 @@ class LiquidsoapSkipTests(unittest.TestCase):
                               'else:\n'
                               ' f=tempfile.NamedTemporaryFile(dir=root,suffix=".wav",delete=False); f.close()\n'
                               ' shutil.copyfile(root/"tone.wav",f.name); print(f.name)\n')
+            # A song not loaded by the boundary is covered by a local one (never silence); YouTube Music comes back
+            # after one bad song, and stays off only when all fail or it is offline.
             for case, expected in (("one-bad", "ytmusic:"), ("all-bad", "local-test"), ("offline", "local-test")):
                 with self.subTest(case=case):
                     events = root / (case + ".jsonl")
@@ -211,13 +213,21 @@ class LiquidsoapSkipTests(unittest.TestCase):
                     with (root / (case + ".stderr")).open("w") as log:
                         proc = subprocess.Popen(["liquidsoap", str(config.PKG_DIR / "radio.liq")], env=env, stdout=log, stderr=log)
                         try:
-                            deadline = time.monotonic() + 20
+                            started, deadline = time.monotonic(), time.monotonic() + 20
                             while not events.stat().st_size and proc.poll() is None and time.monotonic() < deadline:
                                 time.sleep(.1)
-                            rows = [json.loads(line) for line in events.read_text().splitlines()]
-                            self.assertTrue(rows, "Liquidsoap did not start a track")
-                            self.assertTrue(rows[0]["ref"].startswith(expected), rows[0])
+                            self.assertLess(time.monotonic() - started, 8, "Silence at the start")
+                            def rows():
+                                return [json.loads(line) for line in events.read_text().splitlines()]
+                            while not (root / (case + ".attempted")).exists() or case == "one-bad" and not any(
+                                    r["ref"].startswith("ytmusic:") for r in rows()):
+                                if time.monotonic() > deadline or proc.poll() is not None:
+                                    break
+                                time.sleep(.1)
                             self.assertTrue((root / (case + ".attempted")).exists())
+                            self.assertTrue(any(r["ref"].startswith(expected) for r in rows()), rows())
+                            if case != "one-bad":
+                                self.assertFalse(any(r["ref"].startswith("ytmusic:") for r in rows()), rows())
                         finally:
                             proc.terminate()
                             try:

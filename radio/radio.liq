@@ -82,7 +82,8 @@ music = if local_playlist != "" then
   local_music = playlist(id="local_music", mode="randomize", local_playlist)
   server.register("local_music.replace", fun (arg) -> replace_music(local_music.queue, local_music.set_queue, arg))
   server.register("music.peek", fun (_) -> queued_music_ref(if yt_offline() then local_music else primary_music end))
-  fallback(track_sensitive=true, [music, switch([({yt_offline()}, local_music)])])
+  # Local songs also cover a YouTube Music song that has not loaded by the boundary: never silence.
+  fallback(track_sensitive=true, [music, switch([({yt_offline() or not primary_music.is_ready()}, local_music)])])
 else
   server.register("music.peek", fun (_) -> queued_music_ref(primary_music))
   music

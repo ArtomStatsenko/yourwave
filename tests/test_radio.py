@@ -280,6 +280,22 @@ class SchedulingTests(unittest.TestCase):
             with patch("radio.daemon.time.time", return_value=at), patch("radio.audio.duration", return_value=3), \
                  patch("radio.audio.lufs", return_value=-16):
                 asyncio.run(svc._gap_tick())
+        ready = [{"id": "news#1"}]
+        def queue_break(**kw):
+            svc.queued_break = ("5", ["news#1"])
+        with patch.object(svc, "_pick_break", return_value=ready), \
+             patch.object(svc, "schedule", AsyncMock(side_effect=queue_break)) as schedule:
+            song(9_000)
+            tick(9_000 + 192)                                               # a ready edition fills the gap
+            schedule.assert_awaited_once_with(immediate=True, gap=True)
+            svc.engine.push_replay.assert_not_awaited()
+            svc.queued_break = None
+            schedule.side_effect = None
+            song(9_100)
+            tick(9_100 + 192)                                               # the edition could not be queued: a line
+            self.assertEqual(svc.engine.push_replay.await_count, 1)
+        svc.engine.push_replay.reset_mock()
+        svc.id_pending, svc.gap_said = False, 0.0
         song(10_000)
         tick(10_000 + 150)                                                  # 50 s left: too early to tell
         svc.engine.push_replay.assert_not_awaited()

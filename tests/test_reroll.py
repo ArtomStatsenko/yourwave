@@ -211,6 +211,32 @@ class RerollTests(unittest.TestCase):
         self.assertNotEqual(restarted.session, session)
         self.assertFalse((config.RUN_DIR / 'session.json').exists())
 
+    def test_engine_plays_local_music_while_the_primary_song_is_not_loaded(self):
+        local = config.DATA_DIR / 'local.wav'
+        with wave.open(str(local), 'wb') as out:
+            out.setnchannels(2)
+            out.setsampwidth(2)
+            out.setframerate(44100)
+            out.writeframes(b'\1\0\1\0' * 44100 * 20)
+        primary = config.RUN_DIR / 'primary.m3u'
+        primary.write_text(f'annotate:kind="music",ref="missing":{config.DATA_DIR / "missing.wav"}\n')  # never loads
+        fallback = config.RUN_DIR / 'fallback.m3u'
+        fallback.write_text(f'annotate:kind="music",ref="{local}":{local}\n')
+        engine = Liquidsoap(primary, .1, str(config.DATA_DIR / 'gap.wav'), fallback_m3u=fallback)
+        events = []
+        async def scenario():
+            await engine.start(events.append)
+            try:
+                deadline = time.monotonic() + 10
+                while not events and time.monotonic() < deadline:
+                    await asyncio.sleep(.05)
+            finally:
+                await engine.stop()
+        self.clock.stop()
+        asyncio.run(scenario())
+        self.assertTrue(events, 'Silence: nothing played while the primary song could not load')
+        self.assertEqual(events[0]['ref'], str(local))
+
     def test_engine_resumes_a_song_at_its_position_before_the_shuffle(self):
         import math
         from array import array

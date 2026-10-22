@@ -18,8 +18,9 @@ PLUGINS = {
     "air_direction": ("Air direction", "Plan future blocks: insert, skip, reorder or postpone. Changes stay local",
                       lambda c: False),
     "gap_filler": ("Host covers loading gaps", "When YouTube Music has not loaded the next song by the end of the "
-                   "current one, the host says so in one short line instead of silence. At most every 10 minutes, "
-                   "within the speech limit", lambda c: False),
+                   "current one, a ready host edition airs now; with nothing ready, the host says so in one line "
+                   "(at most every 10 minutes, within the speech limit) before a song from the local library",
+                   lambda c: False),
     "reroll_next": ("Reroll next track", "Choose a different random next track from Next or the air editor; the current song keeps playing. Applies immediately", lambda c: False),
     "music_facts": ("Music stories", "Light music links when no news is waiting. MusicBrainz and Wikidata facts, "
                     "cached locally, without LLM calls. Uses the normal music-set interval", lambda c: False),

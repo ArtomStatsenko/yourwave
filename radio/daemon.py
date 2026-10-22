@@ -28,9 +28,9 @@ BREAK_SEP = "|"         # a break airs several packages as one request: ref = th
 WEATHER_JOINS_SEC = 300  # a news section this soon after a weather slot airs in the same edition
 GAP_LEAD_SEC = 12       # gap filler: the next song must be loaded this long before the current one ends
 GAP_EVERY_SEC = 600     # gap filler: at most one line this often
-GAP_LINES = ("Секунду — следующая песня ещё догружается из YouTube Music. Не переключайтесь, сейчас продолжим.",
-             "Пока YouTube Music подтягивает следующий трек — короткая пауза, и снова музыка.",
-             "YouTube Music сегодня не торопится: следующая песня уже в пути, ещё пара секунд.")
+GAP_LINES = ("YouTube Music не успел загрузить следующую песню, так что пока — из моей фонотеки.",
+             "Связь с YouTube Music сегодня неторопливая: пока она догружает трек, ставлю песню из своей коллекции.",
+             "Следующий трек из YouTube Music ещё в пути — а пока послушаем кое-что из местной фонотеки.")
 PLAN_HOURS = 12         # how far ahead the plan shows (and lets you edit) sections, reminders and weather
 RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
@@ -245,8 +245,9 @@ class Service:
             await asyncio.sleep(1)
 
     async def _gap_tick(self) -> None:
-        """Experiment: YouTube Music has not loaded the next song by the end of this one -> one short line about
-        it instead of silence. Music comes back on its own after the line once the song is there."""
+        """Experiment: YouTube Music has not loaded the next song by the end of this one -> a ready edition (news,
+        weather, a music story) airs now; with nothing ready, one line about it before the local song the engine
+        plays instead (radio.liq: local songs cover a song not loaded). Never silence."""
         if not plugins.on(self.cfg, "gap_filler") or not self.ytmusic_active or self.state != "PLAYING":
             return
         if not self.gap_voice:
@@ -261,7 +262,14 @@ class Service:
         self.gap_song = cur["started"]  # one look per song
         if self.queued_break or self.replays or self.fresh_queued or self.queued_reminders or self.id_pending:
             return  # something airs at this boundary anyway
-        if time.time() - self.gap_said < GAP_EVERY_SEC or await self.engine.next_music():
+        if await self.engine.next_music():
+            return
+        if self._pick_break():
+            await self.schedule(immediate=True, gap=True)
+            if self.queued_break:
+                log("gap filler: a ready edition airs while YouTube Music loads")
+                return
+        if time.time() - self.gap_said < GAP_EVERY_SEC:
             return
         text, wav = self.gap_voice[int(time.time() // GAP_EVERY_SEC) % len(self.gap_voice)]
         b = self.cfg["broadcast"]
@@ -271,7 +279,7 @@ class Service:
         gain = -16 - (await asyncio.to_thread(audio.lufs, wav) or -16)
         await self.engine.push_replay(wav, "gap", text, gain, "", ',liq_cross_end_duration="1.5"')
         self.gap_said, self.id_pending = time.time(), True
-        log("gap filler queued: the next YouTube Music song is not loaded")
+        log("gap filler queued: the next YouTube Music song is not loaded, a local one follows")
 
     async def watch_engine(self) -> None:
         restarts = 0
@@ -658,15 +666,16 @@ class Service:
             return self.weather_hold[r['id']] == self.current['started']
         return False
 
-    async def schedule(self, immediate=False) -> None:
+    async def schedule(self, immediate=False, gap=False) -> None:
+        """immediate: queue what is ready now, joined as rendered. gap: also when no break is due yet."""
         if immediate:
             self.schedule_generation += 1
-            await self._schedule(True)
+            await self._schedule(True, gap)
         else:
             async with self.schedule_lock:
                 await self._schedule()
 
-    async def _schedule(self, immediate=False) -> None:
+    async def _schedule(self, immediate=False, gap=False) -> None:
         generation = self.schedule_generation
         self._live_settings()
         if self.current is None:
@@ -683,7 +692,7 @@ class Service:
             return
         if not immediate and self.reminders_due and await self._remind(remaining):
             return
-        pkgs = self._waiting_break(remaining)
+        pkgs = self._pick_break() if gap else self._waiting_break(remaining)
         current = self.current
         if immediate:
             remaining = 0.0

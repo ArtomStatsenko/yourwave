@@ -170,6 +170,18 @@ class DirectionTests(unittest.TestCase):
             asyncio.run(self.svc._remind(180))                               # three minutes before the song ends
         self.assertEqual(self.svc.db.execute("SELECT status FROM packages WHERE item_id=?", ('system:' + key,)).fetchone()[0], 'READY')
 
+    def test_gap_queues_a_ready_edition_before_its_time(self):
+        pid = self.add_news('one')
+        self.svc.current = {'kind': 'music', 'ref': 'ytmusic:a', 'started': 1000, 'duration': 200}
+        self.svc.set_started = 1000                                         # the set has just begun: no break due
+        store.log_event(self.svc.db, self.svc.session, 'PACKAGE_STARTED', 'earlier#1')
+        self.svc.engine = Mock(push_news=AsyncMock(return_value='8'))
+        with patch('radio.daemon.time.time', return_value=1190), \
+             patch('radio.audio.join_packages', return_value=Path('/tmp/joined.wav')):
+            self.assertEqual(self.svc._waiting_break(10), [])
+            asyncio.run(self.svc.schedule(immediate=True, gap=True))
+        self.assertEqual(self.svc.queued_break, ('8', [pid]))
+
     def test_weather_and_multiple_sources_share_one_edition_and_skip(self):
         plugins.set_plugin('weather', True)
         news = [self.add_news(name) for name in ('technology', 'github')]
