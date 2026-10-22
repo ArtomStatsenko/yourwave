@@ -69,6 +69,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
                 continue
             script = Path(pk["script_path"]) if pk["script_path"] else None
             text = script.read_text(encoding="utf-8").replace("⁂", "").replace("⁑", "") if script and script.exists() else ""
+            text = re.sub(r"\[[a-z-]+\]\s*", "", text)  # voice tags ([laughter]...) are heard, not shown
             links = _links(pk)
             part = {"title": links[0]["title"] if links and links[0]["title"] else topic_name(pk["topic"]),
                     "source": pk["source"], "text": re.sub(r"\n{3,}", "\n\n", text).strip(), "links": links}

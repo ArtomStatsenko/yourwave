@@ -70,6 +70,8 @@ SET_OPENERS = [
     "Впереди {minutes} музыки без перерыва, оставайтесь с нами.",
     "Возвращаемся к музыке.",
     "А теперь снова музыка.",
+    "Отлично! Впереди {minutes} музыки без перерыва.",
+    "[laughter] Ну что, возвращаемся к музыке.",  # VoiceStudio tag: a short, natural chuckle
 ]
 NEW_SET_OPENERS = [
     "А теперь — новинки нашей библиотеки: {minutes} музыки, которой ещё не было в эфире.",
@@ -79,7 +81,12 @@ NEW_SET_OPENERS = [
 FIRST_SONG = [" Начинаем с {artist}, «{title}».", " Первой прозвучит «{title}», {artist}.", " Открывает сет {artist}."]
 
 # Short, as a DJ says it between songs: no "playlist" or "selection" talk.
-MUSIC_LINKS = ["А мы продолжаем.", "Продолжаем.", "Дальше — снова музыка.", "Не переключайтесь."]
+# [laughter] / [surprise-ah] are VoiceStudio tags (a chuckle, an "А,"); [sigh] turns the clip into noise: never use it.
+MUSIC_LINKS = ["А мы продолжаем.", "Продолжаем.", "Дальше — снова музыка.", "Не переключайтесь.",
+               "[laughter] А мы продолжаем!"]
+FACT_LEADS = ["", "Кстати, ", "[surprise-ah] Кстати, "]
+_COMMON_STARTS = {"этот", "эта", "это", "эту", "этой", "песня", "песню", "трек", "альбом", "клип", "впервые", "в", "на",
+                  "по", "за", "изначально", "когда", "у"}
 
 
 def music_link(song: tuple[str, str] | None, facts: str, recent: dict, seed: str) -> str:
@@ -88,7 +95,13 @@ def music_link(song: tuple[str, str] | None, facts: str, recent: dict, seed: str
     if song:
         artist, title = song
         lead = _rotate(LAST_SONG, "host_last", recent, seed).format(artist=_quoted(artist), title=_title(title)) + " "
-    return lead + (facts + " " if facts else "") + _rotate(MUSIC_LINKS, "music_link", recent, seed)
+    if facts:
+        pre = _rotate(FACT_LEADS, "fact_lead", recent, seed)
+        first = facts.split(" ", 1)[0]
+        if pre and first.lower() in _COMMON_STARTS:  # "Кстати, этот трек…", but never lower a name
+            facts = facts[:1].lower() + facts[1:]
+        lead += (pre + facts if pre and first.lower() in _COMMON_STARTS else facts) + " "
+    return lead + _rotate(MUSIC_LINKS, "music_link", recent, seed)
 
 
 def minutes_words(n: int) -> str:
