@@ -144,9 +144,6 @@ def connection(cfg: dict) -> dict:
     return c
 
 
-def models(cfg: dict) -> list[str]:
-    return connection(cfg)["ids"]
-
 
 class Editor:
     def __init__(self, cfg: dict):

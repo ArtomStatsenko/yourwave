@@ -43,6 +43,11 @@ def start(port: int, get_target) -> ThreadingHTTPServer:
             pass
 
         def _forward(self, body: bytes | None):
+            # It adds the user's key: only Horizon may use it. A browser always sends Origin (a web page could
+            # otherwise spend the key with a no-cors POST); a foreign Host means DNS rebinding.
+            if "Origin" in self.headers or self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}":
+                self.send_error(403)
+                return
             t = get_target()
             path, to_responses = self.path, False
             if body and self.path.endswith("/chat/completions"):

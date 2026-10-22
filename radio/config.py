@@ -143,6 +143,7 @@ def load(*, audio_preset: str | None = None) -> dict:
     if not path.exists():
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         path.write_text(DEFAULT_CONFIG)
+    path.chmod(0o600)  # it holds the Todoist token, the calendar's secret link, maybe an API key
     cfg = tomllib.loads(DEFAULT_CONFIG)
     for section, values in tomllib.loads(path.read_text()).items():
         cfg.setdefault(section, {}).update(values)

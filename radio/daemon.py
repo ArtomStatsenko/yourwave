@@ -96,11 +96,11 @@ class Service:
         self.id_pending = False
         self.queued_break = None
         self.all_sources_checked = False  # set only after a *successful* check of every enabled source
-        self.resume_offset: dict[str, float] = {}
-        self.weather_hold: dict[str, float] = {}
+        self.resume_offset: dict[str, float] = {}  # ref -> seconds already played, for the song resumed at start
+        self.weather_hold: dict[str, float] = {}   # weather slot -> start of the song its joining break first waited at
         self.gap_voice: list[tuple[str, Path]] = []  # gap filler lines, rendered ahead: a gap leaves seconds
         self.gap_song, self.gap_said = 0.0, 0.0      # the song last checked, when the host last covered a gap
-        self.opener_retry = self.gap_retry = 0.0     # next try to pre-render the startup opener, the gap lines  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
+        self.opener_retry = self.gap_retry = 0.0     # next try to pre-render the startup opener, the gap lines
 
     # ---- lifecycle ----
     async def run(self) -> None:
@@ -559,7 +559,11 @@ class Service:
             if self.db.execute("SELECT 1 FROM items WHERE id=?", (iid,)).fetchone():
                 continue
             tries += 1
-            text = self.editor.retell_news(it["title"], it["summary"])
+            try:
+                text = self.editor.retell_news(it["title"], it["summary"])
+            except Exception as e:  # one failed retelling (timeout, 429) must not lose the rest of the briefing
+                log("horizon retelling:", type(e).__name__)
+                continue
             if not text:
                 continue
             origin = [{"repo": it["title"], "url": it["url"], "description": it["summary"], "score": it["score"]}]
@@ -609,8 +613,12 @@ class Service:
                 # Not stored on failure: the next hourly fetch may try it again while it is still listed.
                 # The README opening gives the retelling something to say beyond the one-line description.
                 readme = github_trending.fetch_readme(t["owner"], t["repo"])
-                item = github_trending.to_item(t, self.editor.retell(t["repo"], t["description"], readme), role,
-                                               gt["daily_min"], source)
+                try:
+                    told = self.editor.retell(t["repo"], t["description"], readme)
+                except Exception as e:  # one failed retelling must not lose the other picks of this hour
+                    log("github retelling:", type(e).__name__)
+                    continue
+                item = github_trending.to_item(t, told, role, gt["daily_min"], source)
                 if item is None:
                     continue
                 # Freshness = first time we saw it in today's ranking or this week's new list, not repo.created_at.

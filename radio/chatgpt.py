@@ -3,6 +3,8 @@ A public client without a secret: each sign-in registers this installation (clie
 browser comes back to the page's /auth/callback, and the code becomes an access token that works as an OpenAI API
 key for the Responses API, on the user's ChatGPT plan. Tokens live in DATA_DIR/chatgpt.json (owner-only)."""
 import base64
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -85,35 +87,49 @@ def finish(state: str, code: str, client_id: str) -> None:
                         "code_verifier": verifier, "redirect_uri": redirect_uri, "resource": RESOURCE})
     if not t.get("refresh_token"):
         raise ValueError("OpenAI returned no refresh token")
-    with _lock:
+    with _locked():
         data = _load()
         data.update(client_id=client_id, access=t["access_token"], refresh=t["refresh_token"],
                     expires=time.time() + t["expires_in"] - 180)  # refresh 3 min early, like pi
         _save(data)
 
 
+@contextlib.contextmanager
+def _locked():
+    """One refresh at a time across the page server, the radio and the Horizon proxy: two refreshes with the same
+    refresh token would race (the loser's token is already used up)."""
+    with _lock, open(config.DATA_DIR / "chatgpt.lock", "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        yield
+
+
 def token() -> str:
     """A valid access token, refreshed when it is about to expire; "" when not signed in or refresh failed."""
-    with _lock:
-        data = _load()
-        if not data.get("refresh"):
-            return ""
+    data = _load()
+    if not data.get("refresh") or time.time() < data.get("retry_at", 0):
+        return ""
+    if time.time() < data.get("expires", 0):
+        return data["access"]
+    with _locked():
+        data = _load()  # another process may have refreshed while this one waited
         if time.time() < data.get("expires", 0):
             return data["access"]
         try:
             t = _token_request({"grant_type": "refresh_token", "client_id": data["client_id"],
                                 "refresh_token": data["refresh"], "resource": RESOURCE})
         except (OSError, ValueError):
+            data["retry_at"] = time.time() + 60  # no retry storm from the page's 2 s poll while offline
+            _save(data)
             return ""
         data.update(access=t["access_token"], refresh=t.get("refresh_token") or data["refresh"],
-                    expires=time.time() + t["expires_in"] - 180)
+                    expires=time.time() + t["expires_in"] - 180, retry_at=0)
         _save(data)
         return data["access"]
 
 
 def sign_out() -> None:
-    with _lock:
+    with _locked():
         data = _load()
-        for k in ("client_id", "access", "refresh", "expires"):
+        for k in ("client_id", "access", "refresh", "expires", "retry_at"):
             data.pop(k, None)
         _save(data)

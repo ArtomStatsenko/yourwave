@@ -198,12 +198,14 @@ def serve(port: int) -> None:
                 resp = {"ok": True, "settings": settings.listing(cfg)}
             elif cmd == "play":
                 resp = start_daemon()
-            elif cmd == "plugin":  # a file switch: works with the radio on or off, the daemon picks it up live
-                try:
-                    plugins.set_plugin(str(body.get("name", "")), bool(body.get("on")))
-                except ValueError as e:
-                    return self._json({"ok": False, "error": str(e)}, 400)
-                resp = {"ok": True}
+            elif cmd == "plugin":  # a file switch; a running radio also takes back what the plugin already queued
+                name, on = str(body.get("name", "")), bool(body.get("on"))
+                if name not in plugins.PLUGINS:
+                    return self._json({"ok": False, "error": f"unknown plugin {name}"}, 400)
+                resp = send("plugin", timeout=10, name=name, on=on)
+                if resp is None:  # the radio is off: the file alone
+                    plugins.set_plugin(name, on)
+                    resp = {"ok": True}
             elif cmd == "audio_preset":
                 try:
                     config.select_audio_preset(str(body.get("name", "")))

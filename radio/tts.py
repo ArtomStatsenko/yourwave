@@ -2,9 +2,10 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import shutil
 import socket
+import subprocess
+import tempfile
 import tomllib
 import urllib.request
 from pathlib import Path
@@ -33,15 +34,16 @@ class VoiceStudio:
     def voices(self) -> list[dict]:
         return self._get("/v1/audio/voices")["voices"]
 
-    def synthesize(self, text: str, out: Path) -> None:
+    def synthesize(self, text: str, out: Path, seed: int | None = None) -> None:
+        """seed: this take only (a retry with a neighbouring seed); the voice's own seed otherwise."""
         if len(text) > MAX_CHARS:
             raise ValueError("text too long for one TTS request")
         req_body = {"model": "tts-1", "voice": self.voice_id, "input": text, "language": self.language,
                     "response_format": "wav", "speed": self.speed}
         if self.instruct:
             req_body["instruct"] = self.instruct  # voice design: the built-in voice is described, not cloned
-        if self.seed is not None:
-            req_body["seed"] = self.seed  # same seed -> same designed voice in every clip
+        if (seed := self.seed if seed is None else seed) is not None:
+            req_body["seed"] = seed  # same seed -> same designed voice in every clip
         body = json.dumps(req_body).encode()
         req = urllib.request.Request(self.base_url + "/v1/audio/speech", body, {"Content-Type": "application/json"})
         tmp = out.with_suffix(".tmp.wav")
@@ -107,7 +109,7 @@ class MockTTS:
     def voices(self) -> list[dict]:
         return [{"voice_id": "mock"}]
 
-    def synthesize(self, text: str, out: Path) -> None:
+    def synthesize(self, text: str, out: Path, seed: int | None = None) -> None:
         d = max(1.0, len(text) / self.cps)
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
                         f"aevalsrc=0.1*sin(2*PI*1200*t)+0.1*sin(2*PI*2400*t)+0.1*sin(2*PI*3300*t):s=24000:d={d}", "-ar", "24000", "-ac", "1", str(out)], check=True)
@@ -145,21 +147,18 @@ def cached_synthesize(tts, text: str, check=None) -> Path:
     takes = [(text, None), (text.replace(", ", " — "), None), (text.rstrip(".!?…") + "…", None)]
     if getattr(tts, "seed", None) is not None:
         takes += [(text, tts.seed + d) for d in (2, 5)]
-    tmp, errors = out.with_suffix(".take.wav"), []
-    seed0 = getattr(tts, "seed", None)
+    # A take file of its own: two threads may voice the same phrase at once. The seed goes with the request, never
+    # onto the shared voice object: another thread's take would get this retry's seed, i.e. another voice.
+    fd, name = tempfile.mkstemp(suffix=".take.wav", dir=out.parent)
+    os.close(fd)
+    tmp, errors = Path(name), []
     try:
         for variant, seed in dict.fromkeys(takes):
-            if seed is not None:
-                tts.seed = seed
-            tts.synthesize(variant, tmp)
-            if seed is not None:
-                tts.seed = seed0
+            tts.synthesize(variant, tmp, **({"seed": seed} if seed is not None else {}))
             if not (err := check(tmp)):
                 os.replace(tmp, out)
                 return out
             errors.append(err)
     finally:
         tmp.unlink(missing_ok=True)
-        if seed0 is not None:
-            tts.seed = seed0
     raise RuntimeError(f"TTS audio invalid after {len(errors)} takes: {errors[-1]}")

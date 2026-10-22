@@ -91,10 +91,6 @@ def parse_list(page: str, n: int = 3) -> list[dict]:
     return out
 
 
-def parse_top(page: str) -> dict:
-    return parse_list(page, 1)[0]
-
-
 def repo_id(top: dict) -> str:
     return f"github:{top['owner']}/{top['repo']}".lower()
 

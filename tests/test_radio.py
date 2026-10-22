@@ -1141,6 +1141,24 @@ class SchedulingTests(unittest.TestCase):
             svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
 
+    def test_retry_seed_goes_with_the_request_not_onto_the_shared_voice(self):
+        from radio import tts as tts_mod
+        seen = []
+
+        class Voice:
+            seed = 42
+
+            def cache_key(self, text):
+                return "seedtest-" + str(abs(hash(text)))
+
+            def synthesize(self, text, out, seed=None):
+                seen.append((seed, self.seed))
+                out.write_bytes(b"x")
+        bad = iter([True, True, True, False])  # no comma in the text: the dash take equals the first one
+        tts_mod.cached_synthesize(Voice(), "Фраза для проверки зерна.", lambda p: "noise" if next(bad) else None)
+        self.assertEqual([s for s, _ in seen], [None, None, 44, 47])  # retries with neighbouring seeds
+        self.assertEqual({shared for _, shared in seen}, {42})              # the shared voice never changed
+
     def test_two_hosts_alternate_and_hand_over_by_name(self):
         svc = self.svc
         svc.tts2 = object()  # the co-host's voice (only its identity matters here)
@@ -1290,6 +1308,7 @@ class LlmProviderTests(unittest.TestCase):
     def test_provider_switch_reaches_editor_and_horizon_proxy(self):
         import io
         import threading
+        import urllib.error
         import urllib.request
         from http.server import BaseHTTPRequestHandler, HTTPServer
         from unittest.mock import patch
@@ -1340,6 +1359,11 @@ class LlmProviderTests(unittest.TestCase):
             with urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{proxy.server_port}/v1/chat/completions",
                                                                json.dumps(chat).encode(), {"Content-Type": "application/json"})) as r:
                 answer = json.load(r)
+            # a web page (it always sends Origin) must not get the user's key spent for it
+            with self.assertRaises(urllib.error.HTTPError) as no:
+                urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{proxy.server_port}/v1/chat/completions",
+                                                              b"{}", {"Origin": "https://evil.example", "Content-Type": "text/plain"}))
+            self.assertEqual(no.exception.code, 403)
         finally:
             proxy.shutdown()
             up.shutdown()
@@ -1430,6 +1454,18 @@ class LlmProviderTests(unittest.TestCase):
             self.assertEqual(chatgpt.token(), "at2")  # refreshed
             self.assertEqual((forms[1]["grant_type"], forms[1]["refresh_token"]), ("refresh_token", "rt1"))
         self.assertEqual((config.DATA_DIR / "chatgpt.json").stat().st_mode & 0o777, 0o600)
+        data = json.loads((config.DATA_DIR / "chatgpt.json").read_text())
+        data["expires"] = 0
+        (config.DATA_DIR / "chatgpt.json").write_text(json.dumps(data))
+        calls = []
+
+        def offline(req, timeout):
+            calls.append(1)
+            raise urllib.error.URLError("offline")
+        import urllib.error
+        with patch.object(urllib.request, "urlopen", offline):
+            self.assertEqual((chatgpt.token(), chatgpt.token()), ("", ""))
+        self.assertEqual(len(calls), 1)  # a failed refresh waits a minute: no retry on every page poll
         chatgpt.sign_out()
         self.assertFalse(chatgpt.signed_in())
 
