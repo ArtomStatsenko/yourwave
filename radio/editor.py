@@ -133,14 +133,14 @@ def connection(cfg: dict) -> dict:
                     new = {"state": "ok", "detail": "Signed in with ChatGPT", "ids": []}  # its token lists no models
                 else:
                     new = {"state": "bad_key", "detail": "The provider rejected this key", "ids": []} if e.code in (401, 403) \
-                        else {"state": "unreachable", "detail": f"{host} answered {e.code}; try again later", "ids": []}
+                        else {"state": "unreachable", "detail": f"{host} answered {e.code}", "ids": []}
             except (OSError, ValueError, KeyError, TypeError):
                 new = {"state": "unreachable", "detail": f"Can't reach {host}", "ids": []}
             _checks[k] = dict(new, at=time.time())
         threading.Thread(target=check, daemon=True).start()
     c = _checks[k]
     if c["state"] == "ok" and c["ids"] and t["model"] not in c["ids"]:
-        return dict(c, state="no_model", detail=f"{t['model']} is not offered by {TITLES[t['provider']]}; pick a model")
+        return dict(c, state="no_model", detail=f"{t['model']} is not offered by this provider")
     return c
 
 

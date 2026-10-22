@@ -10,8 +10,7 @@ from . import chatgpt, config, editor, openrouter
 SETTINGS = {
     "station_name": ("broadcast", "station_name", "Station name",
                      "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
-    "llm_provider": ("editor", "provider", "AI provider",
-                     "Who retells news, repositories and calendar days", 1, 20, None, ""),
+    "llm_provider": ("editor", "provider", "Provider", "Where the host's words come from", 1, 20, None, ""),
     # one model row per provider; the page shows the selected provider's
     "ollama_model": ("editor", "model", "Model", "A local Ollama model", 1, 200, None, ""),
     "openai_model": ("editor", "openai_model", "Model", "An OpenAI model", 1, 200, None, ""),
@@ -124,6 +123,7 @@ def listing(cfg: dict) -> list[dict]:
         if k == "llm_provider":
             row["connection"] = {"state": c["state"], "detail": c["detail"], "models": len(c["ids"])}
             row["active"] = {"provider_title": editor.TITLES[provider], "model": value[MODEL_ROWS[provider]]}
+            row["labels"] = editor.TITLES
             if provider == "openrouter":
                 row["action"] = ({"label": "Sign out of OpenRouter", "cmd": "openrouter_logout"} if openrouter.key()
                                  else {"label": "Sign in with OpenRouter", "cmd": "openrouter_login"})

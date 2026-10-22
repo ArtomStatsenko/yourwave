@@ -152,9 +152,21 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .st{display:grid;gap:4px;padding:16px 0;border-bottom:1px solid var(--line)}
 .st .hd2{display:flex;justify-content:space-between;gap:16px}.st .v{font-variant-numeric:tabular-nums;color:var(--accent)}
 .st input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0}
-.st .row input[type=password]{flex:1;width:auto;min-width:200px}
-.ai-state{font-size:16px}.ai-state .dot{background:var(--muted)}.ai-state.ok .dot{background:var(--ok)}
-.ai-state.bad_key .dot,.ai-state.unreachable .dot,.ai-state.no_model .dot,.ai-state.no_key .dot{background:var(--warn)}
+/* AI block of Settings (design system: AiSettings): summary, provider, key or sign-in, model; glyphs carry the state, not only colour */
+.ai{display:grid}
+.ai-h{font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px 0 4px}
+.sum{display:grid;gap:2px;padding:12px 0 16px;border-bottom:1px solid var(--line)}
+.sum .nm{font-size:22px;line-height:32px;font-weight:600;overflow-wrap:anywhere}
+.stt{display:flex;gap:8px;align-items:baseline;font-size:16px;line-height:24px}
+.stt .g{flex:none;width:1.4ch;text-align:center}
+.stt.ok .g{color:var(--ok)}.stt.bad .g,.stt.bad{color:var(--warn)}.stt.wait,.stt.wait .g{color:var(--muted)}
+.stt .d{color:var(--muted)}
+.st input[type=password][aria-invalid="true"]{border-color:var(--warn)}
+.keyrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.keyrow input{flex:1;min-width:200px;width:auto;margin:0}
+.ab{font-size:16px;padding:6px 14px;min-height:36px}.keyrow .ab{min-width:9ch}
+.fb{font-size:16px;line-height:24px;min-height:24px}.fb.bad{color:var(--warn)}.fb.ok{color:var(--ok)}
+.pick-hint{color:var(--warn)}
 .st input[type=url],.st input[type=password],.st input[type=text],.st select{box-sizing:border-box;width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
 .st .rs{border:0;padding:0 4px;font-size:16px;color:var(--accent);text-decoration:underline}.st .rs:hover{border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
@@ -397,23 +409,46 @@ function player(){
   $('sk').hidden=st.current_kind!=='news';
   $('er').textContent=st.last_error||'';
 }
-var keyMsg='';  // what happened to the last pasted key, shown under the field (not in the player's error line)
-function saveKey(provider,key){if(key!==''&&!key.trim()){keyMsg='Paste the key first';settingsView(true);$('llm-key').focus();return}
-  $('llm-key').value='';keyMsg=key?'Saving…':'Removing…';settingsView(true);
+var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
+var TODO={no_key:{key:'paste one below',sign:'sign in below'},bad_key:'paste a new one',unreachable:'check the connection',no_model:'pick another model below'};
+function saveKey(provider,key){
+  if(key!==''&&!key.trim()){keyFb={cls:'bad',text:'Paste the key first.',invalid:true};settingsView(true);$('llm-key').focus();return}
+  keyBusy=true;settingsView(true);
   api('/api/cmd',{cmd:'llm_key',provider:provider,key:key}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;
-    keyMsg=key?'Key saved. Checking the connection…':'Key removed';settingsView(true)}).catch(function(e){keyMsg=e.message||'Could not save the key';settingsView(true)})}
+    keyFb=key?{cls:'ok',text:'Key saved. Checking it now…',checking:true}:{cls:'',text:'Key removed.'};$('llm-key').value=''})
+  .catch(function(e){keyFb={cls:'bad',text:(e.message||'Could not save the key')+'.',invalid:true}}).finally(function(){keyBusy=false;settingsView(true)})}
+function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model (design system: AiSettings)
+  var c=p.connection,st=c.state,known=st==='ok'||st==='no_model',parts=c.detail.split(' · ');
+  if(keyFb.checking&&st!=='checking')keyFb=st==='bad_key'?{cls:'bad',text:'The provider rejected this key. Paste the key again, exactly as the provider shows it.',invalid:true}:{cls:'ok',text:'Key saved.'};
+  var todo=TODO[st];if(st==='no_key')todo=p.key_field?todo.key:todo.sign;
+  var g=st==='ok'?['ok','●']:st==='checking'?['wait','○']:['bad','▲'];
+  var h='<section class="ai" aria-label="AI"><div class="ai-h">AI</div>'
+    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(p.active.provider_title)+(known?' · '+esc(st==='no_model'?'no model':p.active.model):'')+'</div>'
+    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(parts[0])+(st==='ok'&&parts[1]?' <span class="d">· '+esc(parts[1])+'</span>':todo?' <span class="d">· '+esc(todo)+'</span>':'')+'</span></div></div>'
+    +'<div class="st"><label for="st-llm_provider">'+esc(p.title)+'</label><select id="st-llm_provider" data-st="llm_provider">'
+    +p.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===p.value?' selected':'')+'>'+esc(p.labels[o]||o)+'</option>'}).join('')+'</select>'
+    +'<div class="l">'+esc(p.hint)+' · default '+esc(p.labels[p.default]||p.default)+(p.value!==p.default?' <button class="rs" data-rs="llm_provider">reset</button>':'')+'</div>'
+    +(p.action?'<div class="row"><button type="button" class="ab" data-act="'+esc(p.action.cmd)+'">'+esc(p.action.label)+'</button></div>':'')+'</div>';
+  if(p.key_field)h+='<div class="st"><label for="llm-key">API key</label><div class="keyrow">'
+    +'<input type="password" id="llm-key" autocomplete="off" spellcheck="false" maxlength="300" aria-describedby="llm-key-fb" aria-invalid="'+!!keyFb.invalid+'" placeholder="'+(p.key_field.saved?'saved · paste a new one to replace':'paste the key')+'">'
+    +'<button type="button" class="ab" data-key="'+esc(p.key_field.provider)+'"'+(keyBusy?' disabled':'')+'>'+(keyBusy?'saving…':'save key')+'</button>'
+    +(p.key_field.saved?'<button type="button" class="rs" data-key-rm="'+esc(p.key_field.provider)+'">remove</button>':'')+'</div>'
+    +'<div class="fb '+keyFb.cls+'" id="llm-key-fb" role="status" aria-live="polite">'+esc(keyFb.text)+'</div></div>';
+  if(m)h+='<div class="st"><label for="st-'+m.key+'">Model</label>'
+    +(m.options?'<select id="st-'+m.key+'" data-st="'+m.key+'">'+(st==='no_model'?'<option value="" selected disabled>choose a model</option>':'')+m.options.map(function(o){return '<option'+(o===m.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>'
+      :'<input type="text" id="st-'+m.key+'" data-st="'+m.key+'" minlength="'+m.min+'" maxlength="'+m.max+'" value="'+esc(m.value)+'">')
+    +(st==='no_model'?'<div class="l pick-hint">'+esc(c.detail)+'. Pick another model.</div>':'<div class="l">Models offered by the provider</div>')+'</div>';
+  return h+'</section>'}
 function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
-  var ai=stg.find(function(s){return s.connection});if(ai&&ai.connection.state!=='checking'&&/^Key saved/.test(keyMsg))keyMsg='';  // the status line says the rest
-  var box=$('settings'),f=document.activeElement;if(!force&&box.contains(f)&&['range','text','select-one','password'].includes(f.type))return;  // not while dragging or typing
-  var u=function(s,v){return v+(s.unit?' '+s.unit:'')};
-  box.innerHTML=stg.map(function(s){return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
-    +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+(s.options.indexOf(s.value)<0?'<option selected disabled>choose a model</option>':'')+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
+  var box=$('settings'),f=document.activeElement;
+  if(!force&&(box.contains(f)&&['range','text','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
+  var u=function(s,v){return v+(s.unit?' '+s.unit:'')},prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
+  box.innerHTML=stg.map(function(s){if(s===prov)return aiView(prov,model);if(s===model)return '';
+    return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
+    +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
-    +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div>'
-    +(s.action?'<div class="row"><button type="button" data-act="'+esc(s.action.cmd)+'">'+esc(s.action.label)+'</button></div>':'')
-    +(s.connection?'<div class="ai-state '+esc(s.connection.state)+'" role="status" aria-live="polite"><span class="dot"></span>'+esc(s.active.provider_title)+(['ok','no_model'].includes(s.connection.state)?' · '+esc(s.active.model):'')+' — '+esc(s.connection.detail)+'</div>':'')
-    +(s.key_field?'<label for="llm-key">API key</label><div class="row"><input type="password" id="llm-key" autocomplete="off" spellcheck="false" maxlength="300" placeholder="'+(s.key_field.saved?'saved · paste a new one to replace':'paste the key')+'">'
-      +'<button type="button" data-key="'+esc(s.key_field.provider)+'">save key</button>'+(s.key_field.saved?'<button type="button" class="rs" data-key-rm="'+esc(s.key_field.provider)+'">remove</button>':'')+'</div><div class="l" id="llm-key-msg" role="status" aria-live="polite">'+esc(keyMsg)+'</div>':'')+'</div>'}).join('');if(force&&f&&f.id&&box.contains(f)===false&&$(f.id))$(f.id).focus({preventScroll:true})}
+    +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div></div>'}).join('');
+  if(force&&f&&f.id&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
     $('audio-preset-hint').textContent=d.ok===false?d.error:'Applies after stop / play. Personal sounds stay on this Mac.';
@@ -424,6 +459,7 @@ $('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st});if(s.step!==null)$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st}),value=s.step===null?r.value:+r.value;s.value=value;
+  if(s.key==='llm_provider')keyFb={cls:'',text:''};
   api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save'})};
 $('stg').onkeydown=function(e){if(e.key==='Enter'&&e.target.id==='llm-key'){e.preventDefault();var b=document.querySelector('[data-key]');if(b)saveKey(b.dataset.key,e.target.value)}};
 $('stg').onclick=function(e){var k=e.target.closest('[data-key],[data-key-rm]');
