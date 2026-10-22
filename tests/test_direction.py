@@ -72,6 +72,16 @@ class DirectionTests(unittest.TestCase):
         self.assertFalse(self.svc._news_preparation_due(300))
         self.assertEqual(self.svc.db.execute('SELECT status FROM packages WHERE id=?', (pid,)).fetchone()[0], 'PENDING')
 
+    def test_skipped_section_leaves_the_plan_once_its_time_passes(self):
+        pid = self.preparation_section(10)
+        snap = self.svc._broadcast_plan()
+        row = next(r for r in snap['rows'] if pid in r.get('content_members', []))
+        self.save_plan(snap, [{'id': row['id'], 'at': row['at'], 'skipped': True}])
+        self.clock.return_value = self.AT + timedelta(minutes=10 + self.cfg['broadcast']['music_set_minutes'] - 1)
+        self.assertTrue(any(r['skipped'] for r in self.svc._broadcast_plan()['rows']))
+        self.clock.return_value = self.AT + timedelta(minutes=10 + self.cfg['broadcast']['music_set_minutes'])
+        self.assertFalse(any(r['skipped'] for r in self.svc._broadcast_plan()['rows']))
+
     def test_voice_waits_until_five_minutes_and_keeps_existing_material(self):
         pid = self.preparation_section(10)
         async def tick():

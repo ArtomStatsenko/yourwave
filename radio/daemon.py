@@ -1639,6 +1639,10 @@ class Service:
                 skip_id = 'news-skip:' + row['id']
                 row['skip_id'] = skip_id
                 row['skipped'] = row['skipped'] or bool(changes.get(skip_id, {}).get('skipped'))
+        # A skip lasts one music set from its time (as in _news_skipped); after that the block would only hang.
+        result = [row for row in result if not (row['skipped'] and (skipped_at := content.parse_time(
+            changes.get(row.get('skip_id'), {}).get('not_before') or row.get('not_before'))) and
+            skipped_at + timedelta(seconds=interval) <= at)]
         for row in result:
             if row['kind'] == 'news' and not row['id'].startswith(('section:', 'direction:', 'system:')):
                 row['legacy_members'] = row['members']
