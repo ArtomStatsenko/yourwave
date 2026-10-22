@@ -4,14 +4,19 @@ the defaults, and the daemon picks a change up live, without a restart."""
 import json
 import os
 
-from . import config
+from . import config, editor, openrouter
 
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
     "station_name": ("broadcast", "station_name", "Station name",
                      "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
     "llm_provider": ("editor", "provider", "AI provider",
-                     "Who retells news, repositories and calendar days. API keys stay in config.toml", 1, 20, None, ""),
+                     "Who retells news, repositories and calendar days", 1, 20, None, ""),
+    # one model row per provider; the page shows the selected provider's
+    "ollama_model": ("editor", "model", "Model", "A local Ollama model", 1, 200, None, ""),
+    "openai_model": ("editor", "openai_model", "Model", "An OpenAI model. The API key is in config.toml", 1, 200, None, ""),
+    "openrouter_model": ("editor", "openrouter_model", "Model", "Any model on OpenRouter, billed to your OpenRouter "
+                         "credits", 1, 200, None, ""),
     "music_set_minutes": ("broadcast", "music_set_minutes", "Music between breaks",
                           "How much music plays in a row before the next news break. More — breaks come less often",
                           5, 90, 5, "min"),
@@ -30,7 +35,8 @@ SETTINGS = {
 }
 
 
-CHOICES = {"llm_provider": ("ollama", "openai")}  # a text setting that is one of these: a drop-down on the page
+CHOICES = {"llm_provider": ("ollama", "openai", "openrouter")}
+MODEL_ROWS = {"ollama": "ollama_model", "openai": "openai_model", "openrouter": "openrouter_model"}  # a text setting that is one of these: a drop-down on the page
 
 
 def _path():
@@ -98,12 +104,32 @@ def apply(cfg: dict, defaults: dict) -> None:
 def listing(cfg: dict) -> list[dict]:
     """For the page. cfg is a freshly loaded config (the defaults)."""
     saved, d = _saved(), base(cfg)
-    return [{"key": k, "title": s[2], "hint": s[3] + (_llm_note(cfg) if k == "llm_provider" else ""), "min": s[4],
-             "max": s[5], "step": s[6], "unit": s[7], "options": CHOICES.get(k),
-             "value": saved.get(k, d[k]), "default": d[k]} for k, s in SETTINGS.items()]
+    value = {k: saved.get(k, d[k]) for k in SETTINGS}
+    live = {s[0]: dict(cfg[s[0]]) for s in SETTINGS.values()}
+    for k, s in SETTINGS.items():
+        live[s[0]][s[1]] = value[k]
+    provider = value["llm_provider"]
+    rows = []
+    for k, s in SETTINGS.items():
+        if k in MODEL_ROWS.values() and k != MODEL_ROWS[provider]:
+            continue
+        row = {"key": k, "title": s[2], "hint": s[3], "min": s[4], "max": s[5], "step": s[6], "unit": s[7],
+               "options": CHOICES.get(k), "value": value[k], "default": d[k]}
+        if k == MODEL_ROWS[provider]:
+            row["options"] = sorted(set(editor.models(live)) | {value[k]})
+        if k == "llm_provider":
+            row["hint"] += _llm_note(live)
+            if provider == "openrouter":
+                row["action"] = ({"label": "Sign out of OpenRouter", "cmd": "openrouter_logout"} if openrouter.key()
+                                 else {"label": "Sign in with OpenRouter", "cmd": "openrouter_login"})
+        rows.append(row)
+    return rows
 
 
-def _llm_note(cfg: dict) -> str:
-    e = cfg["editor"]
-    key = e["openai_api_key"] or os.environ.get("OPENAI_API_KEY")
-    return f". Models: ollama {e['model']}, openai {e['openai_model']}" + ("" if key else " (no OpenAI key yet)")
+def _llm_note(live: dict) -> str:
+    e = live["editor"]
+    if e["provider"] == "openrouter":
+        return ". Signed in" if openrouter.key() else ". Not signed in yet"
+    if e["provider"] == "openai" and not (e["openai_api_key"] or os.environ.get("OPENAI_API_KEY")):
+        return ". No OpenAI key yet: add openai_api_key to config.toml"
+    return ""

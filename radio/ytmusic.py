@@ -117,20 +117,47 @@ def parse_tracks(data):
     return tracks
 
 
-def connect(cookie, playlist=DEFAULT_PLAYLIST):
+BROWSERS = ("chrome",)  # shortcut: only the user's browser; yt-dlp also reads brave, edge, firefox, safari...
+
+
+def browser_jar(browser, url, out):
+    """Copies the YouTube sign-in from a browser the user is signed in with into a cookie file (yt-dlp reads the
+    browser's store; macOS asks once for Keychain access to Chrome's key). Only youtube.com cookies are kept."""
+    if browser not in BROWSERS:
+        raise ValueError("Unknown browser")
+    try:
+        subprocess.run(["yt-dlp", "--ignore-config", "--no-warnings", "--cookies-from-browser", browser,
+                        "--cookies", str(out), "--skip-download", "--flat-playlist", "--playlist-end", "1", url],
+                       capture_output=True, timeout=120)
+        lines = Path(out).read_text(errors="replace").splitlines()
+    except (OSError, subprocess.TimeoutExpired):
+        raise ValueError(f"Could not read the YouTube sign-in from {browser.title()}") from None
+    def youtube(ln):
+        domain = ln.split("\t", 1)[0].removeprefix("#HttpOnly_").lstrip(".")
+        return "\t" in ln and (domain == "youtube.com" or domain.endswith(".youtube.com"))
+    keep = [ln for ln in lines if youtube(ln)]
+    if not any(ln.split("\t")[5:6] in (["SAPISID"], ["__Secure-3PAPISID"]) for ln in keep):
+        raise ValueError(f"Sign in to YouTube Music in {browser.title()} first, then connect again")
+    Path(out).write_text("# Netscape HTTP Cookie File\n" + "\n".join(keep) + "\n")
+
+
+def connect(cookie, playlist=DEFAULT_PLAYLIST, browser=""):
     url = playlist_url(playlist)
     root = directory()
     root.mkdir(parents=True, exist_ok=True)
     root.chmod(0o700)
     saved = root / "cookies.txt"
-    if not cookie and not saved.exists():
+    if not cookie and not browser and not saved.exists():
         raise ValueError("Connect your YouTube Music session first")
     # Stage credentials: a failed connection must not replace a working session/library.
     fd, name = tempfile.mkstemp(dir=root)
     staged = Path(name)
     try:
         with os.fdopen(fd, "w") as f:
-            f.write(cookie_jar(cookie) if cookie else saved.read_text())
+            if not browser:
+                f.write(cookie_jar(cookie) if cookie else saved.read_text())
+        if browser:
+            browser_jar(browser, url, staged)
         # shortcut: import at most 500 songs; add pagination if a larger library is needed.
         data = json.loads(run(["--flat-playlist", "--dump-single-json", "--playlist-end", "500", url], staged))
         tracks = parse_tracks(data)

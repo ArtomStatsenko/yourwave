@@ -5,9 +5,11 @@ import hashlib
 import json
 import os
 import re
+import threading
+import time
 import urllib.request
 
-from . import config
+from . import config, openrouter
 
 PROMPT_VERSION = 4
 PROMPT = """Ты ведущий на радио. Расскажи слушателю по-русски, простыми словами, про проект с GitHub:
@@ -50,11 +52,37 @@ def target(cfg: dict) -> dict:
     if e["provider"] == "openai":
         root, model = e["openai_base_url"], e["openai_model"]
         key = e["openai_api_key"] or os.environ.get("OPENAI_API_KEY", "")
+    elif e["provider"] == "openrouter":
+        root, model, key = "https://openrouter.ai/api", e["openrouter_model"], openrouter.key()
     elif e["provider"] == "ollama":
         root, model, key = e["base_url"], e["model"], ""
     else:
         raise ValueError(f"unknown editor.provider {e['provider']}")
     return {"provider": e["provider"], "root": root.rstrip("/").removesuffix("/v1"), "model": model, "key": key}
+
+
+_models: dict[tuple, tuple[float, list[str]]] = {}  # (provider, root) -> (fetched at, model ids)
+
+
+def models(cfg: dict) -> list[str]:
+    """The provider's model ids for the Settings drop-down. Never blocks the caller (the page polls status often):
+    returns what is cached and refreshes in the background every 10 minutes."""
+    t = target(cfg)
+    k = (t["provider"], t["root"])
+    at, ids = _models.get(k, (0.0, []))
+    if time.time() - at > 600:
+        _models[k] = (time.time(), ids)  # one fetch at a time
+
+        def fetch():
+            req = urllib.request.Request(t["root"] + "/v1/models",
+                                         headers={"Authorization": "Bearer " + t["key"]} if t["key"] else {})
+            try:
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    _models[k] = (time.time(), sorted(m["id"] for m in json.load(r)["data"]))
+            except (OSError, ValueError, KeyError, TypeError):
+                _models[k] = (time.time() - 540, ids)  # retry in a minute
+        threading.Thread(target=fetch, daemon=True).start()
+    return ids
 
 
 class Editor:
@@ -98,8 +126,10 @@ class Editor:
         body = {"model": t["model"], "messages": [{"role": "user", "content": prompt}], "temperature": 0}
         if t["provider"] == "ollama":
             body.update(max_tokens=200, reasoning_effort="none")  # no "thinking": it eats the token budget
-        else:
+        elif t["provider"] == "openai":
             body["max_completion_tokens"] = 200
+        else:
+            body["max_tokens"] = 200
         headers = {"Content-Type": "application/json"}
         if t["key"]:
             headers["Authorization"] = "Bearer " + t["key"]

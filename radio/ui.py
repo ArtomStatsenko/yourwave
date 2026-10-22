@@ -1,16 +1,18 @@
 """`radio ui`: a small local web page to control the radio. Listens on 127.0.0.1 only; every API call needs
 a per-run token and a local Host header, so another site open in the browser cannot drive the radio."""
+import html
 import json
 import queue
 import secrets
 import socket
 import threading
 import time
+import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import config, plugins, settings, ytmusic
+from . import config, openrouter, plugins, settings, ytmusic
 from .timeline import timeline
 
 PAGE = Path(__file__).with_name("ui.html")
@@ -97,6 +99,20 @@ def serve(port: int) -> None:
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+            elif self.path.split("?")[0] == "/openrouter/callback":
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                try:
+                    openrouter.finish(q.get("state", [""])[0], q.get("code", [""])[0])
+                    note = "Signed in to OpenRouter."
+                except (ValueError, OSError) as e:
+                    note = "OpenRouter sign-in failed: " + (str(e) if isinstance(e, ValueError) else "no answer")
+                body = (f"<!doctype html><meta charset=utf-8><title>OpenRouter</title><p>{html.escape(note)}</p>"
+                        "<p><a href='/'>Back to the radio</a></p>").encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             elif self.path.split("?")[0] == "/stream":
                 self._stream()
             elif self.path == "/api/status":
@@ -147,11 +163,19 @@ def serve(port: int) -> None:
                 try:
                     with ytmusic_lock:
                         result = ytmusic.connect(str(body.get("cookie", "")),
-                                                 str(body.get("playlist") or ytmusic.DEFAULT_PLAYLIST))
+                                                 str(body.get("playlist") or ytmusic.DEFAULT_PLAYLIST),
+                                                 browser=str(body.get("browser", "")))
                         plugins.set_plugin("ytmusic", True)
-                except (ValueError, OSError):
-                    return self._json({"ok": False, "error": "Could not connect YouTube Music. Check the Cookie header and playlist; YouTube may be rate-limiting requests."}, 400)
+                except ValueError as e:  # our own messages only: never yt-dlp output (cookies, account details)
+                    return self._json({"ok": False, "error": str(e)}, 400)
+                except OSError:
+                    return self._json({"ok": False, "error": "Could not connect YouTube Music. Check the playlist; YouTube may be rate-limiting requests."}, 400)
                 resp = {"ok": True, "ytmusic": result}
+            elif cmd == "openrouter_login":
+                resp = {"ok": True, "url": openrouter.login_url(f"http://127.0.0.1:{port}/openrouter/callback")}
+            elif cmd == "openrouter_logout":
+                openrouter.sign_out()
+                resp = {"ok": True, "settings": settings.listing(cfg)}
             elif cmd == "play":
                 resp = start_daemon()
             elif cmd == "plugin":  # a file switch: works with the radio on or off, the daemon picks it up live

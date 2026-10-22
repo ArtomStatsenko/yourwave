@@ -225,10 +225,14 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
     <form id="yt-form" class="st" hidden>
       <label for="yt-playlist">YouTube Music playlist</label>
       <input id="yt-playlist" type="url" value="https://music.youtube.com/playlist?list=LM" required>
+      <div class="row"><button id="yt-chrome" type="button">connect from Chrome</button><span id="yt-state" class="l" role="status" aria-live="polite"></span></div>
+      <div class="l">Uses the YouTube sign-in of your Chrome; macOS asks once to allow access to Chrome's key. Only YouTube cookies are kept, on this Mac.</div>
+      <details><summary class="l">or paste a Cookie header</summary>
       <label for="yt-cookie">YouTube Music Cookie header</label>
       <input id="yt-cookie" type="password" autocomplete="off" spellcheck="false" maxlength="60000" aria-describedby="yt-help">
       <div id="yt-help" class="l">Copy only the Cookie header from a signed-in music.youtube.com request in browser developer tools. Stored only on this Mac; leave blank to refresh an existing connection.</div>
-      <div class="row"><button id="yt-connect" type="submit">connect / refresh</button><span id="yt-state" class="l" role="status" aria-live="polite"></span></div>
+      <div class="row"><button id="yt-connect" type="submit">connect / refresh</button></div>
+      </details>
       <div class="l">Applies after stop / play. First 500 songs; unavailable songs are skipped. Local music plays if YouTube is unreachable or all songs fail.</div>
     </form>
     <details class="st" id="playback-status"><summary>Playback status</summary>
@@ -396,7 +400,8 @@ function settingsView(){
   box.innerHTML=stg.map(function(s){return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
-    +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div></div>'}).join('')}
+    +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div>'
+    +(s.action?'<div class="row"><button type="button" data-act="'+esc(s.action.cmd)+'">'+esc(s.action.label)+'</button></div>':'')+'</div>'}).join('')}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
     $('audio-preset-hint').textContent=d.ok===false?d.error:'Applies after stop / play. Personal sounds stay on this Mac.';
@@ -408,7 +413,10 @@ $('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st}),value=s.step===null?r.value:+r.value;s.value=value;
   api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView()}).catch(function(e){$('er').textContent=e.message||'could not save'})};
-$('stg').onclick=function(e){var b=e.target.closest('[data-rs]');if(!b)return;
+$('stg').onclick=function(e){var a=e.target.closest('[data-act]');
+  if(a){var w=a.dataset.act==='openrouter_login'?window.open('about:blank'):null;  // opened in the click: no popup block
+    api('/api/cmd',{cmd:a.dataset.act}).then(function(d){if(d.url&&w)w.location=d.url;else if(w)w.close();if(d.settings)stg=d.settings;settingsView()}).catch(function(){if(w)w.close();$('er').textContent='could not reach the radio'});return}
+  var b=e.target.closest('[data-rs]');if(!b)return;
   api('/api/cmd',{cmd:'settings_reset',key:b.dataset.rs}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView()})};
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
@@ -529,13 +537,15 @@ $('direction-list').ondragleave=function(e){var row=e.target.closest('[data-plan
 $('direction-list').ondrop=function(e){e.preventDefault();var row=e.target.closest('[data-plan-index]');var from=planDrag;planDrag=null;if(row&&from!==null&&planDraft[+row.dataset.planIndex].kind!=='music')planMove(from,+row.dataset.planIndex)};
 $('direction-list').ondragend=function(){planDrag=null;document.querySelectorAll('.drag-target').forEach(function(r){r.classList.remove('drag-target')})};
 var ytBusy=false,ytLoaded=false,ytMessage=false;
-$('yt-form').onsubmit=function(e){e.preventDefault();if(ytBusy)return;ytBusy=true;$('yt-connect').disabled=true;
+function ytConnect(browser){if(ytBusy||!$('yt-form').reportValidity())return;ytBusy=true;$('yt-connect').disabled=$('yt-chrome').disabled=true;
   ytMessage=true;
-  $('yt-state').textContent='connecting…';
-  var cookie=$('yt-cookie').value;$('yt-cookie').value='';
-  api('/api/cmd',{cmd:'ytmusic_connect',cookie:cookie,playlist:$('yt-playlist').value}).then(function(d){
+  $('yt-state').textContent=browser?'reading the sign-in from Chrome… (allow access if macOS asks)':'connecting…';
+  var cookie=browser?'':$('yt-cookie').value;$('yt-cookie').value='';
+  api('/api/cmd',{cmd:'ytmusic_connect',cookie:cookie,browser:browser,playlist:$('yt-playlist').value}).then(function(d){
     if(!d.ok)throw Error(d.error||'Connection failed');$('yt-state').textContent=d.ytmusic.tracks+' songs connected; stop / play to use';refresh()
-  }).catch(function(e){$('yt-state').textContent=e.message}).finally(function(){ytBusy=false;$('yt-connect').disabled=false})};
+  }).catch(function(e){$('yt-state').textContent=e.message}).finally(function(){ytBusy=false;$('yt-connect').disabled=$('yt-chrome').disabled=false})}
+$('yt-form').onsubmit=function(e){e.preventDefault();ytConnect('')};
+$('yt-chrome').onclick=function(){ytConnect('chrome')};
 function isCur(x){return running()&&x===items.find(function(i){return i.kind!=='session'})}
 function rk(x){return 'music'}
 // queued comes from the daemon's real queue: it survives a reload, and a replay that went on air drops out

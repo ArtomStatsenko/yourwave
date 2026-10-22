@@ -1311,6 +1311,77 @@ class LlmProviderTests(unittest.TestCase):
         self.assertEqual(got, [("/v1/chat/completions", "Bearer sk-test", {"model": "gpt-4.1-mini"})])
 
 
+class SignInTests(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import patch
+        tmp = tempfile.TemporaryDirectory(prefix="radio-signin-")
+        self.addCleanup(tmp.cleanup)
+        self.data = Path(tmp.name)
+        p = patch.object(config, "DATA_DIR", self.data)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_openrouter_pkce_sign_in_and_model_row(self):
+        import base64
+        import hashlib
+        import io
+        import urllib.parse
+        import urllib.request
+        from unittest.mock import patch
+        from radio import editor, openrouter, settings
+        url = urllib.parse.urlparse(openrouter.login_url("http://127.0.0.1:8765/openrouter/callback"))
+        q = {k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
+        state = urllib.parse.parse_qs(urllib.parse.urlparse(q["callback_url"]).query)["state"][0]
+        with self.assertRaises(ValueError):
+            openrouter.finish("forged", "code")
+        sent = []
+
+        def fake_open(req, timeout):
+            sent.append(json.loads(req.data))
+            return io.BytesIO(b'{"key": "sk-or-v1-test"}')
+        with patch.object(urllib.request, "urlopen", fake_open):
+            openrouter.finish(state, "the-code")
+        verifier = sent[0]["code_verifier"]
+        self.assertEqual(q["code_challenge"], base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode())
+        self.assertEqual(openrouter.key(), "sk-or-v1-test")
+        self.assertEqual((self.data / "openrouter.key").stat().st_mode & 0o777, 0o600)
+        with self.assertRaises(ValueError):
+            openrouter.finish(state, "the-code")  # a state is used once
+
+        settings.set_setting("llm_provider", "openrouter")
+        editor._models[("openrouter", "https://openrouter.ai/api")] = (time.time(), ["anthropic/claude-sonnet-5.5"])
+        rows = {r["key"]: r for r in settings.listing(config.load())}
+        self.assertNotIn("ollama_model", rows)
+        self.assertEqual(rows["openrouter_model"]["options"], ["anthropic/claude-sonnet-5.5", "openai/gpt-4.1-mini"])
+        self.assertEqual(rows["llm_provider"]["action"]["cmd"], "openrouter_logout")
+        cfg = config.load()
+        settings.set_setting("openrouter_model", "anthropic/claude-sonnet-5.5")
+        settings.apply(cfg, settings.base(config.load()))
+        t = editor.target(cfg)
+        self.assertEqual((t["root"], t["model"], t["key"]), ("https://openrouter.ai/api", "anthropic/claude-sonnet-5.5", "sk-or-v1-test"))
+
+    def test_youtube_sign_in_from_browser_keeps_only_youtube_cookies(self):
+        from unittest.mock import patch
+        from radio import ytmusic
+        out = self.data / "jar.txt"
+
+        def fake_run(args, **kw):
+            Path(args[args.index("--cookies") + 1]).write_text(
+                "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tabc\n"
+                "#HttpOnly_.music.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN\tx\n"
+                ".bank.example\tTRUE\t/\tTRUE\t0\tsession\tsecret\n.evilyoutube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tz\n")
+        with patch.object(ytmusic.subprocess, "run", fake_run):
+            ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
+        text = out.read_text()
+        self.assertIn("SAPISID\tabc", text)
+        self.assertIn("LOGIN", text)
+        self.assertNotIn("secret", text)
+        self.assertNotIn("evilyoutube", text)
+        with patch.object(ytmusic.subprocess, "run", lambda args, **kw: Path(args[args.index("--cookies") + 1]).write_text("")):
+            with self.assertRaisesRegex(ValueError, "Sign in to YouTube Music in Chrome"):
+                ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
+
+
 class HorizonTests(unittest.TestCase):
     def test_briefing_items_retold(self):
         from radio import horizon

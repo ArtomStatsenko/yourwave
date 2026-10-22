@@ -97,10 +97,11 @@ horizon_intro = ""
 llm_enabled = true
 base_url = "http://127.0.0.1:11434"   # local Ollama
 model = "qwen3.5:4b"
-provider = "ollama"         # "ollama" (the base_url/model above) or "openai"; switched on the Settings tab
+provider = "ollama"         # "ollama" (the base_url/model above), "openai" or "openrouter"; switched on the Settings tab
 openai_base_url = "https://api.openai.com/v1"   # any OpenAI-compatible endpoint (OpenRouter, Groq, LM Studio...)
 openai_model = "gpt-4.1-mini"
 openai_api_key = ""         # or the OPENAI_API_KEY environment variable; the key stays in this file
+openrouter_model = "openai/gpt-4.1-mini"  # the key comes from "Sign in with OpenRouter" on the Settings tab
 max_llm_calls_per_session = 16  # up to 3 retellings per hourly fetch, cached
 
 [voice]
