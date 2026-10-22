@@ -3,13 +3,15 @@ import asyncio
 import hashlib
 import os
 import json
+import re
+import random
 import threading
 import time
 import uuid
 from datetime import timedelta
 from pathlib import Path
 
-from . import audio, config, content, github_new, github_trending, horizon, host, music, plugins, reminders, settings, store, timeline, weather, ytmusic
+from . import audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
 from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
@@ -17,8 +19,11 @@ from . import tts as tts_mod
 from .tts import VoiceStudio, cached_synthesize
 
 READY_AHEAD = 2
+# shortcut: fixed lead times; use measured runtimes if preparation regularly exceeds this reserve.
+TEXT_LEAD_SEC = 15 * 60
+VOICE_LEAD_SEC = 5 * 60
 LATE_ASSEMBLY_SEC = 60  # a news break (time check, next song) is assembled when the song has this much left
-REMIND_LATE_SEC = 40    # a reminder is rendered when the song has this much left, so "in N minutes" is right when it airs
+REMIND_LATE_SEC = 40    # optional host inserts wait; timed reminders need enough time for synthesis
 BREAK_SEP = "|"         # a break airs several packages as one request: ref = their ids joined
 
 
@@ -39,11 +44,15 @@ class Service:
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
         self.current: dict | None = None
         self.skip_flag = False
+        self.next_transition_sec = None
         self.last_error = ""
         self.stopping = False
         self.done = asyncio.Event()
         self.wake = asyncio.Event()
         self.rendering = False
+        self.assembling = self.rerolling = False
+        self.schedule_lock = asyncio.Lock()
+        self.schedule_generation = 0
         self.tts_retry_at, self.tts_backoff = 0.0, 60.0
         self.stop_measure = threading.Event()
         self.sources: dict[str, str] = {}
@@ -63,27 +72,30 @@ class Service:
         self.next_weather_read = 0.0
         self.reminders_due: dict[str, dict] = {}   # key -> reminder waiting for a song boundary
         self.reminder_text: dict[str, str] = {}    # key -> what the host says, for the timeline
+        self.queued_reminders: dict[str, tuple] = {}  # timed reminders can expire before the song ends
         self.sets_since_fresh = 0     # news breaks since the last "new tracks" set
         self.fresh_queued: dict[str, str] = {}  # path -> request id of new songs waiting in Liquidsoap's fresh queue
         self.pkg_jingles: dict = {}     # package id -> jingles chosen at render, reused at final assembly
         self.id_pending = False
+        self.queued_break = None
         self.all_sources_checked = False  # set only after a *successful* check of every enabled source
-        self.no_news_done = False
 
     # ---- lifecycle ----
     async def run(self) -> None:
         self._cleanup_cache()
         self._reset_inflight()
-        # "No fresh news" is a statement about one session; an unplayed one from an earlier session is stale.
-        self.db.execute("UPDATE packages SET status='SKIPPED' WHERE item_id LIKE 'system:no-news:%' "
+        self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE status IN ('QUEUED','PREPARING')")
+        self._refresh_audio_cache()
+        # Unplayed remarks about a previous session's music are stale.
+        self.db.execute("UPDATE packages SET status='SKIPPED' WHERE (item_id LIKE 'system:no-news:%' OR item_id LIKE 'system:music-link:%') "
                         "AND status IN ('PENDING','READY')")
-        self.db.execute("UPDATE items SET state='SKIPPED' WHERE id LIKE 'system:no-news:%' AND state='NEW'")
+        self.db.execute("UPDATE items SET state='SKIPPED' WHERE (id LIKE 'system:no-news:%' OR id LIKE 'system:music-link:%') AND state='NEW'")
         files = self.files = music.scan(self.cfg["music"]["path"])
         self.library = {str(f) for f in files}  # the only music paths a replay request may name
         m3u = config.RUN_DIR / "music.m3u"
         m = self.cfg["music"]
         self.intro_rooms = music.write_m3u(self.db, files, m3u, m["target_lufs"], m["max_boost_db"], m["crossfade_sec"],
-                                                  plugins.on(self.cfg, "voice_over")) if files else {}
+                                                  True) if files else {}
         fallback_m3u = None
         self.ytmusic_active = plugins.on(self.cfg, "ytmusic")
         if self.ytmusic_active:
@@ -108,8 +120,7 @@ class Service:
         self.state = "PLAYING"
         store.log_event(self.db, self.session, "SESSION_STARTED")
         log("session", self.session, "started,", len(files), "tracks")
-        threading.Thread(target=music.measure_missing, args=(store.connect(), files, self.stop_measure,
-                                                             lambda: plugins.on(self.cfg, "voice_over")),
+        threading.Thread(target=music.measure_missing, args=(store.connect(), files, self.stop_measure),
                          daemon=True).start()
         config.SOCK.unlink(missing_ok=True)
         server = await asyncio.start_unix_server(self.handle_client, str(config.SOCK))
@@ -143,8 +154,10 @@ class Service:
     async def _pause(self) -> None:
         await self.engine.command("pause")
         self.state, self.paused_at = "PAUSED", time.time()
+        await self._expire_reminders()
 
     async def _resume(self) -> None:
+        await self._expire_reminders()
         await self.engine.command("resume")
         if self.current:  # the paused song stays in place: its elapsed time must not count the pause
             self.current["started"] += time.time() - self.paused_at
@@ -187,16 +200,31 @@ class Service:
             self.state = "PLAYING"
 
     def _reset_inflight(self) -> None:
+        for key, (_, r) in self.queued_reminders.items():
+            self.reminders_due[key] = r
+            self.reminder_text.pop(key, None)
+        self.queued_reminders.clear()
         self.db.execute("UPDATE packages SET status='READY' WHERE status IN ('QUEUED','PLAYING')")
         for p in self.db.execute("SELECT id, audio_path FROM packages WHERE status='READY'").fetchall():
             if not p["audio_path"] or not Path(p["audio_path"]).exists():
                 self.db.execute("UPDATE packages SET status='PENDING' WHERE id=?", (p["id"],))
 
+    def _refresh_audio_cache(self) -> None:
+        signature = json.dumps(self.cfg["jingles"], default=str, sort_keys=True)
+        path = config.DATA_DIR / "cache/audio-config.json"
+        if not path.exists() or path.read_text() != signature:
+            # Prepared audio contains the old jingles; keep its text and rebuild with the selected pack.
+            self.db.execute("UPDATE packages SET status='PENDING' WHERE status='READY'")
+            path.write_text(signature)
+
     def _cleanup_cache(self) -> None:
         cutoff = time.time() - self.cfg["broadcast"]["package_cache_ttl_hours"] * 3600
+        protected = {str(Path(value)) for row in self.db.execute(
+            "SELECT script_path,audio_path FROM packages WHERE status IN ('PENDING','READY','QUEUED','PLAYING')")
+                     for value in row if value}
         for d in ("cache/tts", "cache/packages", "cache/scripts"):
             for f in (config.DATA_DIR / d).iterdir():
-                if f.stat().st_mtime < cutoff:
+                if f.stat().st_mtime < cutoff and str(f) not in protected:
                     f.unlink(missing_ok=True)
 
     # ---- playback events from Liquidsoap ----
@@ -213,18 +241,35 @@ class Service:
                     item = self.db.execute("SELECT item_id FROM packages WHERE id=?", (pid,)).fetchone()
                     content.finish_item_if_done(self.db, item["item_id"])
         self.skip_flag = False
+        self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (m.get("replay_id") or "",))
         self.replays.pop(m.get("replay_id") or "", None)  # on air now: no longer queued
         self.fresh_queued.pop(m.get("ref") or "", None)
+        self.next_track = ""
         self.current = {"kind": m.get("kind") or "music", "ref": m.get("ref") or m.get("filename", ""),
-                        "started": time.time()}
+                        "started": time.time(), "transition_sec": self.next_transition_sec
+                        if self.next_transition_sec is not None else self.cfg['music']['crossfade_sec']}
+        self.next_transition_sec = None
         if self.current["kind"] == "news":
+            self.queued_break = None
+            self.db.executemany("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE kind='news' AND ref=? AND status='QUEUED'", [(pid,) for pid in self.current['ref'].split(BREAK_SEP)])
             self.songs_since_break, self.set_started, self.set_songs = 0, None, []
             for pid in self.current["ref"].split(BREAK_SEP):
                 self.db.execute("UPDATE packages SET status='PLAYING' WHERE id=?", (pid,))
                 store.log_event(self.db, self.session, "PACKAGE_STARTED", pid)
+                item = self.db.execute('SELECT item_id FROM packages WHERE id=?', (pid,)).fetchone()
+                if item and self._host_segment({'item_id': item['item_id']}):
+                    key = item['item_id'].removeprefix('system:')
+                    self.reminders_due.pop(key, None)
+                    self.db.execute('INSERT OR REPLACE INTO reminders(key,fired_at) VALUES(?,?)', (key, iso(now())))
+                    self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (key,))
             log("news on air:", self.current["ref"])
         elif self.current["kind"] in ("reminder", "weather"):
+            self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (self.current['ref'],))
+            self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE kind='reminder' AND ref=? AND status='QUEUED'", (self.current['ref'],))
             self.id_pending = False
+            if self.queued_reminders.pop(self.current["ref"], None) or self.current["kind"] == "weather":
+                self.db.execute("INSERT OR REPLACE INTO reminders(key, fired_at) VALUES(?,?)",
+                                (self.current["ref"], iso(now())))
             store.log_event(self.db, self.session, self.current["kind"].upper(), self.current["ref"],
                             self.reminder_text.pop(self.current["ref"], ""))
             log(self.current["kind"], "on air")
@@ -260,8 +305,7 @@ class Service:
             self.wake.clear()
 
     async def trending_loop(self) -> None:
-        """GitHub sources. Checks the plugin switches every minute: a source switched on is fetched at once,
-        otherwise every refresh_minutes. Both off = nothing to check, which counts as checked for "no news"."""
+        """Check enabled sources near the next news section, respecting refresh and retry delays."""
         gt, gn = self.cfg["sources"]["github_trending"], self.cfg["sources"]["github_new"]
         next_fetch, was_on = 0.0, set()
         while not self.stopping:
@@ -271,7 +315,7 @@ class Service:
                     self.sources[n] = "off"
             if not on:
                 self.all_sources_checked = True
-            elif time.time() >= next_fetch or on - was_on:
+            elif self._news_preparation_due(TEXT_LEAD_SEC) and (time.time() >= next_fetch or on - was_on):
                 next_fetch = time.time() + await self._fetch_github("github_trending" in on, "github_new" in on)
             was_on = on
             try:
@@ -322,14 +366,14 @@ class Service:
         return delay
 
     async def horizon_loop(self) -> None:
-        """Horizon runs (minutes, in a thread) when its plugin is on: right after it is switched on, then hourly."""
+        """Run Horizon near the next news section, respecting refresh and retry delays."""
         hz = self.cfg["sources"]["horizon"]
         next_run, was_on = 0.0, False
         while not self.stopping:
             on = plugins.on(self.cfg, "horizon")
             if not on:
                 self.sources["horizon"] = "off"
-            elif time.time() >= next_run or not was_on:
+            elif self._news_preparation_due(TEXT_LEAD_SEC) and (time.time() >= next_run or not was_on):
                 self.sources["horizon"] = f"running since {time.strftime('%H:%M')}"
                 try:
                     briefing = await asyncio.to_thread(horizon.run, self.cfg)
@@ -425,59 +469,116 @@ class Service:
             log("github:", ", ".join(added))
         return ", ".join(added) + " new" if added else "nothing new"
 
-    def _maybe_announce_no_news(self) -> None:
-        """Once per session, only after every source answered successfully and gave nothing to air.
-        After a network or access error nothing is said: "no news" would be a false claim."""
-        if self.no_news_done or not self.all_sources_checked:
+    async def _maybe_music_link(self) -> None:
+        self._live_settings()
+        if (not self.all_sources_checked or not plugins.on(self.cfg, "music_facts") or self.state != "PLAYING"
+                or not self.current or self.current["kind"] != "music" or not self._break_due(0)):
             return
-        session_played = self.db.execute(
-            "SELECT 1 FROM events WHERE session_id=? AND type='PACKAGE_COMPLETED'", (self.session,)).fetchone()
-        in_flight = self.db.execute("SELECT 1 FROM packages p JOIN items i ON i.id=p.item_id "
-                                    "WHERE p.status IN ('PENDING','READY','QUEUED','PLAYING') AND i.state='NEW'").fetchone()
-        self.no_news_done = True  # decided once: either news exist or we announce now
-        if session_played or in_flight:
+        pending = ("SELECT i.source FROM packages p JOIN items i ON i.id=p.item_id "
+                   "WHERE p.status IN ('PENDING','READY','QUEUED','PLAYING') AND i.state='NEW'")
+        off = self._sources_off()
+        if any(r[0] not in off for r in self.db.execute(pending)):
             return
+        started = self.set_started
+        song = self.set_songs[-1] if self.set_songs else music.song(self.db, self.current["ref"])
+        facts = await asyncio.to_thread(music_facts.fetch, song[0], host._title(song[1])) if song else None
+        if (self.set_started != started or self.state != "PLAYING" or not plugins.on(self.cfg, "music_facts")
+                or any(r[0] not in self._sources_off() for r in self.db.execute(pending))):
+            return
+        seed = f"system:music-link:{self.session}:{uuid.uuid4().hex[:8]}"
+        self.sources["music_facts"] = "verified facts" if facts else "music only: no verified facts"
         content.add_item(self.db, self.cfg, {
-            "id": f"system:no-news:{self.session}", "topic": "", "source": "system", "url": "",
-            "published_at": now(), "body": "Свежих новостей пока нет. Продолжаем музыку."}, kind="announcement")
-        log("no fresh news: one announcement queued")
+            "id": seed, "topic": "Музыкальная пауза", "speak_topic": False, "source": "music_facts",
+            "url": " ".join(facts["urls"]) if facts else "", "published_at": now(),
+            "body": host.music_link(song, facts["text"] if facts else "", self.recent_jingles, seed)}, kind="announcement")
+        log("music link prepared")
 
     async def content_tick(self) -> None:
         for item_id in content.scan_inbox(self.db, self.cfg):
             store.log_event(self.db, self.session, "ITEM_COLLECTED", item_id)
             log("new digest:", item_id)
         content.expire_stale(self.db, self.cfg)
-        self._maybe_announce_no_news()
+        await self._maybe_music_link()
         await self.schedule()
-        ready = self.db.execute("SELECT COUNT(*) FROM packages WHERE status='READY'").fetchone()[0]
-        if not self.rendering and ready < READY_AHEAD and time.time() >= self.tts_retry_at:
-            p = content.next_to_render(self.db)
-            if p:
-                self.rendering = True
-                asyncio.create_task(self._render_task(dict(p)))
+        if self.rendering or time.time() < self.tts_retry_at:
+            return
+        changes = direction.edits(self.db) if plugins.on(self.cfg, 'air_direction') else {}
+        deadline = now() + timedelta(seconds=VOICE_LEAD_SEC)
+        news_due = self._news_preparation_due(VOICE_LEAD_SEC)
+        off = self._sources_off()
+        candidates = [r for r in direction.news(self.db) if r['source'] not in off
+                      and direction.allowed(r, changes, deadline)
+                      and (news_due or self._host_segment(r) and r['item_id'].removeprefix('system:') in self.reminders_due)]
+        ready = sum(r['status'] == 'READY' for r in candidates)
+        pending = [r for r in candidates if r['status'] == 'PENDING']
+        p = next((r for r in pending if self._host_segment(r) or r['item_id'].startswith('system:direction:')), None)
+        if p is None and ready < READY_AHEAD:
+            p = next(iter(pending), None)
+        if p:
+            self.rendering = True
+            asyncio.create_task(self._render_task(p))
+
+    def _news_preparation_due(self, lead: float) -> bool:
+        if self.state != 'PLAYING':
+            return False
+        deadline = now() + timedelta(seconds=lead)
+        # Use the editor's real section forecast so moving or skipping a section also moves preparation.
+        return any(r['kind'] == 'news' and not r['skipped'] and r['status'] not in ('QUEUED', 'PREPARING')
+                   and content.parse_time(r['at']) <= deadline for r in self._broadcast_plan()['rows'])
 
     def _live_settings(self) -> None:
         if self.defaults is None:
             self.defaults = settings.base(self.cfg)
         settings.apply(self.cfg, self.defaults)
 
-    async def schedule(self) -> None:
+    def _waiting_break(self, remaining):
+        pkgs = self._pick_break()
+        due = self._break_due(remaining) or any(self._host_segment(p) == 'weather' for p in pkgs)
+        if not due:
+            changes = direction.edits(self.db) if plugins.on(self.cfg, 'air_direction') else {}
+            if not any(changes.get(p['id'], {}).get('not_before') and changes[p['id']]['not_before'] <= iso(now()) for p in pkgs):
+                return []
+        return pkgs
+
+    async def schedule(self, immediate=False) -> None:
+        if immediate:
+            self.schedule_generation += 1
+            await self._schedule(True)
+        else:
+            async with self.schedule_lock:
+                await self._schedule()
+
+    async def _schedule(self, immediate=False) -> None:
+        generation = self.schedule_generation
         self._live_settings()
         if self.current is None:
             return  # Play starts with music: nothing is queued before the first song is on air
-        if self.state != "PLAYING" or self.id_pending or self.db.execute(
+        if plugins.on(self.cfg, 'air_direction') and self.db.execute("SELECT 1 FROM air_plan WHERE status='QUEUED'").fetchone():
+            return
+        if self.state != "PLAYING" or self.id_pending or self.rerolling or self.db.execute(
                 "SELECT 1 FROM packages WHERE status IN ('QUEUED','PLAYING')").fetchone():
             return  # one insert (package or station ID) in the engine at a time
         remaining = 10.0
         if self.current["kind"] == "music" and self.current.get("duration"):
             remaining = self.current["duration"] - (time.time() - self.current["started"])
-        if self.reminders_due and await self._remind(remaining):
+        if not immediate and plugins.on(self.cfg, "air_direction") and await self._direction_tick():
             return
-        pkgs = self._pick_break() if self._break_due(remaining) else []
+        if not immediate and self.reminders_due and await self._remind(remaining):
+            return
+        pkgs = self._waiting_break(remaining)
+        current = self.current
+        if immediate:
+            remaining = 0.0
         if pkgs:
-            links = plugins.on(self.cfg, "host_links") and not pkgs[0]["id"].startswith("system:")
+            new = []
+            air = now() + timedelta(seconds=max(0.0, remaining))
+            links = plugins.on(self.cfg, "host_links") and (not pkgs[0]["id"].startswith("system:") or self._host_segment(pkgs[0]))
             wav, talkover = Path(pkgs[0]["audio_path"]), pkgs[0]["talkover_sec"] or 0
-            if links or len(pkgs) > 1:
+            if immediate:
+                wav = await asyncio.to_thread(audio.join_packages, [Path(p['audio_path']) for p in pkgs],
+                                              config.DATA_DIR / 'cache/packages/immediate.wav')
+                talkover = pkgs[-1]['talkover_sec'] or 0
+            elif links or len(pkgs) > 1:
                 if remaining > LATE_ASSEMBLY_SEC:
                     return  # assembled later, so the time check and the next song are right when it airs
                 await self._clear_fresh()  # songs of the last new-tracks set that did not get to air
@@ -487,16 +588,42 @@ class Service:
                 first = music.song(self.db, nxt)
                 # shortcut: a replay pushed after this point would play first and its intro is not planned for;
                 # with replays already waiting the next song is not known, so no intro talk then.
-                room = self.intro_rooms.get(nxt) if plugins.on(self.cfg, "voice_over") and not self.replays else None
+                room = self.intro_rooms.get(nxt) if not self.replays else None
                 air = now() + timedelta(seconds=max(0.0, remaining))
-                done = await asyncio.to_thread(self._assemble_break, [dict(p) for p in pkgs], air, links, first, room,
-                                               bool(new))
+                self.assembling = True
+                try:
+                    done = await asyncio.to_thread(self._assemble_break, [dict(p) for p in pkgs], air, links, first, room,
+                                                   bool(new))
+                finally:
+                    self.assembling = False
                 if done:
                     wav, talkover = done
                 else:
                     pkgs, new = pkgs[:1], []  # fallback: the first bulletin, pre-rendered
+            if generation != self.schedule_generation or immediate and self.current is not current:
+                return
+            if self._news_skipped(now() + timedelta(seconds=max(0, remaining))) and any(not p['id'].startswith('system:') for p in pkgs):
+                return
+            changes = direction.edits(self.db) if plugins.on(self.cfg, 'air_direction') else {}
+            off = self._sources_off()
+            for p in pkgs:
+                source = self.db.execute('SELECT source FROM items WHERE id=?', (p['item_id'],)).fetchone()[0]
+                key = p['item_id'].removeprefix('system:')
+                notice = self.reminders_due.get(key)
+                if source in off or not direction.allowed(p, changes, now()) or self._host_segment(p) and (
+                        not notice or not direction.allowed({'id': key}, changes, now()) or
+                        notice['kind'] == 'weather' and (not self._weather_enabled() or air >= notice['expires'])):
+                    return
             ids = [p["id"] for p in pkgs]
-            await self.engine.push_news(wav, BREAK_SEP.join(ids), talkover)
+            rid = await self.engine.push_news(wav, BREAK_SEP.join(ids), talkover)
+            self.queued_break = (rid, ids)
+            for p in pkgs:
+                if self._host_segment(p):
+                    self.db.execute("INSERT INTO air_plan(id,kind,ref,status,rid) VALUES(?,? ,?,'QUEUED',?) ON CONFLICT(id) DO UPDATE SET status='QUEUED',rid=excluded.rid,ref=excluded.ref",
+                                    (p['item_id'].removeprefix('system:'), 'weather' if self._host_segment(p) == 'weather' else 'news', p['id'], rid))
+            self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=? WHERE id LIKE 'section:news:%' AND skipped=0 AND status IN ('PENDING','ERROR') AND not_before<=?",
+                            (rid, ids[0], iso(now() + timedelta(seconds=max(0, remaining)))))
+            self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=? WHERE id LIKE 'direction:%' AND kind='news' AND skipped=0 AND status='PENDING' AND not_before<=?", (rid, ids[0], iso(now())))
             self.db.executemany("UPDATE packages SET status='QUEUED' WHERE id=?", [(i,) for i in ids])
             log("break queued for next song boundary:", ", ".join(ids))
             if new:
@@ -536,7 +663,7 @@ class Service:
             voices, sounds = [], []
             for segment, sound in self._body_segments(p, None):
                 sounds.append(sound)
-                voices.append(cached_synthesize(self.tts, segment, self._speech_check))
+                voices.append(self._segment_voice(p["id"], segment))
             speech = sum(audio.duration(v) for v in voices)
             out = config.DATA_DIR / "cache/packages" / (hashlib.sha256(p["id"].encode()).hexdigest()[:16] + ".wav")
             jingles = self._jingles_for(p["id"])
@@ -582,7 +709,7 @@ class Service:
 
     def _talkover(self, package_id: str) -> bool:
         """Whether this bulletin ends over the next song instead of an outro: a stable choice per package."""
-        share = self.cfg["broadcast"]["talkover_share"] or 0.5 if plugins.on(self.cfg, "voice_over") else 0.0
+        share = self.cfg["broadcast"]["talkover_share"] or 0.5
         h = int(hashlib.sha256(f"talkover|{package_id}".encode()).hexdigest(), 16) % 1000
         return not package_id.startswith("system:") and h < share * 1000
 
@@ -599,7 +726,7 @@ class Service:
 
     async def _voice_tick(self) -> None:
         v = self.cfg["voice"]
-        if not plugins.on(self.cfg, "voicestudio") or await asyncio.to_thread(self.tts.health):
+        if await asyncio.to_thread(self.tts.health):
             return
         port = int(v["base_url"].rsplit(":", 1)[-1])
         if (self.voice_proc and self.voice_proc.poll() is None) or await asyncio.to_thread(tts_mod.port_open, port) \
@@ -631,8 +758,22 @@ class Service:
                 log("reminders error:", e)
             await asyncio.sleep(30)
 
+    async def _expire_reminders(self) -> None:
+        for key, (rid, r) in list(self.queued_reminders.items()):
+            plugin = "reminders_todoist" if r["kind"] == "task" else "reminders_calendar"
+            enabled = plugins.on(self.cfg, plugin)
+            if self.state == "PAUSED" or now() >= r["start"] or not enabled:
+                await self.engine.remove(rid)
+                self.queued_reminders.pop(key, None)
+                self.db.execute("UPDATE air_plan SET status='ERROR',rid=NULL,error='Reminder expired or paused' WHERE kind='reminder' AND ref=? AND status='QUEUED'", (key,))
+                self.reminder_text.pop(key, None)
+                self.id_pending = False
+                if enabled and now() < r["start"]:
+                    self.reminders_due[key] = r
+
     async def _reminders_tick(self) -> None:
         self._live_settings()
+        await self._expire_reminders()
         rc, t = self.cfg["reminders"], time.time()
         lead = timedelta(minutes=rc["lead_min"])
         due = []
@@ -663,7 +804,7 @@ class Service:
             due += (reminders.calendar_due(self.cal_events, now(), lead) if name == "calendar"
                     else reminders.todoist_due(self.todoist_tasks, now(), lead))
         for r in due:
-            if r["key"] not in self.reminders_due and not self.db.execute(
+            if r["key"] not in self.reminders_due and r["key"] not in self.queued_reminders and not self.db.execute(
                     "SELECT 1 FROM reminders WHERE key=?", (r["key"],)).fetchone():
                 self.reminders_due[r["key"]] = r
         for key in [k for k, r in self.reminders_due.items()
@@ -685,36 +826,61 @@ class Service:
     def _weather_enabled(self) -> bool:
         return bool(self.cfg["weather"]["city"]) and plugins.on(self.cfg, "weather") and plugins.on(self.cfg, "host_links")
 
-    async def _weather_tick(self) -> None:
+    async def _weather_tick(self) -> str | None:
         if not self._weather_enabled():
             self.sources.pop("weather", None)
             for key in [k for k, r in self.reminders_due.items() if r["kind"] == "weather"]:
                 self.reminders_due.pop(key)
             return
-        if self.state != "PLAYING" or any(r["kind"] == "weather" for r in self.reminders_due.values()):
-            return
-        last = self.db.execute("SELECT MAX(fired_at) FROM reminders WHERE key LIKE 'weather:%'").fetchone()[0]
-        if last and now() - content.parse_time(last) < weather.INTERVAL:
-            return
+        waiting = next((r for r in self.reminders_due.values() if r["kind"] == "weather"), None)
+        if waiting:
+            return None
+        if self.state != "PLAYING":
+            return None
+        at = now()
+        slot = weather.slot(at, self.cfg["weather"].get("timezone", "Asia/Ho_Chi_Minh"))
+        key = f"weather:slot:{int(slot.timestamp())}"
+        if plugins.on(self.cfg, "air_direction"):
+            changes = direction.edits(self.db)
+            slots = [r for r in direction.weather_rows(self.db, self.cfg, at, changes)
+                     if direction.allowed(r, changes, at) and r['not_before'] <= iso(at)]
+            if not slots:
+                return None
+            key = slots[0]['id']
+        elif (at - slot >= timedelta(minutes=30) or self.db.execute(
+                "SELECT 1 FROM reminders WHERE key=?", (key,)).fetchone()):
+            return None
+        if self.db.execute("SELECT 1 FROM air_plan WHERE id=? AND status='QUEUED'", (key,)).fetchone():
+            return None
         if time.time() < self.next_weather_read:
-            return
+            return None
         try:
-            r = await asyncio.to_thread(weather.fetch, self.cfg["weather"]["city"], now())
+            r = await asyncio.to_thread(weather.fetch, self.cfg["weather"]["city"], at)
+            r["key"] = key
             self.reminders_due[r["key"]] = r
             self.sources["weather"] = "ok"
             self.wake.set()
+            return r["key"]
         except Exception as e:
             self.sources["weather"] = f"error: {type(e).__name__}"
             log("weather:", type(e).__name__)
             self.next_weather_read = time.time() + 15 * 60
 
-    async def _remind(self, remaining: float) -> bool:
-        """The most urgent reminder goes out when the current song is about to end. True if an insert was queued."""
-        if remaining > REMIND_LATE_SEC:
-            return False
+    async def _remind(self, remaining: float, timed_only=False) -> bool:
+        """Prepare timed notices early; optional host inserts wait for the song's ending."""
         for key, r in sorted(self.reminders_due.items(), key=lambda kv: (kv[1]["kind"] in ("day", "weather"), kv[1]["start"])):
+            if plugins.on(self.cfg, 'air_direction') and not direction.allowed({'id': key if r['kind'] == 'weather' else 'reminder:' + key}, direction.edits(self.db), now()):
+                if r['kind'] == 'weather' and direction.edits(self.db).get(key, {}).get('skipped'):
+                    self.reminders_due.pop(key, None)
+                continue
+            timed = r["kind"] not in ("day", "weather")
+            if timed_only and not timed:
+                continue
+            if not timed and remaining > REMIND_LATE_SEC:
+                continue
             if r.get("retry", 0) > time.time():
                 continue
+            track, state = self.current, self.state
             air = now() + timedelta(seconds=max(0.0, remaining))
             if r["kind"] == "weather":
                 if not self._weather_enabled() or air >= r["expires"]:
@@ -733,12 +899,16 @@ class Service:
             if text is None:
                 self.reminders_due.pop(key)
                 continue
+            if not timed and self.db.execute("SELECT 1 FROM packages WHERE item_id=? AND status IN ('PENDING','READY','QUEUED','PLAYING')", ('system:' + key,)).fetchone():
+                continue
+            if r['kind'] == 'day' and not self._break_due(remaining) and not any(n['kind'] == 'weather' for n in self.reminders_due.values()):
+                continue
             try:
                 gain = 0.0
                 if r["kind"] in ("day", "weather"):
                     if r["kind"] == "weather":
-                        wav = await asyncio.to_thread(cached_synthesize, self.tts, text, self._speech_check)
-                        if not self._weather_enabled() or now() >= r["expires"]:
+                        wav = await asyncio.to_thread(self._render_weather, text)
+                        if key not in self.reminders_due or not self._weather_enabled() or now() >= r["expires"]:
                             self.reminders_due.pop(key, None)
                             continue
                     else:
@@ -755,15 +925,63 @@ class Service:
                 self.last_error = f"reminder: {e}"
                 r["retry"] = time.time() + 30
                 return False
-            await self.engine.push_replay(wav, "weather" if r["kind"] == "weather" else "reminder", key, gain, "",
-                                          ',liq_cross_end_duration="1.5",liq_cross_start_duration="12"')
-            self.db.execute("INSERT OR REPLACE INTO reminders(key, fired_at) VALUES(?,?)", (key, iso(now())))
+            if plugins.on(self.cfg, 'air_direction') and not direction.allowed({'id': key if r['kind'] == 'weather' else 'reminder:' + key}, direction.edits(self.db), now()):
+                continue
+            if timed and (self.current is not track or self.state != state or now() + timedelta(seconds=10) >= air):
+                return False  # the voice missed this boundary; recalculate for the next song
+            if not timed:
+                self._store_host_segment(key, r, text, wav)
+                return False
+            rid = await self.engine.push_replay(wav, "weather" if r["kind"] == "weather" else "reminder", key, gain, key if r["kind"] == "weather" else "",
+                                                ',liq_cross_end_duration="1.5",liq_cross_start_duration="12"')
+            if timed:
+                self.queued_reminders[key] = (rid, r)
+                self.db.execute("UPDATE air_plan SET status='QUEUED',rid=? WHERE id=?", (rid, 'reminder:' + key))
+            elif r["kind"] == "weather":
+                self.db.execute("INSERT INTO air_plan(id,kind,ref,status,rid) VALUES(?,?,?,'QUEUED',?) "
+                                "ON CONFLICT(id) DO UPDATE SET status='QUEUED',rid=excluded.rid", (key, 'weather', key, rid))
+            else:
+                self.db.execute("INSERT OR REPLACE INTO reminders(key, fired_at) VALUES(?,?)", (key, iso(now())))
             self.reminders_due.pop(key, None)
             self.reminder_text[key] = r.get("summary", text)
+            if r["kind"] == "task" and r.get("description"):
+                self.reminder_text[key] = json.dumps({"text": text, "description": r["description"]}, ensure_ascii=False)
             self.id_pending = True  # one insert at a time, like a station ID
             log(r["kind"], "queued:", text)
             return True
         return False
+
+    def _host_segment(self, package):
+        item = self.db.execute('SELECT kind FROM items WHERE id=?', (package['item_id'],)).fetchone()
+        return item['kind'] if item and item['kind'] in ('weather', 'day') else None
+
+    def _store_host_segment(self, key, notice, text, wav):
+        item_id = 'system:' + key
+        if not self.db.execute('SELECT 1 FROM items WHERE id=?', (item_id,)).fetchone():
+            cfg = {**self.cfg, 'broadcast': {**self.cfg['broadcast'], 'max_package_speech_sec': max(self.cfg['broadcast']['max_package_speech_sec'], len(text) / self.cfg['voice']['chars_per_sec'] + 10)}}
+            content.add_item(self.db, cfg, {
+                'id': item_id, 'topic': notice.get('summary') or notice['title'], 'speak_topic': False,
+                'source': 'weather' if notice['kind'] == 'weather' else 'calendar', 'url': '',
+                'published_at': now(), 'body': text}, kind=notice['kind'])
+        self.db.execute("UPDATE packages SET status='READY',audio_path=?,speech_sec=?,duration_sec=? WHERE item_id=? AND status='PENDING'",
+                        (str(wav), audio.duration(wav), audio.duration(wav), item_id))
+
+    def _segment_voice(self, package_id, text):
+        item = self.db.execute('SELECT i.kind FROM packages p JOIN items i ON i.id=p.item_id WHERE p.id=?', (package_id,)).fetchone()
+        return self._render_weather(text) if item and item['kind'] == 'weather' else cached_synthesize(self.tts, text, self._speech_check)
+
+    def _render_weather(self, text: str) -> Path:
+        expected = set(re.findall(r"[а-яё]{4,}", text.casefold()))
+
+        def check(path):
+            if error := self._speech_check(path):
+                return error
+            heard = set(re.findall(r"[а-яё]{4,}", self.tts.transcribe(path).casefold()))
+            if len(expected & heard) < len(expected) * 0.6:
+                return "weather speech does not match forecast"
+            return None
+
+        return cached_synthesize(self.tts, text, check)
 
     def _render_day(self, r: dict, text: str):
         short = text
@@ -814,7 +1032,7 @@ class Service:
         for f in files:
             row = self.db.execute("SELECT * FROM tracks WHERE path=?", (str(f),)).fetchone()
             gain = min(m["max_boost_db"], m["target_lufs"] - row["lufs"]) if row["lufs"] is not None else 0.0
-            tags, _ = music.song_tags(row, m["crossfade_sec"], plugins.on(self.cfg, "voice_over"))
+            tags, _ = music.song_tags(row, m["crossfade_sec"], True)
             self.fresh_queued[str(f)] = await self.engine.push_replay(f, "music", str(f), gain, "", tags, "fresh")
         self.sets_since_fresh = 0
         log("new-tracks set queued:", len(files), "songs")
@@ -827,9 +1045,35 @@ class Service:
                 pass  # already on air or gone
         self.fresh_queued = {}
 
-    def _break_due(self, remaining: float) -> bool:
+    def _news_skipped(self, at=None):
+        if not plugins.on(self.cfg, 'air_direction'):
+            return False
+        at = at or now()
+        start = at - timedelta(minutes=self.cfg['broadcast']['music_set_minutes'])
+        skip = self.db.execute("SELECT not_before FROM air_plan WHERE id LIKE 'news-skip:%' AND skipped=1 "
+                               "AND not_before<=? AND not_before>? ORDER BY not_before DESC LIMIT 1", (iso(at), iso(start))).fetchone()
+        if not skip:
+            return False
+        return not self.db.execute("SELECT 1 FROM air_plan WHERE (id LIKE 'section:news:%' OR id LIKE 'direction:%' AND kind='news') "
+                                   "AND skipped=0 AND status IN ('PENDING','PREPARING','QUEUED') AND not_before>? AND not_before<=?",
+                                   (skip['not_before'], iso(at))).fetchone()
+
+    def _requested_edition(self):
+        if not plugins.on(self.cfg, 'air_direction'):
+            return None
+        return self.db.execute("SELECT id FROM air_plan WHERE id LIKE 'direction:%' AND kind='news' AND skipped=0 AND status='PENDING' AND not_before<=? ORDER BY not_before LIMIT 1", (iso(now()),)).fetchone()
+
+    def _break_due(self, remaining: float, directed=True) -> bool:
         """A news break ends a music set: the first of a session after one song, then when the set reaches
         music_set_minutes by the end of the current song."""
+        if directed and self._news_skipped(now() + timedelta(seconds=max(0, remaining))):
+            return False
+        if directed and self._requested_edition():
+            return True
+        if directed and plugins.on(self.cfg, 'air_direction'):
+            section = self.db.execute('SELECT * FROM air_plan WHERE id=?', (self._news_section_id(),)).fetchone()
+            if section and section['status'] not in ('PLAYED', 'ERROR') and not (section['skipped'] and section['not_before'] and now() >= content.parse_time(section['not_before']) + timedelta(seconds=self.cfg['broadcast']['music_set_minutes'] * 60)):
+                return not section['skipped'] and (not section['not_before'] or section['not_before'] <= iso(now()))
         if not self.db.execute("SELECT 1 FROM events WHERE session_id=? AND type='PACKAGE_STARTED'",
                                (self.session,)).fetchone():
             return self.songs_since_break >= 1 or self.set_started is not None
@@ -843,7 +1087,25 @@ class Service:
         budget = min(b["max_break_speech_sec"], b["max_spoken_seconds_per_rolling_hour"] - store.spoken_last_hour(self.db))
         budget -= 12 if plugins.on(self.cfg, "host_links") else 0  # back-sell, time check, set opener (~10 s)
         ready = content.ready_to_air(self.db, self._sources_off())
-        if ready and ready[0]["id"].startswith("system:"):
+        changes = direction.edits(self.db) if plugins.on(self.cfg, "air_direction") else {}
+        if changes:
+            candidates = direction.news(self.db)
+            ready = direction.ordered([r for r in candidates if r['status'] == 'READY' and r['source'] not in self._sources_off()
+                     and direction.allowed(r, changes, now()) and not any(
+                         p['item_id'] == r['item_id'] and p['part'] < r['part'] and not changes.get(p['id'], {}).get('skipped')
+                         for p in candidates)], changes)
+        section = self.db.execute('SELECT * FROM air_plan WHERE id=?', (self._news_section_id(),)).fetchone() if plugins.on(self.cfg, 'air_direction') else None
+        if self._news_skipped() or section and not self._requested_edition() and not section['skipped'] and section['not_before'] and section['not_before'] > iso(now()):
+            ready = [p for p in ready if p['id'].startswith('system:')]
+        ready = [p for p in ready if not self._host_segment(p) or
+                 ((notice := self.reminders_due.get(p['item_id'].removeprefix('system:'))) and
+                  (notice['kind'] != 'weather' or self._weather_enabled() and now() < notice['expires']) and
+                  (notice['kind'] != 'day' or self._day_due(now().astimezone())) and
+                  direction.allowed({'id': p['item_id'].removeprefix('system:')}, changes, now()))]
+        ready.sort(key=lambda p: self._host_segment(p) != 'weather')
+        news = [p for p in ready if not p["id"].startswith("system:music-link:")]
+        ready = news or ready
+        if ready and ready[0]["id"].startswith("system:") and not self._host_segment(ready[0]):
             return [ready[0]] if ready[0]["speech_sec"] <= budget + 12 else []  # announcements air alone
         picked, total = [], 0.0
         for p in ready:
@@ -853,7 +1115,7 @@ class Service:
         order = {}
         for p in picked:
             order.setdefault(p["id"].split(":")[0], len(order))
-        return sorted(picked, key=lambda p: order[p["id"].split(":")[0]])
+        return picked if any(changes.get(p["id"], {}).get("rank") is not None for p in picked) else sorted(picked, key=lambda p: order[p["id"].split(":")[0]])
 
     def _assemble_break(self, pkgs: list[dict], air_time, links: bool, first: tuple[str, str] | None,
                         intro_room: float | None = None, novelty: bool = False):
@@ -880,7 +1142,7 @@ class Service:
             if links:
                 segs.append((host.set_opener(b["music_set_minutes"], first, self.recent_jingles, seed, novelty), False))
                 owners.append(seed)
-            voices = [cached_synthesize(self.tts, text, self._speech_check) for text, _ in segs]
+            voices = [self._segment_voice(owner, text) for (text, _), owner in zip(segs, owners)]
             jingles = self.pkg_jingles.get(seed) or self._jingles_for(seed)
             key = hashlib.sha256(BREAK_SEP.join(p["id"] for p in pkgs).encode()).hexdigest()[:16]
             out = config.DATA_DIR / "cache/packages" / f"break-{key}.wav"
@@ -937,6 +1199,231 @@ class Service:
                 break
         return {"ok": True, "status": self.status()}
 
+    def _next_music_slot(self):
+        if not plugins.on(self.cfg, 'reroll_next'):
+            return None
+        for key, row in self.replays.items():
+            if row['kind'] == 'music':
+                return {'ref': row['ref'], 'queue': 'news', 'rid': row['rid'], 'replay_id': key}
+        if self.fresh_queued:
+            ref, rid = next(iter(self.fresh_queued.items()))
+            return {'ref': ref, 'queue': 'fresh', 'rid': rid}
+        ref = getattr(self, 'next_track', '')
+        if ref:
+            queue = 'local_music' if self.ytmusic_active and not ref.startswith('ytmusic:') else 'music'
+            return {'ref': ref, 'queue': queue, 'rid': ''}
+        return None
+
+    def _reroll_state(self):
+        slot = self._next_music_slot()
+        if not slot:
+            return None
+        remaining = ((self.current or {}).get('duration') or 0) - ((self.paused_at if self.state == 'PAUSED' else time.time()) - (self.current or {}).get('started', 0))
+        reason = ''
+        if not self.current or self.current['kind'] != 'music' or self.state not in ('PLAYING', 'PAUSED'):
+            reason = 'Wait for the next music track'
+        elif self.assembling or self.queued_break:
+            reason = 'The host transition is already prepared'
+        elif remaining <= max(10, self.cfg['music']['crossfade_sec'] + 3):
+            reason = 'The next track is already starting'
+        elif self.rerolling:
+            reason = 'Choosing another track'
+        return {'ref': slot['ref'], 'title': music.label(self.db, slot['ref']), 'available': not reason, 'reason': reason}
+
+    async def _reroll_next(self, expected):
+        state = self._reroll_state()
+        if not state or not state['available'] or expected != state['ref']:
+            return {'ok': False, 'error': (state or {}).get('reason') or 'The next track changed. Try again.'}
+        slot = self._next_music_slot()
+        choices = self.engine.music_choices(expected)
+        excluded = {expected, self.current['ref'], *self.fresh_queued, *(r['ref'] for r in self.replays.values())}
+        choices = {ref: uri for ref, uri in choices.items() if ref in self.library and ref not in excluded}
+        if not choices:
+            return {'ok': False, 'error': 'No other track is available'}
+        replacement = random.choice(list(choices))
+        uri = choices[replacement]
+        if slot.get('replay_id'):
+            uri = uri.replace('annotate:', 'annotate:replay_id="' + slot['replay_id'] + '",', 1)
+        self.rerolling = True
+        try:
+            rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
+            if slot.get('replay_id') in self.replays:
+                self.replays[slot['replay_id']].update(ref=replacement, rid=rid)
+            elif slot['queue'] == 'fresh':
+                self.fresh_queued = {replacement if ref == expected else ref: rid if ref == expected else old_rid for ref, old_rid in self.fresh_queued.items()}
+            elif self.current['ref'] != replacement:
+                self.next_track = replacement
+        except (OSError, ValueError, asyncio.TimeoutError, asyncio.IncompleteReadError):
+            return {'ok': False, 'error': 'Could not replace the next track. Try again.'}
+        finally:
+            self.rerolling = False
+        return await self.dispatch('status')
+
+    def _direction_catalog(self):
+        blocks = [{'kind': 'news', 'ref': '', 'title': 'Host edition'},
+                  {'kind': 'text', 'ref': '', 'title': 'Spoken text'}]
+        if self._weather_enabled():
+            blocks.append({'kind': 'weather', 'ref': '', 'title': 'Host edition with weather'})
+        if any(isinstance(files, list) and files for files in self.cfg['jingles'].values()):
+            blocks.append({'kind': 'jingle', 'ref': '', 'title': 'Jingle'})
+        if any(plugins.on(self.cfg, p) for p in ('reminders_calendar', 'reminders_todoist')):
+            blocks.append({'kind': 'reminder', 'ref': '', 'title': 'Reminder'})
+        return blocks
+
+    async def _direction_tick(self):
+        job = self.db.execute("SELECT * FROM air_plan WHERE (id LIKE 'direction:%' OR id LIKE 'section:%') AND id NOT LIKE 'section:news:%' AND id NOT LIKE 'section:music:%' AND kind!='news' AND status='PENDING' "
+                              "AND skipped=0 AND not_before<=? ORDER BY not_before,id LIMIT 1", (iso(now()),)).fetchone()
+        if not job:
+            return False
+        key, kind, ref = job['id'], job['kind'], job['ref']
+        if kind == 'weather' and ref.startswith('system:') and self.db.execute("SELECT 1 FROM packages WHERE id=? AND status='READY'", (ref,)).fetchone():
+            return False
+        if kind == 'news' and self._news_skipped():
+            return False
+        self.db.execute("UPDATE air_plan SET status='PREPARING' WHERE id=?", (key,))
+        try:
+            gain, text = 0.0, job['text']
+            if kind == 'reminder' and (not ref or ref.startswith(('cal:', 'todoist:'))):
+                await self._reminders_tick()
+                before = set(self.queued_reminders)
+                remaining = max(0, self.current.get('duration', 0) - (time.time() - self.current['started'])) if self.current else 0
+                if not await self._remind(remaining, timed_only=True):
+                    raise ValueError('No upcoming timed reminder is available')
+                ref = next(iter(set(self.queued_reminders) - before))
+                rid, reminder = self.queued_reminders[ref]
+                current = self.db.execute('SELECT * FROM air_plan WHERE id=?', (key,)).fetchone()
+                if not plugins.on(self.cfg, 'air_direction') or not direction.allowed(current, {key: dict(current)}, now()):
+                    await self._cancel_direction_job({'rid': rid, 'kind': kind, 'id': key, 'ref': ref})
+                    self.db.execute("UPDATE air_plan SET status='PENDING' WHERE id=?", (key,))
+                    return False
+                self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=?,text=?,error=NULL WHERE id=?", (rid, ref, reminder['title'], key))
+                return True
+            elif kind == 'weather':
+                if not self._weather_enabled():
+                    raise ValueError('Weather is disabled')
+                report = await asyncio.to_thread(weather.fetch, self.cfg['weather']['city'], now())
+                wav = await asyncio.to_thread(self._render_weather, report['text'])
+                if now() >= report['expires']:
+                    raise ValueError('Weather expired during preparation')
+                report['key'] = key
+                self.reminders_due[key] = report
+                self._store_host_segment(key, {**report, 'kind': 'weather'}, report['text'], wav)
+                self.db.execute("UPDATE air_plan SET status='PENDING',ref=? WHERE id=?", ('system:' + key + '#1', key))
+                return False
+            elif kind == 'music':
+                if not ref:
+                    ref = await self.engine.next_music() or next(iter(sorted(self.library)), '')
+                if ref not in self.library:
+                    raise ValueError('Song is no longer in the library')
+                wav = Path(ref)
+                row = self.db.execute('SELECT lufs FROM tracks WHERE path=?', (ref,)).fetchone()
+                m = self.cfg['music']
+                gain = min(m['max_boost_db'], m['target_lufs'] - row['lufs']) if row and row['lufs'] is not None else 0.0
+            elif kind == 'jingle':
+                if not ref:
+                    ref = next((r for r in ('station_id', *self.cfg['jingles']) if isinstance(self.cfg['jingles'].get(r), list) and self.cfg['jingles'][r]), '')
+                if ref not in self.cfg['jingles'] or not self.cfg['jingles'][ref]:
+                    raise ValueError('Jingle is unavailable')
+                wav = audio.choose_jingles({ref: self.cfg['jingles'][ref]}, key, self.recent_jingles)[ref]
+                gain = -16 - (await asyncio.to_thread(audio.lufs, wav) or -16)
+            elif kind == 'reminder':
+                row = self.db.execute("SELECT detail FROM events WHERE type='REMINDER' AND id=?", (ref,)).fetchone()
+                if not row:
+                    raise ValueError('Reminder is unavailable')
+                text = row['detail']
+                try:
+                    speech = json.loads(text)['text']
+                except (ValueError, TypeError, KeyError):
+                    speech = text
+                wav = await asyncio.to_thread(self._render_notice, speech)
+            else:
+                raise ValueError('Unknown block type')
+            current = self.db.execute('SELECT * FROM air_plan WHERE id=?', (key,)).fetchone()
+            if not plugins.on(self.cfg, 'air_direction') or not direction.allowed(current, {key: dict(current)}, now()) or kind == 'news' and self._news_skipped():
+                self.db.execute("UPDATE air_plan SET status='PENDING' WHERE id=?", (key,))
+                return False
+            air_kind = 'id' if kind == 'jingle' else kind
+            if kind == 'news':
+                rid = await self.engine.push_news(wav, ref, p['talkover_sec'] or 0)
+                self.db.execute("UPDATE packages SET status='QUEUED' WHERE id=?", (ref,))
+                self.queued_break = (rid, [ref])
+            else:
+                rid = await self.engine.push_replay(wav, air_kind, ref if kind == 'music' else key, gain, key)
+            self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=?,text=?,error=NULL WHERE id=?", (rid, ref, text, key))
+            if kind in ('weather', 'reminder'):
+                self.reminder_text[key] = text
+            log('directed block queued:', kind, key)
+            return True
+        except Exception as error:
+            self.db.execute("UPDATE air_plan SET status='ERROR',error=? WHERE id=?", (str(error)[:240], key))
+            log('directed block:', type(error).__name__)
+            return False
+
+    async def _cancel_direction_job(self, row):
+        if self.queued_break and row['rid'] == self.queued_break[0]:
+            rid, ids = self.queued_break
+            await self.engine.remove(rid)
+            self.db.executemany("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", [(pid,) for pid in ids])
+            self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE rid=? AND status='QUEUED'", (rid,))
+            self.queued_break = None
+            return
+        await self.engine.remove(row['rid'])
+        if row['kind'] == 'news':
+            self.db.execute("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", (row['ref'],))
+            self.queued_break = None
+        if row['kind'] in ('weather', 'reminder'):
+            self.id_pending = False
+            self.reminder_text.pop(row['id'], None)
+            self.reminder_text.pop(row['ref'], None)
+            waiting = self.queued_reminders.pop(row['ref'], None)
+            if waiting:
+                self.reminders_due[row['ref']] = waiting[1]
+
+    async def _direction_command(self, req):
+        if not plugins.on(self.cfg, 'air_direction'):
+            return {'ok': False, 'error': 'Enable Air direction in Experiments first'}
+        action = req.get('action')
+        if action == 'save':
+            return await self._save_broadcast_plan(req)
+        if action not in ('catalog', 'insert', 'up', 'down', 'skip', 'time', 'reset'):
+            raise ValueError('Unknown running-order action')
+        if action == 'catalog':
+            return {'ok': True, 'blocks': self._direction_catalog()}
+        if action == 'insert':
+            kind, ref = str(req.get('kind', '')), str(req.get('ref', ''))
+            catalog = self._direction_catalog()
+            selected = next((b for b in catalog if (b['kind'], b['ref']) == (kind, ref)), None)
+            if not selected and ref:
+                if kind == 'music' and ref in self.library or kind == 'jingle' and self.cfg['jingles'].get(ref):
+                    selected = {'title': kind.title()}
+                elif kind == 'news' and self.db.execute('SELECT 1 FROM packages WHERE id=?', (ref,)).fetchone():
+                    selected = {'title': 'News'}
+                elif kind == 'reminder' and self.db.execute("SELECT 1 FROM events WHERE id=? AND type='REMINDER'", (ref,)).fetchone():
+                    selected = {'title': 'Reminder'}
+            if not selected:
+                raise ValueError('Choose an available block')
+            key = direction.insert(self.db, self.cfg, kind, ref, str(req.get('text') or '') if kind == 'text' else selected['title'], now(), req.get('at'))
+        else:
+            if action == 'time':
+                direction.requested_time(req.get('at'), now())
+            key = str(req.get('id', ''))
+            package = self.db.execute('SELECT status FROM packages WHERE id=?', (key,)).fetchone()
+            if package and package['status'] == 'QUEUED' and self.queued_break:
+                rid, ids = self.queued_break
+                if not rid:
+                    raise ValueError('This block is already entering playback')
+                await self.engine.remove(rid)
+                self.db.executemany("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", [(pid,) for pid in ids])
+                self.queued_break = None
+            job = self.db.execute('SELECT * FROM air_plan WHERE id=?', (key,)).fetchone()
+            if job and job['status'] == 'QUEUED' and job['rid']:
+                await self._cancel_direction_job(job)
+                self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE id=? AND status='QUEUED'", (key,))
+            direction.edit(self.db, self.cfg, key, action, now(), req.get('at'))
+            self.reminders_due.pop(key, None)
+        self.wake.set()
+        return {'ok': True, 'id': key, 'direction': direction.rows(self.db, self.cfg, now())}
+
     def _sources_off(self) -> list[str]:
         """Sources whose plugin is switched off: their ready bulletins wait instead of airing."""
         return [src for src, name in plugins.SOURCE_PLUGIN.items() if not plugins.on(self.cfg, name)]
@@ -945,29 +1432,79 @@ class Service:
         if cmd == "plugins":
             return {"ok": True, "plugins": plugins.listing(self.cfg)}
         if cmd == "plugin":
-            plugins.set_plugin(str((req or {}).get("name", "")), bool((req or {}).get("on")))
+            name, enabled = str((req or {}).get('name', '')), bool((req or {}).get('on'))
+            if name == 'air_direction' and not enabled:
+                for row in self.db.execute("SELECT * FROM air_plan WHERE status='QUEUED' AND rid IS NOT NULL").fetchall():
+                    await self._cancel_direction_job(row)
+                    self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE id=? AND status='QUEUED'", (row['id'],))
+                if self.queued_break:
+                    rid, ids = self.queued_break
+                    if rid:
+                        await self.engine.remove(rid)
+                        self.db.executemany("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", [(pid,) for pid in ids])
+                        self.queued_break = None
+                for key in list(self.reminders_due):
+                    if key.startswith('weather:slot:'):
+                        self.reminders_due.pop(key)
+            plugins.set_plugin(name, enabled)
             self.wake.set()
             return {"ok": True, "plugins": plugins.listing(self.cfg)}
+        if cmd == "direction":
+            return await self._direction_command(req or {})
         if cmd == "replay":
             return await self.replay(str((req or {}).get("kind", "")), str((req or {}).get("ref", "")))
         if cmd == "unqueue":
             return await self.unqueue(str((req or {}).get("kind", "")), str((req or {}).get("ref", "")))
+        if cmd == 'reroll-next':
+            return await self._reroll_next(str((req or {}).get('ref', '')))
         if cmd in ("status", "play"):
             if cmd == "play" and self.state == "PAUSED":
                 return await self.dispatch("resume")
-            return {"ok": True, "status": self.status()}
+            status = self.status()
+            if getattr(self, 'engine', None) and self.engine.proc and self.engine.proc.returncode is None:
+                try:
+                    ref = await asyncio.wait_for(self.engine.next_music(), .5)
+                    if ref:
+                        self.next_track = ref
+                        status['upcoming'].append({'kind': 'music', 'ref': ref, 'title': music.label(self.db, ref), 'stage': 'music'})
+                        status['next_reroll'] = self._reroll_state()
+                        if plugins.on(self.cfg, 'air_direction'):
+                            status['broadcast_plan'] = self._broadcast_plan()
+                except (OSError, asyncio.TimeoutError, asyncio.IncompleteReadError):
+                    pass
+            return {"ok": True, "status": status}
         if cmd == "pause" and self.state == "PLAYING":
             await self._pause()
         elif cmd == "resume" and self.state == "PAUSED":
             await self._resume()
         elif cmd == "next":
-            self.skip_flag = bool(self.current and self.current["kind"] == "news")
-            await self.engine.command("skip")
+            current = self.current
+            if current and current['kind'] == 'music':
+                remaining = max(0, current.get('duration', 0) - (time.time() - current['started']))
+                if self.queued_break or self._waiting_break(remaining):
+                    await self.schedule(immediate=True)
+                if self.queued_break or self.queued_reminders or self.replays or self.id_pending:
+                    await self.engine.wait_insert(self.queued_break[0] if self.queued_break else None)
+                else:
+                    await self.engine.wait_music()
+            if self.current is current:
+                self.skip_flag = bool(current and current['kind'] == 'news')
+                self.next_transition_sec = .1
+                try:
+                    await self.engine.command("skip")
+                except Exception:
+                    self.next_transition_sec = None
+                    raise
         elif cmd == "skip-news":
             if not (self.current and self.current["kind"] == "news"):
                 return {"ok": False, "error": "no bulletin is on air"}
             self.skip_flag = True
-            await self.engine.command("skip")
+            self.next_transition_sec = .1
+            try:
+                await self.engine.command("skip")
+            except Exception:
+                self.next_transition_sec = None
+                raise
         elif cmd == "stop":
             asyncio.get_running_loop().call_soon(lambda: asyncio.ensure_future(self.stop()))
             return {"ok": True, "status": {"state": "STOPPING"}}
@@ -981,10 +1518,362 @@ class Service:
         if kind == "music":
             return music.label(self.db, ref)
         if kind == "news":
-            topics = [r[0] for r in (self.db.execute("SELECT i.topic FROM packages p JOIN items i ON i.id=p.item_id "
-                                                     "WHERE p.id=?", (pid,)).fetchone() for pid in ref.split(BREAK_SEP)) if r]
-            return " · ".join(dict.fromkeys(timeline.topic_name(t) for t in topics)) or "News"
+            return 'Host edition'
         return {"id": "Station ID", "reminder": "Reminder", "weather": "Weather"}.get(kind, kind)
+
+    def _news_section_id(self):
+        active = self.db.execute("SELECT id FROM air_plan WHERE id LIKE 'section:news:%' "
+                                 "AND status NOT IN ('PLAYED','ERROR') AND (id NOT LIKE 'section:news:future:%' OR not_before<=?) AND (skipped=0 OR not_before>?) "
+                                 "ORDER BY CASE WHEN skipped=0 AND not_before<=? THEN 0 ELSE 1 END,not_before LIMIT 1", (iso(now()), iso(now() - timedelta(minutes=self.cfg['broadcast']['music_set_minutes'])), iso(now()))).fetchone()
+        return active['id'] if active else f"section:news:{self.session}:{int(self.set_started or 0)}"
+
+    def _broadcast_plan(self):
+        at = now()
+        remaining = max(0, ((self.current or {}).get('duration') or 0) -
+                        ((self.paused_at if self.state == 'PAUSED' else time.time()) - (self.current or {}).get('started', time.time())))
+        boundary = at + timedelta(seconds=remaining)
+        interval = self.cfg['broadcast']['music_set_minutes'] * 60
+        news_at = boundary
+        if not self._break_due(remaining, directed=False) and self.set_started:
+            news_at = max(boundary, at + timedelta(seconds=max(0, interval - (time.time() - self.set_started))))
+        horizon = at + timedelta(hours=3)
+        plan = direction.rows(self.db, self.cfg, at)
+        result, seen_rows = [], set()
+        for r in plan:
+            if r['id'] in seen_rows:
+                continue
+            seen_rows.add(r['id'])
+            if r['kind'] == 'music':
+                continue
+            if r['id'].startswith('section:news:') and not r['id'].startswith('section:news:future:') and r['id'] != self._news_section_id() and not r['skipped']:
+                continue
+            if r['kind'] == 'news' and not r['id'].startswith(('direction:', 'section:')) and not r['not_before']:
+                continue
+            due = content.parse_time(r['not_before'])
+            if due and due > horizon and not r.get('edited'):
+                continue
+            result.append({**r, 'title': self.cfg['weather']['city'] if r['kind'] == 'weather' and r['title'] == 'Weather' else r['title'], 'at': iso(due if r['skipped'] else max(boundary, due)) if due else iso(boundary), 'duration': r.get('duration_sec') or r.get('est_speech_sec') or 30,
+                           'estimated': not due or due < boundary, 'locked': r['status'] in ('QUEUED', 'PREPARING'),
+                           'members': [r['id']]})
+        grouped, timed = [], {}
+        for r in result:
+            if r['kind'] != 'news' or r['id'].startswith(('direction:', 'section:')):
+                grouped.append(r)
+                continue
+            key = (r['not_before'], r['skipped'])
+            if key not in timed:
+                r['title'] = timeline.topic_name(r['title'])
+                timed[key] = r
+                grouped.append(r)
+            else:
+                block = timed[key]
+                block['members'] += r['members']
+                block['title'] = ' · '.join(dict.fromkeys([block['title'], timeline.topic_name(r['title'])]))
+                block['duration'] += r['duration']
+                block['locked'] = block['locked'] or r['locked']
+                if r['status'] in ('QUEUED', 'PREPARING', 'PENDING'):
+                    block['status'] = r['status']
+        result = grouped
+        candidates = [r for r in plan if r['kind'] == 'news' and not r['id'].startswith(('direction:', 'section:')) and not r['skipped'] and not r['not_before'] and not self._host_segment(r)]
+        picked = self._pick_break()
+        if self.queued_break:
+            picked = [{'id': key} for key in self.queued_break[1]]
+        selected = [r for r in candidates if r['id'] in {p['id'] for p in picked}] or candidates[:3]
+        section_id = self._news_section_id()
+        section = next((r for r in result if r['id'] == section_id), None)
+        requested = next((r for r in sorted(result, key=lambda r: r['at']) if r['kind'] == 'news' and r['id'].startswith('direction:') and not r['skipped'] and content.parse_time(r['at']) <= (content.parse_time(section['at']) if section else news_at)), None)
+        section = requested or section
+        if selected and section:
+            section['content_members'] = [r['id'] for r in selected]
+            section['title'] = ' · '.join(dict.fromkeys(timeline.topic_name(r['title']) for r in selected))
+            section['duration'] = sum(r.get('duration_sec') or r.get('est_speech_sec') or 30 for r in selected)
+            if section['status'] == 'PENDING' and all(r['status'] == 'READY' for r in selected):
+                section['status'] = 'READY'
+        elif selected:
+            due = max([news_at] + [content.parse_time(r['not_before']) for r in selected if r['not_before']])
+            titles = list(dict.fromkeys(timeline.topic_name(r['title']) for r in selected))
+            result.append({'id': section_id, 'kind': 'news', 'title': ' · '.join(titles),
+                           'members': [r['id'] for r in selected], 'at': iso(due), 'not_before': selected[0]['not_before'],
+                           'estimated': True, 'duration': sum(r.get('duration_sec') or r.get('est_speech_sec') or 30 for r in selected),
+                           'status': 'QUEUED' if any(r['status'] == 'QUEUED' for r in selected) else 'READY' if all(r['status'] == 'READY' for r in selected) else 'PENDING',
+                           'locked': any(r['status'] == 'QUEUED' for r in selected), 'skipped': False, 'rid': self.queued_break[0] if self.queued_break else None})
+        elif not section and not any(r['kind'] == 'news' and not r['skipped'] for r in result) and any(plugins.on(self.cfg, p) for p in ('horizon', 'github_trending', 'github_new')):
+            result.append({'id': section_id, 'kind': 'news', 'title': 'News', 'members': [], 'placeholder': True,
+                           'at': iso(news_at), 'not_before': None, 'estimated': True, 'duration': 60, 'status': 'PENDING', 'locked': False, 'skipped': False})
+        skipped = [r for r in plan if r['kind'] == 'news' and r['skipped'] and not r['id'].startswith(('direction:', 'section:'))]
+        if skipped:
+            result.append({'id': skipped[0]['id'], 'kind': 'news', 'title': 'Skipped bulletin', 'members': [r['id'] for r in skipped],
+                           'at': iso(news_at), 'not_before': skipped[0]['not_before'], 'estimated': True,
+                           'duration': 0, 'status': 'READY', 'locked': False, 'skipped': True})
+        changes = direction.edits(self.db)
+        music_titles = [music.label(self.db, r['ref']) for r in self.replays.values() if r['kind'] == 'music']
+        music_titles += [music.label(self.db, ref) for ref in self.fresh_queued]
+        if getattr(self, 'next_track', ''):
+            music_titles.append(music.label(self.db, self.next_track))
+        for key, r in list(self.reminders_due.items()) + [(key, pair[1]) for key, pair in self.queued_reminders.items()]:
+            if r['kind'] not in ('task', 'event') or r['start'] <= at or not plugins.on(self.cfg, 'reminders_todoist' if r['kind'] == 'task' else 'reminders_calendar'):
+                continue
+            if any(row['kind'] == 'reminder' and row.get('ref') == key for row in result):
+                continue
+            edit_id = 'reminder:' + key
+            edit = changes.get(edit_id, {})
+            result.append({'id': edit_id, 'kind': 'reminder', 'title': 'Reminder', 'ref': key, 'members': [edit_id],
+                           'at': edit.get('not_before') or iso(boundary), 'not_before': edit.get('not_before'),
+                           'duration': 30, 'estimated': not bool(edit.get('not_before')), 'locked': key in self.queued_reminders,
+                           'status': 'QUEUED' if key in self.queued_reminders else 'PENDING', 'skipped': bool(edit.get('skipped')),
+                           'rid': self.queued_reminders[key][0] if key in self.queued_reminders else None})
+        # shortcut: future sets show the configured interval, not songs or speech that have not been prepared.
+        future = news_at + timedelta(seconds=interval)
+        index = 1
+        while index <= 8:
+            anchor = int(future.timestamp() // interval)
+            key = f'section:news:future:{anchor}'
+            if not any(r['id'] == key or r['kind'] == 'news' and not r['skipped'] and abs((content.parse_time(r['at']) - future).total_seconds()) <= max(60, r['duration']) for r in result) and any(plugins.on(self.cfg, p) for p in ('horizon', 'github_trending', 'github_new')):
+                result.append({'id': key, 'kind': 'news', 'title': 'News', 'members': [], 'placeholder': True,
+                               'at': iso(future), 'not_before': None, 'estimated': True, 'duration': 60,
+                               'status': 'PENDING', 'locked': False, 'skipped': False})
+            future += timedelta(seconds=interval)
+            index += 1
+        for row in result:
+            if row['kind'] == 'news':
+                skip_id = 'news-skip:' + row['id']
+                row['skip_id'] = skip_id
+                row['skipped'] = row['skipped'] or bool(changes.get(skip_id, {}).get('skipped'))
+        for row in result:
+            if row['kind'] == 'news' and not row['id'].startswith(('section:', 'direction:', 'system:')):
+                row['legacy_members'] = row['members']
+                row['id'] = 'section:news:saved:' + row['id']
+            row['content_title'] = row['title']
+            row['title'] = {'news': 'News', 'weather': 'Weather', 'reminder': 'Reminder', 'jingle': 'Jingle'}.get(row['kind'], row['kind'].title())
+        news_sections = {}
+        stages = {'ERROR': 0, 'PENDING': 1, 'READY': 2, 'PREPARING': 3, 'QUEUED': 4}
+        sections = []
+        for row in result:
+            if row['kind'] != 'news' or not row['id'].startswith('section:news:'):
+                sections.append(row)
+                continue
+            key = (row['at'], row['skipped'])
+            if key not in news_sections:
+                news_sections[key] = row
+                sections.append(row)
+                continue
+            block = news_sections[key]
+            block['members'] = list(dict.fromkeys([*block['members'], row['id'], *row['members']]))
+            if block['id'].startswith('section:news:future:') and not row['id'].startswith('section:news:future:'):
+                block['members'].append(block['id'])
+                block['id'], block['skip_id'] = row['id'], row['skip_id']
+            block['content_members'] = list(dict.fromkeys([*block.get('content_members', []), *row.get('content_members', [])]))
+            block['duration'] = max(block['duration'], row['duration'])
+            block['legacy_members'] = list(dict.fromkeys([*block.get('legacy_members', []), *row.get('legacy_members', [])]))
+            block['content_title'] = ' · '.join(dict.fromkeys(t for t in (block['content_title'], row['content_title']) if t and t != 'News'))
+            block['locked'] = block['locked'] or row['locked']
+            block['status'] = max((block['status'], row['status']), key=lambda stage: stages.get(stage, 0))
+        for block in news_sections.values():
+            if block['id'].startswith('section:news:future:') and content.parse_time(block['at']) <= boundary:
+                block['members'] = list(dict.fromkeys([block['id'], *block['members']]))
+                block['id'] = block['id'].replace('section:news:future:', 'section:news:current:', 1)
+        result = sections
+        for clock in [r for r in result if r['kind'] == 'weather' and (r['status'] == 'QUEUED' or any(p.get('item_id') == 'system:' + r['id'] and p['status'] == 'READY' for p in plan))]:
+            merged = [r for r in result if r['kind'] == 'news' and r['skipped'] == clock['skipped'] and
+                      (r['at'] == clock['at'] or self.queued_break and clock.get('rid') == self.queued_break[0] and
+                       any(key in self.queued_break[1] for key in [*r['members'], *r.get('content_members', [])]))]
+            if merged:
+                clock['edition_news_ids'] = [r['id'] for r in merged]
+                clock['content_members'] = list(dict.fromkeys([key for r in merged for key in [*r['members'], *r.get('content_members', [])]]))
+                clock['locked'] = clock['locked'] or any(r['locked'] for r in merged)
+                clock['duration'] += sum(r['duration'] for r in merged)
+                result = [r for r in result if r not in merged]
+        result.sort(key=lambda r: (r['at'], not r['locked']))
+        cursor, previous = boundary, 'opening:' + self.session
+        music_sections = []
+        for row in [r for r in result if not r['skipped']] + [None]:
+            end = max(cursor, content.parse_time(row['at'])) if row else max(cursor, horizon)
+            if end > cursor:
+                music_sections.append({'id': 'section:music:' + previous, 'kind': 'music', 'title': 'Music',
+                                       'content_title': ' · '.join(dict.fromkeys(music_titles)) if not music_sections else '',
+                                       'at': iso(cursor), 'not_before': None, 'duration': (end - cursor).total_seconds(),
+                                       'next_section': row['id'] if row else None, 'members': [], 'placeholder': True,
+                                       'estimated': True, 'status': 'PENDING', 'locked': False, 'skipped': False})
+            if row:
+                cursor = max(cursor, content.parse_time(row['at']) + timedelta(seconds=row['duration']))
+                previous = row['id']
+        result += music_sections
+        packages = {r['id']: r for r in plan if r['kind'] == 'news' and r.get('script_path')}
+        for row in result:
+            if row['kind'] not in ('news', 'weather', 'reminder'):
+                continue
+            ids = [*row['members'], *row.get('content_members', []), row.get('ref')]
+            parts = [packages[key] for key in dict.fromkeys(ids) if key in packages]
+            notice = self.reminders_due.get(row.get('ref')) or self.reminders_due.get(row['id'])
+            row['text_ready'] = row['status'] == 'QUEUED' or bool(parts) and all(Path(p['script_path']).is_file() for p in parts) or bool(notice and (notice.get('title') or notice.get('text')))
+            row['voice_ready'] = row['status'] == 'QUEUED' or bool(parts) and all(p['status'] in ('READY', 'QUEUED') for p in parts)
+        self._edition_details(result, packages)
+        result.sort(key=lambda r: (r['at'], not r['locked']))
+        version = hashlib.sha256(json.dumps([{k: r.get(k) for k in ('id', 'status', 'not_before', 'skipped')} for r in sorted(result, key=lambda r: r['id'])], sort_keys=True).encode()).hexdigest()[:20]
+        return {'version': version, 'rows': result, 'starts_at': iso(boundary)}
+
+    def _edition_details(self, rows, packages):
+        labels = {'horizon': 'Tech news', 'github_trending': 'GitHub trends', 'github_new': 'New GitHub projects',
+                  'weather': 'Weather', 'calendar': 'Today', 'music_facts': 'Music stories', 'inbox': 'News', 'direction': 'Announcement'}
+        for row in rows:
+            if row['kind'] not in ('news', 'weather'):
+                continue
+            ids = [*row['members'], *row.get('content_members', []), row.get('ref')]
+            if row['kind'] == 'weather':
+                ids += [key for key, p in packages.items() if p['item_id'] == 'system:' + row['id']]
+            parts = [packages[key] for key in dict.fromkeys(ids) if key in packages]
+            segments = {}
+            for p in parts:
+                source = p['source']
+                seg = segments.setdefault(source, {'title': labels.get(source, source), 'items': [], 'text_ready': True, 'voice_ready': True})
+                seg['items'].append(timeline.topic_name(p['title']))
+                seg['voice_ready'] = seg['voice_ready'] and p['status'] in ('READY', 'QUEUED')
+            if not segments:
+                sources = ['weather'] if row['kind'] == 'weather' else [name for name in ('horizon', 'github_trending', 'github_new') if plugins.on(self.cfg, name)]
+                segments = {name: {'title': labels[name], 'items': [], 'text_ready': bool(row.get('text_ready')) if name == 'weather' else False, 'voice_ready': False} for name in sources}
+                if row['kind'] != 'weather' and plugins.on(self.cfg, 'music_facts'):
+                    segments['music_facts'] = {'title': labels['music_facts'], 'items': [], 'optional': True, 'text_ready': False, 'voice_ready': False}
+            title = timeline.edition_title(['weather'] if row['kind'] == 'weather' else [p['source'] for p in parts])
+            row.update(edition=True, title=title, content_title='', segments=list(segments.values()))
+            if parts:
+                row['text_ready'] = all(seg['text_ready'] for seg in row['segments'])
+                row['voice_ready'] = all(seg['voice_ready'] for seg in row['segments'])
+            row['preparation_started'] = bool(row.get('voice_ready') or row['kind'] == 'weather' and row.get('text_ready') or row['status'] in ('PREPARING', 'QUEUED') or
+                                              row['kind'] == 'news' and self.state == 'PLAYING' and content.parse_time(row['at']) <= now() + timedelta(seconds=TEXT_LEAD_SEC))
+            for segment in row['segments']:
+                segment['preparation_started'] = row['preparation_started']
+
+    async def _save_broadcast_plan(self, req):
+        snapshot = self._broadcast_plan()
+        changes = req.get('changes')
+        if not isinstance(changes, list) or len(changes) > 100:
+            raise ValueError('Invalid schedule changes')
+        if not changes:
+            return {'ok': True, 'broadcast_plan': snapshot}
+        if req.get('version') != snapshot['version']:
+            raise ValueError('The schedule changed while editing. Cancel and reopen Edit to use the latest plan.')
+        current = {r['id']: r for r in snapshot['rows']}
+        validated, seen = [], set()
+        available = {b['kind'] for b in self._direction_catalog()}
+        for change in changes:
+            if not isinstance(change, dict) or not isinstance(change.get('id'), str) or change['id'] in seen:
+                raise ValueError('Invalid or repeated block')
+            seen.add(change['id'])
+            row = current.get(change['id'])
+            if change['id'].startswith('new:'):
+                if change.get('kind') not in available:
+                    raise ValueError('This block type is no longer available')
+                row = {'id': change['id'], 'kind': change['kind'], 'members': [], 'new': True}
+                if row['kind'] == 'text' and (not isinstance(change.get('text'), str) or not 1 <= len(change['text'].strip()) <= 4000):
+                    raise ValueError('Enter 1–4000 characters')
+            if 'skipped' in change and type(change['skipped']) is not bool:
+                raise ValueError('Invalid skipped state')
+            rank = change.get('rank', 0)
+            if type(rank) is not int or not 0 <= rank <= 100:
+                raise ValueError('Invalid block order')
+            if row and row['kind'] == 'music':
+                raise ValueError('Music fills the gaps automatically; edit a host section instead')
+            if not row or row.get('locked') and not (row['kind'] in ('news', 'weather', 'reminder') and change.get('skip_only') is True and change.get('skipped') is True):
+                raise ValueError('A block is already selected or preparing. Cancel and reopen Edit.')
+            if row['kind'] == 'reminder' and change.get('skipped') and not row.get('skipped') and change.get('skip_confirmed') is not True:
+                raise ValueError('Confirm skipping this reminder')
+            due = direction.requested_time(row['at'] if row.get('locked') else change.get('at'), now())
+            validated.append((row, change, due, rank))
+        for row, change, due, rank in validated:
+            if not row.get('locked'):
+                continue
+            if self.current and self.current['kind'] == row['kind'] and self.current['ref'] in (row.get('ref'), row['id'], BREAK_SEP.join(row['members'])):
+                raise ValueError('This block is already on air')
+            if row['status'] == 'QUEUED':
+                if row['kind'] == 'news' and self.queued_break:
+                    await self.engine.remove(self.queued_break[0])
+                    self.db.executemany("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", [(key,) for key in self.queued_break[1]])
+                    self.db.executemany("UPDATE air_plan SET status='PENDING',rid=NULL WHERE id=? AND status='QUEUED'", [(key,) for key in row['members']])
+                    self.queued_break = None
+                else:
+                    await self._cancel_direction_job(row)
+                self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE id=?", (row['id'],))
+        with self.db:
+            for row, change, due, rank in validated:
+                skipped = int(bool(change.get('skipped')))
+                for key in row.get('edition_news_ids', []):
+                    if key.startswith('section:news:'):
+                        self.db.execute("INSERT INTO air_plan(id,kind,text,not_before,rank,skipped) VALUES(?,'news','Host edition',?,?,?) ON CONFLICT(id) DO UPDATE SET not_before=excluded.not_before,rank=excluded.rank,skipped=excluded.skipped,status='PENDING',rid=NULL", (key, iso(due), rank, skipped))
+                    self.db.execute("INSERT INTO air_plan(id,kind,not_before,skipped) VALUES(?,'news',?,?) ON CONFLICT(id) DO UPDATE SET not_before=excluded.not_before,skipped=excluded.skipped", ('news-skip:' + key, iso(due), skipped))
+                if row.get('new') or row.get('placeholder') and row['kind'] != 'news' and not row['id'].startswith('section:'):
+                    if not skipped:
+                        direction.insert(self.db, self.cfg, row['kind'], '', change.get('text') or row.get('title') or row['kind'].title(), now(), iso(due))
+                    continue
+                if row.get('legacy_members'):
+                    self.db.executemany('DELETE FROM air_plan WHERE id=?', [(key,) for key in row['legacy_members']])
+                if row['kind'] == 'news':
+                    if not row['id'].startswith(('section:', 'direction:', 'system:')):
+                        self.db.executemany('DELETE FROM air_plan WHERE id=?', [(key,) for key in row['members']])
+                        key = 'section:news:saved:' + row['id']
+                        row = {**row, 'id': key, 'members': [], 'skip_id': 'news-skip:' + key}
+                    self.db.execute("INSERT INTO air_plan(id,kind,not_before,skipped) VALUES(?,'news',?,?) "
+                                    "ON CONFLICT(id) DO UPDATE SET not_before=excluded.not_before,skipped=excluded.skipped",
+                                    (row.get('skip_id') or 'news-skip:' + row['id'], iso(due), skipped))
+                    if row['id'].startswith('section:news:'):
+                        keys = list(dict.fromkeys([row['id'], *(key for key in row['members'] if key.startswith('section:news:'))]))
+                        self.db.executemany('UPDATE air_plan SET skipped=?,not_before=? WHERE id=?',
+                                            [(skipped, iso(due), 'news-skip:' + key) for key in [*keys, *row.get('legacy_members', [])]])
+                        for key in keys:
+                            self.db.execute("INSERT INTO air_plan(id,kind,text,not_before,rank,skipped) VALUES(?,'news',?,?,?,?) "
+                                            "ON CONFLICT(id) DO UPDATE SET text=excluded.text,not_before=excluded.not_before,rank=excluded.rank,skipped=excluded.skipped,error=NULL,status='PENDING'",
+                                            (key, row.get('title') or 'News', iso(due), rank, skipped))
+                        continue
+                    if skipped:
+                        continue
+                if row.get('placeholder') and row['id'].startswith('section:'):
+                    self.db.execute("INSERT OR IGNORE INTO air_plan(id,kind,text) VALUES(?,?,?)", (row['id'], row['kind'], row['title']))
+                keys = row['members'] or [row['id']]
+                if row['kind'] == 'reminder' and str(row.get('ref', '')).startswith(('cal:', 'todoist:')):
+                    keys = list(dict.fromkeys([*keys, 'reminder:' + row['ref']]))
+                for key in keys:
+                    self.db.execute("INSERT INTO air_plan(id,kind,ref,not_before,rank,skipped) VALUES(?,?,?,?,?,?) "
+                                    "ON CONFLICT(id) DO UPDATE SET not_before=excluded.not_before,rank=excluded.rank,skipped=excluded.skipped,error=NULL,status=CASE WHEN air_plan.status='ERROR' THEN 'PENDING' ELSE air_plan.status END",
+                                    (key, row['kind'], '' if row.get('placeholder') else row.get('ref') or key, iso(due), rank, skipped))
+        self.wake.set()
+        return {'ok': True, 'broadcast_plan': self._broadcast_plan()}
+
+    def _upcoming(self, plan):
+        result = []
+        queued_refs = {(r['kind'], r['ref']) for r in self.replays.values()}
+        for r in self.replays.values():
+            title = music.label(self.db, r['ref']) if r['kind'] == 'music' else self.reminder_text.get(r['ref'], r['kind'].title())
+            result.append({'kind': r['kind'], 'ref': r['ref'], 'title': title, 'stage': 'queued'})
+        for key, (_, r) in self.queued_reminders.items():
+            if ('reminder', key) not in queued_refs:
+                result.append({'kind': 'reminder', 'title': r['title'], 'stage': 'queued'})
+        result += [{'kind': 'music', 'ref': ref, 'title': music.label(self.db, ref), 'stage': 'music'} for ref in self.fresh_queued]
+        scheduled, rotation, seen = [], [], set()
+        for key, r in self.reminders_due.items():
+            if r['kind'] in ('task', 'event') and r['start'] > now() and plugins.on(self.cfg, 'reminders_todoist' if r['kind'] == 'task' else 'reminders_calendar'):
+                scheduled.append({'kind': 'reminder', 'title': r['title'], 'stage': 'scheduled',
+                                  'at': iso(r['start'] - timedelta(minutes=self.cfg['reminders']['lead_min']))})
+        for r in plan:
+            if r['skipped'] or r['status'] == 'ERROR' or (r['kind'], r['id']) in queued_refs:
+                continue
+            title = timeline.topic_name(r['title'])
+            if r['kind'] == 'music':
+                title = music.label(self.db, r['ref'])
+            title = title or ('Weather · ' + self.cfg['weather']['city'] if r['kind'] == 'weather' else r['kind'].title())
+            entry = {'kind': r['kind'], 'title': title, 'status': r['status'], 'at': r['not_before']}
+            if r['status'] == 'QUEUED':
+                result.append({**entry, 'stage': 'queued'})
+            elif r['not_before']:
+                scheduled.append({**entry, 'stage': 'scheduled'})
+            elif r.get('item_id') not in seen:
+                rotation.append({**entry, 'stage': 'rotation'})
+                seen.add(r.get('item_id'))
+        if self.current and self.current['kind'] == 'music' and not self.id_pending and not self.queued_break:
+            remaining = max(0, self.current.get('duration', 0) - ((self.paused_at if self.state == 'PAUSED' else time.time()) - self.current['started']))
+            if self._waiting_break(remaining):
+                result.append({'kind': 'news', 'title': 'Host edition', 'stage': 'next'})
+        result += rotation[:3]
+        result += sorted(scheduled, key=lambda r: r['at'])[:3]
+        return result
 
     def status(self) -> dict:
         self._live_settings()
@@ -1011,11 +1900,13 @@ class Service:
         title = None
         if self.current:
             title = self._title()
+        plan = direction.rows(self.db, self.cfg, now())
         return {
             "state": self.state, "session": self.session, "current": cur,
             "current_kind": self.current["kind"] if self.current else None, "current_title": title,
             "elapsed_sec": round((self.paused_at if self.state == "PAUSED" else time.time()) - self.current["started"])
             if self.current else 0,
+            "transition_sec": self.current.get('transition_sec', self.cfg['music']['crossfade_sec']) if self.current else 0,
             "duration_sec": round(self.current.get("duration") or 0) if self.current else 0,
             "news_ready": counts.get("READY", 0) + counts.get("QUEUED", 0), "news_preparing": counts.get("PENDING", 0),
             "spoken_last_hour_sec": round(store.spoken_last_hour(self.db)),
@@ -1023,6 +1914,14 @@ class Service:
             "voicestudio": "ok" if self.tts.health() else "unavailable",
             "llm_calls": self.editor.calls, "sources": self.sources, "last_error": self.last_error,
             "output": self.cfg["output"]["mode"], "auto_paused": self.auto_paused,
+            "ytmusic_active": self.ytmusic_active,
+            "music_source": 'ytmusic' if (self.current and self.current['kind'] == 'music' and self.current['ref'].startswith('ytmusic:') or
+                                           self.ytmusic_active and (not self.current or self.current['kind'] != 'music')) else 'local',
+            "broadcast_plan": self._broadcast_plan() if plugins.on(self.cfg, 'air_direction') else None,
+            "direction": plan if plugins.on(self.cfg, 'air_direction') else [],
+            "upcoming": self._upcoming(plan),
+            "next_reroll": self._reroll_state(),
+            "direction_timezone": self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'),
             "replay_queue": [{"kind": r["kind"], "ref": r["ref"]} for r in self.replays.values()],
         }
 

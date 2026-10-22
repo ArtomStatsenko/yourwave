@@ -15,6 +15,9 @@ radio.github_trending.fetch_readme = lambda owner, repo, **kw: ""  # no network 
 os.environ["RADIO_DATA_DIR"] = str(TMP / "data")
 
 from radio import config, content, daemon, music, store  # noqa: E402
+config.DATA_DIR = TMP / "data"  # isolate even when another test imported config first
+config.RUN_DIR = config.DATA_DIR / "run"
+config.SOCK = config.RUN_DIR / "radio.sock"
 from radio.daemon import Service  # noqa: E402
 from radio.tts import MockTTS  # noqa: E402
 
@@ -30,6 +33,56 @@ DIGEST = """# Технологии
 def write_digest(name, published, body=DIGEST, topic="Новости технологий"):
     front = f"---\ntopic: {topic}\n" + (f"published_at: {store.iso(published)}\n" if published else "") + "---\n"
     (config.DATA_DIR / "inbox" / name).write_text(front + body, encoding="utf-8")
+
+
+class ConfigPresetTests(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import patch
+        tmp = tempfile.TemporaryDirectory(prefix="radio-presets-")
+        self.addCleanup(tmp.cleanup)
+        self.data = Path(tmp.name)
+        p = patch.object(config, "DATA_DIR", self.data)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_base_requires_only_repository_sounds(self):
+        cfg = config.load()
+        self.assertEqual(config.audio_presets(), {"selected": "base", "personal_available": False})
+        self.assertEqual(cfg["jingles"]["stinger_in"], [config.ASSETS_DIR / "stinger_in.wav"])
+        self.assertEqual(cfg["jingles"]["github_intro"], [])
+
+    def test_personal_overlay_preserves_secrets_settings_and_base(self):
+        from radio import settings
+        original = '[reminders]\ntodoist_token = "private-token"\n[weather]\ncity = "Da Lat"\n'
+        (self.data / "config.toml").write_text(original)
+        (self.data / "presets").mkdir()
+        sound = self.data / "own.wav"
+        sound.write_bytes(b"local audio")
+        profile = f'[jingles]\nstinger_in = "{sound}"\n'
+        (self.data / "presets/personal.toml").write_text(profile)
+        settings.set_setting("station_id_every_songs", 7)
+        config.select_audio_preset("personal")
+        cfg = config.load()
+        self.assertEqual(cfg["jingles"]["stinger_in"], [sound])
+        self.assertEqual(cfg["reminders"]["todoist_token"], "private-token")
+        self.assertEqual(cfg["weather"]["city"], "Da Lat")
+        self.assertEqual(next(s["value"] for s in settings.listing(cfg) if s["key"] == "station_id_every_songs"), 7)
+        self.assertEqual((self.data / "config.toml").read_text(), original)
+        config.select_audio_preset("base")
+        self.assertEqual(config.load()["jingles"]["stinger_in"], [config.ASSETS_DIR / "stinger_in.wav"])
+        self.assertEqual((self.data / "presets/personal.toml").read_text(), profile)
+
+    def test_invalid_preset_does_not_replace_working_selection(self):
+        config.select_audio_preset("base")
+        for name in ("personal", "../config", "unknown", ""):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                config.select_audio_preset(name)
+        (self.data / "presets").mkdir()
+        (self.data / "presets/personal.toml").write_text('[jingles]\nstinger_in = "/missing.wav"\n')
+        with self.assertRaises(ValueError):
+            config.select_audio_preset("personal")
+        self.assertEqual(config.audio_presets()["selected"], "base")
+        self.assertTrue(config.load()["jingles"]["stinger_in"][0].exists())
 
 
 class ContentTests(unittest.TestCase):
@@ -66,6 +119,35 @@ class ContentTests(unittest.TestCase):
         from radio.host import time_words
         self.assertEqual([time_words(datetime(2026, 1, 1, h, m)) for h, m in ((23, 5), (9, 0), (0, 41), (21, 12))],
                          ["двадцать три ноль пять", "девять ноль-ноль", "ноль сорок один", "двадцать один двенадцать"])
+
+    def test_tts_removes_urls_before_synthesis_and_cache_lookup(self):
+        from radio.tts import cached_synthesize
+        config.load()
+        said = []
+        class Voice(MockTTS):
+            def synthesize(self, text, out):
+                said.append(text)
+                out.write_bytes(b"test audio")
+        voice = Voice()
+        cached_synthesize(voice, "Командный созвон https://meet.example/room")
+        cached_synthesize(voice, "Командный созвон HTTP://other.example/room")
+        self.assertEqual(said, ["Командный созвон"])
+        with self.assertRaises(ValueError):
+            cached_synthesize(voice, "https://meet.example/room")
+        self.assertEqual(len(said), 1)
+
+    def test_tts_rejects_bad_cached_audio_before_reusing_it(self):
+        from radio.tts import cached_synthesize
+        from unittest.mock import Mock
+        config.load()
+        voice = MockTTS()
+        text = "Коротко о погоде."
+        out = config.DATA_DIR / "cache/tts" / (voice.cache_key(text) + ".wav")
+        out.write_bytes(b"noise")
+        voice.synthesize = Mock(side_effect=lambda text, path: path.write_bytes(b"speech"))
+        result = cached_synthesize(voice, text, lambda path: None if path.read_bytes() == b"speech" else "noise")
+        self.assertEqual(result.read_bytes(), b"speech")
+        voice.synthesize.assert_called_once()
 
     def test_tts_retakes_noisy_clip(self):
         from radio.tts import cached_synthesize
@@ -180,8 +262,22 @@ class SchedulingTests(unittest.TestCase):
     def setUp(self):
         self.cfg = config.load()
         self.svc = Service(self.cfg, tts=MockTTS(), output="x")
-        for t in ("packages", "items", "events"):
+        for t in ("packages", "items", "events", "air_plan"):
             self.svc.db.execute(f"DELETE FROM {t}")
+
+    def test_audio_preset_rebuilds_prepared_packages(self):
+        (config.DATA_DIR / "cache/audio-config.json").unlink(missing_ok=True)
+        self.add("preset-story", "inbox", 0)
+        db = self.svc.db
+        self.svc._refresh_audio_cache()
+        self.assertEqual(db.execute("SELECT status FROM packages").fetchone()[0], "PENDING")
+        db.execute("UPDATE packages SET status='READY'")
+        self.svc._refresh_audio_cache()
+        self.assertEqual(db.execute("SELECT status FROM packages").fetchone()[0], "READY")
+        self.svc.cfg["jingles"]["stinger_in"] = [Path("/local/personal-intro.wav")]
+        self.svc._refresh_audio_cache()
+        self.assertEqual(db.execute("SELECT status FROM packages").fetchone()[0], "PENDING")
+        self.assertTrue(db.execute("SELECT script_path FROM packages").fetchone()[0])
 
     def test_auto_pause_without_listeners(self):
         svc, sent = self.svc, []
@@ -248,6 +344,28 @@ class SchedulingTests(unittest.TestCase):
             async def remove(self, rid, queue="news"):
                 pushed.append(("removed", rid, queue))
         self.svc.engine, self.svc.state = FakeEngine(), "PLAYING"
+
+    def test_single_bulletin_without_host_links_queues_without_new_tracks(self):
+        from radio import plugins
+        from unittest.mock import AsyncMock, Mock, patch
+        original = plugins.on
+        for item_id, links in (("system:plain", True), ("digest:plain", False)):
+            with self.subTest(item_id=item_id):
+                for table in ("packages", "items", "events"):
+                    self.svc.db.execute(f"DELETE FROM {table}")
+                pushed = []
+                self.fake_engine(pushed)
+                self.add(item_id, "inbox", 0)
+                self.svc.current = {"kind": "music", "started": time.time(), "duration": 30}
+                self.svc.songs_since_break = 1
+                self.svc._queue_fresh = AsyncMock()
+                self.svc._assemble_break = Mock()
+                with patch.object(plugins, "on", side_effect=lambda c, n: links if n == "host_links" else original(c, n)):
+                    asyncio.run(self.svc.schedule())
+                self.assertEqual(len(pushed), 1)
+                self.assertEqual(self.svc.db.execute("SELECT status FROM packages").fetchone()[0], "QUEUED")
+                self.svc._queue_fresh.assert_not_awaited()
+                self.svc._assemble_break.assert_not_called()
 
     def test_station_id_inside_music_set(self):
         pushed = []
@@ -466,11 +584,10 @@ class SchedulingTests(unittest.TestCase):
             self.assertEqual(len(svc.reminders_due), 1)
             asyncio.run(svc._reminders_tick())
             self.assertEqual(len(svc.reminders_due), 1)                     # not added twice
-            self.assertFalse(asyncio.run(svc._remind(300.0)))               # the song has 5 minutes left: too early
-            self.assertTrue(asyncio.run(svc._remind(20.0)))
+            self.assertTrue(asyncio.run(svc._remind(300.0)))                # prepare while TTS still has time
             key = pushed[0][1]
             self.assertEqual(pushed[0][0], "reminder")
-            self.assertIn("Через десять минут — Планёрка", svc.reminder_text[key])
+            self.assertIn("Через пять минут — Планёрка", svc.reminder_text[key])
             self.assertTrue(svc.id_pending and not svc.reminders_due)
             asyncio.run(svc._reminders_tick())
             self.assertEqual(svc.reminders_due, {})                         # announced once
@@ -495,6 +612,108 @@ class SchedulingTests(unittest.TestCase):
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
         svc.db.execute("DELETE FROM reminders")
 
+    def test_timed_reminder_prepares_early_and_expires_while_paused(self):
+        from unittest.mock import AsyncMock, Mock, patch
+        svc, at = self.svc, store.now()
+        svc.state = "PLAYING"
+        svc.current = {"kind": "music", "started": time.time(), "duration": 300}
+        svc.engine = Mock(push_replay=AsyncMock(return_value="42"))
+        svc.engine.remove = AsyncMock()
+        svc._render_notice = lambda text: Path("/tmp/notice.wav")
+        r = {"key": "todoist:early", "kind": "task", "start": at + timedelta(minutes=10), "title": "Созвон"}
+        svc.reminders_due = {r["key"]: r}
+        with patch.object(daemon, "now", return_value=at):
+            self.assertTrue(asyncio.run(svc._remind(300)))
+        self.assertIn("Через пять минут", svc.reminder_text[r["key"]])
+        self.assertIsNone(svc.db.execute("SELECT 1 FROM reminders WHERE key=?", (r["key"],)).fetchone())
+        svc.state = "PAUSED"
+        with patch.object(daemon, "now", return_value=r["start"] + timedelta(seconds=1)):
+            asyncio.run(svc._reminders_tick())
+        svc.engine.remove.assert_awaited_once_with("42")
+        self.assertFalse(svc.id_pending)
+
+    def test_timed_reminder_render_crossing_song_boundary_is_discarded(self):
+        from unittest.mock import AsyncMock, Mock, patch
+        svc, at = self.svc, store.now()
+        svc.current = {"kind": "music", "started": time.time(), "duration": 30}
+        svc.engine = Mock(push_replay=AsyncMock(return_value="42"))
+        def render(text):
+            svc.current = {"kind": "music", "started": time.time(), "duration": 240}
+            return Path("/tmp/notice.wav")
+        svc._render_notice = render
+        r = {"key": "todoist:cross", "kind": "task", "start": at + timedelta(minutes=2), "title": "Созвон"}
+        svc.reminders_due = {r["key"]: r}
+        with patch.object(daemon, "now", return_value=at):
+            self.assertFalse(asyncio.run(svc._remind(20)))
+        svc.engine.push_replay.assert_not_awaited()
+        self.assertIn(r["key"], svc.reminders_due)
+
+    def test_pause_removes_notice_before_resume_and_recalculates_countdown(self):
+        from unittest.mock import AsyncMock, Mock, patch
+        svc, at = self.svc, store.now()
+        svc.state = "PLAYING"
+        svc.current = {"kind": "music", "started": time.time(), "duration": 300}
+        svc.engine = Mock(push_replay=AsyncMock(return_value="42"), remove=AsyncMock(), command=AsyncMock())
+        svc._render_notice = lambda text: Path("/tmp/notice.wav")
+        svc.cfg["reminders"]["todoist_token"] = "test"
+        r = {"key": "todoist:pause", "kind": "task", "start": at + timedelta(minutes=10), "title": "Созвон"}
+        svc.reminders_due = {r["key"]: r}
+        with patch.object(daemon, "now", return_value=at):
+            self.assertTrue(asyncio.run(svc._remind(300)))
+            asyncio.run(svc._pause())
+        self.assertEqual(svc.engine.mock_calls[-2:], [unittest.mock.call.command("pause"), unittest.mock.call.remove("42")])
+        self.assertFalse(svc.queued_reminders)
+        self.assertIn(r["key"], svc.reminders_due)
+        with patch.object(daemon, "now", return_value=at + timedelta(minutes=2)):
+            asyncio.run(svc._resume())
+            self.assertTrue(asyncio.run(svc._remind(300)))
+        self.assertIn("Через три минуты", svc.reminder_text[r["key"]])
+
+    def test_slow_notice_missing_boundary_is_not_marked_as_announced(self):
+        from unittest.mock import AsyncMock, Mock, patch
+        svc, at = self.svc, store.now()
+        svc.engine = Mock(push_replay=AsyncMock())
+        clock = [at]
+        def render(text):
+            clock[0] += timedelta(seconds=35)
+            return Path("/tmp/notice.wav")
+        svc._render_notice = render
+        r = {"key": "todoist:slow", "kind": "task", "start": at + timedelta(minutes=2), "title": "Созвон"}
+        svc.reminders_due = {r["key"]: r}
+        with patch.object(daemon, "now", side_effect=lambda: clock[0]):
+            self.assertFalse(asyncio.run(svc._remind(20)))
+        svc.engine.push_replay.assert_not_awaited()
+        self.assertIsNone(svc.db.execute("SELECT 1 FROM reminders WHERE key=?", (r["key"],)).fetchone())
+
+    def test_todoist_link_reaches_persistent_timeline_without_being_spoken(self):
+        from radio import reminders, timeline
+        from unittest.mock import AsyncMock, Mock, patch
+        svc, at = self.svc, store.now()
+        task = {"id": "linked", "content": "Созвон", "description": "Командная встреча\nhttps://meet.example/room\nОбсудить планы.",
+                "due": {"date": (at + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")}}
+        r, = reminders.todoist_due([task], at, timedelta(minutes=15))
+        self.assertEqual(r["description"], task["description"])
+        svc.reminders_due = {r["key"]: r}
+        svc.engine = Mock(push_replay=AsyncMock(return_value="42"))
+        spoken = []
+        svc._render_notice = lambda text: spoken.append(text) or Path("/tmp/notice.wav")
+        with patch.object(daemon, "now", return_value=at):
+            self.assertTrue(asyncio.run(svc._remind(20)))
+            svc.on_event({"kind": "reminder", "ref": r["key"]})
+            svc.cfg["reminders"].update(todoist_token="test", calendar_url="")
+            with patch.object(reminders, "fetch_todoist", return_value=[task]):
+                asyncio.run(svc._reminders_tick())
+                self.assertFalse(svc.reminders_due)
+        self.assertNotIn("https://", spoken[0])
+        self.assertNotIn("Обсудить планы", spoken[0])
+        reopened = store.connect()
+        try:
+            e = next(e for e in timeline._build(reopened, 12, 50) if e["kind"] == "reminder")
+            self.assertEqual(e["title"], spoken[0])
+            self.assertEqual(e["description"], task["description"])
+        finally:
+            reopened.close()
+
     def test_all_day_mention_flow_and_restart(self):
         from radio import plugins, reminders
         from unittest.mock import patch
@@ -512,14 +731,18 @@ class SchedulingTests(unittest.TestCase):
         svc.engine = Engine()
         svc._render_day = lambda r, text: (rendered.append(text) or text, Path("/tmp/day.wav"))
         try:
-            with patch.object(reminders, "fetch_ics", return_value=ics), patch.object(daemon, "now", return_value=at):
+            with patch.object(reminders, "fetch_ics", return_value=ics), patch.object(daemon, "now", return_value=at), patch("radio.content.now", return_value=at), patch.object(daemon.audio, "duration", return_value=5):
                 asyncio.run(svc._reminders_tick())
                 self.assertEqual([r["kind"] for r in svc.reminders_due.values()], ["day"])
                 self.assertFalse(asyncio.run(svc._remind(300)))
-                self.assertTrue(asyncio.run(svc._remind(20)))
+                svc.set_started = time.time()
+                self.assertFalse(asyncio.run(svc._remind(20)))
                 self.assertEqual(rendered, ["Сегодня — День радио."])
-                svc.on_event({"kind": "reminder", "ref": pushed[0][1]})
-                self.assertIn("День радио", svc.db.execute("SELECT detail FROM events WHERE type='REMINDER'").fetchone()[0])
+                self.assertEqual(pushed, [])
+                pid = svc.db.execute("SELECT id FROM packages WHERE item_id LIKE 'system:day:%'").fetchone()[0]
+                svc.on_event({'kind': 'news', 'ref': pid})
+                script = svc.db.execute('SELECT script_path FROM packages WHERE id=?', (pid,)).fetchone()[0]
+                self.assertIn('День радио', Path(script).read_text())
                 restarted = Service(svc.cfg, tts=MockTTS(), output="x")
                 try:
                     restarted.cal_events = reminders.parse_events(ics, ReminderTests.MSK)
@@ -602,12 +825,12 @@ class SchedulingTests(unittest.TestCase):
         entries = timeline._build(db, 12, 50)
         news = [e for e in entries if e["kind"] == "news"]
         self.assertEqual(len(news), 1)
-        self.assertEqual(news[0]["title"], "Tech news · GitHub: find of the day · 2 stories")
+        self.assertEqual(news[0]["title"], "Host edition")
         self.assertEqual(len(news[0]["parts"]), 2)
         self.assertEqual(news[0]["parts"][0]["title"], "Tech news")      # in the order they were said
         self.assertFalse(any(k in news[0] for k in ("_at", "_topics")))
         svc.current = {"kind": "news", "ref": "horizon:1#1|github:b#1", "started": time.time()}
-        self.assertEqual(svc._title(), "Tech news · GitHub: find of the day")  # no "1/1" or length
+        self.assertEqual(svc._title(), "Host edition")  # no "1/1" or length
         for kind, title in (("id", "Station ID"), ("reminder", "Reminder")):
             svc.current = {"kind": kind, "ref": "x", "started": time.time()}
             self.assertEqual(svc.status()["current_title"], title)           # status must not fail on these
@@ -655,10 +878,11 @@ class SchedulingTests(unittest.TestCase):
             tts_mod.port_open = lambda port: True                           # something already listens (loading): wait
             asyncio.run(svc._voice_tick())
             svc.voice_started = 0.0
-            plugins.set_plugin("voicestudio", False)
+            (config.DATA_DIR / "plugins.json").write_text('{"voicestudio": false}')
             tts_mod.port_open = lambda port: False
             asyncio.run(svc._voice_tick())
-            self.assertEqual(len(started), 1)                               # plugin off: the user runs it by hand
+            self.assertEqual(len(started), 2)                               # the retired switch no longer disables startup
+            asyncio.run(svc._stop_voice())
         finally:
             tts_mod.start_backend, tts_mod.port_open = real
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
@@ -743,8 +967,10 @@ class SchedulingTests(unittest.TestCase):
         grouped = {p["name"]: p for p in plugins.listing(self.cfg)}
         self.assertEqual(set(grouped), set(plugins.PLUGINS))
         self.assertEqual({n for n, p in grouped.items() if p["section"] == "integrations"},
-                         {"github_trending", "github_new", "horizon", "reminders_calendar", "reminders_todoist", "voicestudio", "weather", "ytmusic"})
-        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"voice_over"})
+                         {"github_trending", "github_new", "horizon", "reminders_calendar", "reminders_todoist", "weather", "ytmusic", "music_facts"})
+        self.assertNotIn("voicestudio", grouped)
+        self.assertNotIn("voice_over", grouped)
+        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "reroll_next"})
         self.assertEqual({n for n, p in grouped.items() if p["section"] == "features"},
                          {"station_ids", "host_links", "new_tracks"})
         self.assertTrue(grouped["horizon"]["on"])  # grouping preserves the existing saved switches
@@ -765,8 +991,8 @@ class SchedulingTests(unittest.TestCase):
         svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
         svc.cfg = dict(self.cfg, weather={"city": "Da Lat"})
         svc.state = "PLAYING"
-        at = store.now()
-        report = {"kind": "weather", "key": f"weather:{int(at.timestamp())}", "start": at,
+        at = weather.slot(store.now(), "Asia/Ho_Chi_Minh")
+        report = {"kind": "weather", "key": f"weather:slot:{int(at.timestamp())}", "start": at,
                   "expires": at + timedelta(minutes=30), "text": "Коротко о погоде. Далат: плюс 20 градусов.",
                   "summary": "Da Lat · 20° · clear · wind 2 m/s"}
 
@@ -778,23 +1004,23 @@ class SchedulingTests(unittest.TestCase):
         try:
             with patch.object(weather, "fetch", return_value=report) as fetch, \
                     patch.object(daemon, "now", return_value=at), \
-                    patch.object(daemon, "cached_synthesize", return_value=Path("/tmp/weather.wav")) as synth, \
-                    patch.object(daemon.audio, "lufs", return_value=-20):
+                    patch.object(svc, "_render_weather", return_value=Path("/tmp/weather.wav")) as synth, \
+                    patch.object(daemon.audio, "lufs", return_value=-20), patch.object(daemon.audio, "duration", return_value=5), patch("radio.content.now", return_value=at):
                 asyncio.run(svc._weather_tick())
                 asyncio.run(svc._weather_tick())
                 fetch.assert_called_once_with("Da Lat", at)
                 self.assertFalse(asyncio.run(svc._remind(300)))
-                self.assertTrue(asyncio.run(svc._remind(20)))
-                self.assertEqual(pushed, [("weather", report["key"], 4)])
-                synth.assert_called_once_with(svc.tts, report["text"], svc._speech_check)
-                svc.on_event({"kind": "weather", "ref": report["key"]})
-                self.assertFalse(svc.id_pending)
-                self.assertEqual(svc.status()["current_title"], "Weather")
-                self.assertIn("ПОГОДА", svc.status()["current"])
-                self.assertEqual(svc.db.execute("SELECT detail FROM events WHERE type='WEATHER'").fetchone()[0], report["summary"])
-                entry = next(e for e in daemon.timeline._build(svc.db, 12, 50) if e["kind"] == "weather")
-                self.assertEqual(entry["title"], report["summary"])
-                self.assertNotIn("parts", entry)  # a weather line is not expandable
+                self.assertFalse(asyncio.run(svc._remind(20)))
+                self.assertEqual(pushed, [])  # weather is material inside an edition, never a separate replay
+                pid = 'system:' + report['key'] + '#1'
+                self.assertEqual(svc.db.execute('SELECT status FROM packages WHERE id=?', (pid,)).fetchone()[0], 'READY')
+                synth.assert_called_once_with(report['text'])
+                svc.on_event({'kind': 'news', 'ref': pid})
+                self.assertEqual(svc.status()['current_title'], 'Host edition')
+                self.assertTrue(svc.db.execute('SELECT 1 FROM reminders WHERE key=?', (report['key'],)).fetchone())
+                entry = next(e for e in daemon.timeline._build(svc.db, 12, 50) if e['kind'] == 'news')
+                self.assertEqual(entry['title'], 'Host edition · Weather')
+                self.assertIn('Далат', entry['parts'][0]['text'])
                 restarted = Service(svc.cfg, tts=MockTTS(), output="x")
                 restarted.state = "PLAYING"
                 try:
@@ -818,6 +1044,25 @@ class SchedulingTests(unittest.TestCase):
             svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
 
+    def test_weather_replaces_noise_that_passes_spectrum_check(self):
+        from unittest.mock import Mock, patch
+        svc = self.svc
+        text = "Коротко о погоде. Далат: плюс семнадцать градусов, пасмурно. Ветер два метра в секунду."
+        path = config.DATA_DIR / "cache/tts" / (svc.tts.cache_key(text) + ".wav")
+        path.write_bytes(b"noise")
+        svc.tts.transcribe = Mock(side_effect=["Субтитры сделал кто-то", text])
+        svc.tts.synthesize = Mock(side_effect=lambda text, path: path.write_bytes(b"speech"))
+        with patch.object(svc, "_speech_check", return_value=None):
+            self.assertEqual(svc._render_weather(text).read_bytes(), b"speech")
+        self.assertEqual(svc.tts.transcribe.call_count, 2)
+        svc.tts.synthesize.assert_called_once()
+        path.write_bytes(b"noise")
+        svc.tts.transcribe.side_effect = None
+        svc.tts.transcribe.return_value = "Субтитры"
+        with patch.object(svc, "_speech_check", return_value=None), self.assertRaisesRegex(RuntimeError, "does not match"):
+            svc._render_weather(text)
+        self.assertEqual(path.read_bytes(), b"noise")  # no failed retake replaces the cache
+
     def test_weather_outage_retries_without_announcing(self):
         from radio import weather
         from unittest.mock import patch
@@ -825,7 +1070,8 @@ class SchedulingTests(unittest.TestCase):
         svc.cfg = dict(self.cfg, weather={"city": "Da Lat"})
         svc.state = "PLAYING"
         svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
-        with patch.object(weather, "fetch", side_effect=OSError("offline")) as fetch:
+        with patch.object(daemon, "now", return_value=weather.slot(store.now(), "Asia/Ho_Chi_Minh")), \
+                patch.object(weather, "fetch", side_effect=OSError("offline")) as fetch:
             asyncio.run(svc._weather_tick())
             asyncio.run(svc._weather_tick())
             fetch.assert_called_once()
@@ -833,23 +1079,65 @@ class SchedulingTests(unittest.TestCase):
         self.assertEqual(svc.sources["weather"], "error: OSError")
         self.assertGreater(svc.next_weather_read, time.time() + 14 * 60)
 
-    def test_no_news_once_and_only_after_successful_checks(self):
-        db = self.svc.db
-        self.svc._maybe_announce_no_news()  # sources not checked yet (e.g. network error)
-        self.assertFalse(db.execute("SELECT 1 FROM items WHERE source='system'").fetchone())
-        self.svc.all_sources_checked = True
-        self.svc._maybe_announce_no_news()
-        self.svc._maybe_announce_no_news()
-        rows = db.execute("SELECT p.status FROM items i JOIN packages p ON p.item_id=i.id WHERE i.source='system'").fetchall()
-        self.assertEqual([r[0] for r in rows], ["PENDING"])
-        text = Path(db.execute("SELECT script_path FROM packages WHERE item_id LIKE 'system:%'").fetchone()[0]).read_text()
-        self.assertEqual(text, "Свежих новостей пока нет. Продолжаем музыку.")
+    def test_music_link_gates_cache_queue_and_history(self):
+        from radio import music_facts, plugins, timeline
+        from unittest.mock import patch
+        svc, db = self.svc, self.svc.db
+        plugins.set_plugin("music_facts", True)
+        self.addCleanup((config.DATA_DIR / "plugins.json").unlink, missing_ok=True)
+        svc.state = "PLAYING"
+        svc.current = {"kind": "music", "ref": "/m/track.mp3"}
+        svc.set_started = time.time()
+        svc.set_songs = [("Band", "Song")]
+        facts = {"text": "Коллектив появился в 2009 году.", "urls": ["https://musicbrainz.org/artist/test"]}
+        with patch.object(music_facts, "fetch", return_value=facts) as fetch:
+            asyncio.run(svc._maybe_music_link())
+            fetch.assert_not_called()  # wait for the news sources
+            svc.all_sources_checked = True
+            asyncio.run(svc._maybe_music_link())
+            asyncio.run(svc._maybe_music_link())
+            fetch.assert_called_once_with("Band", "Song")
+            pk = db.execute("SELECT * FROM packages").fetchone()
+            text = Path(pk["script_path"]).read_text()
+            self.assertIn(facts["text"], text)
+            self.assertIn("Song", text)
+            self.assertNotIn("новостей", text)
+            self.assertNotIn("https://", text)
+            db.execute("UPDATE packages SET status='READY', speech_sec=10")
+            self.add("real-news", "inbox", 0)
+            self.assertEqual([p["item_id"] for p in svc._pick_break()], ["real-news"])
+            db.execute("UPDATE packages SET status='PLAYED'")
+            db.execute("UPDATE items SET state='PLAYED'")
+            store.log_event(db, svc.session, "PACKAGE_STARTED", pk["id"])
+            entry = next(e for e in timeline._build(db, 12, 50) if e["kind"] == "host")
+            self.assertIn(facts["text"], entry["parts"][0]["text"])
+            self.assertEqual(entry["parts"][0]["links"][0]["url"], facts["urls"][0])
+            asyncio.run(svc._maybe_music_link())
+            self.assertEqual(fetch.call_count, 1)  # next set has not reached its interval
+            svc.set_started -= svc.cfg["broadcast"]["music_set_minutes"] * 60 + 1
+            fetch.return_value = None
+            asyncio.run(svc._maybe_music_link())
+            self.assertEqual(fetch.call_count, 2)
+            latest = db.execute("SELECT script_path FROM packages WHERE status='PENDING'").fetchone()
+            self.assertNotIn("2009", Path(latest[0]).read_text())
+            plugins.set_plugin("music_facts", False)
+            db.execute("UPDATE packages SET status='READY', speech_sec=10 WHERE status='PENDING'")
+            self.assertEqual(svc._pick_break(), [])
 
-    def test_no_announcement_when_news_waiting(self):
+    def test_no_music_link_when_news_waiting(self):
+        from radio import music_facts, plugins
+        from unittest.mock import patch
+        plugins.set_plugin("music_facts", True)
+        self.addCleanup((config.DATA_DIR / "plugins.json").unlink, missing_ok=True)
         self.add("d", "chatgpt", 1)
         self.svc.all_sources_checked = True
-        self.svc._maybe_announce_no_news()
-        self.assertFalse(self.svc.db.execute("SELECT 1 FROM items WHERE source='system'").fetchone())
+        self.svc.state = "PLAYING"
+        self.svc.current = {"kind": "music", "ref": "/m/track.mp3"}
+        self.svc.set_started = time.time()
+        with patch.object(music_facts, "fetch") as fetch:
+            asyncio.run(self.svc._maybe_music_link())
+            fetch.assert_not_called()
+        self.assertFalse(self.svc.db.execute("SELECT 1 FROM items WHERE source='music_facts'").fetchone())
 
 
 class JingleRotationTests(unittest.TestCase):
@@ -983,37 +1271,26 @@ class WeatherTests(unittest.TestCase):
     AT = datetime(2026, 10, 20, 9, 15, tzinfo=timezone.utc)
 
     def data(self):
-        stamp = int(self.AT.timestamp())
-        return {"current": {"time": stamp, "temperature_2m": 21.4, "wind_speed_10m": 2.1, "weather_code": 3},
-                "hourly": {"time": [stamp - 900 + i * 3600 for i in range(4)],
-                           "precipitation_probability": [0, 20, 70, 50]}}
+        return {"current": {"time": int(self.AT.timestamp()), "temperature_2m": 21.4, "weather_code": 3}}
 
-    def test_report_and_forecast_validation(self):
+    def test_short_report_and_current_weather_validation(self):
         import copy
         from radio import weather
         data = self.data()
         report = weather.report(data, "Далат", self.AT, "Da Lat")
-        self.assertEqual(report["summary"], "Da Lat · 21° · overcast · wind 2 m/s · rain likely")
-        self.assertIn("Далат: по прогнозу сейчас плюс 21 градус, пасмурно", report["text"])
-        self.assertIn("высока вероятность осадков", report["text"])
-        self.assertIn("2 метра в секунду", report["text"])
+        self.assertEqual(report["summary"], "Da Lat · 21° · overcast")
+        self.assertEqual(report["text"], "Далат: плюс 21 градус, пасмурно, без дождя.")
         self.assertEqual(report["expires"], self.AT + timedelta(minutes=30))
-        for section, key, value in [("current", "temperature_2m", None), ("current", "temperature_2m", float('nan')),
-                                    ("current", "weather_code", 4), ("current", "time", 0),
-                                    ("hourly", "precipitation_probability", [0, None, 70, 50]),
-                                    ("hourly", "precipitation_probability", [0, 200, 70, 50]),
-                                    ("hourly", "time", [0]), ("hourly", "time", [0, 0, 0, 0])]:
+        for key, value in [("temperature_2m", None), ("temperature_2m", float('nan')),
+                           ("weather_code", 4), ("time", 0)]:
             with self.subTest(key=key, value=value):
                 bad = copy.deepcopy(data)
-                bad[section][key] = value
+                bad["current"][key] = value
                 with self.assertRaises(ValueError):
                     weather.report(bad, "Далат", self.AT, "Da Lat")
-        data["current"].update(temperature_2m=-12, wind_speed_10m=1)
-        data["hourly"]["precipitation_probability"] = [0, 10, 10, 10]
-        text = weather.report(data, "Далат", self.AT, "Da Lat")["text"]
-        self.assertIn("минус 12 градусов", text)
-        self.assertIn("1 метр в секунду", text)
-        self.assertIn("вероятность осадков невысокая", text)
+        data["current"].update(temperature_2m=-12, weather_code=63)
+        self.assertEqual(weather.report(data, "Далат", self.AT, "Da Lat")["text"],
+                         "Далат: минус 12 градусов, дождь.")
 
     def test_fetch_uses_resolved_city_and_explicit_units(self):
         from radio import weather
@@ -1022,7 +1299,8 @@ class WeatherTests(unittest.TestCase):
         with patch.object(weather, "_get", side_effect=[{"results": [place]}, self.data()]) as get:
             self.assertIn("Далат", weather.fetch("Da Lat", self.AT)["text"])
             self.assertEqual(get.call_args_list[0].kwargs["name"], "Da Lat")
-            self.assertEqual(get.call_args_list[1].kwargs["wind_speed_unit"], "ms")
+            self.assertEqual(get.call_args_list[1].kwargs["current"], "temperature_2m,weather_code")
+            self.assertNotIn("hourly", get.call_args_list[1].kwargs)
             self.assertEqual(get.call_args_list[1].kwargs["timeformat"], "unixtime")
         with patch.object(weather, "_get", return_value={}):
             with self.assertRaises(ValueError):
@@ -1131,6 +1409,23 @@ class ReminderTests(unittest.TestCase):
         got = reminders.todoist_due(tasks, self.NOW, self.LEAD, self.MSK)
         self.assertEqual([r["title"] for r in got], ["t1", "t2"])      # floating = local time, Z = UTC; all-day and others not
         self.assertEqual(got[0]["key"], "todoist:1:20261020T0858")     # stable per occurrence: announced once
+
+    def test_todoist_offsets_named_zones_and_links(self):
+        from radio import reminders
+        task = {"id": "links", "content": "Созвон [Meet](https://meet.example/room)",
+                "description": 'https://meet.example/room\nhttps://docs.example/notes. javascript:alert(1) https://[bad',
+                "due": {"date": "2026-10-20T12:00:00+03:00"}}
+        got, = reminders.todoist_due([task], self.NOW, self.LEAD)
+        self.assertEqual(got["start"], self.NOW + timedelta(minutes=10))
+        self.assertEqual(got["description"], task["description"])
+        self.assertEqual(got["title"], task["content"])
+        task["due"] = {"date": "2026-10-20T12:00:00", "timezone": "Europe/Moscow"}
+        self.assertEqual(reminders.todoist_due([task], self.NOW, self.LEAD)[0]["key"], got["key"])
+        task["due"] = {"date": "2026-10-21T12:00:00", "timezone": "Europe/Moscow"}
+        next_day, = reminders.todoist_due([task], self.NOW + timedelta(days=1), self.LEAD)
+        self.assertNotEqual(next_day["key"], got["key"])
+        task["due"] = {"date": "brokenTdate"}
+        self.assertEqual(reminders.todoist_due([task], self.NOW, self.LEAD), [])
 
     def test_spoken_text(self):
         from radio import host, reminders

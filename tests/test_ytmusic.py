@@ -30,6 +30,16 @@ class YouTubeMusicTests(unittest.TestCase):
         with patch.object(ytmusic, "run", return_value=json.dumps(self.data)):
             return ytmusic.connect(self.cookie)
 
+    def test_feature_can_be_enabled_before_connecting_in_settings(self):
+        from radio import plugins
+        self.assertFalse(ytmusic.status()['connected'])
+        plugins.set_plugin('ytmusic', True)
+        self.assertTrue(plugins.on(config.load(), 'ytmusic'))
+        self.assertFalse(ytmusic.status()['connected'])
+        self.assertFalse((ytmusic.directory() / 'cookies.txt').exists())
+        plugins.set_plugin('ytmusic', False)
+        self.assertFalse(plugins.on(config.load(), 'ytmusic'))
+
     def test_auth_validation_and_private_storage(self):
         for cookie in ("", "SID=only", self.cookie + "\nX-Header: injected", "SAPISID=x\ty"):
             with self.assertRaises(ValueError):

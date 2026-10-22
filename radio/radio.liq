@@ -34,17 +34,80 @@ def ytmusic(~rlog, ~maxtime, arg) =
 end
 protocol.add(temporary=true, "ytmusic", ytmusic)
 
+# Replace a queued request without skipping the currently playing source.
+def replace_music(get_queue, set_queue, arg) =
+  let json.parse (params : {expected: string, uri: string, rid: int, head: bool}) = arg
+  def matches(r) =
+    m = request.metadata(r)
+    if params.rid < 0 then m["ref"] == params.expected else
+      request.id(r) == params.rid and (m["ref"] == "" or m["ref"] == params.expected)
+    end
+  end
+  q = get_queue()
+  if not list.exists(matches, q) then "STALE" else
+    replacement = request.create(params.uri)
+    if not request.resolve(timeout=25., replacement) then
+      request.destroy(replacement)
+      "UNAVAILABLE"
+    else
+      q = get_queue()
+      found = list.filter(matches, q)
+      if list.is_empty(found) or (params.head and not matches(list.hd(q))) then
+        request.destroy(replacement)
+        "STALE"
+      else
+        old = list.hd(found)
+        set_queue(list.map(fun (r) -> if request.id(r) == request.id(old) then replacement else r end, q))
+        request.destroy(old)
+        "#{request.id(replacement)}"
+      end
+    end
+  end
+end
+
+def queued_music_ref(playlist_source) =
+  q = playlist_source.queue()
+  if list.is_empty(q) or request.status(list.hd(q)) != "ready" then "" else
+    m = request.metadata(list.hd(q))
+    m["ref"]
+  end
+end
+
 # randomize = new Fisher-Yates permutation on every start and on every loop of the library.
 music = playlist(id="music", prefetch=(if yt_count > 0 then 3 else 1 end), mode="randomize", reload_mode="never", environment.get("RADIO_M3U"))
+server.register("music.replace", fun (arg) -> replace_music(music.queue, music.set_queue, arg))
+primary_music = music
 local_playlist = environment.get(default="", "RADIO_FALLBACK_M3U")
 music = if local_playlist != "" then
   local_music = playlist(id="local_music", mode="randomize", local_playlist)
+  server.register("local_music.replace", fun (arg) -> replace_music(local_music.queue, local_music.set_queue, arg))
+  server.register("music.peek", fun (_) -> queued_music_ref(if yt_offline() then local_music else primary_music end))
   fallback(track_sensitive=true, [music, switch([({yt_offline()}, local_music)])])
-else music end
+else
+  server.register("music.peek", fun (_) -> queued_music_ref(primary_music))
+  music
+end
 news = request.queue(id="news")
 # "New tracks" set: queued by the daemon after a news break. Below the news queue, so the next break (or a call
 # sign) still comes at the next song boundary, above the shuffle.
 fresh = request.queue(id="fresh")
+server.register("news.replace", fun (arg) -> begin
+  result = replace_music(news.queue, news.set_queue, arg)
+  news.fetch()
+  result
+end)
+server.register("fresh.replace", fun (arg) -> begin
+  result = replace_music(fresh.queue, fresh.set_queue, arg)
+  fresh.fetch()
+  result
+end)
+server.register("fresh.ready", fun (_) -> "#{fresh.is_ready()}")
+server.register("news.ready", fun (_) -> "#{news.is_ready()}")
+server.register("news.pending", fun (_) -> begin
+  current = news.current()
+  q = if null.defined(current) then [null.get(current), ...news.queue()] else news.queue() end
+  string.concat(separator=" ", list.map(fun (r) -> "#{request.id(r)}", q))
+end)
 
 # Events go to a file the daemon tails: stdout is block-buffered when piped.
 events_path = environment.get("RADIO_EVENTS")
@@ -63,28 +126,37 @@ radio = amplify(1., radio)  # per-track gain from the liq_amplify annotation (me
 def spoken(m) =
   m["kind"] == "news" or m["kind"] == "reminder" or m["kind"] == "weather"
 end
+manual_skip = ref(false)
 def transition(a, b) =
-  da = source.duration(a.source)
-  d = da - source.duration(b.source)
-  if spoken(b.metadata) then
-    t = if a.metadata["liq_talk_up"] != "" then float_of_string(a.metadata["liq_talk_up"]) else max(0., da - 1.5) end
-    in_md = list.add(("liq_fade_in_delay", "#{t}"), list.assoc.remove("liq_fade_in_delay", b.metadata))
-    out_md = list.add(("liq_fade_out_delay", "#{t}"), list.assoc.remove("liq_fade_out_delay", a.metadata))
-    cross.simple(fade_in=xfade, fade_out=xfade, initial_fade_in_metadata=in_md, initial_fade_out_metadata=out_md,
-                 a.source, b.source)
+  if manual_skip() then
+    manual_skip := false
+    ending = max_duration(0.1, a.source)
+    cross.simple(fade_in=0.1, fade_out=0.1,
+                 initial_fade_in_metadata=[("liq_fade_in", "0.1"), ("liq_fade_in_delay", "0.")],
+                 initial_fade_out_metadata=[("liq_fade_out", "0.1"), ("liq_fade_out_delay", "0.")], ending, b.source)
   else
-    # The next track starts where it always did, xfade + 1 s before the end, whatever both windows are: a long
-    # start window (a song the host can talk over) would otherwise start it earlier. After a talkover break the
-    # song rises under the voice for the whole overlap.
-    start = max(0., da - (xfade + 1.))
-    lead_in = if spoken(a.metadata) then 0. else max(0., start - max(0., d)) end
-    in_md = list.add(("liq_fade_in_delay", "#{lead_in}"), list.assoc.remove("liq_fade_in_delay", b.metadata))
-    in_md = if spoken(a.metadata) and da > xfade then
-      list.add(("liq_fade_in", "#{da}"), list.assoc.remove("liq_fade_in", in_md)) else in_md end
-    out_md = if start > 0. and a.metadata["liq_fade_out_delay"] == "" then
-      list.add(("liq_fade_out_delay", "#{start}"), a.metadata) else a.metadata end
-    cross.simple(fade_in=xfade, fade_out=xfade, initial_fade_in_metadata=in_md, initial_fade_out_metadata=out_md,
-                 a.source, b.source)
+    da = source.duration(a.source)
+    d = da - source.duration(b.source)
+    if spoken(b.metadata) then
+      t = if a.metadata["liq_talk_up"] != "" then float_of_string(a.metadata["liq_talk_up"]) else max(0., da - 1.5) end
+      in_md = list.add(("liq_fade_in_delay", "#{t}"), list.assoc.remove("liq_fade_in_delay", b.metadata))
+      out_md = list.add(("liq_fade_out_delay", "#{t}"), list.assoc.remove("liq_fade_out_delay", a.metadata))
+      cross.simple(fade_in=xfade, fade_out=xfade, initial_fade_in_metadata=in_md, initial_fade_out_metadata=out_md,
+                   a.source, b.source)
+    else
+      # The next track starts where it always did, xfade + 1 s before the end, whatever both windows are: a long
+      # start window (a song the host can talk over) would otherwise start it earlier. After a talkover break the
+      # song rises under the voice for the whole overlap.
+      start = max(0., da - (xfade + 1.))
+      lead_in = if spoken(a.metadata) then 0. else max(0., start - max(0., d)) end
+      in_md = list.add(("liq_fade_in_delay", "#{lead_in}"), list.assoc.remove("liq_fade_in_delay", b.metadata))
+      in_md = if spoken(a.metadata) and da > xfade then
+        list.add(("liq_fade_in", "#{da}"), list.assoc.remove("liq_fade_in", in_md)) else in_md end
+      out_md = if start > 0. and a.metadata["liq_fade_out_delay"] == "" then
+        list.add(("liq_fade_out_delay", "#{start}"), a.metadata) else a.metadata end
+      cross.simple(fade_in=xfade, fade_out=xfade, initial_fade_in_metadata=in_md, initial_fade_out_metadata=out_md,
+                   a.source, b.source)
+    end
   end
 end
 radio = cross(duration=xfade + 1., transition, radio)
@@ -108,10 +180,8 @@ if out_mode == "device" then
 else
   # Test mode: render the broadcast to a wav file. Fast by default (unit tests); RADIO_FILE_SYNC=realtime for
   # long-run checks, since the unsynced clock skips through tracks over long runs.
-  if environment.get(default="fast", "RADIO_FILE_SYNC") != "realtime" then
-    clock.assign_new(sync="none", [radio])
-  end
+  clock.assign_new(sync=(if environment.get(default="fast", "RADIO_FILE_SYNC") == "realtime" then "cpu" else "none" end), [radio])
   out = output.file(id="out", fallible=true, %wav, out_mode, radio)
 end
 
-server.register("skip", fun (_) -> begin program.skip(); "OK" end)
+server.register("skip", fun (_) -> begin manual_skip := true; program.skip(); "OK" end)

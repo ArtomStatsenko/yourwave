@@ -1,0 +1,246 @@
+import asyncio
+import os
+import tempfile
+import time
+import unittest
+import wave
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
+
+from radio import config, plugins
+from radio.daemon import Service
+from radio.engine import Liquidsoap
+from radio.tts import MockTTS
+
+
+class RerollTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(prefix='radio-reroll-')
+        self.addCleanup(tmp.cleanup)
+        for name, value in [('DATA_DIR', Path(tmp.name)), ('RUN_DIR', Path(tmp.name) / 'run'), ('SOCK', Path(tmp.name) / 'run/radio.sock')]:
+            override = patch.object(config, name, value)
+            override.start()
+            self.addCleanup(override.stop)
+        self.cfg = config.load()
+        self.svc = Service(self.cfg, tts=MockTTS(), output='x')
+        self.addCleanup(self.svc.db.close)
+        self.svc.state = 'PLAYING'
+        self.svc.current = {'kind': 'music', 'ref': '/tmp/current.wav', 'started': 1000, 'duration': 180}
+        self.svc.next_track = '/tmp/next.wav'
+        self.svc.library = {'/tmp/current.wav', '/tmp/next.wav', '/tmp/other.wav'}
+        self.svc.engine = Mock(proc=None, music_choices=Mock(return_value={ref: 'annotate:kind="music",ref="' + ref + '":' + ref for ref in self.svc.library}), replace_music=AsyncMock(return_value='42'))
+        self.clock = patch('radio.daemon.time.time', return_value=1000)
+        self.clock.start()
+        self.addCleanup(self.clock.stop)
+
+    def reroll(self, expected='/tmp/next.wav'):
+        return asyncio.run(self.svc.dispatch('reroll-next', {'ref': expected}))
+
+    def test_disabled_experiment_does_not_change_playback(self):
+        self.assertIsNone(self.svc.status()['next_reroll'])
+        self.assertFalse(self.reroll()['ok'])
+        self.svc.engine.replace_music.assert_not_awaited()
+
+    def test_enabled_replaces_next_and_keeps_current(self):
+        plugins.set_plugin('reroll_next', True)
+        current = dict(self.svc.current)
+        self.assertTrue(self.reroll()['ok'])
+        self.assertEqual(self.svc.next_track, '/tmp/other.wav')
+        self.assertEqual(self.svc.current, current)
+        self.assertEqual(self.svc.engine.replace_music.call_args.args[0], '/tmp/next.wav')
+        self.assertIn('ref="/tmp/other.wav"', self.svc.engine.replace_music.call_args.args[1])
+        self.assertEqual(self.svc.editor.calls, 0)
+
+    def test_stale_or_locked_transition_cannot_change_queue(self):
+        plugins.set_plugin('reroll_next', True)
+        self.assertFalse(self.reroll('/tmp/stale.wav')['ok'])
+        self.svc.queued_break = ('9', ['news#1'])
+        self.assertFalse(self.reroll()['ok'])
+        self.svc.queued_break = None
+        self.svc.assembling = True
+        self.assertFalse(self.reroll()['ok'])
+        self.svc.assembling = False
+        self.svc.current['duration'] = 5
+        self.assertFalse(self.reroll()['ok'])
+        self.svc.engine.replace_music.assert_not_awaited()
+
+    def test_failure_keeps_previous_selection_and_clears_busy(self):
+        plugins.set_plugin('reroll_next', True)
+        self.svc.engine.replace_music.side_effect = ValueError('unavailable')
+        self.assertFalse(self.reroll()['ok'])
+        self.assertEqual(self.svc.next_track, '/tmp/next.wav')
+        self.assertFalse(self.svc.rerolling)
+
+    def test_queued_replay_is_replaced_in_place(self):
+        plugins.set_plugin('reroll_next', True)
+        self.svc.replays['r1'] = {'kind': 'music', 'ref': '/tmp/next.wav', 'rid': '8'}
+        self.assertTrue(self.reroll()['ok'])
+        self.assertEqual(self.svc.replays['r1'], {'kind': 'music', 'ref': '/tmp/other.wav', 'rid': '42'})
+        self.assertEqual(self.svc.engine.replace_music.call_args.args[2:], ('news', '8'))
+        self.assertIn('replay_id="r1"', self.svc.engine.replace_music.call_args.args[1])
+
+    def test_new_tracks_queue_is_replaced_in_place(self):
+        plugins.set_plugin('reroll_next', True)
+        self.svc.fresh_queued = {'/tmp/next.wav': '10', '/tmp/later.wav': '11'}
+        self.assertTrue(self.reroll()['ok'])
+        self.assertEqual(list(self.svc.fresh_queued.items()), [('/tmp/other.wav', '42'), ('/tmp/later.wav', '11')])
+
+    def test_no_alternative_keeps_the_original_track(self):
+        plugins.set_plugin('reroll_next', True)
+        self.svc.library.remove('/tmp/other.wav')
+        self.assertFalse(self.reroll()['ok'])
+        self.svc.engine.replace_music.assert_not_awaited()
+
+    def test_wait_music_keeps_waiting_until_prefetch_is_ready(self):
+        engine = Liquidsoap(config.RUN_DIR / 'music.m3u', 3, 'x')
+        engine.command = AsyncMock(return_value='false')
+        engine.next_music = AsyncMock(side_effect=[None, '/tmp/ready.wav'])
+        with patch('radio.engine.asyncio.sleep', new_callable=AsyncMock) as sleep:
+            asyncio.run(engine.wait_music())
+        self.assertEqual(engine.next_music.await_count, 2)
+        sleep.assert_awaited_once_with(.1)
+
+    def test_immediate_edition_joins_ready_audio_in_order(self):
+        from radio import audio
+        paths = []
+        for i in (1, 2):
+            path = config.DATA_DIR / f'part-{i}.wav'
+            with wave.open(str(path), 'wb') as out:
+                out.setnchannels(2)
+                out.setsampwidth(2)
+                out.setframerate(44100)
+                out.writeframes(i.to_bytes(2, 'little') * 2 * 4410)
+            paths.append(path)
+        self.assertEqual(audio.join_packages(paths[:1], config.DATA_DIR / 'unused.wav'), paths[0])
+        joined = audio.join_packages(paths, config.DATA_DIR / 'joined.wav')
+        with wave.open(str(joined), 'rb') as out:
+            self.assertEqual(out.getnframes(), 8820)
+            self.assertEqual(out.readframes(1), b'\x01\x00' * 2)
+            out.setpos(8819)
+            self.assertEqual(out.readframes(1), b'\x02\x00' * 2)
+
+    def test_manual_skip_and_host_edition_keep_audio_continuous(self):
+        import math
+        from array import array
+        refs = {}
+        for frequency in (440, 880, 1320):
+            path = config.DATA_DIR / f'tone-{frequency}.wav'
+            samples = array('h', (int(4000 * math.sin(2 * math.pi * frequency * i / 44100)) for i in range(44100)))
+            stereo = array('h', (v for sample in samples for v in (sample, sample)))
+            with wave.open(str(path), 'wb') as out:
+                out.setnchannels(2)
+                out.setsampwidth(2)
+                out.setframerate(44100)
+                out.writeframes(stereo.tobytes() * 20)
+            refs[str(path)] = frequency
+        m3u = config.RUN_DIR / 'skip.m3u'
+        m3u.write_text(''.join('annotate:kind="music",ref="' + ref + '":' + ref + '\n' for ref in refs))
+        bulletin = config.DATA_DIR / 'ready-bulletin.wav'
+        with wave.open(str(bulletin), 'wb') as voice:
+            voice.setnchannels(2)
+            voice.setsampwidth(2)
+            voice.setframerate(44100)
+            voice.writeframes(stereo.tobytes() * 2)
+        out = config.DATA_DIR / 'skip-output.wav'
+        engine = Liquidsoap(m3u, 3, str(out))
+        events = []
+        async def scenario():
+            with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}):
+                await engine.start(events.append)
+            try:
+                deadline = time.monotonic() + 10
+                while (not events or not out.exists() or out.stat().st_size < 44100 * 4) and time.monotonic() < deadline:
+                    await asyncio.sleep(.05)
+                self.assertTrue(events)
+                current = events[-1]['ref']
+                following = await engine.next_music()
+                frame = max(0, (out.stat().st_size - 44) // 4)
+                await engine.command('skip')
+                await asyncio.sleep(1)
+                rid = await engine.push_news(bulletin, 'ready-bulletin')
+                await engine.wait_insert(rid)
+                await engine.command('skip')
+                await asyncio.sleep(5)
+                return current, following, frame
+            finally:
+                await engine.stop()
+        self.clock.stop()
+        current, following, frame = asyncio.run(scenario())
+        with wave.open(str(out), 'rb') as recording:
+            recording.setpos(frame + int(.35 * 44100))
+            samples = array('h', recording.readframes(4410))[::2]
+            recording.setpos(frame + int(.2 * 44100))
+            broadcast = array('h', recording.readframes(recording.getnframes() - recording.tell()))[::2]
+        for start in range(0, len(broadcast) - 882, 882):
+            window = broadcast[start:start + 882]
+            self.assertGreater(sum(v*v for v in window) / len(window), 50**2,
+                               'Silence during a music or host transition')
+        def power(frequency):
+            return abs(sum(v * complex(math.cos(2 * math.pi * frequency * i / 44100),
+                                       math.sin(2 * math.pi * frequency * i / 44100)) for i, v in enumerate(samples)))
+        self.assertGreater(power(refs[following]), power(refs[current]) * 10,
+                           'The old song is still audible 350 ms after manual skip')
+
+    def test_engine_replaces_prefetch_and_queued_replay_without_skipping_current(self):
+        m3u = config.RUN_DIR / 'test.m3u'
+        files = []
+        for name in ('one', 'two', 'three'):
+            path = config.DATA_DIR / (name + '.wav')
+            with wave.open(str(path), 'wb') as out:
+                out.setnchannels(2)
+                out.setsampwidth(2)
+                out.setframerate(44100)
+                out.writeframes(b'\0\0\0\0' * 44100 * 20)
+            files.append(str(path))
+        uris = {ref: 'annotate:kind="music",ref="' + ref + '":' + ref for ref in files}
+        m3u.write_text('\n'.join(uris.values()) + '\n')
+        engine = Liquidsoap(m3u, .1, str(config.DATA_DIR / 'out.wav'))
+        events = []
+        async def scenario():
+            with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}):
+                await engine.start(events.append)
+            try:
+                deadline = time.time() + 10
+                while not events and time.time() < deadline:
+                    await asyncio.sleep(.1)
+                self.assertTrue(events)
+                current = events[-1]['ref']
+                before = await engine.next_music()
+                self.assertIn(before, files)
+                replacement = next(ref for ref in files if ref not in (current, before))
+                await engine.replace_music(before, uris[replacement])
+                self.assertEqual(await engine.next_music(), replacement)
+                self.assertEqual(events[-1]['ref'], current)
+                with self.assertRaises(ValueError):
+                    await engine.replace_music(before, uris[replacement])
+                first = await engine.push_replay(Path(before), 'music', before, 0, 'r1')
+                later = await engine.push_replay(Path(current), 'music', current, 0, 'r2')
+                deadline = time.time() + 3
+                while first not in (await engine.command('news.queue')).split() and time.time() < deadline:
+                    await asyncio.sleep(.1)
+                new = await engine.replace_music(before, uris[replacement].replace('annotate:', 'annotate:replay_id="r1",', 1), 'news', first)
+                await engine.wait_insert(new)
+                queued = (await engine.command('news.pending')).split()
+                self.assertEqual(queued, [new, later])
+                self.assertEqual(events[-1]['ref'], current)
+                await engine.wait_insert(new)
+                await engine.command('skip')
+                deadline = time.time() + 5
+                while events[-1]['ref'] == current and time.time() < deadline:
+                    await asyncio.sleep(.1)
+                self.assertEqual(events[-1]['ref'], replacement)
+                self.assertEqual(events[-1]['replay_id'], 'r1')
+                await engine.remove(later)
+                rid = await engine.push_news(Path(before), 'ready-edition')
+                await engine.wait_insert(rid)
+                started = time.monotonic()
+                await engine.command('skip')
+                while events[-1]['ref'] != 'ready-edition' and time.monotonic() - started < 2:
+                    await asyncio.sleep(.02)
+                self.assertEqual(events[-1]['kind'], 'news')
+                self.assertEqual(events[-1]['ref'], 'ready-edition')
+                self.assertLess(time.monotonic() - started, 2)
+            finally:
+                await engine.stop()
+        self.clock.stop()
+        asyncio.run(scenario())

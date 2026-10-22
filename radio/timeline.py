@@ -32,11 +32,20 @@ def timeline(hours=12, limit=120) -> list[dict]:
 # What the page shows for the spoken topic names (the bulletin text itself stays as it was said).
 TOPICS = {"GitHub, тренд дня": "GitHub: trend of the day", "GitHub, находка дня": "GitHub: find of the day",
           "GitHub, новинка недели": "GitHub: new of the week", "Новости технологий": "Tech news",
-          "Сводка новостей": "News digest", "GitHub Trending за сутки": "GitHub Trending, today"}
+          "Сводка новостей": "News digest", "GitHub Trending за сутки": "GitHub Trending, today", "Музыкальная пауза": "Music break"}
 
 
 def topic_name(topic: str | None) -> str:
     return TOPICS.get(topic, topic or "Announcement")
+
+
+def edition_title(sources) -> str:
+    sources = set(sources)
+    if 'weather' in sources:
+        return 'Host edition · Weather'
+    if sources == {'music_facts'}:
+        return 'Host edition · Music stories'
+    return 'Host edition'
 
 
 def _build(db, hours: int, limit: int) -> list[dict]:
@@ -63,27 +72,43 @@ def _build(db, hours: int, limit: int) -> list[dict]:
             links = _links(pk)
             part = {"title": links[0]["title"] if links and links[0]["title"] else topic_name(pk["topic"]),
                     "source": pk["source"], "text": re.sub(r"\n{3,}", "\n\n", text).strip(), "links": links}
-            e.update(kind="news", title=topic_name(pk["topic"]), ref=pk["id"], outcome=pk["status"],
+            e.update(kind="host" if pk["source"] == "music_facts" else "news", title="Host edition", ref=pk["id"], outcome=pk["status"],
                      replay=r["type"] == "REPLAY", parts=[part], _at=r["at"])
             e["_topics"] = [pk["topic"]]
             prev = out[-1] if out else None
-            if (prev and prev["kind"] == "news" and r["type"] == "PACKAGE_STARTED" and not prev["replay"]
+            if (e["kind"] == "news" and prev and prev["kind"] == "news" and r["type"] == "PACKAGE_STARTED" and not prev["replay"]
                     and abs((datetime.fromisoformat(prev["_at"]) - datetime.fromisoformat(r["at"])).total_seconds()) <= 1):
                 # The stories of one break start together: one entry, listed in the order they were said.
                 prev["parts"].insert(0, part)
                 prev["_topics"].insert(0, pk["topic"])
                 prev["id"] = r["id"]
-                prev["title"] = " · ".join(dict.fromkeys(topic_name(t) for t in prev["_topics"])) \
-                    + f" · {len(prev['parts'])} stories"
+                prev['title'] = 'Host edition'
                 continue
         elif r["type"] in ("REMINDER", "WEATHER"):
             e.update(kind=r["type"].lower(), title=r["detail"] or r["type"].lower())
+            if r['type'] == 'WEATHER' and not r['detail']:
+                requested = db.execute("SELECT detail FROM events WHERE type='WEATHER_REQUESTED' AND ref=? ORDER BY id DESC LIMIT 1", (r['ref'],)).fetchone()
+                if requested:
+                    e['title'] = requested['detail']
+            if r["type"] == "REMINDER":
+                try:
+                    detail = json.loads(r["detail"] or "")
+                except (ValueError, TypeError):
+                    detail = None
+                if isinstance(detail, dict) and isinstance(detail.get("text"), str):
+                    e["title"] = detail["text"]
+                    if isinstance(detail.get("description"), str):
+                        e["description"] = detail["description"]
+                    elif isinstance(detail.get("links"), list):
+                        e["links"] = detail["links"]
         elif r["type"] == "STATION_ID":
             e.update(kind="id", title="Station ID")
         else:
             e.update(kind="session", title="broadcast started")
         out.append(e)
     for e in out:
+        if e.get('parts'):
+            e['title'] = edition_title(part['source'] for part in e['parts'])
         e.pop("_at", None)
         e.pop("_topics", None)
     return out

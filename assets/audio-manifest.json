@@ -16,7 +16,7 @@
       "include_in_git": true
     },
     {
-      "path": "assets/jingles/bed/gigidelaromusic-calm-ether-loop-short-450954.mp3",
+      "path": "assets/jingles/bed/calm-ether-loop.mp3",
       "sha256": "dedb21d9703a8df3b0438447af8ae823f9e6e615c56828575d7ede60a9f5685e",
       "bytes": 309289,
       "duration_seconds": 9.67,
@@ -29,10 +29,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/bed/gigidelaromusic-calm-ether-loop-short-450954.mp3"
     },
     {
-      "path": "assets/jingles/bed/idoberg-soul-guitar-loop-389438.mp3",
+      "path": "assets/jingles/bed/soul-guitar-loop.mp3",
       "sha256": "396a5d39348313d82d11c5baa6ef71c413b89463a944ff3b8200ecf121ce4d1f",
       "bytes": 409600,
       "duration_seconds": 12.8,
@@ -45,10 +46,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/bed/idoberg-soul-guitar-loop-389438.mp3"
     },
     {
-      "path": "assets/jingles/bed/musiqo-flute-rain-flute-loop-ambient-short-loop-340800.mp3",
+      "path": "assets/jingles/bed/flute-rain-ambient-loop.mp3",
       "sha256": "0f3911cf608d93f93f26e7a6cb4b36de93f8f6f201937a76a0096a70c544efaa",
       "bytes": 356937,
       "duration_seconds": 11.15,
@@ -61,10 +63,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/bed/musiqo-flute-rain-flute-loop-ambient-short-loop-340800.mp3"
     },
     {
-      "path": "assets/jingles/bed/sergequadrado-cool-hip-hop-loop-275527.mp3",
+      "path": "assets/jingles/bed/cool-hip-hop-loop.mp3",
       "sha256": "cb8ba490bf56cb307a9d20ab5f5a68c28e7f16cfd1086fc639d65df0488e3aef",
       "bytes": 932049,
       "duration_seconds": 29.13,
@@ -77,10 +80,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/bed/sergequadrado-cool-hip-hop-loop-275527.mp3"
     },
     {
-      "path": "assets/jingles/intro/36505577-short-modern-logo-242225.mp3",
+      "path": "assets/jingles/intro/short-modern-logo.mp3",
       "sha256": "8eec5f67d8874377d2cfb82e5d113b412b4e3f2f0f9225120981fe56598748ee",
       "bytes": 226533,
       "duration_seconds": 7.08,
@@ -93,10 +97,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/intro/36505577-short-modern-logo-242225.mp3"
     },
     {
-      "path": "assets/jingles/intro/muzaproduction-modern-tech-logo-13492.mp3",
+      "path": "assets/jingles/intro/modern-tech-logo.mp3",
       "sha256": "6aa6c0bc6b8761c537362992764478eee72c38f7c8dd2b58b0d6b614ea7a9865",
       "bytes": 128731,
       "duration_seconds": 4.02,
@@ -109,10 +114,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/intro/muzaproduction-modern-tech-logo-13492.mp3"
     },
     {
-      "path": "assets/jingles/intro/muzaproduction-tech-news-logo-14029.mp3",
+      "path": "assets/jingles/intro/tech-news-logo.mp3",
       "sha256": "2ac840d871424768832ab27e9dd3b572f6d2f899e2fd8947c81382890d7eea98",
       "bytes": 145449,
       "duration_seconds": 4.55,
@@ -125,7 +131,8 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/intro/muzaproduction-tech-news-logo-14029.mp3"
     },
     {
       "path": "assets/jingles/intro/rhythmyk-logo.mp3",
@@ -144,7 +151,7 @@
       "include_in_git": false
     },
     {
-      "path": "assets/jingles/outro/aviana_phoenix-soft-transition-338894.mp3",
+      "path": "assets/jingles/outro/soft-transition.mp3",
       "sha256": "51e4b6d709243eaec2be4b07592a28f9ab433e95e5816fa1043cbf499efe2937",
       "bytes": 224026,
       "duration_seconds": 7.0,
@@ -157,7 +164,8 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/outro/aviana_phoenix-soft-transition-338894.mp3"
     },
     {
       "path": "assets/jingles/outro/radio-for-all-homez.mp3",
@@ -176,7 +184,7 @@
       "include_in_git": false
     },
     {
-      "path": "assets/jingles/outro/sergequadrado-drive-ident-21297.mp3",
+      "path": "assets/jingles/outro/drive-ident.mp3",
       "sha256": "b0da76d9768e97994f42f637410fdf7a7c3193494cec0876666dd1f3f0352471",
       "bytes": 121208,
       "duration_seconds": 3.79,
@@ -189,7 +197,8 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/outro/sergequadrado-drive-ident-21297.mp3"
     },
     {
       "path": "assets/jingles/sections/github-trending.mp3",
@@ -224,7 +233,7 @@
       "artist_tag": "carbonara"
     },
     {
-      "path": "assets/jingles/separator/biww-whoosh-transition-effect-561943.mp3",
+      "path": "assets/jingles/separator/whoosh-transition.mp3",
       "sha256": "dd56e25b8b5aa320c04956c1adea50678cdc506783a868eccfb08b1e34598984",
       "bytes": 40704,
       "duration_seconds": 1.27,
@@ -237,10 +246,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/separator/biww-whoosh-transition-effect-561943.mp3"
     },
     {
-      "path": "assets/jingles/separator/freesound_community-news-ting-6832.mp3",
+      "path": "assets/jingles/separator/news-ting.mp3",
       "sha256": "ad653c5a6c62d0b1563ff35704d250f7598dd62c2c65cd44ef7a0420a317f03a",
       "bytes": 31200,
       "duration_seconds": 1.56,
@@ -253,10 +263,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/separator/freesound_community-news-ting-6832.mp3"
     },
     {
-      "path": "assets/jingles/separator/freesound_community-whipy-woosh-transition-38006.mp3",
+      "path": "assets/jingles/separator/whipy-whoosh.mp3",
       "sha256": "26d139de9e3e4ad7ae0f6786440ba5888b33c79b72e016f5827ee320fc463196",
       "bytes": 14400,
       "duration_seconds": 0.72,
@@ -269,10 +280,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/separator/freesound_community-whipy-woosh-transition-38006.mp3"
     },
     {
-      "path": "assets/jingles/separator/mixkit-fast-small-sweep-transition-166.wav",
+      "path": "assets/jingles/separator/fast-sweep.wav",
       "sha256": "ca5a0206a7e6b12893a5727cb98a9d43ab02893153465eb21d43fb7b9e6616c3",
       "bytes": 138746,
       "duration_seconds": 0.78,
@@ -285,10 +297,11 @@
       "license": "Mixkit Sound Effects Free License",
       "review_status": "exclude-source-distribution",
       "evidence": "macOS download provenance; Mixkit Sound Effects Free License",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/separator/mixkit-fast-small-sweep-transition-166.wav"
     },
     {
-      "path": "assets/jingles/separator/universfield-swoosh-021-454673.mp3",
+      "path": "assets/jingles/separator/swoosh-021.mp3",
       "sha256": "aa46b3c8b7c24fb713a7c6833c989b95a449da99b6d09339d89d02ccf916cc24",
       "bytes": 66037,
       "duration_seconds": 2.06,
@@ -301,10 +314,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/separator/universfield-swoosh-021-454673.mp3"
     },
     {
-      "path": "assets/jingles/separator/universfield-swoosh-027-454865.mp3",
+      "path": "assets/jingles/separator/swoosh-027.mp3",
       "sha256": "19f7a1c1d8bfa7a143c35fd291eabe916a3a92827db169a41f8d79733fc7d6e9",
       "bytes": 66037,
       "duration_seconds": 2.06,
@@ -317,10 +331,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/separator/universfield-swoosh-027-454865.mp3"
     },
     {
-      "path": "assets/jingles/spare/bombinsound-podcast-music-intro-logo-version-ridingx27-617274.mp3",
+      "path": "assets/jingles/spare/podcast-intro-riding.mp3",
       "sha256": "b97a8308fe0f9b1497f2cd234a22388fb9551efaa791b6ed7600d584e6efa27e",
       "bytes": 287555,
       "duration_seconds": 8.99,
@@ -333,10 +348,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/bombinsound-podcast-music-intro-logo-version-ridingx27-617274.mp3"
     },
     {
-      "path": "assets/jingles/spare/dragon-studio-epic-transition-478367.mp3",
+      "path": "assets/jingles/spare/epic-transition.mp3",
       "sha256": "a786daad1b02000d817ab664448cd30b526166fd455ef59e6c5476b42949082f",
       "bytes": 82944,
       "duration_seconds": 2.59,
@@ -349,10 +365,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/dragon-studio-epic-transition-478367.mp3"
     },
     {
-      "path": "assets/jingles/spare/dragon-studio-notification-sound-effect-372475.mp3",
+      "path": "assets/jingles/spare/notification.mp3",
       "sha256": "3b6c199ac8fe61149913b71c1159424ae3ceaaa4f84f60e522317072b003ae71",
       "bytes": 35108,
       "duration_seconds": 1.1,
@@ -365,10 +382,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/dragon-studio-notification-sound-effect-372475.mp3"
     },
     {
-      "path": "assets/jingles/spare/dragon-studio-pop-402324.mp3",
+      "path": "assets/jingles/spare/pop.mp3",
       "sha256": "bb343a49535045ee3350f30fe01848ce8f933b1394710a71069c96435116af54",
       "bytes": 23040,
       "duration_seconds": 0.72,
@@ -381,10 +399,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/dragon-studio-pop-402324.mp3"
     },
     {
-      "path": "assets/jingles/spare/dragon-studio-whoosh-cinematic-376875.mp3",
+      "path": "assets/jingles/spare/cinematic-whoosh.mp3",
       "sha256": "ea7eefa6fee1f6f8e08f595b0db5bfa1d941aa8a6c1a8f07a2a4dd02c588bfe4",
       "bytes": 67709,
       "duration_seconds": 2.12,
@@ -397,10 +416,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/dragon-studio-whoosh-cinematic-376875.mp3"
     },
     {
-      "path": "assets/jingles/spare/idoberg-relaxing-guitar-loop-v10-252354.mp3",
+      "path": "assets/jingles/spare/relaxing-guitar-loop.mp3",
       "sha256": "302eacca36c8725122bfe7a8f35234c2e47483513e4a3af738d0464d818b689b",
       "bytes": 320992,
       "duration_seconds": 10.03,
@@ -413,10 +433,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/idoberg-relaxing-guitar-loop-v10-252354.mp3"
     },
     {
-      "path": "assets/jingles/spare/kamhunt-pluck-loop-91bpm-132429.mp3",
+      "path": "assets/jingles/spare/pluck-loop-91bpm.mp3",
       "sha256": "2bfa03d205876855eea57e0acfc8c7c43c123f81a725106e80c28b1dfce2641e",
       "bytes": 781583,
       "duration_seconds": 24.42,
@@ -429,10 +450,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/kamhunt-pluck-loop-91bpm-132429.mp3"
     },
     {
-      "path": "assets/jingles/spare/mfcc-energetic-upbeat-background-music-logo-372129.mp3",
+      "path": "assets/jingles/spare/energetic-upbeat-logo.mp3",
       "sha256": "b154d8651e30e48c554ccde8da026ef3c0dfa51905698fb2bd6916db0c168df9",
       "bytes": 314305,
       "duration_seconds": 9.82,
@@ -445,10 +467,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/mfcc-energetic-upbeat-background-music-logo-372129.mp3"
     },
     {
-      "path": "assets/jingles/spare/moodmode-news-opening-154121.mp3",
+      "path": "assets/jingles/spare/news-opening.mp3",
       "sha256": "88676a72c2d61d27ce779bdbc2703f46178d1add7071cadd37d3bf5ff9e46cbe",
       "bytes": 206471,
       "duration_seconds": 6.45,
@@ -461,10 +484,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/moodmode-news-opening-154121.mp3"
     },
     {
-      "path": "assets/jingles/spare/prettyjohn1-corporate-background-music_33sec-483404.mp3",
+      "path": "assets/jingles/spare/corporate-background-33s.mp3",
       "sha256": "7a7b731e5740f07a1ff7ee69d83b3eae5e7b49a15ae3b9ad22153f4d5c49050e",
       "bytes": 1061616,
       "duration_seconds": 33.18,
@@ -477,10 +501,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/prettyjohn1-corporate-background-music_33sec-483404.mp3"
     },
     {
-      "path": "assets/jingles/spare/universfield-level-up-02-199574.mp3",
+      "path": "assets/jingles/spare/level-up-02.mp3",
       "sha256": "482b9d90b6f54974e23f41c8ce36bb72e34c0eb9774be26c644bb3572f3295e7",
       "bytes": 55170,
       "duration_seconds": 1.72,
@@ -493,10 +518,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/universfield-level-up-02-199574.mp3"
     },
     {
-      "path": "assets/jingles/spare/universfield-level-up-07-383747.mp3",
+      "path": "assets/jingles/spare/level-up-07.mp3",
       "sha256": "db4e536b8d99686b46129adf76bdf2ab5a8ad44cb59087963bdf93f6cc3c1b68",
       "bytes": 33792,
       "duration_seconds": 1.06,
@@ -509,10 +535,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/universfield-level-up-07-383747.mp3"
     },
     {
-      "path": "assets/jingles/spare/universfield-new-notification-024-370048.mp3",
+      "path": "assets/jingles/spare/notification-024.mp3",
       "sha256": "a0ba8fde6501b833d8615d5a3bdd611dd8a8d9ea95efd3f0b47adf62e162f760",
       "bytes": 80640,
       "duration_seconds": 2.52,
@@ -525,10 +552,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/universfield-new-notification-024-370048.mp3"
     },
     {
-      "path": "assets/jingles/spare/universfield-new-notification-09-352705.mp3",
+      "path": "assets/jingles/spare/notification-09.mp3",
       "sha256": "d6a99e9d0721b7404b351ab5faff4ab3b79a061e3c383983640e007a81ae264f",
       "bytes": 36864,
       "duration_seconds": 1.15,
@@ -541,10 +569,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/universfield-new-notification-09-352705.mp3"
     },
     {
-      "path": "assets/jingles/spare/voxmusic-010-375647.mp3",
+      "path": "assets/jingles/spare/voxmusic-010.mp3",
       "sha256": "1459e6b07387fc008d53c779c4ddb6f458e0071bbae2bd4e590cc7863f527533",
       "bytes": 55170,
       "duration_seconds": 1.72,
@@ -557,10 +586,11 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/voxmusic-010-375647.mp3"
     },
     {
-      "path": "assets/jingles/spare/voxmusic-059-375636.mp3",
+      "path": "assets/jingles/spare/voxmusic-059.mp3",
       "sha256": "36d685c422cbf2167bb0107473c170f28819cb03838a5c0d1ad1395510332278",
       "bytes": 56006,
       "duration_seconds": 1.75,
@@ -573,7 +603,8 @@
       "license": "Pixabay Content License",
       "review_status": "exclude-standalone-stock",
       "evidence": "macOS download provenance; Pixabay Content License section 5",
-      "include_in_git": false
+      "include_in_git": false,
+      "original_path": "assets/jingles/spare/voxmusic-059-375636.mp3"
     },
     {
       "path": "assets/jingles/station_id/personal-radio-id-1.mp3",
@@ -799,5 +830,6 @@
       "evidence": "no source/license evidence in file metadata",
       "include_in_git": false
     }
-  ]
+  ],
+  "paths_updated_on": "2026-10-21"
 }

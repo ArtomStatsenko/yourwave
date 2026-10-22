@@ -25,6 +25,17 @@ def _ffmpeg(*args, timeout=300) -> str:
     return r.stderr
 
 
+def join_packages(paths: list[Path], out: Path) -> Path:
+    """Reuse ready audio for an immediate transition without generating host links."""
+    if len(paths) == 1:
+        return paths[0]
+    inputs = [arg for path in paths for arg in ('-i', str(path))]
+    streams = ''.join(f'[{i}:a]' for i in range(len(paths)))
+    _ffmpeg('-y', *inputs, '-filter_complex', f'{streams}concat=n={len(paths)}:v=0:a=1[a]',
+            '-map', '[a]', '-c:a', 'pcm_s16le', str(out))
+    return out
+
+
 def tags(path: Path) -> tuple[str, str]:
     """(artist, title) from the file's tags; "" where a tag is missing."""
     r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format_tags=artist,title:stream_tags=artist,title",

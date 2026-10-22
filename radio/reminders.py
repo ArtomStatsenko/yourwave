@@ -270,11 +270,16 @@ def todoist_due(tasks: list[dict], now: datetime, lead: timedelta, local=None) -
         d = ((t.get("due") or {}).get("date") or "")
         if "T" not in d:
             continue
-        at = datetime.strptime(d.rstrip("Z")[:19], "%Y-%m-%dT%H:%M:%S")
-        at = at.replace(tzinfo=timezone.utc if d.endswith("Z") else local)
+        try:
+            at = datetime.fromisoformat(d.replace("Z", "+00:00"))
+            if at.tzinfo is None:
+                at = at.replace(tzinfo=ZoneInfo(t["due"]["timezone"]) if t["due"].get("timezone") else local)
+        except (ValueError, ZoneInfoNotFoundError):
+            continue
         if now <= at <= now + lead:
             out.append({"key": f"todoist:{t['id']}:{at.astimezone(timezone.utc):%Y%m%dT%H%M}",
-                        "title": t.get("content", ""), "start": at, "kind": "task"})
+                        "title": t.get("content", ""), "start": at, "kind": "task",
+                        "description": t.get("description") or ""})
     return sorted(out, key=lambda r: r["start"])
 
 

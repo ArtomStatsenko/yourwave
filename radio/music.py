@@ -96,8 +96,8 @@ def write_m3u(db, files: list[Path], out: Path, target_lufs: float, max_boost_db
     return written
 
 
-def measure_missing(db, files: list[Path], stop, lyrics_on=lambda: False) -> None:
-    """Runs in a background thread: loudness and quiet ending of new tracks, then (intro_talk plugin) when
+def measure_missing(db, files: list[Path], stop) -> None:
+    """Runs in a background thread: loudness and quiet ending of new tracks, then when
     their vocals start. shortcut: values found now apply from the next `radio play`; fine for a personal
     library that rarely changes."""
     known = {r["path"]: r for r in db.execute("SELECT path, sig, lufs, tail_sec, ok, artist FROM tracks")}
@@ -122,8 +122,7 @@ def measure_missing(db, files: list[Path], stop, lyrics_on=lambda: False) -> Non
                        (str(f), _sig(f), value, int(value is not None), tail, artist, title))
         except Exception as e:  # one bad file must not stop the measuring of the rest of the library
             print(f"measure {f.name}: {type(e).__name__}: {e}", flush=True)
-    if lyrics_on():
-        find_vocals(db, files, stop)
+    find_vocals(db, files, stop)
 
 
 def song(db, path) -> tuple[str, str] | None:

@@ -81,18 +81,33 @@ class Liquidsoap:
                     except Exception as e:  # never let a bad event kill the reader
                         print("event error:", e, line, flush=True)
 
-    async def command(self, cmd: str) -> str:
+    async def command(self, cmd: str, timeout: float = 5) -> str:
         reader, writer = await asyncio.wait_for(asyncio.open_unix_connection(str(self.sock)), 3)
         try:
             writer.write((cmd + "\n").encode())
             await writer.drain()
-            data = await asyncio.wait_for(reader.readuntil(b"END\r\n"), 5)
+            data = await asyncio.wait_for(reader.readuntil(b"END\r\n"), timeout)
             writer.write(b"quit\n")
             return data.decode().removesuffix("END\r\n").strip()
         finally:
             writer.close()
 
-    async def push_news(self, wav: Path, package_id: str, talkover_sec: float = 0.0) -> None:
+    async def wait_music(self):
+        deadline = asyncio.get_running_loop().time() + 30
+        while asyncio.get_running_loop().time() < deadline:
+            if await self.command('fresh.ready') == 'true' or await self.next_music():
+                return
+            await asyncio.sleep(.1)
+        raise TimeoutError('Next track is still loading; current playback continues')
+
+    async def wait_insert(self, rid=None):
+        for _ in range(60):
+            if (not rid or rid in (await self.command('news.pending')).split()) and await self.command('news.ready') == 'true':
+                return
+            await asyncio.sleep(.05)
+        raise TimeoutError('The next section is not loaded yet; try again shortly')
+
+    async def push_news(self, wav: Path, package_id: str, talkover_sec: float = 0.0) -> str:
         safe_id = package_id.replace('"', "")
         # Short fades around the package so the stinger is heard; songs keep the full crossfade.
         gain = 0.0  # packages are mastered to -16 LUFS like the music
@@ -105,7 +120,7 @@ class Liquidsoap:
         # Start window longer than any song's end window: radio.liq then places the break by liq_talk_up.
         ending += ',liq_cross_start_duration="12"'
         uri = f'annotate:kind="news",ref="{safe_id}",liq_amplify="{gain:+.1f} dB",{ending},liq_fade_in="0.1":{wav}'
-        await self.command(f"news.push {uri}")
+        return (await self.command(f"news.push {uri}")).strip()
 
     async def push_station_id(self, wav: Path, gain_db: float, tail_sec: float = 0.0) -> None:
         # Goes through the same queue as news, so it too waits for the song boundary. The next song starts
@@ -125,11 +140,44 @@ class Liquidsoap:
 
     async def next_music(self) -> str | None:
         """The playlist's next song (the one after the current song and anything queued), for the set opener."""
-        m = re.search(r'ref="([^"]*)"', await self.command("music.next"))
-        return m.group(1) if m else None
+        return (await self.command('music.peek')).strip() or None
+
+    def music_choices(self, expected: str) -> dict[str, str]:
+        paths = [self.m3u, self.fallback_m3u]
+        for path in paths:
+            if path is None:
+                continue
+            choices = {}
+            for line in path.read_text().splitlines():
+                match = re.search(r'ref="([^"\r\n]*)"', line)
+                if match:
+                    choices[match.group(1)] = line
+            if expected in choices:
+                return choices
+        return {}
+
+    async def replace_music(self, expected: str, uri: str, queue: str = 'music', rid: str = '') -> str:
+        if queue not in ('music', 'local_music', 'news', 'fresh'):
+            raise ValueError('Invalid music queue')
+        result = await self.command(queue + '.replace ' + json.dumps({
+            'expected': expected, 'uri': uri, 'rid': int(rid) if rid else -1, 'head': not rid}), timeout=35)
+        if not result.isdigit():
+            raise ValueError('The next track changed. Try again.' if result == 'STALE' else 'Could not load another track. Try again.')
+        return result
 
     async def remove(self, rid: str, queue: str = "news") -> None:
-        await self.command(f"{queue}.remove {rid}")  # also works on a request already prefetched for the next break
+        # Also works on a request already prefetched for the next break, but misses one the queue is resolving at
+        # that moment (right after a transition: off the queue, not yet prefetched, invisible to news.pending).
+        # Local files resolve in milliseconds, so it is gone once two checks 50 ms apart do not see it.
+        gone = 0
+        for _ in range(40):
+            await self.command(f"{queue}.remove {rid}")
+            if queue != "news":
+                return
+            gone = gone + 1 if rid not in (await self.command('news.pending')).split() else 0
+            if gone == 2:
+                return
+            await asyncio.sleep(.05)
 
     async def stop(self) -> None:
         if self.proc and self.proc.returncode is None:

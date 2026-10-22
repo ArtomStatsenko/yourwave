@@ -49,6 +49,21 @@ class VoiceStudio:
             tmp.write_bytes(r.read())
         os.replace(tmp, out)
 
+    def transcribe(self, path: Path) -> str:
+        # Reuse VoiceStudio's installed Whisper and cached weights; never download models for a weather check.
+        python = Path(config.load()["voice"]["server_dir"]).expanduser() / ".venv/bin/python"
+        script = ("import json,sys,mlx_whisper; "
+                  "r=mlx_whisper.transcribe(sys.argv[1],path_or_hf_repo='mlx-community/whisper-large-v3-turbo',"
+                  "language=sys.argv[2],condition_on_previous_text=False); print(json.dumps(r['text']))")
+        result = subprocess.run([str(python), "-c", script, str(path), self.language],
+                                env=dict(os.environ, HF_HUB_OFFLINE="1"), capture_output=True, text=True, timeout=180)
+        if result.returncode:
+            raise RuntimeError("Local speech verification unavailable; weather withheld")
+        text = json.loads(result.stdout.strip().splitlines()[-1])
+        if not isinstance(text, str):
+            raise ValueError("Invalid speech transcription")
+        return text
+
     def cache_key(self, text: str) -> str:
         key = f"voicestudio|{self.voice_id}|{self.language}|{self.speed}|{self.instruct}|{self.seed}|{text}"
         return hashlib.sha256(key.encode()).hexdigest()[:32]
@@ -115,9 +130,11 @@ def cached_synthesize(tts, text: str, check=None) -> Path:
     """TTS with a cache keyed by the text. `check(path) -> error|None` rejects broken audio: with a fixed seed the
     engine is deterministic, so a text that came out as noise is retried with other punctuation (same words, same
     voice), then with neighbouring seeds. The first good take is cached under the original text."""
-    text = pronounce(text)
+    text = pronounce(re.sub(r"https?://\S+", "", text, flags=re.I)).strip()
+    if not text:
+        raise ValueError("No speakable text after removing links")
     out = config.DATA_DIR / "cache/tts" / f"{tts.cache_key(text)}.wav"
-    if out.exists():
+    if out.exists() and (check is None or not check(out)):
         out.touch()  # reused clips (topic names) stay out of the 48 h cache cleanup
         return out
     if check is None:

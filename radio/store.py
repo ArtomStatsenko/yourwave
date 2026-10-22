@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS events(
   id INTEGER PRIMARY KEY, session_id TEXT, at TEXT, type TEXT, ref TEXT, detail TEXT);
 CREATE TABLE IF NOT EXISTS tracks(path TEXT PRIMARY KEY, sig TEXT, lufs REAL, ok INTEGER);
 CREATE TABLE IF NOT EXISTS reminders(key TEXT PRIMARY KEY, fired_at TEXT);
+CREATE TABLE IF NOT EXISTS air_plan(
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '', text TEXT NOT NULL DEFAULT '',
+  not_before TEXT, rank INTEGER, skipped INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'PENDING',
+  rid TEXT, error TEXT);
 CREATE INDEX IF NOT EXISTS packages_status ON packages(status, played_at);
 CREATE INDEX IF NOT EXISTS items_state ON items(state, published_at);
 """

@@ -32,8 +32,6 @@ voice_bed_gain_db = -23     # bed level under the voice, relative to the voice
 separator_heavy_chars = 350 # a digest paragraph longer than this (~25 s) gets a separator sound around it
 station_name = "Personal Radio"  # said in host links; a Latin name is voiced in «quotes» (reads as English)
 host_links = true           # news break: back-sell of the last songs, time check, ... set opener for the next music
-voice_over = true           # plugin: the host talks over the end of a song (after its last sung line) and the intro of
-                            # the next (before its vocals), by LRCLIB's synced lyrics
 talkover_share = 0.5        # without lyrics: share of bulletins that end with the host talking over the next song's start
 music_set_minutes = 20      # music between news breaks ("двадцать минут музыки без перерыва"); the first break
                             # of a session comes after one song
@@ -80,7 +78,8 @@ calendar_url = ""           # the calendar's secret address in iCal format (Goog
                             # "Secret address in iCal format"). Anyone with the link can read the calendar: keep it private
 todoist_token = ""          # Todoist personal API token (Settings -> Integrations -> Developer)
 
-[weather]                  # Open-Meteo: a short host forecast no more often than every 3 hours
+[weather]                  # Open-Meteo: a short host forecast at local 00:00, 03:00, ...
+timezone = "Asia/Ho_Chi_Minh"
 city = ""                  # e.g. "Da Lat"; set a city to enable the Weather integration, no API key needed
 
 [jingles]                   # a file or a folder (one file from it per news package); relative to the project
@@ -113,7 +112,22 @@ server_dir = "~/Library/Application Support/com.debpalash.omnivoice-studio/proje
 """
 
 
-def load() -> dict:
+def audio_presets() -> dict:
+    try:
+        selected = (DATA_DIR / "audio-preset.txt").read_text().strip()
+    except FileNotFoundError:
+        selected = "base"
+    return {"selected": selected, "personal_available": (DATA_DIR / "presets/personal.toml").is_file()}
+
+
+def select_audio_preset(name: str) -> None:
+    load(audio_preset=name)  # validate every sound before changing the selection
+    tmp = DATA_DIR / "audio-preset.tmp"
+    tmp.write_text(name + "\n")
+    tmp.replace(DATA_DIR / "audio-preset.txt")
+
+
+def load(*, audio_preset: str | None = None) -> dict:
     path = DATA_DIR / "config.toml"
     if not path.exists():
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -121,6 +135,15 @@ def load() -> dict:
     cfg = tomllib.loads(DEFAULT_CONFIG)
     for section, values in tomllib.loads(path.read_text()).items():
         cfg.setdefault(section, {}).update(values)
+    preset = audio_presets()["selected"] if audio_preset is None else audio_preset
+    if preset not in ("base", "personal"):
+        raise ValueError("unknown audio preset")
+    if preset == "personal":
+        profile = DATA_DIR / "presets/personal.toml"
+        if not profile.is_file():
+            raise ValueError("Personal audio preset is not installed")
+        for section, values in tomllib.loads(profile.read_text()).items():
+            cfg.setdefault(section, {}).update(values)
     cfg["music"]["path"] = Path(cfg["music"]["path"]).expanduser()
     for k in ("stinger_in", "stinger_out", "bed", "separator", "station_id", "reminder", "github_intro", "horizon_intro"):
         if k.endswith("_intro") and not cfg["jingles"].get(k):

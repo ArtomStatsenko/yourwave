@@ -105,7 +105,8 @@ def serve(port: int) -> None:
                 resp = send("status", timeout=3)
                 status = resp["status"] if resp and resp.get("ok") else {"state": "STOPPED"}
                 self._json({"status": status, "timeline": timeline(), "plugins": plugins.listing(cfg),
-                            "settings": settings.listing(cfg), "ytmusic": ytmusic.status()})
+                            "settings": settings.listing(cfg), "ytmusic": ytmusic.status(),
+                            "audio_preset": config.audio_presets()})
             else:
                 self._json({"error": "not found"}, 404)
 
@@ -129,6 +130,7 @@ def serve(port: int) -> None:
                 stream.remove(q)
 
         def do_POST(self):
+            nonlocal cfg
             if self.path != "/api/cmd" or not self._local_host() or not self._authorized():
                 return self._json({"error": "forbidden"}, 403)
             try:
@@ -158,6 +160,13 @@ def serve(port: int) -> None:
                 except ValueError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
                 resp = {"ok": True}
+            elif cmd == "audio_preset":
+                try:
+                    config.select_audio_preset(str(body.get("name", "")))
+                    cfg = config.load()
+                except (ValueError, OSError) as e:
+                    return self._json({"ok": False, "error": str(e)}, 400)
+                resp = {"ok": True, "audio_preset": config.audio_presets()}
             elif cmd in ("setting", "settings_reset"):  # a file too: the daemon reads it before every decision
                 try:
                     if cmd == "setting":
@@ -167,10 +176,14 @@ def serve(port: int) -> None:
                 except ValueError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
                 resp = {"ok": True, "settings": settings.listing(cfg)}
+            elif cmd == "reroll-next":
+                resp = send(cmd, timeout=45, ref=str(body.get("ref", "")))
+            elif cmd == "direction":
+                resp = send(cmd, timeout=10, **{k: v for k, v in body.items() if k != "cmd"})
             elif cmd in ("replay", "unqueue"):
                 resp = send(cmd, timeout=10, kind=str(body.get("kind", "")), ref=str(body.get("ref", "")))
             elif cmd in COMMANDS:
-                resp = send(cmd, timeout=10)
+                resp = send(cmd, timeout=45 if cmd == 'next' else 10)
             else:
                 return self._json({"error": "unknown command"}, 400)
             self._json(resp or {"ok": False, "error": "the radio is not answering"})

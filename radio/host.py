@@ -33,7 +33,7 @@ SECTIONS = {"github": ("github_intro", "GitHub."), "horizon": ("horizon_intro", 
 OPENERS = [
     "{time}. Вы слушаете {station}.",
     "На часах {time}, это {station}.",
-    "{station}, {time}. Самое время для новостей.",
+    "{station}, {time}. Несколько слов между треками.",
     "{time}, с вами {station}. Коротко о главном.",
 ]
 
@@ -72,6 +72,17 @@ NEW_SET_OPENERS = [
     "А теперь только новое: {minutes} музыки, которую вы ещё не слышали.",
 ]
 FIRST_SONG = [" Начинаем с {artist}, «{title}».", " Первой прозвучит «{title}», {artist}.", " Открывает сет {artist}."]
+
+MUSIC_LINKS = ["Пусть дальше говорит музыка.", "Оставайтесь с нами — продолжаем слушать.",
+               "Ещё немного музыки для вашего дня.", "Устраивайтесь поудобнее, продолжим наш плейлист."]
+
+
+def music_link(song: tuple[str, str] | None, facts: str, recent: dict, seed: str) -> str:
+    lead = ""
+    if song:
+        artist, title = song
+        lead = f"В этой подборке — «{_title(title)}», {_quoted(artist)}. "
+    return lead + (facts + " " if facts else "") + _rotate(MUSIC_LINKS, "music_link", recent, seed)
 
 
 def minutes_words(n: int) -> str:

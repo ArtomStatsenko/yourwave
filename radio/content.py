@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import config
+from . import config, plugins
 from .store import iso, now
 
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
@@ -207,7 +207,12 @@ def add_item(db, cfg, item: dict, kind: str, file: str | None = None) -> str:
 def expire_stale(db, cfg) -> int:
     """TTL is re-checked continuously: anything not yet on air past its deadline is dropped."""
     cutoff = iso(now() - timedelta(hours=cfg["sources"]["max_age_hours"]))
-    stale = [r["id"] for r in db.execute("SELECT id FROM items WHERE state='NEW' AND published_at<?", (cutoff,))]
+    protected = set()
+    if plugins.on(cfg, 'air_direction'):
+        protected = {r[0] for r in db.execute("SELECT p.item_id FROM packages p JOIN air_plan a ON a.id=p.id "
+                                             "WHERE a.not_before IS NOT NULL AND a.skipped=0")}
+    stale = [r["id"] for r in db.execute("SELECT id FROM items WHERE state='NEW' AND published_at<? AND COALESCE(source,'')!='direction'", (cutoff,))
+             if r['id'] not in protected]
     for item_id in stale:
         db.execute("UPDATE items SET state='EXPIRED' WHERE id=?", (item_id,))
         db.execute("UPDATE packages SET status='EXPIRED_UNPLAYED' WHERE item_id=? AND status IN ('PENDING','READY')",
@@ -221,12 +226,6 @@ ROTATION = """(SELECT MAX(q.played_at) FROM packages q JOIN items j ON j.id=q.it
                WHERE j.source=i.source AND q.status='PLAYED') IS NOT NULL,
               (SELECT MAX(q.played_at) FROM packages q JOIN items j ON j.id=q.item_id
                WHERE j.source=i.source AND q.status='PLAYED'), i.published_at, p.part"""
-
-
-def next_to_render(db):
-    return db.execute(f"""SELECT p.* FROM packages p JOIN items i ON i.id=p.item_id
-                          WHERE p.status='PENDING' AND i.state='NEW'
-                          ORDER BY {ROTATION} LIMIT 1""").fetchone()
 
 
 def next_to_air(db, sources_off: list[str] = ()):

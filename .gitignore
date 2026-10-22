@@ -25,3 +25,8 @@ examples/**/*.mp3
 !assets/bed.wav
 !assets/stinger_out.wav
 !assets/separator.wav
+
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/live/sessions/
+.agents/skills/impeccable/scripts/bin/

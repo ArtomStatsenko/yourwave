@@ -15,6 +15,11 @@ PLUGINS = {
                    lambda c: c["sources"]["github_new"]["enabled"]),
     "horizon": ("Horizon", "News picked by Horizon (Hacker News, RSS)",
                 lambda c: c["sources"]["horizon"]["enabled"]),
+    "air_direction": ("Air direction", "Plan future blocks: insert, skip, reorder or postpone. Changes stay local",
+                      lambda c: False),
+    "reroll_next": ("Reroll next track", "Choose a different random next track from Next or the air editor; the current song keeps playing. Applies immediately", lambda c: False),
+    "music_facts": ("Music stories", "Light music links when no news is waiting. MusicBrainz and Wikidata facts, "
+                    "cached locally, without LLM calls. Uses the normal music-set interval", lambda c: False),
     "station_ids": ("Station IDs", "A station call sign between songs",
                     lambda c: c["broadcast"]["station_id_every_songs"] > 0),
     "host_links": ("Host links", "The host says the time before a news break and names the songs around it",
@@ -29,20 +34,15 @@ PLUGINS = {
                            lambda c: bool(c["reminders"]["calendar_url"])),
     "reminders_todoist": ("Reminders: Todoist", "The same for Todoist tasks that have a time. Needs the token in "
                           "config.toml (reminders.todoist_token)", lambda c: bool(c["reminders"]["todoist_token"])),
-    "voicestudio": ("VoiceStudio server", "Starts the VoiceStudio voice server with the radio, without the app "
-                    "window, and stops it with the radio. A VoiceStudio that is already running is left alone",
-                    lambda c: True),
-    "weather": ("Weather", "A short local forecast between songs, at most once every three hours. "
-                "Temperature, rain outlook and wind from Open-Meteo (open-meteo.com). "
+    "weather": ("Weather", "A short local report at 00:00, 03:00, ... station time; plays between songs. "
+                "City, temperature and current conditions from Open-Meteo (open-meteo.com). "
                 "Set weather.city in config.toml; needs Host links", lambda c: bool(c["weather"]["city"])),
-    "voice_over": ("Host over music", "Announcements over the end of a song (after its last sung line) and the intro "
-                   "of the next (before its vocals); the lines come from LRCLIB's synced lyrics, without them some "
-                   "breaks simply end over the start of the song. The ending part applies from the next restart",
-                   lambda c: c["broadcast"]["voice_over"]),
+
 }
-SOURCE_PLUGIN = {"github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon"}
-INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "voicestudio", "weather", "ytmusic"}
-EXPERIMENTS = {"voice_over"}
+SOURCE_PLUGIN = {"weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
+INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction"}
+
+EXPERIMENTS = {"air_direction", "reroll_next"}
 
 
 def _path():
@@ -69,10 +69,6 @@ def on(cfg: dict, name: str) -> bool:
 def set_plugin(name: str, enabled: bool) -> None:
     if name not in PLUGINS:
         raise ValueError(f"unknown plugin {name}")
-    if name == "ytmusic" and enabled:
-        from . import ytmusic
-        if not ytmusic.status()["connected"]:
-            raise ValueError("Connect YouTube Music first")
     saved = _saved()
     saved[name] = bool(enabled)
     tmp = _path().with_suffix(".tmp")

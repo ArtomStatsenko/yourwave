@@ -8,6 +8,7 @@ import re
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 INTERVAL = timedelta(hours=3)
 CONDITIONS = {
@@ -25,6 +26,11 @@ CONDITIONS = {
     95: ("гроза", "thunderstorm"), 96: ("гроза с градом", "thunderstorm with hail"),
     99: ("сильная гроза с градом", "severe thunderstorm with hail"),
 }
+
+
+def slot(at: datetime, zone: str) -> datetime:
+    local = at.astimezone(ZoneInfo(zone))
+    return local.replace(hour=local.hour // 3 * 3, minute=0, second=0, microsecond=0)
 
 
 def _get(url: str, **params):
@@ -53,41 +59,27 @@ def fetch(city: str, at: datetime) -> dict:
     place = found["results"][0]
     lat, lon = _number(place["latitude"], -90, 90), _number(place["longitude"], -180, 180)
     data = _get("https://api.open-meteo.com/v1/forecast", latitude=lat, longitude=lon,
-                current="temperature_2m,weather_code,wind_speed_10m", hourly="precipitation_probability",
-                forecast_hours=4, timeformat="unixtime", wind_speed_unit="ms")
+                current="temperature_2m,weather_code", timeformat="unixtime")
     return report(data, place["name"], at, city)
 
 
 def report(data: dict, city: str, at: datetime, display_city: str) -> dict:
-    current, hourly = data["current"], data["hourly"]
+    current = data["current"]
     issued = datetime.fromtimestamp(_number(current["time"], 0, 4e9), timezone.utc)
     if not at - timedelta(minutes=45) <= issued <= at + timedelta(minutes=5):
         raise ValueError("stale weather")
     temp = round(_number(current["temperature_2m"], -90, 60))
-    wind = round(_number(current["wind_speed_10m"], 0, 150))
     code = _number(current["weather_code"], 0, 99)
     if code not in CONDITIONS:
         raise ValueError("unknown weather code")
-    if len(hourly["time"]) != len(hourly["precipitation_probability"]):
-        raise ValueError("incomplete weather forecast")
-    times = [_number(t, 0, 4e9) for t in hourly["time"]]
-    if any(b - a != 3600 for a, b in zip(times, times[1:])):
-        raise ValueError("invalid hourly weather times")
-    future = [_number(p, 0, 100) for t, p in zip(times, hourly["precipitation_probability"])
-              if at.timestamp() < t <= (at + INTERVAL).timestamp()]
-    if len(future) != 3:
-        raise ValueError("incomplete weather forecast")
     city = re.sub(r"[^\w\s-]", "", city, flags=re.UNICODE).strip()[:80]
     if not city:
         raise ValueError("missing weather city")
     degrees = ("плюс " if temp > 0 else "минус " if temp < 0 else "") + str(abs(temp))
-    rain = ("высока вероятность осадков" if max(future) >= 60 else
-            "возможны осадки" if max(future) >= 30 else "вероятность осадков невысокая")
-    text = (f"Коротко о погоде. {city}: по прогнозу сейчас {degrees} {_unit(temp, ('градус', 'градуса', 'градусов'))}, "
-            f"{CONDITIONS[code][0]}. В ближайшие три часа {rain}. "
-            f"Ветер — {wind} {_unit(wind, ('метр', 'метра', 'метров'))} в секунду.")
+    condition = CONDITIONS[code][0] + (", без дождя" if code in (0, 1, 2, 3) else "")
+    text = f"{city}: {degrees} {_unit(temp, ('градус', 'градуса', 'градусов'))}, {condition}."
     display_city = re.sub(r"[^\w\s-]", "", display_city).strip()[:80]
-    summary = f"{display_city} · {temp}° · {CONDITIONS[code][1]} · wind {wind} m/s" + (" · rain likely" if max(future) >= 60 else "")
+    summary = f"{display_city} · {temp}° · {CONDITIONS[code][1]}"
     return {"key": f"weather:{int(at.timestamp())}", "kind": "weather", "start": at, "text": text,
             "summary": summary,
             "expires": min(at + timedelta(minutes=30), issued + timedelta(hours=1))}
