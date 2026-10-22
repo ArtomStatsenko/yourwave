@@ -75,7 +75,7 @@ class RerollTests(unittest.TestCase):
         plugins.set_plugin('reroll_next', True)
         self.svc.replays['r1'] = {'kind': 'music', 'ref': '/tmp/next.wav', 'rid': '8'}
         self.assertTrue(self.reroll()['ok'])
-        self.assertEqual(self.svc.replays['r1'], {'kind': 'music', 'ref': '/tmp/other.wav', 'rid': '42'})
+        self.assertEqual(self.svc.replays['r1'], {'kind': 'music', 'ref': '/tmp/other.wav', 'rid': '42', 'duration': 0.0})
         self.assertEqual(self.svc.engine.replace_music.call_args.args[2:], ('news', '8'))
         self.assertIn('replay_id="r1"', self.svc.engine.replace_music.call_args.args[1])
 

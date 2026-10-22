@@ -328,11 +328,14 @@ class Service:
             self.set_started = self.set_started or self.current["started"]
             if s := music.song(self.db, self.current["ref"]):
                 self.set_songs.append(s)
-            ref = self.current["ref"]
-            self.current["duration"] = ytmusic.duration(ref) if ref.startswith("ytmusic:") else audio.duration(Path(ref))
+            self.current["duration"] = self._song_seconds(self.current["ref"])
             store.log_event(self.db, self.session, "MUSIC_STARTED", self.current["ref"])
             log("music:", Path(self.current["ref"]).name)
         self.wake.set()
+
+    @staticmethod
+    def _song_seconds(ref: str) -> float:
+        return ytmusic.duration(ref) if ref.startswith("ytmusic:") else audio.duration(Path(ref))
 
     # ---- content pipeline ----
     async def content_loop(self) -> None:
@@ -1231,7 +1234,8 @@ class Service:
             return {"ok": False, "error": "nothing to replay"}
         replay_id = f"r{time.time_ns()}"
         rid = await self.engine.push_replay(Path(ref), "music", ref, gain, replay_id)
-        self.replays[replay_id] = {"kind": kind, "ref": ref, "rid": rid}
+        self.replays[replay_id] = {"kind": kind, "ref": ref, "rid": rid,
+                                   "duration": await asyncio.to_thread(self._song_seconds, ref)}
         log("replay queued:", kind, ref)
         return {"ok": True, "status": self.status()}
 
@@ -1294,7 +1298,8 @@ class Service:
         try:
             rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
             if slot.get('replay_id') in self.replays:
-                self.replays[slot['replay_id']].update(ref=replacement, rid=rid)
+                self.replays[slot['replay_id']].update(ref=replacement, rid=rid,
+                                                       duration=await asyncio.to_thread(self._song_seconds, replacement))
             elif slot['queue'] == 'fresh':
                 self.fresh_queued = {replacement if ref == expected else ref: rid if ref == expected else old_rid for ref, old_rid in self.fresh_queued.items()}
             elif self.current['ref'] != replacement:
@@ -1578,10 +1583,13 @@ class Service:
         remaining = max(0, ((self.current or {}).get('duration') or 0) -
                         ((self.paused_at if self.state == 'PAUSED' else time.time()) - (self.current or {}).get('started', time.time())))
         boundary = at + timedelta(seconds=remaining)
+        # Replays wait in the news queue: they air before a break or insert that is not queued ahead of them.
+        replays = [r for r in self.replays.values() if not self.queued_break or int(r['rid'] or 0) < int(self.queued_break[0] or 0)]
+        first = boundary + timedelta(seconds=sum(r.get('duration') or 0 for r in replays))
         interval = self.cfg['broadcast']['music_set_minutes'] * 60
-        news_at = boundary
+        news_at = first
         if not self._break_due(remaining, directed=False) and self.set_started:
-            news_at = max(boundary, at + timedelta(seconds=max(0, interval - (time.time() - self.set_started))))
+            news_at = max(first, at + timedelta(seconds=max(0, interval - (time.time() - self.set_started))))
         horizon = at + timedelta(hours=3)
         plan = direction.rows(self.db, self.cfg, at)
         result, seen_rows = [], set()
@@ -1598,7 +1606,7 @@ class Service:
             due = content.parse_time(r['not_before'])
             if due and due > horizon and not r.get('edited'):
                 continue
-            result.append({**r, 'title': self.cfg['weather']['city'] if r['kind'] == 'weather' and r['title'] == 'Weather' else r['title'], 'at': iso(due if r['skipped'] else max(boundary, due)) if due else iso(boundary), 'duration': r.get('duration_sec') or r.get('est_speech_sec') or 30,
+            result.append({**r, 'title': self.cfg['weather']['city'] if r['kind'] == 'weather' and r['title'] == 'Weather' else r['title'], 'at': iso(due if r['skipped'] else max(first, due)) if due else iso(first), 'duration': r.get('duration_sec') or r.get('est_speech_sec') or 30,
                            'estimated': not due or due < boundary, 'locked': r['status'] in ('QUEUED', 'PREPARING'),
                            'members': [r['id']]})
         grouped, timed = [], {}
@@ -1652,7 +1660,8 @@ class Service:
                            'at': iso(news_at), 'not_before': skipped[0]['not_before'], 'estimated': True,
                            'duration': 0, 'status': 'READY', 'locked': False, 'skipped': True})
         changes = direction.edits(self.db)
-        music_titles = [music.label(self.db, r['ref']) for r in self.replays.values() if r['kind'] == 'music']
+        early_titles = [music.label(self.db, r['ref']) for r in replays if r['kind'] == 'music']
+        music_titles = [music.label(self.db, r['ref']) for r in self.replays.values() if r['kind'] == 'music' and r not in replays]
         music_titles += [music.label(self.db, ref) for ref in self.fresh_queued]
         if getattr(self, 'next_track', ''):
             music_titles.append(music.label(self.db, self.next_track))
@@ -1664,7 +1673,7 @@ class Service:
             edit_id = 'reminder:' + key
             edit = changes.get(edit_id, {})
             result.append({'id': edit_id, 'kind': 'reminder', 'title': 'Reminder', 'ref': key, 'members': [edit_id],
-                           'at': edit.get('not_before') or iso(boundary), 'not_before': edit.get('not_before'),
+                           'at': edit.get('not_before') or iso(first), 'not_before': edit.get('not_before'),
                            'duration': 30, 'estimated': not bool(edit.get('not_before')), 'locked': key in self.queued_reminders,
                            'status': 'QUEUED' if key in self.queued_reminders else 'PENDING', 'skipped': bool(edit.get('skipped')),
                            'rid': self.queued_reminders[key][0] if key in self.queued_reminders else None})
@@ -1739,8 +1748,13 @@ class Service:
         for row in [r for r in result if not r['skipped']] + [None]:
             end = max(cursor, content.parse_time(row['at'])) if row else max(cursor, horizon)
             if end > cursor:
+                # Before a block that waits for the replays only they play; the shuffle's song comes after it.
+                waits = row and content.parse_time(row['at']) <= first
+                titles, early_titles = early_titles + ([] if waits else music_titles), []
+                if not waits:
+                    music_titles = []
                 music_sections.append({'id': 'section:music:' + previous, 'kind': 'music', 'title': 'Music',
-                                       'content_title': ' · '.join(dict.fromkeys(music_titles)) if not music_sections else '',
+                                       'content_title': ' · '.join(dict.fromkeys(titles)),
                                        'at': iso(cursor), 'not_before': None, 'duration': (end - cursor).total_seconds(),
                                        'next_section': row['id'] if row else None, 'members': [], 'placeholder': True,
                                        'estimated': True, 'status': 'PENDING', 'locked': False, 'skipped': False})

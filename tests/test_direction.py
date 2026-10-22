@@ -235,6 +235,21 @@ class DirectionTests(unittest.TestCase):
         self.assertTrue(any(r.get('placeholder') and r['kind'] == 'music' for r in snapshot['rows']))
         self.assertEqual(self.svc.editor.calls, 0)
 
+    def test_queued_replay_is_planned_before_a_waiting_edition(self):
+        self.add_news('one')
+        self.svc.current = {'kind': 'music', 'ref': '/tmp/current.wav', 'started': 1000, 'duration': 180}
+        self.svc.next_track = '/tmp/Artist - Shuffle.wav'
+        self.svc.replays['r1'] = {'kind': 'music', 'ref': '/tmp/Artist - Replay.wav', 'rid': '7', 'duration': 120}
+        with patch('radio.daemon.time.time', return_value=1100):
+            rows = self.svc._broadcast_plan()['rows']
+        news = next(r for r in rows if r['kind'] == 'news' and not r.get('placeholder'))
+        before = [r for r in rows if r['kind'] == 'music' and r['at'] < news['at']]
+        after = next(r for r in rows if r['kind'] == 'music' and r['at'] >= news['at'])
+        self.assertEqual(news['status'], 'READY')
+        self.assertEqual(news['at'], store.iso(self.AT + timedelta(seconds=80 + 120)))  # after the song and the replay
+        self.assertEqual([r['content_title'] for r in before], ['Artist - Replay'])
+        self.assertEqual(after['content_title'], 'Artist - Shuffle')
+
     def test_saved_order_remains_the_same_and_does_not_duplicate_music_placeholder(self):
         self.svc.db.execute('INSERT INTO reminders(key,fired_at) VALUES(?,?)',
                             ('weather:slot:' + str(int(self.AT.timestamp())), store.iso(self.AT)))
