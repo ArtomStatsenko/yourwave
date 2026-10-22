@@ -62,8 +62,8 @@ def opener(air_time: datetime, station: str, recent: dict, seed: str) -> str:
 # Live, not a template read every time: each break picks one shape (stable per break), from saying nothing
 # to naming the last song.
 BACK_SELLS = ["Вы слушали {names}.", "Это были {names}.", "Только что звучали {names}."]
-LAST_SONG = ["Это была песня «{title}», {artist}.", "Только что звучали {artist} — «{title}».",
-             "{artist}, «{title}» — это было у нас в эфире."]
+LAST_SONG = ["Вы слушали {artist} — «{title}».", "Это был трек «{title}», исполнитель — {artist}.",
+             "Прозвучала песня «{title}» в исполнении {artist}."]  # no verb that agrees with the artist's gender
 SET_OPENERS = [
     "Дальше — {minutes} музыки без перерыва.",
     "А теперь — {minutes} музыки нон-стоп.",
@@ -78,15 +78,16 @@ NEW_SET_OPENERS = [
 ]
 FIRST_SONG = [" Начинаем с {artist}, «{title}».", " Первой прозвучит «{title}», {artist}.", " Открывает сет {artist}."]
 
-MUSIC_LINKS = ["Пусть дальше говорит музыка.", "Оставайтесь с нами — продолжаем слушать.",
-               "Ещё немного музыки для вашего дня.", "Устраивайтесь поудобнее, продолжим наш плейлист."]
+# Short, as a DJ says it between songs: no "playlist" or "selection" talk.
+MUSIC_LINKS = ["А мы продолжаем.", "Продолжаем.", "Дальше — снова музыка.", "Не переключайтесь."]
 
 
 def music_link(song: tuple[str, str] | None, facts: str, recent: dict, seed: str) -> str:
+    """A back-sell of the song that just played (the same phrases as before a break), an optional fact, a closer."""
     lead = ""
     if song:
         artist, title = song
-        lead = f"В этой подборке — «{_title(title)}», {_quoted(artist)}. "
+        lead = _rotate(LAST_SONG, "host_last", recent, seed).format(artist=_quoted(artist), title=_title(title)) + " "
     return lead + (facts + " " if facts else "") + _rotate(MUSIC_LINKS, "music_link", recent, seed)
 
 
