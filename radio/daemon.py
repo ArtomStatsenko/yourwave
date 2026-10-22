@@ -83,7 +83,8 @@ class Service:
         self.id_pending = False
         self.queued_break = None
         self.all_sources_checked = False  # set only after a *successful* check of every enabled source
-        self.resume_offset: dict[str, float] = {}  # ref -> seconds already played, for the song resumed at start
+        self.resume_offset: dict[str, float] = {}
+        self.weather_hold: dict[str, float] = {}  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
 
     # ---- lifecycle ----
     async def run(self) -> None:
@@ -589,7 +590,24 @@ class Service:
             changes = direction.edits(self.db) if plugins.on(self.cfg, 'air_direction') else {}
             if not any(changes.get(p['id'], {}).get('not_before') and changes[p['id']]['not_before'] <= iso(now()) for p in pkgs):
                 return []
+        if pkgs and not any(self._host_segment(p) == 'weather' for p in pkgs) and self._weather_pending(remaining):
+            return []
         return pkgs
+
+    def _weather_pending(self, remaining) -> bool:
+        """The break at the end of this song joins a weather slot (as the plan shows it) whose segment is not
+        ready: it waits for it one song, the one it first waited at, then airs without it."""
+        if not self._weather_enabled() or not self.current:
+            return False
+        air = now() + timedelta(seconds=max(0.0, remaining))
+        changes = direction.edits(self.db) if plugins.on(self.cfg, 'air_direction') else {}
+        for r in direction.weather_rows(self.db, self.cfg, now(), changes):
+            slot = content.parse_time(r['not_before'])
+            if changes.get(r['id'], {}).get('skipped') or not slot <= air < slot + timedelta(seconds=WEATHER_JOINS_SEC):
+                continue
+            self.weather_hold = {r['id']: self.weather_hold.get(r['id'], self.current['started'])}
+            return self.weather_hold[r['id']] == self.current['started']
+        return False
 
     async def schedule(self, immediate=False) -> None:
         if immediate:
@@ -944,8 +962,8 @@ class Service:
             timed = r["kind"] not in ("day", "weather")
             if timed_only and not timed:
                 continue
-            if not timed and remaining > REMIND_LATE_SEC:
-                continue
+            if r["kind"] == "day" and remaining > REMIND_LATE_SEC:
+                continue  # weather is rendered at once: the break that joins it waits for it (_weather_pending)
             if r.get("retry", 0) > time.time():
                 continue
             track, state = self.current, self.state

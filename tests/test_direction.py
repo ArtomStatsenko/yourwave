@@ -135,6 +135,41 @@ class DirectionTests(unittest.TestCase):
                     asyncio.run(loop())
                 self.assertEqual(github.call_count if loop == self.svc.trending_loop else horizon_run.call_count, expected)
 
+    def joined_break(self):
+        """A ready edition due at the end of the current song, and the 21:00 weather slot it joins, not rendered."""
+        plugins.set_plugin('weather', True)
+        pid = self.add_news('one')
+        self.svc.current = {'kind': 'music', 'ref': '/tmp/a.wav', 'started': 1000, 'duration': 200}
+        self.svc.set_started = 1000 - 3600
+        return pid
+
+    def test_break_waits_one_song_for_the_weather_it_joins(self):
+        pid = self.joined_break()
+        with patch('radio.daemon.time.time', return_value=1180):
+            self.assertEqual(self.svc._waiting_break(20), [])                  # weather not ready: wait
+            self.assertEqual(self.svc._waiting_break(10), [])                  # same song: still waiting
+        self.svc.current = {'kind': 'music', 'ref': '/tmp/b.wav', 'started': 1200, 'duration': 200}
+        with patch('radio.daemon.time.time', return_value=1380):
+            self.assertEqual([p['id'] for p in self.svc._waiting_break(20)], [pid])   # one song later: without it
+
+    def test_skipped_weather_does_not_hold_the_break(self):
+        pid = self.joined_break()
+        key = 'weather:slot:' + str(int(self.AT.timestamp()))
+        self.svc.db.execute("INSERT INTO air_plan(id,kind,skipped) VALUES(?,?,1)", (key, 'weather'))
+        with patch('radio.daemon.time.time', return_value=1180):
+            self.assertEqual([p['id'] for p in self.svc._waiting_break(20)], [pid])
+
+    def test_weather_is_rendered_as_soon_as_it_is_due(self):
+        plugins.set_plugin('weather', True)
+        self.svc.current = {'kind': 'music', 'ref': '/tmp/a.wav', 'started': 1000, 'duration': 200}
+        key = 'weather:slot:' + str(int(self.AT.timestamp()))
+        self.svc.reminders_due[key] = {'key': key, 'kind': 'weather', 'start': self.AT, 'expires': self.AT + timedelta(minutes=30),
+                                       'text': 'Далат: плюс 20 градусов, без дождя.', 'summary': 'Da Lat · 20° · clear'}
+        with patch('radio.audio.duration', return_value=5), patch('radio.audio.lufs', return_value=-16), \
+             patch.object(self.svc, '_render_weather', return_value=Path('/tmp/weather.wav')):
+            asyncio.run(self.svc._remind(180))                               # three minutes before the song ends
+        self.assertEqual(self.svc.db.execute("SELECT status FROM packages WHERE item_id=?", ('system:' + key,)).fetchone()[0], 'READY')
+
     def test_weather_and_multiple_sources_share_one_edition_and_skip(self):
         plugins.set_plugin('weather', True)
         news = [self.add_news(name) for name in ('technology', 'github')]
