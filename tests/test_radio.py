@@ -1145,7 +1145,8 @@ class SchedulingTests(unittest.TestCase):
         from unittest.mock import Mock, patch
         svc = self.svc
         text = "Коротко о погоде. Далат: плюс семнадцать градусов, пасмурно. Ветер два метра в секунду."
-        path = config.DATA_DIR / "cache/tts" / (svc.tts.cache_key(text) + ".wav")
+        spoken = text.replace("Далат: ", "Далат — ")  # the colon is spoken as a dash (it made the voice noisy)
+        path = config.DATA_DIR / "cache/tts" / (svc.tts.cache_key(spoken) + ".wav")
         path.write_bytes(b"noise")
         svc.tts.transcribe = Mock(side_effect=["Субтитры сделал кто-то", text])
         svc.tts.synthesize = Mock(side_effect=lambda text, path: path.write_bytes(b"speech"))

@@ -131,6 +131,8 @@ def cached_synthesize(tts, text: str, check=None) -> Path:
     engine is deterministic, so a text that came out as noise is retried with other punctuation (same words, same
     voice), then with neighbouring seeds. The first good take is cached under the original text."""
     text = pronounce(re.sub(r"https?://\S+", "", text, flags=re.I)).strip()
+    # The voice turns "Далат: плюс 16" into noise (measured: weather and reminders); a dash reads the same pause.
+    text = re.sub(r"(?<=\w):\s+", " — ", text)
     if not text:
         raise ValueError("No speakable text after removing links")
     out = config.DATA_DIR / "cache/tts" / f"{tts.cache_key(text)}.wav"
