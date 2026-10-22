@@ -27,6 +27,7 @@ class DirectionTests(unittest.TestCase):
         self.svc.library = set()
         self.svc.state = 'PLAYING'
         plugins.set_plugin('air_direction', True)
+        plugins.set_plugin('weather', False)  # AT is a weather slot: weather would join the news; weather tests switch it on
         clock = patch('radio.daemon.now', return_value=self.AT)
         self.clock = clock.start()
         self.addCleanup(clock.stop)
@@ -135,6 +136,7 @@ class DirectionTests(unittest.TestCase):
                 self.assertEqual(github.call_count if loop == self.svc.trending_loop else horizon_run.call_count, expected)
 
     def test_weather_and_multiple_sources_share_one_edition_and_skip(self):
+        plugins.set_plugin('weather', True)
         news = [self.add_news(name) for name in ('technology', 'github')]
         self.svc.db.execute("UPDATE items SET source='horizon' WHERE id='technology'")
         self.svc.db.execute("UPDATE items SET source='github_trending' WHERE id='github'")
@@ -219,12 +221,13 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(self.svc.editor.calls, 0)
 
     def test_timeline_plan_uses_ready_bulletins_player_selection_and_nearby_clock_slots(self):
+        plugins.set_plugin('weather', True)
         ids = [self.add_news(x) for x in ('one', 'two')]
         self.svc.next_track = '/tmp/Artist - Selected.wav'
         snapshot = self.svc._broadcast_plan()
-        bulletin = next(r for r in snapshot['rows'] if r['kind'] == 'news')
-        self.assertEqual(set(bulletin['members']), set(ids))
-        self.assertEqual(bulletin['status'], 'READY')
+        edition = next(r for r in snapshot['rows'] if set(ids) <= set(r.get('content_members', [])))
+        self.assertEqual(edition['kind'], 'weather')                    # the 21:00 clock slot takes the ready news along
+        self.assertFalse(any(r['kind'] == 'news' and r['at'] == edition['at'] for r in snapshot['rows']))
         selected = next(r for r in snapshot['rows'] if r['kind'] == 'music' and r['content_title'])
         self.assertFalse(selected['locked'])
         self.assertEqual(selected['title'], 'Music')
@@ -310,7 +313,48 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(news[0]['at'], store.iso(when))
         self.assertEqual(news[0]['status'], 'READY')
 
+    def weather_and_news(self, seconds_after):
+        """The 17:00 UTC weather slot (not prepared yet) and a ready edition `seconds_after` it."""
+        pid = self.add_news('one')
+        edition = next(r for r in self.svc._broadcast_plan()['rows'] if pid in [*r['members'], *r.get('content_members', [])])
+        slot = self.AT + timedelta(hours=3)
+        self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,?,?)", (edition['id'], 'news', store.iso(slot + timedelta(seconds=seconds_after))))
+        plugins.set_plugin('weather', True)
+        return pid, edition['id'], slot
+
+    def test_news_right_after_a_weather_slot_is_one_edition(self):
+        pid, section, slot = self.weather_and_news(72)
+        rows = self.svc._broadcast_plan()['rows']
+        clock = next(r for r in rows if r['kind'] == 'weather' and r['at'] == store.iso(slot))
+        self.assertIn(pid, clock['content_members'])
+        self.assertIn(section, clock['edition_news_ids'])
+        self.assertFalse(any(r['kind'] == 'news' and slot <= content.parse_time(r['at']) < slot + timedelta(minutes=5) for r in rows))
+        self.clock.return_value = slot - timedelta(minutes=3)
+        self.assertTrue(self.svc._news_preparation_due(300))              # the edition inside still gets prepared
+
+    def test_news_well_after_a_weather_slot_stays_apart(self):
+        pid, section, slot = self.weather_and_news(6 * 60)
+        rows = self.svc._broadcast_plan()['rows']
+        self.assertNotIn(pid, next(r for r in rows if r['kind'] == 'weather' and r['at'] == store.iso(slot)).get('content_members', []))
+        self.assertTrue(any(r['id'] == section for r in rows))
+
+    def test_moving_or_skipping_the_joint_edition_acts_on_the_news_too(self):
+        pid, section, slot = self.weather_and_news(72)
+        snap = self.svc._broadcast_plan()
+        clock = next(r for r in snap['rows'] if r['kind'] == 'weather' and r['at'] == store.iso(slot))
+        later = slot + timedelta(minutes=40)
+        self.save_plan(snap, [{'id': clock['id'], 'at': store.iso(later)}])
+        moved = self.svc.db.execute('SELECT not_before FROM air_plan WHERE id=?', (section,)).fetchone()[0]
+        self.assertEqual(moved, store.iso(later))
+        snap = self.svc._broadcast_plan()
+        clock = next(r for r in snap['rows'] if r['kind'] == 'weather' and r['at'] == store.iso(later))
+        self.assertIn(pid, clock['content_members'])
+        self.save_plan(snap, [{'id': clock['id'], 'at': clock['at'], 'skipped': True}])
+        self.assertEqual(self.svc.db.execute('SELECT skipped FROM air_plan WHERE id=?', (section,)).fetchone()[0], 1)
+        self.assertTrue(all(r['skipped'] for r in self.svc._broadcast_plan()['rows'] if pid in [*r['members'], *r.get('content_members', [])]))
+
     def test_saved_order_remains_the_same_and_does_not_duplicate_music_placeholder(self):
+        plugins.set_plugin('weather', True)
         self.svc.db.execute('INSERT INTO reminders(key,fired_at) VALUES(?,?)',
                             ('weather:slot:' + str(int(self.AT.timestamp())), store.iso(self.AT)))
         self.add_news('one')
@@ -330,6 +374,7 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(len([r for r in saved['broadcast_plan']['rows'] if r['kind'] == 'news' and not r.get('placeholder')]), 1)
 
     def test_plan_save_is_atomic_and_rejects_changed_or_locked_snapshots(self):
+        plugins.set_plugin('weather', True)
         pid = self.add_news('one')
         self.svc.db.execute("UPDATE packages SET status='QUEUED' WHERE id=?", (pid,))
         self.svc.queued_break = ('90', [pid])
@@ -472,6 +517,7 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(self.svc.reminders_due[r['key']], r)
 
     def test_weather_skip_discards_waiting_report_and_allows_the_next_slot(self):
+        plugins.set_plugin('weather', True)
         from unittest.mock import AsyncMock
         self.svc.engine = Mock(push_replay=AsyncMock())
         snap = self.svc._broadcast_plan()
@@ -936,6 +982,7 @@ class DirectionTests(unittest.TestCase):
         self.svc.engine.push_news.assert_not_awaited()
 
     def test_upcoming_obeys_edits_and_remains_available_without_experiment(self):
+        plugins.set_plugin('weather', True)
         ids = [self.add_news(x) for x in ('one', 'two', 'three')]
         self.command(action='skip', id=ids[0])
         due = store.iso(self.AT + timedelta(minutes=20))
@@ -1002,6 +1049,7 @@ class DirectionTests(unittest.TestCase):
             self.command(action='insert', kind='text', ref='', text='x', at=store.iso(self.AT - timedelta(days=2)))
 
     def test_generic_weather_job_does_not_shift_clock_slots(self):
+        plugins.set_plugin('weather', True)
         from unittest.mock import AsyncMock
         due = store.iso(self.AT)
         key = self.command(action='insert', kind='weather', ref='', at=due)['id']
@@ -1020,6 +1068,7 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(slots[0]['id'], 'weather:slot:' + str(int(self.AT.timestamp())))
 
     def test_wall_clock_slots_skip_missed_windows_and_persist(self):
+        plugins.set_plugin('weather', True)
         self.assertEqual(weather.slot(self.AT - timedelta(minutes=1), 'Asia/Ho_Chi_Minh').hour, 18)
         with patch.object(weather, 'fetch') as fetch:
             self.clock.return_value = self.AT - timedelta(minutes=1)
@@ -1073,6 +1122,7 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(self.svc.db.execute('SELECT state FROM items').fetchone()[0], 'NEW')
 
     def test_disabled_experiment_cancels_unstarted_insert_and_keeps_plan(self):
+        plugins.set_plugin('weather', True)
         from unittest.mock import AsyncMock
         key = self.command(action='insert', kind='weather', ref='', at=store.iso(self.AT))['id']
         self.svc.db.execute("UPDATE air_plan SET status='QUEUED',rid='71' WHERE id=?", (key,))

@@ -25,6 +25,7 @@ VOICE_LEAD_SEC = 5 * 60
 LATE_ASSEMBLY_SEC = 60  # a news break (time check, next song) is assembled when the song has this much left
 REMIND_LATE_SEC = 40    # optional host inserts wait; timed reminders need enough time for synthesis
 BREAK_SEP = "|"         # a break airs several packages as one request: ref = their ids joined
+WEATHER_JOINS_SEC = 300  # a news section this soon after a weather slot airs in the same edition
 PLAN_HOURS = 12         # how far ahead the plan shows (and lets you edit) sections, reminders and weather
 RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
@@ -573,7 +574,7 @@ class Service:
             return False
         deadline = now() + timedelta(seconds=lead)
         # Use the editor's real section forecast so moving or skipping a section also moves preparation.
-        return any(r['kind'] == 'news' and not r['skipped'] and r['status'] not in ('QUEUED', 'PREPARING')
+        return any((r['kind'] == 'news' or r.get('edition_news_ids')) and not r['skipped'] and r['status'] not in ('QUEUED', 'PREPARING')
                    and content.parse_time(r['at']) <= deadline for r in self._broadcast_plan()['rows'])
 
     def _live_settings(self) -> None:
@@ -1756,9 +1757,14 @@ class Service:
                 block['members'] = list(dict.fromkeys([block['id'], *block['members']]))
                 block['id'] = block['id'].replace('section:news:future:', 'section:news:current:', 1)
         result = sections
-        for clock in [r for r in result if r['kind'] == 'weather' and (r['status'] == 'QUEUED' or any(p.get('item_id') == 'system:' + r['id'] and p['status'] == 'READY' for p in plan))]:
+        # Weather airs at the first song boundary after its time and takes the ready news along (_waiting_break),
+        # so a news section starting by then is the same edition: one block to skip or move.
+        # shortcut: "by then" is WEATHER_JOINS_SEC (about a song); use the real next boundaries if songs get longer.
+        for clock in [r for r in result if r['kind'] == 'weather']:
+            start = content.parse_time(clock['at'])
             merged = [r for r in result if r['kind'] == 'news' and r['skipped'] == clock['skipped'] and
-                      (r['at'] == clock['at'] or self.queued_break and clock.get('rid') == self.queued_break[0] and
+                      (start - timedelta(seconds=r['duration']) < content.parse_time(r['at']) < start + timedelta(seconds=WEATHER_JOINS_SEC)
+                       or self.queued_break and clock.get('rid') == self.queued_break[0] and
                        any(key in self.queued_break[1] for key in [*r['members'], *r.get('content_members', [])]))]
             if merged:
                 clock['edition_news_ids'] = [r['id'] for r in merged]
@@ -1797,7 +1803,7 @@ class Service:
             row['voice_ready'] = row['status'] == 'QUEUED' or bool(parts) and all(p['status'] in ('READY', 'QUEUED') for p in parts)
         self._edition_details(result, packages)
         result.sort(key=lambda r: (r['at'], not r['locked']))
-        version = hashlib.sha256(json.dumps([{k: r.get(k) for k in ('id', 'status', 'not_before', 'skipped')} for r in sorted(result, key=lambda r: r['id'])], sort_keys=True).encode()).hexdigest()[:20]
+        version = hashlib.sha256(json.dumps([{k: r.get(k) for k in ('id', 'status', 'not_before', 'skipped', 'locked')} for r in sorted(result, key=lambda r: r['id'])], sort_keys=True).encode()).hexdigest()[:20]
         return {'version': version, 'rows': result, 'starts_at': iso(boundary)}
 
     def _edition_details(self, rows, packages):
