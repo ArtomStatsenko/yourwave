@@ -46,6 +46,40 @@ DAY_PROMPT = """Ты ведущий радио. Коротко расскажи 
 Описание: <<<{description}>>>"""
 
 
+KEYED = {"deepseek": ("https://api.deepseek.com", "DEEPSEEK_API_KEY"), "xai": ("https://api.x.ai", "XAI_API_KEY")}
+
+
+def _keys_path():
+    return config.DATA_DIR / "llm_keys.json"
+
+
+def saved_key(provider: str) -> str:
+    try:
+        return json.loads(_keys_path().read_text()).get(provider, "")
+    except (FileNotFoundError, ValueError):
+        return ""
+
+
+def set_key(provider: str, key: str) -> None:
+    """An API key pasted on the Settings tab; "" removes it. Kept owner-only, never sent back to the page."""
+    key = key.strip()
+    if provider not in KEYED or len(key) > 300 or any(not 32 < ord(c) < 127 for c in key):
+        raise ValueError("Paste the API key as it is shown by the provider")
+    try:
+        keys = json.loads(_keys_path().read_text())
+    except (FileNotFoundError, ValueError):
+        keys = {}
+    if key:
+        keys[provider] = key
+    else:
+        keys.pop(provider, None)
+    tmp = _keys_path().with_suffix(".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(keys, f)
+    os.replace(tmp, _keys_path())
+
+
 def target(cfg: dict) -> dict:
     """The selected provider: root (no /v1), model, key. Read on every call, so a Settings change is live."""
     e = cfg["editor"]
@@ -55,6 +89,9 @@ def target(cfg: dict) -> dict:
         key = chatgpt.token() or e["openai_api_key"] or os.environ.get("OPENAI_API_KEY", "")
     elif e["provider"] == "openrouter":
         root, model, key = "https://openrouter.ai/api", e["openrouter_model"], openrouter.key()
+    elif e["provider"] in KEYED:
+        root, env = KEYED[e["provider"]]
+        model, key = e[e["provider"] + "_model"], saved_key(e["provider"]) or os.environ.get(env, "")
     elif e["provider"] == "ollama":
         root, model, key = e["base_url"], e["model"], ""
     else:

@@ -12,7 +12,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import chatgpt, config, openrouter, plugins, settings, ytmusic
+from . import chatgpt, config, editor, openrouter, plugins, settings, ytmusic
 from .timeline import timeline
 
 PAGE = Path(__file__).with_name("ui.html")
@@ -184,6 +184,12 @@ def serve(port: int) -> None:
                 resp = {"ok": True, "url": openrouter.login_url(f"http://127.0.0.1:{port}/openrouter/callback")}
             elif cmd == "chatgpt_login":  # OpenAI accepts only a 127.0.0.1 callback; the port may vary
                 resp = {"ok": True, "url": chatgpt.login_url(f"http://127.0.0.1:{port}/auth/callback")}
+            elif cmd == "llm_key":  # the key is stored, never echoed back
+                try:
+                    editor.set_key(str(body.get("provider", "")), str(body.get("key", "")))
+                except ValueError as e:
+                    return self._json({"ok": False, "error": str(e)}, 400)
+                resp = {"ok": True, "settings": settings.listing(cfg)}
             elif cmd == "chatgpt_logout":
                 chatgpt.sign_out()
                 resp = {"ok": True, "settings": settings.listing(cfg)}

@@ -15,6 +15,8 @@ SETTINGS = {
     # one model row per provider; the page shows the selected provider's
     "ollama_model": ("editor", "model", "Model", "A local Ollama model", 1, 200, None, ""),
     "openai_model": ("editor", "openai_model", "Model", "An OpenAI model", 1, 200, None, ""),
+    "deepseek_model": ("editor", "deepseek_model", "Model", "A DeepSeek model", 1, 200, None, ""),
+    "xai_model": ("editor", "xai_model", "Model", "A Grok model from xAI", 1, 200, None, ""),
     "openrouter_model": ("editor", "openrouter_model", "Model", "Any model on OpenRouter, billed to your OpenRouter "
                          "credits", 1, 200, None, ""),
     "music_set_minutes": ("broadcast", "music_set_minutes", "Music between breaks",
@@ -35,8 +37,9 @@ SETTINGS = {
 }
 
 
-CHOICES = {"llm_provider": ("ollama", "openai", "openrouter")}
-MODEL_ROWS = {"ollama": "ollama_model", "openai": "openai_model", "openrouter": "openrouter_model"}  # a text setting that is one of these: a drop-down on the page
+CHOICES = {"llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai")}
+MODEL_ROWS = {"ollama": "ollama_model", "openai": "openai_model", "openrouter": "openrouter_model",
+              "deepseek": "deepseek_model", "xai": "xai_model"}  # a text setting that is one of these: a drop-down on the page
 
 
 def _path():
@@ -122,6 +125,8 @@ def listing(cfg: dict) -> list[dict]:
             if provider == "openrouter":
                 row["action"] = ({"label": "Sign out of OpenRouter", "cmd": "openrouter_logout"} if openrouter.key()
                                  else {"label": "Sign in with OpenRouter", "cmd": "openrouter_login"})
+            elif provider in editor.KEYED:
+                row["key_field"] = {"provider": provider, "saved": bool(editor.saved_key(provider))}
             elif provider == "openai":
                 row["action"] = ({"label": "Sign out of ChatGPT", "cmd": "chatgpt_logout"} if chatgpt.signed_in()
                                  else {"label": "Sign in with ChatGPT", "cmd": "chatgpt_login"})
@@ -133,6 +138,8 @@ def _llm_note(live: dict) -> str:
     e = live["editor"]
     if e["provider"] == "openrouter":
         return ". Signed in" if openrouter.key() else ". Not signed in yet"
+    if e["provider"] in editor.KEYED:
+        return ". API key saved" if editor.target(live)["key"] else ". Paste your API key below"
     if e["provider"] == "openai":
         if chatgpt.signed_in():
             return ". Signed in with ChatGPT: uses your ChatGPT plan"

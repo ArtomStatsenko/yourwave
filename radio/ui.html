@@ -152,6 +152,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .st{display:grid;gap:4px;padding:16px 0;border-bottom:1px solid var(--line)}
 .st .hd2{display:flex;justify-content:space-between;gap:16px}.st .v{font-variant-numeric:tabular-nums;color:var(--accent)}
 .st input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0}
+.st .row input[type=password]{flex:1;width:auto;min-width:200px}
 .st input[type=url],.st input[type=password],.st input[type=text],.st select{box-sizing:border-box;width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
 .st .rs{border:0;padding:0 4px;font-size:16px;color:var(--accent);text-decoration:underline}.st .rs:hover{border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
@@ -395,13 +396,15 @@ function player(){
   $('er').textContent=st.last_error||'';
 }
 function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
-  var box=$('settings'),f=document.activeElement;if(!force&&box.contains(f)&&['range','text','select-one'].includes(f.type))return;  // not while dragging or typing
+  var box=$('settings'),f=document.activeElement;if(!force&&box.contains(f)&&['range','text','select-one','password'].includes(f.type))return;  // not while dragging or typing
   var u=function(s,v){return v+(s.unit?' '+s.unit:'')};
   box.innerHTML=stg.map(function(s){return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
     +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div>'
-    +(s.action?'<div class="row"><button type="button" data-act="'+esc(s.action.cmd)+'">'+esc(s.action.label)+'</button></div>':'')+'</div>'}).join('');if(force&&f&&f.id&&box.contains(f)===false&&$(f.id))$(f.id).focus({preventScroll:true})}
+    +(s.action?'<div class="row"><button type="button" data-act="'+esc(s.action.cmd)+'">'+esc(s.action.label)+'</button></div>':'')
+    +(s.key_field?'<label for="llm-key">API key</label><div class="row"><input type="password" id="llm-key" autocomplete="off" spellcheck="false" maxlength="300" placeholder="'+(s.key_field.saved?'saved · paste a new one to replace':'paste the key')+'">'
+      +'<button type="button" data-key="'+esc(s.key_field.provider)+'">save key</button>'+(s.key_field.saved?'<button type="button" class="rs" data-key-rm="'+esc(s.key_field.provider)+'">remove</button>':'')+'</div>':'')+'</div>'}).join('');if(force&&f&&f.id&&box.contains(f)===false&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
     $('audio-preset-hint').textContent=d.ok===false?d.error:'Applies after stop / play. Personal sounds stay on this Mac.';
@@ -413,7 +416,10 @@ $('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st}),value=s.step===null?r.value:+r.value;s.value=value;
   api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save'})};
-$('stg').onclick=function(e){var a=e.target.closest('[data-act]');
+$('stg').onclick=function(e){var k=e.target.closest('[data-key],[data-key-rm]');
+  if(k){var key=k.dataset.key?$('llm-key').value:'';if(k.dataset.key&&!key.trim()){$('llm-key').focus();return}$('llm-key').value='';
+    api('/api/cmd',{cmd:'llm_key',provider:k.dataset.key||k.dataset.keyRm,key:key}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save the key'});return}
+  var a=e.target.closest('[data-act]');
   if(a){api('/api/cmd',{cmd:a.dataset.act}).then(function(d){if(d.url){location.href=d.url;return}  // same tab: no popup to block; the callback page links back
       if(d.settings)stg=d.settings;settingsView(true)}).catch(function(){$('er').textContent='could not reach the radio'});return}
   var b=e.target.closest('[data-rs]');if(!b)return;

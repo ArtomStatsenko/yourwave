@@ -1317,6 +1317,26 @@ class LlmProviderTests(unittest.TestCase):
                                 "max_output_tokens": 50, "text": {"format": {"type": "json_object"}}})])
         self.assertEqual((answer["choices"][0]["message"]["content"], answer["usage"]["completion_tokens"]), ('{"ok": 1}', 2))
 
+    def test_deepseek_key_pasted_in_settings(self):
+        from radio import editor, settings
+        with self.assertRaises(ValueError):
+            editor.set_key("deepseek", "bad key\n")
+        with self.assertRaises(ValueError):
+            editor.set_key("ollama", "sk-x")
+        editor.set_key("deepseek", " sk-deep ")
+        self.assertEqual((config.DATA_DIR / "llm_keys.json").stat().st_mode & 0o777, 0o600)
+        settings.set_setting("llm_provider", "deepseek")
+        cfg = config.load()
+        settings.apply(cfg, settings.base(config.load()))
+        self.assertEqual(editor.target(cfg), {"provider": "deepseek", "root": "https://api.deepseek.com",
+                                              "model": "deepseek-flash", "key": "sk-deep"})
+        rows = {r["key"]: r for r in settings.listing(config.load())}
+        self.assertEqual(rows["llm_provider"]["key_field"], {"provider": "deepseek", "saved": True})
+        self.assertNotIn("sk-deep", json.dumps(rows))  # the key never goes back to the page
+        self.assertIn("deepseek_model", rows)
+        editor.set_key("deepseek", "")
+        self.assertEqual(editor.saved_key("deepseek"), "")
+
     def test_sign_in_with_chatgpt(self):
         import io
         import urllib.parse
