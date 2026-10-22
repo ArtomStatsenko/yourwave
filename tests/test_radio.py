@@ -1333,9 +1333,38 @@ class LlmProviderTests(unittest.TestCase):
         rows = {r["key"]: r for r in settings.listing(config.load())}
         self.assertEqual(rows["llm_provider"]["key_field"], {"provider": "deepseek", "saved": True})
         self.assertNotIn("sk-deep", json.dumps(rows))  # the key never goes back to the page
-        self.assertIn("deepseek_model", rows)
+        self.assertNotIn("deepseek_model", rows)  # no model row until the provider has answered
         editor.set_key("deepseek", "")
         self.assertEqual(editor.saved_key("deepseek"), "")
+
+    def test_connection_state_for_the_settings_page(self):
+        import io
+        import urllib.error
+        import urllib.request
+        from unittest.mock import patch
+        from radio import editor
+        cfg = config.load()
+        cfg["editor"]["provider"] = "deepseek"
+        self.assertEqual(editor.connection(cfg)["state"], "no_key")
+        editor.set_key("deepseek", "sk-1")
+        answers = {"sk-1": lambda: io.BytesIO(b'{"data": [{"id": "deepseek-flash"}, {"id": "deepseek-v4-pro"}]}'),
+                   "sk-2": lambda: (_ for _ in ()).throw(urllib.error.HTTPError("u", 401, "no", {}, None)),
+                   "sk-3": lambda: (_ for _ in ()).throw(urllib.error.URLError("down"))}
+
+        def settled():
+            for _ in range(100):
+                c = editor.connection(cfg)
+                if c["state"] != "checking":
+                    return c
+                time.sleep(0.02)
+        with patch.object(urllib.request, "urlopen", lambda req, timeout: answers[req.headers["Authorization"][7:]]()):
+            self.assertEqual(settled()["detail"], "Connected · 2 models")
+            cfg["editor"]["deepseek_model"] = "deepseek-x"
+            self.assertEqual(settled()["state"], "no_model")
+            editor.set_key("deepseek", "sk-2")
+            self.assertEqual(settled()["state"], "bad_key")
+            editor.set_key("deepseek", "sk-3")
+            self.assertEqual(settled()["detail"], "Can't reach api.deepseek.com")
 
     def test_sign_in_with_chatgpt(self):
         import io
@@ -1413,10 +1442,13 @@ class SignInTests(unittest.TestCase):
             openrouter.finish(state, "the-code")  # a state is used once
 
         settings.set_setting("llm_provider", "openrouter")
-        editor._models[("openrouter", "https://openrouter.ai/api")] = (time.time(), ["anthropic/claude-sonnet-5.5"])
+        fp = hashlib.sha256(b"sk-or-v1-test").hexdigest()[:12]
+        editor._checks[("openrouter", "https://openrouter.ai/api", fp)] = {
+            "at": time.time(), "state": "ok", "detail": "Connected · 1 models", "ids": ["anthropic/claude-sonnet-5.5"]}
         rows = {r["key"]: r for r in settings.listing(config.load())}
         self.assertNotIn("ollama_model", rows)
-        self.assertEqual(rows["openrouter_model"]["options"], ["anthropic/claude-sonnet-5.5", "openai/gpt-4.1-mini"])
+        self.assertEqual(rows["openrouter_model"]["options"], ["anthropic/claude-sonnet-5.5"])  # only what it offers
+        self.assertEqual(rows["llm_provider"]["connection"]["state"], "no_model")  # the default is not offered
         self.assertEqual(rows["llm_provider"]["action"]["cmd"], "openrouter_logout")
         cfg = config.load()
         settings.set_setting("openrouter_model", "anthropic/claude-sonnet-5.5")

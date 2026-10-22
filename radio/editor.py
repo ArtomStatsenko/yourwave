@@ -7,6 +7,8 @@ import os
 import re
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 
 from . import chatgpt, config, openrouter
@@ -99,28 +101,51 @@ def target(cfg: dict) -> dict:
     return {"provider": e["provider"], "root": root.rstrip("/").removesuffix("/v1"), "model": model, "key": key}
 
 
-_models: dict[tuple, tuple[float, list[str]]] = {}  # (provider, root) -> (fetched at, model ids)
+TITLES = {"ollama": "Ollama (local)", "openai": "OpenAI", "openrouter": "OpenRouter", "deepseek": "DeepSeek",
+          "xai": "xAI Grok"}
+_checks: dict[tuple, dict] = {}  # (provider, root, key fingerprint) -> {"at", "state", "detail", "ids"}
 
 
-def models(cfg: dict) -> list[str]:
-    """The provider's model ids for the Settings drop-down. Never blocks the caller (the page polls status often):
-    returns what is cached and refreshes in the background every 10 minutes."""
+def connection(cfg: dict) -> dict:
+    """Is the selected provider usable, and which models does it offer? Asks GET /v1/models: it proves both the
+    address and the key. Never blocks the caller (the page polls often): returns the cached answer and re-checks
+    in the background (a new key is a new entry, so it is checked at once; then every 10 minutes, or 1 on error)."""
     t = target(cfg)
-    k = (t["provider"], t["root"])
-    at, ids = _models.get(k, (0.0, []))
-    if time.time() - at > 600:
-        _models[k] = (time.time(), ids)  # one fetch at a time
+    k = (t["provider"], t["root"], hashlib.sha256(t["key"].encode()).hexdigest()[:12])
+    host = urllib.parse.urlparse(t["root"]).netloc
+    if t["provider"] != "ollama" and not t["key"]:
+        return {"state": "no_key", "detail": "Not signed in yet" if t["provider"] in ("openai", "openrouter")
+                else "No API key yet", "ids": []}
+    c = _checks.get(k)
+    if c is None or time.time() - c["at"] > (600 if c["state"] == "ok" else 60):
+        old = c or {"state": "checking", "detail": "Checking…", "ids": []}
+        _checks[k] = dict(old, at=time.time())  # one check at a time
 
-        def fetch():
+        def check():
             req = urllib.request.Request(t["root"] + "/v1/models",
                                          headers={"Authorization": "Bearer " + t["key"]} if t["key"] else {})
             try:
                 with urllib.request.urlopen(req, timeout=15) as r:
-                    _models[k] = (time.time(), sorted(m["id"] for m in json.load(r)["data"]))
+                    ids = sorted(m["id"] for m in json.load(r)["data"])
+                new = {"state": "ok", "detail": f"Connected · {len(ids)} models", "ids": ids}
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403) and t["provider"] == "openai" and chatgpt.signed_in():
+                    new = {"state": "ok", "detail": "Signed in with ChatGPT", "ids": []}  # its token lists no models
+                else:
+                    new = {"state": "bad_key", "detail": "The provider rejected this key", "ids": []} if e.code in (401, 403) \
+                        else {"state": "unreachable", "detail": f"{host} answered {e.code}; try again later", "ids": []}
             except (OSError, ValueError, KeyError, TypeError):
-                _models[k] = (time.time() - 540, ids)  # retry in a minute
-        threading.Thread(target=fetch, daemon=True).start()
-    return ids
+                new = {"state": "unreachable", "detail": f"Can't reach {host}", "ids": []}
+            _checks[k] = dict(new, at=time.time())
+        threading.Thread(target=check, daemon=True).start()
+    c = _checks[k]
+    if c["state"] == "ok" and c["ids"] and t["model"] not in c["ids"]:
+        return dict(c, state="no_model", detail=f"{t['model']} is not offered by {TITLES[t['provider']]}; pick a model")
+    return c
+
+
+def models(cfg: dict) -> list[str]:
+    return connection(cfg)["ids"]
 
 
 class Editor:

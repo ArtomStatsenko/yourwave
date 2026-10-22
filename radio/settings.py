@@ -112,16 +112,18 @@ def listing(cfg: dict) -> list[dict]:
     for k, s in SETTINGS.items():
         live[s[0]][s[1]] = value[k]
     provider = value["llm_provider"]
+    c = editor.connection(live)
     rows = []
     for k, s in SETTINGS.items():
-        if k in MODEL_ROWS.values() and k != MODEL_ROWS[provider]:
-            continue
+        if k in MODEL_ROWS.values() and (k != MODEL_ROWS[provider] or c["state"] not in ("ok", "no_model")):
+            continue  # a model is picked only once the provider answers, from what it offers
         row = {"key": k, "title": s[2], "hint": s[3], "min": s[4], "max": s[5], "step": s[6], "unit": s[7],
                "options": CHOICES.get(k), "value": value[k], "default": d[k]}
         if k == MODEL_ROWS[provider]:
-            row["options"] = sorted(set(editor.models(live)) | {value[k]})
+            row["options"] = c["ids"] or None  # None: a text field (a ChatGPT sign-in lists no models)
         if k == "llm_provider":
-            row["hint"] += _llm_note(live)
+            row["connection"] = {"state": c["state"], "detail": c["detail"], "models": len(c["ids"])}
+            row["active"] = {"provider_title": editor.TITLES[provider], "model": value[MODEL_ROWS[provider]]}
             if provider == "openrouter":
                 row["action"] = ({"label": "Sign out of OpenRouter", "cmd": "openrouter_logout"} if openrouter.key()
                                  else {"label": "Sign in with OpenRouter", "cmd": "openrouter_login"})
@@ -132,17 +134,3 @@ def listing(cfg: dict) -> list[dict]:
                                  else {"label": "Sign in with ChatGPT", "cmd": "chatgpt_login"})
         rows.append(row)
     return rows
-
-
-def _llm_note(live: dict) -> str:
-    e = live["editor"]
-    if e["provider"] == "openrouter":
-        return ". Signed in" if openrouter.key() else ". Not signed in yet"
-    if e["provider"] in editor.KEYED:
-        return ". API key saved" if editor.target(live)["key"] else ". Paste your API key below"
-    if e["provider"] == "openai":
-        if chatgpt.signed_in():
-            return ". Signed in with ChatGPT: uses your ChatGPT plan"
-        if not (e["openai_api_key"] or os.environ.get("OPENAI_API_KEY")):
-            return ". Not signed in yet (or put an API key in config.toml)"
-    return ""
