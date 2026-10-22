@@ -1,7 +1,9 @@
-"""EDIT mode: one local LLM call (Ollama) to retell a raw English description in simple Russian.
+"""EDIT mode: one LLM call to retell a raw English description in simple Russian. The provider is Ollama or any
+OpenAI-compatible API (cfg["editor"]["provider"]); both are spoken to with /v1/chat/completions.
 Never used for ready digests. Output is checked by code; on any doubt the caller gets None and skips."""
 import hashlib
 import json
+import os
 import re
 import urllib.request
 
@@ -42,15 +44,31 @@ DAY_PROMPT = """Ты ведущий радио. Коротко расскажи 
 Описание: <<<{description}>>>"""
 
 
+def target(cfg: dict) -> dict:
+    """The selected provider: root (no /v1), model, key. Read on every call, so a Settings change is live."""
+    e = cfg["editor"]
+    if e["provider"] == "openai":
+        root, model = e["openai_base_url"], e["openai_model"]
+        key = e["openai_api_key"] or os.environ.get("OPENAI_API_KEY", "")
+    elif e["provider"] == "ollama":
+        root, model, key = e["base_url"], e["model"], ""
+    else:
+        raise ValueError(f"unknown editor.provider {e['provider']}")
+    return {"provider": e["provider"], "root": root.rstrip("/").removesuffix("/v1"), "model": model, "key": key}
+
+
 class Editor:
     def __init__(self, cfg: dict):
-        e = cfg["editor"]
-        self.enabled, self.base_url, self.model = e["llm_enabled"], e["base_url"].rstrip("/"), e["model"]
-        self.max_calls = e["max_llm_calls_per_session"]
+        self.cfg = cfg  # the daemon's live dict: Settings changes reach it
+        self.max_calls = cfg["editor"]["max_llm_calls_per_session"]
         self.calls = 0
 
-    def _cache(self, prompt: str):
-        key = hashlib.sha256(f"{self.model}|{PROMPT_VERSION}|{prompt}".encode()).hexdigest()[:32]
+    @property
+    def enabled(self) -> bool:
+        return self.cfg["editor"]["llm_enabled"]
+
+    def _cache(self, prompt: str, t: dict):
+        key = hashlib.sha256(f"{t['provider']}|{t['model']}|{PROMPT_VERSION}|{prompt}".encode()).hexdigest()[:32]
         return config.DATA_DIR / "cache/edits" / f"{key}.txt"
 
     def retell(self, name: str, description: str, readme: str = "") -> str | None:
@@ -70,17 +88,24 @@ class Editor:
     def _ask(self, prompt: str, name: str = "") -> str | None:
         if not self.enabled:
             return None
-        cached = self._cache(prompt)
+        t = target(self.cfg)
+        cached = self._cache(prompt, t)
         if cached.exists():
             return cached.read_text(encoding="utf-8") or None
         if self.calls >= self.max_calls:
             return None
         self.calls += 1
-        body = json.dumps({"model": self.model, "prompt": prompt, "stream": False, "think": False,
-                           "options": {"temperature": 0, "num_predict": 200}}).encode()
-        req = urllib.request.Request(self.base_url + "/api/generate", body, {"Content-Type": "application/json"})
+        body = {"model": t["model"], "messages": [{"role": "user", "content": prompt}], "temperature": 0}
+        if t["provider"] == "ollama":
+            body.update(max_tokens=200, reasoning_effort="none")  # no "thinking": it eats the token budget
+        else:
+            body["max_completion_tokens"] = 200
+        headers = {"Content-Type": "application/json"}
+        if t["key"]:
+            headers["Authorization"] = "Bearer " + t["key"]
+        req = urllib.request.Request(t["root"] + "/v1/chat/completions", json.dumps(body).encode(), headers)
         with urllib.request.urlopen(req, timeout=180) as r:
-            raw = json.load(r).get("response", "")
+            raw = json.load(r)["choices"][0]["message"].get("content") or ""
             text = check(fix_name(raw, name) if name else raw)
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(text or "", encoding="utf-8")  # an empty file caches a SKIP: no second call

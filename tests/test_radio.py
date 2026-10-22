@@ -1248,6 +1248,69 @@ class JingleRotationTests(unittest.TestCase):
         self.assertTrue(all(a != b for a, b in zip(picks, picks[1:])))  # never twice in a row
 
 
+class LlmProviderTests(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import patch
+        tmp = tempfile.TemporaryDirectory(prefix="radio-llm-")
+        self.addCleanup(tmp.cleanup)
+        p = patch.object(config, "DATA_DIR", Path(tmp.name))
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_provider_switch_reaches_editor_and_horizon_proxy(self):
+        import io
+        import threading
+        import urllib.request
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from unittest.mock import patch
+        from radio import editor, ollama_proxy, settings
+        cfg = config.load()
+        cfg["editor"].update(openai_api_key="sk-test", openai_base_url="http://upstream.test/v1")
+        t = editor.target(cfg)
+        self.assertEqual((t["provider"], t["root"], t["model"]), ("ollama", "http://127.0.0.1:11434", "qwen3.5:4b"))
+        with self.assertRaises(ValueError):
+            settings.set_setting("llm_provider", "nope")
+        settings.set_setting("llm_provider", "openai")
+        settings.apply(cfg, settings.base(config.load()))
+        self.assertEqual(editor.target(cfg), {"provider": "openai", "root": "http://upstream.test", "model": "gpt-4.1-mini",
+                                              "key": "sk-test"})
+        seen = []
+
+        def fake_open(req, timeout):
+            seen.append((req.full_url, req.headers.get("Authorization"), json.loads(req.data)))
+            return io.BytesIO(json.dumps({"choices": [{"message": {"content": "Проект помогает быстро писать код."}}]}).encode())
+        with patch.object(urllib.request, "urlopen", fake_open):
+            self.assertEqual(editor.Editor(cfg)._ask("prompt"), "Проект помогает быстро писать код.")
+        url, auth, body = seen[0]
+        self.assertEqual((url, auth), ("http://upstream.test/v1/chat/completions", "Bearer sk-test"))
+        self.assertEqual((body["model"], body["max_completion_tokens"]), ("gpt-4.1-mini", 200))
+        self.assertNotIn("reasoning_effort", body)
+
+        got = []
+
+        class Upstream(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                got.append((self.path, self.headers.get("Authorization"), json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+        up = HTTPServer(("127.0.0.1", 0), Upstream)
+        threading.Thread(target=up.serve_forever, daemon=True).start()
+        cfg["editor"]["openai_base_url"] = f"http://127.0.0.1:{up.server_port}/v1"
+        proxy = ollama_proxy.start(0, lambda: editor.target(cfg))
+        try:
+            urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{proxy.server_port}/v1/chat/completions",
+                                                          json.dumps({"model": "qwen3.5:4b"}).encode(), {"Content-Type": "application/json"}))
+        finally:
+            proxy.shutdown()
+            up.shutdown()
+        self.assertEqual(got, [("/v1/chat/completions", "Bearer sk-test", {"model": "gpt-4.1-mini"})])
+
+
 class HorizonTests(unittest.TestCase):
     def test_briefing_items_retold(self):
         from radio import horizon

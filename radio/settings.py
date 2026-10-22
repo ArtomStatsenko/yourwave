@@ -10,6 +10,8 @@ from . import config
 SETTINGS = {
     "station_name": ("broadcast", "station_name", "Station name",
                      "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
+    "llm_provider": ("editor", "provider", "AI provider",
+                     "Who retells news, repositories and calendar days. API keys stay in config.toml", 1, 20, None, ""),
     "music_set_minutes": ("broadcast", "music_set_minutes", "Music between breaks",
                           "How much music plays in a row before the next news break. More — breaks come less often",
                           5, 90, 5, "min"),
@@ -28,6 +30,9 @@ SETTINGS = {
 }
 
 
+CHOICES = {"llm_provider": ("ollama", "openai")}  # a text setting that is one of these: a drop-down on the page
+
+
 def _path():
     return config.DATA_DIR / "settings.json"
 
@@ -38,6 +43,8 @@ def _clamp(key: str, value) -> int | str:
         text = " ".join(str(value).split())[:hi]  # one line: the host reads it aloud
         if len(text) < lo:
             raise ValueError(f"{key}: enter {lo}-{hi} characters")
+        if key in CHOICES and text not in CHOICES[key]:
+            raise ValueError(f"{key}: one of {', '.join(CHOICES[key])}")
         return text
     return max(lo, min(hi, int(round(float(value)))))
 
@@ -91,5 +98,12 @@ def apply(cfg: dict, defaults: dict) -> None:
 def listing(cfg: dict) -> list[dict]:
     """For the page. cfg is a freshly loaded config (the defaults)."""
     saved, d = _saved(), base(cfg)
-    return [{"key": k, "title": s[2], "hint": s[3], "min": s[4], "max": s[5], "step": s[6], "unit": s[7],
+    return [{"key": k, "title": s[2], "hint": s[3] + (_llm_note(cfg) if k == "llm_provider" else ""), "min": s[4],
+             "max": s[5], "step": s[6], "unit": s[7], "options": CHOICES.get(k),
              "value": saved.get(k, d[k]), "default": d[k]} for k, s in SETTINGS.items()]
+
+
+def _llm_note(cfg: dict) -> str:
+    e = cfg["editor"]
+    key = e["openai_api_key"] or os.environ.get("OPENAI_API_KEY")
+    return f". Models: ollama {e['model']}, openai {e['openai_model']}" + ("" if key else " (no OpenAI key yet)")

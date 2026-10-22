@@ -8,7 +8,7 @@ import signal
 import subprocess
 from pathlib import Path
 
-from . import config, ollama_proxy
+from . import config, editor, ollama_proxy
 
 PROXY_PORT = 11435  # Horizon's data/config.json points ai.base_url here (see ollama_proxy)
 _proxy = None
@@ -33,7 +33,7 @@ def run(cfg: dict, timeout: int = 1800) -> Path:
     """One Horizon run. Returns the briefing file it wrote. Raises on failure."""
     global _proxy
     if _proxy is None:
-        _proxy = ollama_proxy.start(PROXY_PORT, cfg["editor"]["base_url"])
+        _proxy = ollama_proxy.start(PROXY_PORT, lambda: editor.target(cfg))
     h = folder(cfg)
     if not (h / "data/config.json").exists():
         raise RuntimeError(f"Horizon is not set up in {h}")
