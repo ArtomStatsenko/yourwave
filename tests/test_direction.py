@@ -230,7 +230,7 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(selected['title'], 'Music')
         self.assertEqual(selected['content_title'], 'Artist - Selected')
         self.assertTrue(all(r['id'].startswith('section:music:') for r in snapshot['rows'] if r['kind'] == 'music'))
-        self.assertEqual(len([r for r in snapshot['rows'] if r['kind'] == 'weather']), 2)
+        self.assertEqual(len([r for r in snapshot['rows'] if r['kind'] == 'weather']), 5)   # every 3 h over 12 h
         self.assertGreaterEqual(len(snapshot['rows']), 12)
         self.assertTrue(any(r.get('placeholder') and r['kind'] == 'music' for r in snapshot['rows']))
         self.assertEqual(self.svc.editor.calls, 0)

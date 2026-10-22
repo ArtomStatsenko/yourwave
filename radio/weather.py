@@ -11,6 +11,10 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 INTERVAL = timedelta(hours=3)
+# FM-style framing around the checked core "Город: плюс N градусов, условия." (the speech check reads all of it).
+OPENERS = ("Заглянем за окно. ", "Пара слов о погоде. ", "А на улице тем временем так. ", "Сверимся с небом. ", "")
+WET = {51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99}
+SNOW = {71, 73, 75, 77, 85, 86}
 CONDITIONS = {
     0: ("ясно", "clear"), 1: ("преимущественно ясно", "mainly clear"),
     2: ("переменная облачность", "partly cloudy"), 3: ("пасмурно", "overcast"),
@@ -77,7 +81,9 @@ def report(data: dict, city: str, at: datetime, display_city: str) -> dict:
         raise ValueError("missing weather city")
     degrees = ("плюс " if temp > 0 else "минус " if temp < 0 else "") + str(abs(temp))
     condition = CONDITIONS[code][0] + (", без дождя" if code in (0, 1, 2, 3) else "")
-    text = f"{city}: {degrees} {_unit(temp, ('градус', 'градуса', 'градусов'))}, {condition}."
+    tail = " Зонт сегодня точно пригодится." if code in WET else " Одевайся потеплее." if code in SNOW else ""
+    text = OPENERS[int(at.timestamp()) // 3600 % len(OPENERS)] + \
+        f"{city}: {degrees} {_unit(temp, ('градус', 'градуса', 'градусов'))}, {condition}.{tail}"
     display_city = re.sub(r"[^\w\s-]", "", display_city).strip()[:80]
     summary = f"{display_city} · {temp}° · {CONDITIONS[code][1]}"
     return {"key": f"weather:{int(at.timestamp())}", "kind": "weather", "start": at, "text": text,

@@ -25,6 +25,7 @@ VOICE_LEAD_SEC = 5 * 60
 LATE_ASSEMBLY_SEC = 60  # a news break (time check, next song) is assembled when the song has this much left
 REMIND_LATE_SEC = 40    # optional host inserts wait; timed reminders need enough time for synthesis
 BREAK_SEP = "|"         # a break airs several packages as one request: ref = their ids joined
+PLAN_HOURS = 12         # how far ahead the plan shows (and lets you edit) sections, reminders and weather
 RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
 
@@ -855,7 +856,7 @@ class Service:
             due += (reminders.calendar_due(self.cal_events, now(), lead) if name == "calendar"
                     else reminders.todoist_due(self.todoist_tasks, now(), lead))
         changes = direction.edits(self.db) if plugins.on(self.cfg, "air_direction") else {}
-        due += [r for r in self._reminder_candidates(now(), timedelta(hours=3))  # moved earlier in the plan (3 h)
+        due += [r for r in self._reminder_candidates(now(), timedelta(hours=PLAN_HOURS))  # moved earlier in the plan
                 if (moved := changes.get("reminder:" + r["key"], {}).get("not_before")) and moved <= iso(now())]
         for r in due:
             if r["key"] not in self.reminders_due and r["key"] not in self.queued_reminders and not self.db.execute(
@@ -1598,8 +1599,8 @@ class Service:
 
     def _broadcast_plan(self):
         at = now()
-        remaining = max(0, ((self.current or {}).get('duration') or 0) -
-                        ((self.paused_at if self.state == 'PAUSED' else time.time()) - (self.current or {}).get('started', time.time())))
+        cur = self.current
+        remaining = max(0, (cur.get('duration') or 0) - ((self.paused_at if self.state == 'PAUSED' else time.time()) - cur['started'])) if cur else 0
         boundary = at + timedelta(seconds=remaining)
         # Replays wait in the news queue: they air before a break or insert that is not queued ahead of them.
         replays = [r for r in self.replays.values() if not self.queued_break or int(r['rid'] or 0) < int(self.queued_break[0] or 0)]
@@ -1608,7 +1609,7 @@ class Service:
         news_at = first
         if not self._break_due(remaining, directed=False) and self.set_started:
             news_at = max(first, at + timedelta(seconds=max(0, interval - (time.time() - self.set_started))))
-        horizon = at + timedelta(hours=3)
+        horizon = at + timedelta(hours=PLAN_HOURS)
         plan = direction.rows(self.db, self.cfg, at)
         result, seen_rows = [], set()
         for r in plan:
@@ -1701,8 +1702,7 @@ class Service:
                            'rid': self.queued_reminders[key][0] if key in self.queued_reminders else None})
         # shortcut: future sets show the configured interval, not songs or speech that have not been prepared.
         future = news_at + timedelta(seconds=interval)
-        index = 1
-        while index <= 8:
+        while future <= horizon:
             anchor = int(future.timestamp() // interval)
             key = f'section:news:future:{anchor}'
             if not any(r['id'] == key or r['kind'] == 'news' and not r['skipped'] and abs((content.parse_time(r['at']) - future).total_seconds()) <= max(60, r['duration']) for r in result) and any(plugins.on(self.cfg, p) for p in ('horizon', 'github_trending', 'github_new')):
@@ -1710,7 +1710,6 @@ class Service:
                                'at': iso(future), 'not_before': None, 'estimated': True, 'duration': 60,
                                'status': 'PENDING', 'locked': False, 'skipped': False})
             future += timedelta(seconds=interval)
-            index += 1
         for row in result:
             if row['kind'] == 'news':
                 skip_id = 'news-skip:' + row['id']

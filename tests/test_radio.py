@@ -1318,7 +1318,10 @@ class WeatherTests(unittest.TestCase):
         data = self.data()
         report = weather.report(data, "Далат", self.AT, "Da Lat")
         self.assertEqual(report["summary"], "Da Lat · 21° · overcast")
-        self.assertEqual(report["text"], "Далат: плюс 21 градус, пасмурно, без дождя.")
+        self.assertTrue(report["text"].endswith("Далат: плюс 21 градус, пасмурно, без дождя."), report["text"])
+        openers = {weather.report({"current": {**data["current"], "time": int((self.AT + timedelta(hours=h)).timestamp())}},
+                                  "Далат", self.AT + timedelta(hours=h), "Da Lat")["text"].split("Далат")[0] for h in range(5)}
+        self.assertGreater(len(openers), 1)                              # the framing rotates by the hour
         self.assertEqual(report["expires"], self.AT + timedelta(minutes=30))
         for key, value in [("temperature_2m", None), ("temperature_2m", float('nan')),
                            ("weather_code", 4), ("time", 0)]:
@@ -1328,8 +1331,8 @@ class WeatherTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     weather.report(bad, "Далат", self.AT, "Da Lat")
         data["current"].update(temperature_2m=-12, weather_code=63)
-        self.assertEqual(weather.report(data, "Далат", self.AT, "Da Lat")["text"],
-                         "Далат: минус 12 градусов, дождь.")
+        self.assertTrue(weather.report(data, "Далат", self.AT, "Da Lat")["text"].endswith(
+            "Далат: минус 12 градусов, дождь. Зонт сегодня точно пригодится."))
 
     def test_fetch_uses_resolved_city_and_explicit_units(self):
         from radio import weather
