@@ -18,16 +18,17 @@ body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);p
 #direction-list .tx::before{content:none}
 #direction-list .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #direction-list .skipped .tx{color:var(--muted)}
-#direction-list .tg{display:grid;grid-template-columns:84px minmax(0,1fr) auto;align-items:center;gap:10px}
-#direction-list .plan-time{width:84px}
+#direction-list{--plan-pad:8px;--plan-time:84px;--plan-gap:10px;--plan-title-x:calc(var(--plan-pad) + var(--plan-time) + var(--plan-gap))}
+#direction-list .tg{display:grid;grid-template-columns:var(--plan-time) minmax(0,1fr) auto;align-items:center;gap:var(--plan-gap)}
+#direction-list .plan-time{width:var(--plan-time)}
 #direction-list button.plan-time{border:0;border-bottom:1px dashed var(--line);padding:0;color:var(--muted);font:inherit;font-size:16px;text-align:left}
-#direction-list .plan-actions{display:flex;flex-wrap:wrap;gap:8px;padding:4px 8px 12px 102px}
+#direction-list .plan-actions{display:flex;flex-wrap:wrap;gap:8px;padding:4px 8px 12px var(--plan-title-x)}
 #direction-list .plan-inline{display:flex;flex:none;gap:2px;padding-right:4px}
 #direction-list .plan-inline button{font-size:16px;width:32px;height:32px;padding:0;border:0}
 #direction-list .plan-inline button[aria-label="Confirm skip reminder"]{width:auto;min-width:64px;padding-inline:8px}
 #direction-list .plan-inline button:disabled{opacity:.3}
 #direction-list .plan-actions button{font-size:14px;padding:4px 8px}
-#direction-list .edition-segments{margin-left:102px}
+#direction-list .edition-segments{margin-left:var(--plan-title-x)}
 #direction-list .drag-target{box-shadow:inset 0 2px var(--accent)}
 #direction-list [draggable="true"]{cursor:grab}
 .plan-bar{justify-content:flex-end;margin-bottom:8px}
@@ -38,13 +39,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);p
 #direction-message:empty{display:none}
 #direction-controls details{margin:16px 0}
 #direction-controls summary{cursor:pointer;font-size:16px;color:var(--muted)}
-@media(pointer:coarse){#direction-list .plan-inline button{width:44px;height:44px}#direction-list .edition-toggle{min-height:44px}}
+@media(pointer:coarse){#direction-list .plan-inline button{width:44px;height:44px}#direction-list .edition-toggle,#direction-list .plan-fold{min-height:44px}}
 @media(max-width:640px){
-  #direction-list .tg{grid-template-columns:60px minmax(0,1fr);gap:4px 8px;padding-inline:0}
-  #direction-list .plan-time{width:60px}
+  #direction-list{--plan-pad:0px;--plan-time:60px;--plan-gap:8px}
+  #direction-list .tg{grid-template-columns:var(--plan-time) minmax(0,1fr);gap:4px var(--plan-gap);padding-inline:0}
   #direction-list .edition-toggle{white-space:normal;overflow-wrap:anywhere;line-height:24px}
   #direction-list .plan-readiness,#direction-list .skipped-label{grid-column:2;font-size:12px;line-height:18px;white-space:normal}
-  #direction-list .plan-actions,#direction-list .edition-segments{margin-left:0;padding-left:68px}
+  #direction-list .plan-actions,#direction-list .edition-segments{margin-left:0;padding-left:var(--plan-title-x)}
   #direction-list .plan-actions input{width:100%}
   #direction-list .plan-inline{padding-right:0;gap:0;align-self:flex-start}
   #direction-list .plan-inline button{width:36px;height:44px}
@@ -96,11 +97,10 @@ button:disabled{opacity:.4;cursor:default}button:disabled:hover{border-color:var
 .it{border:0}
 .reroll-track{display:inline-flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;padding:6px;border:0;color:var(--muted)}.reroll-track:hover{border:0;color:var(--accent)}
 #direction-list .music-spacer{height:4px}
-#direction-list .plan-fold{display:block;width:100%;min-height:40px;padding:0 0 0 102px;border:0;border-block:1px dashed var(--line);color:var(--muted);font:inherit;font-size:14px;text-align:left}
-#direction-list .plan-fold:hover{color:var(--accent)}
-@media(max-width:640px){#direction-list .plan-fold{padding-left:68px}}
+#direction-list .plan-fold{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:32px;padding:0 8px 0 var(--plan-title-x);border:0;background:none;color:var(--muted);font:inherit;font-size:16px;text-align:left;white-space:nowrap}
+#direction-list .plan-fold:hover{border:0;color:var(--accent)}
 #direction-list .next-track{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:8px}
-.skipped-label{flex:none;font-size:14px;color:var(--warn)}
+.skipped-label{flex:none;font-size:16px;color:var(--warn)}
 @media(pointer:coarse){.reroll-track{width:44px;height:44px}}
 .edition-toggle{padding:0;border:0;text-align:left;min-width:0}.edition-toggle:hover{border:0;color:var(--accent)}
 .edition-segments{padding-bottom:12px}.edition-segment{padding:6px 0}.edition-segment>span+span{margin-left:16px}.edition-segment p{overflow-wrap:anywhere}
@@ -246,6 +246,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 // so a row expanded by its id stays expanded across the 2-second refresh.
 var TOKEN="__TOKEN__";
 var planOpen={},planUnfolded={},rerollBusy=false,rerollError='';
+var PLAN_KIND={news:'host edition',jingle:'jingle',id:'jingle',reminder:'reminder',weather:'weather',text:'text'};
 var KIND={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
 var dirBlocks=[],dirLoaded=false,dirBusy=false,planDraft=null,planVersion=null,planDrag=null,planTimeId=null,planConfirm=null;
 var items=[],st={state:'STOPPED'},open={},busy=false,pls=[],stg=[],ytStatus={};
@@ -474,9 +475,15 @@ function directionView(){
       +(r.edition&&planOpen[r.id]?'<div class="ex edition-segments">'+(latest.segments||r.segments||[]).map(function(seg){return '<div class="edition-segment"><span>'+esc(seg.title)+'</span><span class="l">'+esc(planReadiness(seg))+'</span>'+(seg.items.length?'<p class="l">'+seg.items.map(esc).join(' · ')+'</p>':'')+'</div>'}).join('')+'</div>':'')
       +(r.error?'<p class="l err">'+esc(r.error)+'</p>':'')+'</div>'
   }),out=[],run=[];
-  function flush(){var blocks=run.filter(function(i){return rows[i].kind!=='music'});var key=run.length&&rows[run[0]].id;
-    if(blocks.length<2||planUnfolded[key]){if(blocks.length>1)out.push('<button type="button" class="plan-fold" data-plan-fold="'+esc(key)+'" aria-expanded="true">▴ Fold '+blocks.length+' blocks</button>');run.forEach(function(i){out.push(html[i])})}
-    else out.push('<button type="button" class="plan-fold" data-plan-fold="'+esc(key)+'" aria-expanded="false">⋯ '+blocks.length+' blocks · '+esc(clock(rows[blocks[0]].at))+'–'+esc(clock(rows[blocks[blocks.length-1]].at))+'</button>');
+  // Expansion is kept per row id: a run's first row changes as time passes and rows become pinned.
+  function flush(){var blocks=run.filter(function(i){return rows[i].kind!=='music'}),n=blocks.length,ids=run.map(function(i){return rows[i].id}).join('\n');
+    if(n<2){run.forEach(function(i){out.push(html[i])});run=[];return}
+    var from=clock(rows[blocks[0]].at),to=clock(rows[blocks[n-1]].at),kinds={};
+    blocks.forEach(function(i){var k=PLAN_KIND[rows[i].kind]||rows[i].kind;kinds[k]=(kinds[k]||0)+1});
+    var inside=Object.keys(kinds).map(function(k){return kinds[k]+' '+k+(kinds[k]>1?'s':'')}).join(', ');
+    var open=run.some(function(i){return planUnfolded[rows[i].id]});
+    out.push('<button type="button" class="plan-fold" data-plan-fold="'+esc(ids)+'" aria-expanded="'+open+'" title="'+esc(inside)+'" aria-label="'+esc((open?'Hide ':'Show ')+n+' blocks, '+from+' to '+to+': '+inside)+'"><span>'+(open?'Fold '+n:'⋯ '+n+' more · '+esc(from)+'–'+esc(to))+'</span><span aria-hidden="true">'+(open?'▴':'▾')+'</span></button>');
+    if(open)run.forEach(function(i){out.push(html[i])});
     run=[]}
   rows.forEach(function(r,i){if(pinned(r)){flush();out.push(html[i])}else run.push(i)});flush();
   box.innerHTML=out.join('')||'<p class="l">The next blocks will appear as the player prepares them.</p>';
@@ -496,7 +503,7 @@ function planMove(from,to){
 
   directionView();
 }
-$('plan-edit').onclick=function(){if(!st.broadcast_plan)return;planConfirm=null;planDraft=JSON.parse(JSON.stringify(st.broadcast_plan.rows));planVersion=st.broadcast_plan.version;$('direction-message').textContent='';directionView()};
+$('plan-edit').onclick=function(){if(!st.broadcast_plan)return;planConfirm=null;planUnfolded={};planDraft=JSON.parse(JSON.stringify(st.broadcast_plan.rows));planVersion=st.broadcast_plan.version;$('direction-message').textContent='';directionView()};
 $('plan-cancel').onclick=function(){planDraft=null;planTimeId=null;planConfirm=null;$('plan-add').open=false;$('direction-message').textContent='';directionView()};
 $('plan-save').onclick=function(){if(!planDraft||dirBusy)return;dirBusy=true;directionView();
   var changes=planDraft.map(function(r,i){return {id:r.id,kind:r.kind,text:r.text,at:r.at,skipped:r.skipped,rank:i,dirty:r.dirty,skip_only:!!r.locked,skip_confirmed:!!r.skipConfirmed}}).filter(function(r){return r.dirty}).map(function(r){delete r.dirty;return r});
@@ -510,7 +517,7 @@ $('direction-at').value=localInput();
 $('direction-form').onsubmit=function(e){e.preventDefault();if(!planDraft)return;var b=dirBlocks[+$('direction-block').value];if(!b)return;
   planDraft.push({id:'new:'+Date.now(),kind:b.kind,title:b.title,text:b.kind==='text'?$('direction-text').value:'',at:new Date($('direction-at').value).toISOString(),duration:30,status:'PENDING',dirty:true,skipped:false});planDraft.sort(function(a,b){return Date.parse(a.at)-Date.parse(b.at)});$('plan-add').open=false;directionView()
 };
-$('direction-list').onclick=function(e){if(e.target.closest('[data-reroll]')){rerollNext();return}var fold=e.target.closest('[data-plan-fold]');if(fold){planUnfolded[fold.dataset.planFold]=!planUnfolded[fold.dataset.planFold];directionView();return}var button=e.target.closest('[data-plan-action]');if(!button||!planDraft||dirBusy)return;var i=+button.closest('[data-plan-index]').dataset.planIndex,r=planDraft[i];
+$('direction-list').onclick=function(e){if(e.target.closest('[data-reroll]')){rerollNext();return}var fold=e.target.closest('[data-plan-fold]');if(fold){var show=fold.getAttribute('aria-expanded')!=='true';fold.dataset.planFold.split('\n').forEach(function(id){if(show)planUnfolded[id]=true;else delete planUnfolded[id]});directionView();return}var button=e.target.closest('[data-plan-action]');if(!button||!planDraft||dirBusy)return;var i=+button.closest('[data-plan-index]').dataset.planIndex,r=planDraft[i];
   if(button.dataset.planAction==='segments'){planOpen[r.id]=!planOpen[r.id];directionView()}else if(button.dataset.planAction==='time'){planTimeId=planTimeId===r.id?null:r.id;directionView()}else if(button.dataset.planAction==='skip'){if(r.kind==='reminder'&&!r.skipped&&planConfirm!==r.id){planConfirm=r.id;directionView();return}r.skipConfirmed=r.kind==='reminder'&&planConfirm===r.id;planConfirm=null;r.skipped=!r.skipped;r.dirty=true;directionView()}else planMove(i,i+(button.dataset.planAction==='up'?-1:1));
 };
 $('direction-list').onchange=function(e){if(!planDraft||e.target.type!=='datetime-local'||!e.target.value)return;var i=+e.target.closest('[data-plan-index]').dataset.planIndex;planDraft[i].at=new Date(e.target.value).toISOString();planDraft[i].estimated=false;planDraft[i].dirty=true};
