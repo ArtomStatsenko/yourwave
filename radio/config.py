@@ -170,6 +170,8 @@ def load(*, audio_preset: str | None = None) -> dict:
     # The spec's 300 s is the default; the settings page may raise it (settings.py) when breaks are made longer.
     if not 0 < b["max_spoken_seconds_per_rolling_hour"] <= 900:
         raise ValueError("max_spoken_seconds_per_rolling_hour must be in 1..900")
+    if cfg["editor"]["provider"] not in ("ollama", "openai", "openrouter", "deepseek", "xai"):
+        raise ValueError("editor.provider must be ollama, openai, openrouter, deepseek or xai")  # else a blank page
     if not 0 < cfg["sources"]["max_age_hours"] <= 24:
         raise ValueError("max_age_hours must be in 1..24")
     for d in ("inbox", "cache/tts", "cache/packages", "cache/scripts", "cache/edits", "logs", "run", "db"):
