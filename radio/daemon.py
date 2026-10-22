@@ -1233,9 +1233,9 @@ class Service:
         else:
             return {"ok": False, "error": "nothing to replay"}
         replay_id = f"r{time.time_ns()}"
+        duration = await asyncio.to_thread(self._song_seconds, ref)  # before the push: it may air at once
         rid = await self.engine.push_replay(Path(ref), "music", ref, gain, replay_id)
-        self.replays[replay_id] = {"kind": kind, "ref": ref, "rid": rid,
-                                   "duration": await asyncio.to_thread(self._song_seconds, ref)}
+        self.replays[replay_id] = {"kind": kind, "ref": ref, "rid": rid, "duration": duration}
         log("replay queued:", kind, ref)
         return {"ok": True, "status": self.status()}
 
@@ -1704,30 +1704,33 @@ class Service:
                 row['id'] = 'section:news:saved:' + row['id']
             row['content_title'] = row['title']
             row['title'] = {'news': 'News', 'weather': 'Weather', 'reminder': 'Reminder', 'jingle': 'Jingle'}.get(row['kind'], row['kind'].title())
-        news_sections = {}
+        news_sections = []
         stages = {'ERROR': 0, 'PENDING': 1, 'READY': 2, 'PREPARING': 3, 'QUEUED': 4}
         sections = []
         for row in result:
             if row['kind'] != 'news' or not row['id'].startswith('section:news:'):
                 sections.append(row)
                 continue
-            key = (row['at'], row['skipped'])
-            if key not in news_sections:
-                news_sections[key] = row
+            # Overlapping blocks are one edition, e.g. a saved slot and the real one; back-to-back ones stay apart.
+            start = content.parse_time(row['at'])
+            block = next((b for b in news_sections if b['skipped'] == row['skipped'] and
+                          content.parse_time(b['at']) < start + timedelta(seconds=row['duration']) and
+                          start < content.parse_time(b['at']) + timedelta(seconds=b['duration'])), None)
+            if not block:
+                news_sections.append(row)
                 sections.append(row)
                 continue
-            block = news_sections[key]
             block['members'] = list(dict.fromkeys([*block['members'], row['id'], *row['members']]))
             if block['id'].startswith('section:news:future:') and not row['id'].startswith('section:news:future:'):
                 block['members'].append(block['id'])
-                block['id'], block['skip_id'] = row['id'], row['skip_id']
+                block['id'], block['skip_id'], block['at'] = row['id'], row['skip_id'], row['at']
             block['content_members'] = list(dict.fromkeys([*block.get('content_members', []), *row.get('content_members', [])]))
             block['duration'] = max(block['duration'], row['duration'])
             block['legacy_members'] = list(dict.fromkeys([*block.get('legacy_members', []), *row.get('legacy_members', [])]))
             block['content_title'] = ' · '.join(dict.fromkeys(t for t in (block['content_title'], row['content_title']) if t and t != 'News'))
             block['locked'] = block['locked'] or row['locked']
             block['status'] = max((block['status'], row['status']), key=lambda stage: stages.get(stage, 0))
-        for block in news_sections.values():
+        for block in news_sections:
             if block['id'].startswith('section:news:future:') and content.parse_time(block['at']) <= boundary:
                 block['members'] = list(dict.fromkeys([block['id'], *block['members']]))
                 block['id'] = block['id'].replace('section:news:future:', 'section:news:current:', 1)

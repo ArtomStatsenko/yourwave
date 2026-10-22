@@ -1282,14 +1282,18 @@ class EndToEnd(unittest.TestCase):
         kept = None
 
         async def scenario():
-            task = asyncio.create_task(svc.run())
-            while not svc.current:
-                await asyncio.sleep(0.2)
+            # Real time: an unsynced file output plays a queued replay before unqueue is even sent.
+            from unittest.mock import patch
+            with patch.dict(os.environ, {"RADIO_FILE_SYNC": "realtime"}):
+                task = asyncio.create_task(svc.run())
+                while not svc.current:
+                    await asyncio.sleep(0.2)
             nonlocal kept
             kept, gone = sorted(f for f in svc.library if "track" in f)[:2]
             await svc.dispatch("replay", {"kind": "music", "ref": gone})
             await svc.dispatch("replay", {"kind": "music", "ref": kept})
             queued = (await svc.dispatch("unqueue", {"kind": "music", "ref": gone}))["status"]["replay_queue"]
+            await svc.engine.command("skip")
             deadline = time.time() + 30
             while svc.replays and time.time() < deadline:  # the kept one airs and leaves the queue
                 await asyncio.sleep(0.2)

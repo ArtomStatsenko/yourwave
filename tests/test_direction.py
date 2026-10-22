@@ -250,6 +250,21 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual([r['content_title'] for r in before], ['Artist - Replay'])
         self.assertEqual(after['content_title'], 'Artist - Shuffle')
 
+    def test_saved_slot_overlapping_the_edition_is_one_block(self):
+        pid = self.add_news('one')
+        plugins.set_plugin('horizon', True)
+        rows = self.svc._broadcast_plan()['rows']
+        edition = next(r for r in rows if pid in [*r['members'], *r.get('content_members', [])])
+        slot = next(r for r in rows if r['id'].startswith('section:news:future:'))
+        when = self.AT + timedelta(minutes=20)
+        self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,?,?)", (slot['id'], 'news', store.iso(when - timedelta(seconds=15))))
+        self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,?,?)", (edition['id'], 'news', store.iso(when)))
+        news = [r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'news' and content.parse_time(r['at']) < when + timedelta(minutes=5)]
+        self.assertEqual(len(news), 1)
+        self.assertEqual(news[0]['id'], edition['id'])
+        self.assertEqual(news[0]['at'], store.iso(when))
+        self.assertEqual(news[0]['status'], 'READY')
+
     def test_saved_order_remains_the_same_and_does_not_duplicate_music_placeholder(self):
         self.svc.db.execute('INSERT INTO reminders(key,fired_at) VALUES(?,?)',
                             ('weather:slot:' + str(int(self.AT.timestamp())), store.iso(self.AT)))
