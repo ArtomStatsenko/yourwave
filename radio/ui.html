@@ -142,9 +142,9 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .strip pre.idle{color:var(--muted)}
 #ruler{position:absolute;visibility:hidden;font-size:18px;white-space:pre;font-family:var(--mono)}
 #vzb{border:0;padding:8px 4px;font-size:16px;color:var(--muted);min-width:9ch;text-align:left}#vzb:hover{border:0;color:var(--accent)}
-.tabbar{display:flex;align-items:flex-end;gap:12px;border-bottom:1px solid var(--line)}
-.tabs{display:flex;gap:24px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin}
-#plan-edit{flex:none;border:0;background:none;min-height:36px;padding:4px 12px;font-size:16px;color:var(--muted)}#plan-edit:hover{border:0;color:var(--accent)}#plan-edit[hidden],#plan-edit[data-off]{display:none}
+.tabbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 12px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;flex-wrap:wrap;gap:0 24px;flex:1;min-width:0}   /* tabs wrap onto a second line, never scroll or hide */
+#plan-edit{flex:none;margin-left:auto;border:0;background:none;min-height:36px;padding:4px 12px;font-size:16px;color:var(--muted)}#plan-edit:hover{border:0;color:var(--accent)}#plan-edit[hidden],#plan-edit[data-off]{display:none}
 .tabs button{flex:none}
 [role="tabpanel"]{padding-top:16px}
 
@@ -157,7 +157,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .tabs button:hover{border:0;border-bottom:2px solid var(--muted)}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom:2px solid var(--accent)}
-@media(max-width:640px){.tabs{gap:12px}.tabs button{font-size:13px;letter-spacing:.02em}}
+@media(max-width:640px){.tabs{gap:0 16px;flex-basis:100%}#plan-edit{order:-1}.tabs button{font-size:14px;letter-spacing:.04em}}
 @media(pointer:coarse) and (max-width:640px){#direction-list .plan-inline button{width:44px}}
 .tl{max-height:min(65vh,680px);overflow-y:auto}
 #tl-panel:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 12px;align-items:start}
