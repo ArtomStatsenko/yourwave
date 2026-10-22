@@ -1431,8 +1431,17 @@ class Service:
         if slot.get('replay_id'):
             uri = uri.replace('annotate:', 'annotate:replay_id="' + slot['replay_id'] + '",', 1)
         self.rerolling = True
+        downloaded = None
         try:
+            if replacement.startswith('ytmusic:'):
+                # Download here: inside Liquidsoap's replace command the download blocks every engine command.
+                try:
+                    downloaded = await asyncio.to_thread(ytmusic.resolve, replacement.removeprefix('ytmusic:'))
+                except Exception:
+                    return {'ok': False, 'error': 'That song could not be loaded from YouTube Music. Try again.'}
+                uri = uri.removesuffix(replacement) + 'tmp:' + downloaded  # Liquidsoap removes it after airing
             rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
+            downloaded = None
             if slot.get('replay_id') in self.replays:
                 self.replays[slot['replay_id']].update(ref=replacement, rid=rid,
                                                        duration=await asyncio.to_thread(self._song_seconds, replacement))
@@ -1444,6 +1453,8 @@ class Service:
             return {'ok': False, 'error': 'Could not replace the next track. Try again.'}
         finally:
             self.rerolling = False
+            if downloaded:  # not handed to Liquidsoap
+                Path(downloaded).unlink(missing_ok=True)
         return await self.dispatch('status')
 
     def _direction_catalog(self):

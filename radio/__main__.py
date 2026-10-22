@@ -21,6 +21,8 @@ def send(cmd: str, timeout=10, **args) -> dict | None:
             return json.loads(s.makefile().readline())
     except (FileNotFoundError, ConnectionRefusedError):
         return None
+    except TimeoutError:  # busy, not stopped: the page must not offer to start a second radio
+        return {"ok": False, "error": "The radio did not answer in time. Try again."}
 
 
 def print_status(resp: dict | None) -> None:

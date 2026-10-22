@@ -51,6 +51,40 @@ class RerollTests(unittest.TestCase):
         self.assertIn('ref="/tmp/other.wav"', self.svc.engine.replace_music.call_args.args[1])
         self.assertEqual(self.svc.editor.calls, 0)
 
+    def test_youtube_music_replacement_is_downloaded_outside_the_engine(self):
+        plugins.set_plugin('reroll_next', True)
+        refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc']
+        self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
+        self.svc.library = set(refs)
+        self.svc.engine.music_choices.return_value = {r: f'annotate:kind="music",ref="{r}",liq_amplify="0 dB":{r}' for r in refs}
+        song = config.DATA_DIR / 'song.webm'
+        song.write_bytes(b'x')
+        with patch('radio.daemon.ytmusic.resolve', return_value=str(song)) as resolve:
+            self.assertTrue(self.reroll(refs[1])['ok'])
+        resolve.assert_called_once_with('ccccccccccc')
+        uri = self.svc.engine.replace_music.call_args.args[1]
+        self.assertTrue(uri.endswith(':tmp:' + str(song)), uri)            # a file: the engine does not download
+        self.assertIn('ref="ytmusic:ccccccccccc"', uri)
+        self.assertTrue(song.exists())                                      # Liquidsoap owns it now
+        self.svc.engine.replace_music.reset_mock()
+        with patch('radio.daemon.ytmusic.resolve', side_effect=ValueError('offline')):
+            self.assertIn('could not be loaded', self.reroll(refs[2])['error'])
+        self.svc.engine.replace_music.assert_not_awaited()
+        self.svc.engine.replace_music.side_effect = ValueError('STALE')
+        with patch('radio.daemon.ytmusic.resolve', return_value=str(song)):
+            self.assertFalse(self.reroll(refs[2])['ok'])
+        self.assertFalse(song.exists())                                     # not handed over: removed
+
+    def test_a_busy_radio_answers_with_an_error_not_a_crash(self):
+        import socket
+        from radio.__main__ import send
+        path = config.RUN_DIR / 'busy.sock'
+        with socket.socket(socket.AF_UNIX) as server:
+            server.bind(str(path))
+            server.listen()
+            with patch.object(config, 'SOCK', path):
+                self.assertIn('did not answer in time', send('status', timeout=.2)['error'])
+
     def test_stale_or_locked_transition_cannot_change_queue(self):
         plugins.set_plugin('reroll_next', True)
         self.assertFalse(self.reroll('/tmp/stale.wav')['ok'])
