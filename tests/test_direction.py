@@ -250,6 +250,51 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual([r['content_title'] for r in before], ['Artist - Replay'])
         self.assertEqual(after['content_title'], 'Artist - Shuffle')
 
+    def task_reminder(self, minutes):
+        plugins.set_plugin('reminders_todoist', True)
+        start = self.AT + timedelta(minutes=minutes)
+        self.svc.todoist_tasks = [{'id': 'call', 'content': 'Созвон с командой', 'due': {'date': start.strftime('%Y-%m-%dT%H:%M:%SZ')}}]
+        return next(r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'reminder'), start
+
+    def test_upcoming_reminder_is_planned_before_its_lead(self):
+        row, start = self.task_reminder(60)
+        self.assertEqual(row['at'], store.iso(start - timedelta(minutes=self.cfg['reminders']['lead_min'])))
+        self.assertEqual(row['content_title'], 'Созвон с командой')
+        self.assertFalse(self.svc.reminders_due)                            # shown, not yet due
+
+    def test_reminder_moved_earlier_becomes_due(self):
+        row, start = self.task_reminder(60)
+        snap = self.svc._broadcast_plan()
+        self.save_plan(snap, [{'id': row['id'], 'at': store.iso(self.AT + timedelta(minutes=5))}])
+        self.clock.return_value = self.AT + timedelta(minutes=5)
+        with patch.object(self.svc, '_expire_reminders', new_callable=AsyncMock):
+            asyncio.run(self.svc._reminders_tick())
+        self.assertIn(row['ref'], self.svc.reminders_due)
+
+    def test_reminder_moved_past_the_start_airs_until_the_end(self):
+        row, start = self.task_reminder(10)
+        snap = self.svc._broadcast_plan()
+        with self.assertRaises(ValueError):                                 # a task has 15 min after its time
+            self.save_plan(snap, [{'id': row['id'], 'at': store.iso(start + timedelta(minutes=15))}])
+        self.save_plan(snap, [{'id': row['id'], 'at': store.iso(start + timedelta(minutes=5))}])
+        r = {'key': row['ref'], 'kind': 'task', 'start': start, 'end': start, 'title': 'Созвон с командой'}
+        self.svc.reminders_due = {r['key']: r}
+        self.svc.engine = Mock(push_replay=AsyncMock(return_value='9'))
+        self.svc._render_notice = lambda text, fallback='': Path('/tmp/notice.wav')
+        self.svc.state = 'PLAYING'
+        self.assertFalse(asyncio.run(self.svc._remind(30)))                 # not before its new time
+        self.clock.return_value = start + timedelta(minutes=5)
+        self.assertTrue(asyncio.run(self.svc._remind(30)))
+        self.assertIn('шесть минут назад', self.svc.reminder_text[r['key']])  # airs 30 s later
+        self.assertIn(r['key'], self.svc.queued_reminders)
+        rows = self.svc._broadcast_plan()['rows']
+        self.assertEqual(next(x for x in rows if x['kind'] == 'reminder')['status'], 'QUEUED')
+        self.clock.return_value = start + timedelta(minutes=15)             # over: the queued notice is withdrawn
+        self.svc.engine.remove = AsyncMock()
+        asyncio.run(self.svc._expire_reminders())
+        self.assertFalse(self.svc.queued_reminders)
+        self.assertNotIn(r['key'], self.svc.reminders_due)
+
     def test_saved_slot_overlapping_the_edition_is_one_block(self):
         pid = self.add_news('one')
         plugins.set_plugin('horizon', True)

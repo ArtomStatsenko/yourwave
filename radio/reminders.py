@@ -203,7 +203,8 @@ def calendar_due(events: list[dict], now: datetime, lead: timedelta) -> list[dic
             for occ in occurrences(ev, now, now + lead + timedelta(seconds=1)):  # exactly `lead` away counts
                 if ev["recurrence_id"] or (ev["uid"], occ.replace(tzinfo=None)) not in moved:
                     out.append({"key": f"cal:{ev['uid']}:{occ.astimezone(timezone.utc):%Y%m%dT%H%M}",
-                                "title": ev["title"], "start": occ, "kind": "event"})
+                                "title": ev["title"], "start": occ, "kind": "event",
+                                "end": occ + (ev["end"] - ev["start"]) if ev.get("end") else occ})
         except ValueError:
             continue
     return sorted(out, key=lambda r: r["start"])
@@ -278,18 +279,56 @@ def todoist_due(tasks: list[dict], now: datetime, lead: timedelta, local=None) -
             continue
         if now <= at <= now + lead:
             out.append({"key": f"todoist:{t['id']}:{at.astimezone(timezone.utc):%Y%m%dT%H%M}",
-                        "title": t.get("content", ""), "start": at, "kind": "task",
+                        "title": t.get("content", ""), "start": at, "kind": "task", "end": at,
                         "description": t.get("description") or ""})
     return sorted(out, key=lambda r: r["start"])
 
 
 # ---------------------------------------------------------------------------------------------------- spoken text
-def say(r: dict, at: datetime, minutes_words) -> str | None:
-    """The reminder as the host says it when it airs at `at`; None if it has already started."""
+LATE = timedelta(minutes=15)  # a reminder moved past the start still airs until the end, or this long after a start
+
+BEFORE = {
+    "event": ("Кстати, через {when} — {title}. Самое время потихоньку закругляться.",
+              "Небольшая сверка с календарём: через {when} у тебя — {title}.",
+              "Пока играет музыка, напомню: через {when} — {title}."),
+    "task": ("И про дела: через {when} по плану — {title}.",
+             "Загляну в список дел: через {when} пора браться — {title}.",
+             "Через {when} в планах — {title}. Можно уже готовиться."),
+}
+NOW = {
+    "event": ("А вот и время — {title}. Начинается прямо сейчас.",
+              "Часы подсказывают: прямо сейчас — {title}."),
+    "task": ("Пора: по плану прямо сейчас — {title}.",
+             "Самое время взяться за дело — {title}."),
+}
+LATER = {
+    "event": ("Если ты ещё не там — {title} уже идёт, с начала прошло {when}.",
+              "Маленькое напоминание вдогонку: уже {when} как идёт — {title}."),
+    "task": ("Время для этого подошло {when} назад, но ещё не поздно — {title}.",
+             "Вдогонку из списка дел — {title}. По плану было {when} назад."),
+}
+
+
+def until(r: dict) -> datetime:
+    """The last moment a reminder still makes sense: the event's end, at least LATE after the start."""
+    return max(r.get("end") or r["start"], r["start"] + LATE)
+
+
+def say(r: dict, at: datetime, span_words) -> str | None:
+    """The reminder as the host says it when it airs at `at`: before, at or after the start (a reminder moved
+    later); None once it no longer makes sense. The phrasing rotates by the reminder's key."""
     minutes = round((r["start"] - at).total_seconds() / 60)
     title = clean_title(r["title"])
-    if minutes < 0 or not title:
+    if not title or at >= until(r):
         return None
-    when = "Сейчас" if minutes == 0 else f"Через {minutes_words(minutes)}"
-    # A dash, not a colon: the voice turns "минут: Название" into noise for some titles (measured).
-    return f"Напоминание. {when}{' задача' if r['kind'] == 'task' else ''} — {title}."
+    lines = (BEFORE if minutes > 0 else NOW if minutes == 0 else LATER)[r["kind"] if r["kind"] == "task" else "event"]
+    pick = int(hashlib.sha256(str(r.get("key") or title).encode()).hexdigest(), 16) % len(lines)
+    # A dash, not a colon, before the title: the voice turns "минут: Название" into noise for some titles (measured).
+    return lines[pick].format(when=span_words(abs(minutes)), title=title)
+
+
+def plain(r: dict, at: datetime, span_words) -> str:
+    """The shortest form, for a title the voice cannot read inside a longer phrase."""
+    minutes = round((r["start"] - at).total_seconds() / 60)
+    when = f"Через {span_words(minutes)}" if minutes > 0 else "Сейчас" if minutes == 0 else "Уже идёт"
+    return f"{when} — {clean_title(r['title'])}."

@@ -94,6 +94,16 @@ def minutes_words(n: int) -> str:
     return f"{num} {word}"
 
 
+def span_words(n: int) -> str:
+    """Like minutes_words, also past an hour: 60 -> "час", 125 -> "два часа пять минут" (up to a day)."""
+    hours, rest = divmod(n, 60)
+    if not hours:
+        return minutes_words(n)
+    word = "час" if hours % 10 == 1 and hours != 11 else "часа" if hours % 10 in (2, 3, 4) and hours not in (12, 13, 14) else "часов"
+    head = word if hours == 1 else f"{_num(hours)} {word}"
+    return f"{head} {minutes_words(rest)}" if rest else head
+
+
 def _title(title: str) -> str:
     """As said on air: without "(feat. X)", "[Official Video]" and the like."""
     return re.sub(r"\s*[(\[](feat|ft|prod|official|lyric|audio|video)[^)\]]*[)\]]", "", title, flags=re.I).strip()

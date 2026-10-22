@@ -571,11 +571,11 @@ class SchedulingTests(unittest.TestCase):
                 return "1"
         svc = self.svc
         svc.engine, svc.state = FakeEngine(), "PLAYING"
-        svc._render_notice = lambda text: Path("/tmp/notice.wav")
+        svc._render_notice = lambda text, fallback="": Path("/tmp/notice.wav")
         svc.cfg = dict(self.cfg, reminders=dict(self.cfg["reminders"], calendar_url="https://example.test/secret.ics",
                                                 todoist_token="tok"))
         soon = (datetime.now(timezone.utc) + timedelta(minutes=10)).strftime("%Y%m%dT%H%M%SZ")
-        ics = ReminderTests.ics(f"UID:e1\r\nSUMMARY:Планёрка\r\nDTSTART:{soon}")
+        ics = ReminderTests.ics(f"UID:e1\r\nSUMMARY:Стендап\r\nDTSTART:{soon}")
         real = reminders.fetch_ics, reminders.fetch_todoist
         reminders.fetch_ics, reminders.fetch_todoist = lambda url: ics, lambda token: []
         try:
@@ -587,14 +587,15 @@ class SchedulingTests(unittest.TestCase):
             self.assertTrue(asyncio.run(svc._remind(300.0)))                # prepare while TTS still has time
             key = pushed[0][1]
             self.assertEqual(pushed[0][0], "reminder")
-            self.assertIn("Через пять минут — Планёрка", svc.reminder_text[key])
+            self.assertIn("через пять минут", svc.reminder_text[key].lower())
+            self.assertIn("Стендап", svc.reminder_text[key])
             self.assertTrue(svc.id_pending and not svc.reminders_due)
             asyncio.run(svc._reminders_tick())
             self.assertEqual(svc.reminders_due, {})                         # announced once
             svc.on_event({"kind": "reminder", "ref": key})
             self.assertFalse(svc.id_pending)
             row = svc.db.execute("SELECT type, detail FROM events WHERE type='REMINDER' ORDER BY id DESC").fetchone()
-            self.assertIn("Планёрка", row["detail"])
+            self.assertIn("Стендап", row["detail"])
             from radio import plugins
             plugins.set_plugin("reminders_calendar", True)                 # switched on by hand without a link
             svc.cfg["reminders"]["calendar_url"] = ""                       # not set up: said in the status, nothing read
@@ -619,12 +620,12 @@ class SchedulingTests(unittest.TestCase):
         svc.current = {"kind": "music", "started": time.time(), "duration": 300}
         svc.engine = Mock(push_replay=AsyncMock(return_value="42"))
         svc.engine.remove = AsyncMock()
-        svc._render_notice = lambda text: Path("/tmp/notice.wav")
+        svc._render_notice = lambda text, fallback="": Path("/tmp/notice.wav")
         r = {"key": "todoist:early", "kind": "task", "start": at + timedelta(minutes=10), "title": "Созвон"}
         svc.reminders_due = {r["key"]: r}
         with patch.object(daemon, "now", return_value=at):
             self.assertTrue(asyncio.run(svc._remind(300)))
-        self.assertIn("Через пять минут", svc.reminder_text[r["key"]])
+        self.assertIn("через пять минут", svc.reminder_text[r["key"]].lower())
         self.assertIsNone(svc.db.execute("SELECT 1 FROM reminders WHERE key=?", (r["key"],)).fetchone())
         svc.state = "PAUSED"
         with patch.object(daemon, "now", return_value=r["start"] + timedelta(seconds=1)):
@@ -637,7 +638,7 @@ class SchedulingTests(unittest.TestCase):
         svc, at = self.svc, store.now()
         svc.current = {"kind": "music", "started": time.time(), "duration": 30}
         svc.engine = Mock(push_replay=AsyncMock(return_value="42"))
-        def render(text):
+        def render(text, fallback=""):
             svc.current = {"kind": "music", "started": time.time(), "duration": 240}
             return Path("/tmp/notice.wav")
         svc._render_notice = render
@@ -654,7 +655,7 @@ class SchedulingTests(unittest.TestCase):
         svc.state = "PLAYING"
         svc.current = {"kind": "music", "started": time.time(), "duration": 300}
         svc.engine = Mock(push_replay=AsyncMock(return_value="42"), remove=AsyncMock(), command=AsyncMock())
-        svc._render_notice = lambda text: Path("/tmp/notice.wav")
+        svc._render_notice = lambda text, fallback="": Path("/tmp/notice.wav")
         svc.cfg["reminders"]["todoist_token"] = "test"
         r = {"key": "todoist:pause", "kind": "task", "start": at + timedelta(minutes=10), "title": "Созвон"}
         svc.reminders_due = {r["key"]: r}
@@ -667,14 +668,14 @@ class SchedulingTests(unittest.TestCase):
         with patch.object(daemon, "now", return_value=at + timedelta(minutes=2)):
             asyncio.run(svc._resume())
             self.assertTrue(asyncio.run(svc._remind(300)))
-        self.assertIn("Через три минуты", svc.reminder_text[r["key"]])
+        self.assertIn("через три минуты", svc.reminder_text[r["key"]].lower())
 
     def test_slow_notice_missing_boundary_is_not_marked_as_announced(self):
         from unittest.mock import AsyncMock, Mock, patch
         svc, at = self.svc, store.now()
         svc.engine = Mock(push_replay=AsyncMock())
         clock = [at]
-        def render(text):
+        def render(text, fallback=""):
             clock[0] += timedelta(seconds=35)
             return Path("/tmp/notice.wav")
         svc._render_notice = render
@@ -696,7 +697,7 @@ class SchedulingTests(unittest.TestCase):
         svc.reminders_due = {r["key"]: r}
         svc.engine = Mock(push_replay=AsyncMock(return_value="42"))
         spoken = []
-        svc._render_notice = lambda text: spoken.append(text) or Path("/tmp/notice.wav")
+        svc._render_notice = lambda text, fallback="": spoken.append(text) or Path("/tmp/notice.wav")
         with patch.object(daemon, "now", return_value=at):
             self.assertTrue(asyncio.run(svc._remind(20)))
             svc.on_event({"kind": "reminder", "ref": r["key"]})
@@ -776,7 +777,7 @@ class SchedulingTests(unittest.TestCase):
                 pushed.append(ref)
 
         svc.engine = Engine()
-        svc._render_notice = lambda text: Path("/tmp/notice.wav")
+        svc._render_notice = lambda text, fallback="": Path("/tmp/notice.wav")
         svc.reminders_due = {
             "day:test": {"kind": "day", "start": at.replace(hour=0)},
             "cal:urgent": {"kind": "event", "start": at + timedelta(minutes=10), "title": "Встреча"},
@@ -1360,12 +1361,12 @@ class ReminderTests(unittest.TestCase):
         return [(r["title"], r["start"].astimezone(self.MSK).strftime("%H:%M")) for r in reminders.calendar_due(evs, self.NOW, self.LEAD)]
 
     def test_single_utc_and_all_day_events(self):
-        single = "UID:1\r\nSUMMARY:Планёрка\r\nDTSTART;TZID=Europe/Moscow:20261020T120000"
+        single = "UID:1\r\nSUMMARY:Стендап\r\nDTSTART;TZID=Europe/Moscow:20261020T120000"
         later = "UID:2\r\nSUMMARY:Позже\r\nDTSTART;TZID=Europe/Moscow:20261020T130000"
         utc = "UID:3\r\nSUMMARY:UTC\r\nDTSTART:20261020T090500Z"
         allday = "UID:4\r\nSUMMARY:Весь день\r\nDTSTART;VALUE=DATE:20261020"
         gone = "UID:5\r\nSUMMARY:Отменено\r\nSTATUS:CANCELLED\r\nDTSTART:20261020T090500Z"
-        self.assertEqual(self.due(single, later, utc, allday, gone), [("Планёрка", "12:00"), ("UTC", "12:05")])
+        self.assertEqual(self.due(single, later, utc, allday, gone), [("Стендап", "12:00"), ("UTC", "12:05")])
 
     def test_recurring_events(self):
         weekly = "UID:w\r\nSUMMARY:Еженедельная\r\nDTSTART;TZID=Europe/Moscow:20260106T120000\r\nRRULE:FREQ=WEEKLY;BYDAY=TU,TH"
@@ -1467,12 +1468,27 @@ class ReminderTests(unittest.TestCase):
 
     def test_spoken_text(self):
         from radio import host, reminders
-        r = {"title": "Планёрка https://meet.example/x 📅", "start": self.NOW + timedelta(minutes=15), "kind": "event"}
-        self.assertEqual(reminders.say(r, self.NOW, host.minutes_words), "Напоминание. Через пятнадцать минут — Планёрка.")
-        self.assertEqual(reminders.say({**r, "kind": "task", "title": "Позвонить"}, self.NOW, host.minutes_words),
-                         "Напоминание. Через пятнадцать минут задача — Позвонить.")
-        self.assertEqual(reminders.say(r, r["start"], host.minutes_words), "Напоминание. Сейчас — Планёрка.")
-        self.assertIsNone(reminders.say(r, r["start"] + timedelta(minutes=3), host.minutes_words))   # already started
+        r = {"title": "Стендап https://meet.example/x 📅", "start": self.NOW + timedelta(minutes=15), "kind": "event"}
+        before = reminders.say(r, self.NOW, host.span_words)
+        self.assertIn("через пятнадцать минут", before.lower())
+        self.assertIn("— Стендап", before)                              # a dash before the title, not a colon
+        self.assertNotIn("http", before)
+        self.assertNotIn("Напоминание.", before)
+        self.assertEqual(before, reminders.say(r, self.NOW, host.span_words))      # stable for one reminder
+        task = reminders.say({**r, "kind": "task", "title": "Позвонить"}, self.NOW, host.span_words)
+        self.assertIn("Позвонить", task)
+        self.assertIn("сейчас", reminders.say(r, r["start"], host.span_words).lower())
+        self.assertIn("час тридцать минут", reminders.say(r, r["start"] - timedelta(minutes=90), host.span_words))
+        late = reminders.say(r, r["start"] + timedelta(minutes=3), host.span_words)  # moved past the start
+        self.assertIn("три минуты", late)
+        self.assertIn("Стендап", late)
+        self.assertIsNone(reminders.say(r, r["start"] + timedelta(minutes=15), host.span_words))   # no end: 15 min
+        long = {**r, "end": r["start"] + timedelta(hours=1)}
+        self.assertIsNotNone(reminders.say(long, r["start"] + timedelta(minutes=40), host.span_words))
+        self.assertIsNone(reminders.say(long, r["start"] + timedelta(hours=1), host.span_words))   # over
+        self.assertEqual(reminders.plain(r, self.NOW, host.span_words), "Через пятнадцать минут — Стендап.")
+        variants = {reminders.say({**r, "key": f"cal:{i}"}, self.NOW, host.span_words) for i in range(30)}
+        self.assertGreater(len(variants), 1)                                # the phrasing rotates
 
 
 if __name__ == "__main__":

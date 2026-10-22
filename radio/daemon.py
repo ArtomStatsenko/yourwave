@@ -811,13 +811,15 @@ class Service:
         for key, (rid, r) in list(self.queued_reminders.items()):
             plugin = "reminders_todoist" if r["kind"] == "task" else "reminders_calendar"
             enabled = plugins.on(self.cfg, plugin)
-            if self.state == "PAUSED" or now() >= r["start"] or not enabled:
+            # The text counts minutes to its airtime: a later airing would say them wrong, so it is said anew.
+            stale = now() >= r.get("air", r["start"]) + timedelta(minutes=1)
+            if self.state == "PAUSED" or stale or now() >= reminders.until(r) or not enabled:
                 await self.engine.remove(rid)
                 self.queued_reminders.pop(key, None)
                 self.db.execute("UPDATE air_plan SET status='ERROR',rid=NULL,error='Reminder expired or paused' WHERE kind='reminder' AND ref=? AND status='QUEUED'", (key,))
                 self.reminder_text.pop(key, None)
                 self.id_pending = False
-                if enabled and now() < r["start"]:
+                if enabled and now() < reminders.until(r):
                     self.reminders_due[key] = r
 
     async def _reminders_tick(self) -> None:
@@ -852,17 +854,32 @@ class Service:
                     self.next_read[name] = t + 60
             due += (reminders.calendar_due(self.cal_events, now(), lead) if name == "calendar"
                     else reminders.todoist_due(self.todoist_tasks, now(), lead))
+        changes = direction.edits(self.db) if plugins.on(self.cfg, "air_direction") else {}
+        due += [r for r in self._reminder_candidates(now(), timedelta(hours=3))  # moved earlier in the plan (3 h)
+                if (moved := changes.get("reminder:" + r["key"], {}).get("not_before")) and moved <= iso(now())]
         for r in due:
             if r["key"] not in self.reminders_due and r["key"] not in self.queued_reminders and not self.db.execute(
                     "SELECT 1 FROM reminders WHERE key=?", (r["key"],)).fetchone():
                 self.reminders_due[r["key"]] = r
         for key in [k for k, r in self.reminders_due.items()
-                    if r["kind"] == "day" or r.get("expires", r["start"] + timedelta(minutes=1)) < now()]:
+                    if r["kind"] == "day" or (r.get("expires") or reminders.until(r)) < now()]:
             self.reminders_due.pop(key)  # expire timed reminders; refresh today's topics from the calendar
         if day := self._day_due(now().astimezone()):
             self.reminders_due[day["key"]] = day
         if self.reminders_due:
             self.wake.set()
+
+    def _reminder_candidates(self, at, span):
+        """Timed reminders from the last read of the calendar and Todoist: starting within `span` from `at`, or
+        started and still making sense (reminders.until); not aired yet."""
+        back = timedelta(hours=12)
+        found = []
+        if plugins.on(self.cfg, "reminders_calendar"):
+            found += reminders.calendar_due(self.cal_events, at - back, back + span)
+        if plugins.on(self.cfg, "reminders_todoist"):
+            found += reminders.todoist_due(self.todoist_tasks, at - back, back + span)
+        fired = {row[0] for row in self.db.execute("SELECT key FROM reminders WHERE key LIKE 'cal:%' OR key LIKE 'todoist:%'")}
+        return [r for r in found if reminders.until(r) > at and r["key"] not in fired]
 
     def _day_due(self, at):
         if not plugins.on(self.cfg, "reminders_calendar") or not self.cfg["reminders"]["calendar_url"] \
@@ -944,7 +961,7 @@ class Service:
                 text = ("Сегодня — {title}.", "К слову, сегодня — {title}.",
                         "Ещё одна примета сегодняшнего дня — {title}.")[r["count"]].format(title=r["title"])
             else:
-                text = reminders.say(r, air, host.minutes_words)
+                text = reminders.say(r, air, host.span_words)
             if text is None:
                 self.reminders_due.pop(key)
                 continue
@@ -969,7 +986,7 @@ class Service:
                             self.reminders_due.pop(key, None)
                             continue  # rendering crossed midnight or the calendar feature was switched off
                 else:
-                    wav = await asyncio.to_thread(self._render_notice, text)
+                    wav = await asyncio.to_thread(self._render_notice, text, reminders.plain(r, air, host.span_words))
             except Exception as e:
                 self.last_error = f"reminder: {e}"
                 r["retry"] = time.time() + 30
@@ -984,6 +1001,7 @@ class Service:
             rid = await self.engine.push_replay(wav, "weather" if r["kind"] == "weather" else "reminder", key, gain, key if r["kind"] == "weather" else "",
                                                 ',liq_cross_end_duration="1.5",liq_cross_start_duration="12"')
             if timed:
+                r["air"] = air
                 self.queued_reminders[key] = (rid, r)
                 self.db.execute("UPDATE air_plan SET status='QUEUED',rid=? WHERE id=?", (rid, 'reminder:' + key))
             elif r["kind"] == "weather":
@@ -1046,11 +1064,11 @@ class Service:
                 raise
             return short, cached_synthesize(self.tts, short, self._speech_check)
 
-    def _render_notice(self, text: str) -> Path:
+    def _render_notice(self, text: str, fallback: str = "") -> Path:
         try:
             voice = cached_synthesize(self.tts, text, self._speech_check)
-        except RuntimeError:  # the voice cannot read this title: say it without the opening word
-            voice = cached_synthesize(self.tts, text.removeprefix("Напоминание. "), self._speech_check)
+        except RuntimeError:  # the voice cannot read this title in a longer phrase: the shortest form
+            voice = cached_synthesize(self.tts, fallback or text.removeprefix("Напоминание. "), self._speech_check)
         out = config.DATA_DIR / "cache/packages" / ("reminder-" + hashlib.sha256(text.encode()).hexdigest()[:16] + ".wav")
         audio.render_notice(voice, self.cfg["jingles"]["reminder"][0], out)
         return out
@@ -1665,15 +1683,19 @@ class Service:
         music_titles += [music.label(self.db, ref) for ref in self.fresh_queued]
         if getattr(self, 'next_track', ''):
             music_titles.append(music.label(self.db, self.next_track))
-        for key, r in list(self.reminders_due.items()) + [(key, pair[1]) for key, pair in self.queued_reminders.items()]:
-            if r['kind'] not in ('task', 'event') or r['start'] <= at or not plugins.on(self.cfg, 'reminders_todoist' if r['kind'] == 'task' else 'reminders_calendar'):
+        lead = timedelta(minutes=self.cfg['reminders']['lead_min'])
+        waiting = {**self.reminders_due, **{key: pair[1] for key, pair in self.queued_reminders.items()}}
+        upcoming = {r['key']: r for r in self._reminder_candidates(at, horizon - at)}
+        for key, r in {**upcoming, **waiting}.items():
+            if r['kind'] not in ('task', 'event') or at >= reminders.until(r) or not plugins.on(self.cfg, 'reminders_todoist' if r['kind'] == 'task' else 'reminders_calendar'):
                 continue
             if any(row['kind'] == 'reminder' and row.get('ref') == key for row in result):
                 continue
             edit_id = 'reminder:' + key
             edit = changes.get(edit_id, {})
-            result.append({'id': edit_id, 'kind': 'reminder', 'title': 'Reminder', 'ref': key, 'members': [edit_id],
-                           'at': edit.get('not_before') or iso(first), 'not_before': edit.get('not_before'),
+            result.append({'id': edit_id, 'kind': 'reminder', 'title': reminders.clean_title(r['title']) or 'Reminder', 'ref': key, 'members': [edit_id],
+                           'ends': iso(reminders.until(r)),
+                           'at': edit.get('not_before') or iso(first if key in waiting else max(first, r['start'] - lead)), 'not_before': edit.get('not_before'),
                            'duration': 30, 'estimated': not bool(edit.get('not_before')), 'locked': key in self.queued_reminders,
                            'status': 'QUEUED' if key in self.queued_reminders else 'PENDING', 'skipped': bool(edit.get('skipped')),
                            'rid': self.queued_reminders[key][0] if key in self.queued_reminders else None})
@@ -1845,6 +1867,8 @@ class Service:
             if row['kind'] == 'reminder' and change.get('skipped') and not row.get('skipped') and change.get('skip_confirmed') is not True:
                 raise ValueError('Confirm skipping this reminder')
             due = direction.requested_time(row['at'] if row.get('locked') else change.get('at'), now())
+            if row['kind'] == 'reminder' and row.get('ends') and due >= content.parse_time(row['ends']):
+                raise ValueError('The event is over by then; move the reminder earlier or skip it')
             validated.append((row, change, due, rank))
         for row, change, due, rank in validated:
             if not row.get('locked'):
