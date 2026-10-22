@@ -96,6 +96,9 @@ button:disabled{opacity:.4;cursor:default}button:disabled:hover{border-color:var
 .it{border:0}
 .reroll-track{display:inline-flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;padding:6px;border:0;color:var(--muted)}.reroll-track:hover{border:0;color:var(--accent)}
 #direction-list .music-spacer{height:4px}
+#direction-list .plan-fold{display:block;width:100%;min-height:40px;padding:0 0 0 102px;border:0;border-block:1px dashed var(--line);color:var(--muted);font:inherit;font-size:14px;text-align:left}
+#direction-list .plan-fold:hover{color:var(--accent)}
+@media(max-width:640px){#direction-list .plan-fold{padding-left:68px}}
 #direction-list .next-track{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:8px}
 .skipped-label{flex:none;font-size:14px;color:var(--warn)}
 @media(pointer:coarse){.reroll-track{width:44px;height:44px}}
@@ -242,7 +245,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 // Data comes from the radio daemon via /api/status (status + 12 h timeline). Rendering is always from state,
 // so a row expanded by its id stays expanded across the 2-second refresh.
 var TOKEN="__TOKEN__";
-var planOpen={},rerollBusy=false,rerollError='';
+var planOpen={},planUnfolded={},rerollBusy=false,rerollError='';
 var KIND={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
 var dirBlocks=[],dirLoaded=false,dirBusy=false,planDraft=null,planVersion=null,planDrag=null,planTimeId=null,planConfirm=null;
 var items=[],st={state:'STOPPED'},open={},busy=false,pls=[],stg=[],ytStatus={};
@@ -449,7 +452,10 @@ function directionView(){
   var box=$('direction-list');if(planDrag!==null)return;if(planDraft&&!dirBusy&&box.contains(document.activeElement)&&document.activeElement.type==='datetime-local')return;
   var focused=box.contains(document.activeElement)?document.activeElement:null,focusIndex=focused&&focused.closest('[data-plan-index]'),focusId=focusIndex&&focusIndex.dataset.planKey,focusAction=focused&&focused.dataset.planAction;
   var rows=planDraft||(st.broadcast_plan||{}).rows||[];
-  box.innerHTML=rows.map(function(r,i){var time=r.at?new Intl.DateTimeFormat(undefined,{timeZone:st.direction_timezone,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(r.at)):'—';
+  function clock(at){return at?new Intl.DateTimeFormat(undefined,{timeZone:st.direction_timezone,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(at)):'—'}
+  // Like a diff of a long file: what matters stays in view, runs of routine blocks between fold into one line.
+  function pinned(r){var soon=Date.parse(r.at)<Date.now()+3600e3;return r.kind==='music'?soon:soon||['reminder','weather'].includes(r.kind)||r.edited||r.dirty||r.locked||r.skipped||!r.estimated&&!!r.not_before||planTimeId===r.id}
+  var html=rows.map(function(r,i){var time=clock(r.at);
     var kind=r.kind==='jingle'?'id':r.kind,title=r.title||r.kind;
     var detail=Array.from(new Set((r.content_title||'').split(' · '))).join(' · ');
     var nextMusic=r.kind==='music'&&i===rows.findIndex(function(n){return n.kind==='music'});
@@ -467,7 +473,13 @@ function directionView(){
       +(editable&&planTimeId===r.id?'<div class="plan-actions"><label class="sr" for="plan-time-'+i+'">Play at or after</label><input type="datetime-local" id="plan-time-'+i+'" aria-label="Play at or after" value="'+localInput(r.at)+'"></div>':'')
       +(r.edition&&planOpen[r.id]?'<div class="ex edition-segments">'+(latest.segments||r.segments||[]).map(function(seg){return '<div class="edition-segment"><span>'+esc(seg.title)+'</span><span class="l">'+esc(planReadiness(seg))+'</span>'+(seg.items.length?'<p class="l">'+seg.items.map(esc).join(' · ')+'</p>':'')+'</div>'}).join('')+'</div>':'')
       +(r.error?'<p class="l err">'+esc(r.error)+'</p>':'')+'</div>'
-  }).join('')||'<p class="l">The next blocks will appear as the player prepares them.</p>';
+  }),out=[],run=[];
+  function flush(){var blocks=run.filter(function(i){return rows[i].kind!=='music'});var key=run.length&&rows[run[0]].id;
+    if(blocks.length<2||planUnfolded[key]){if(blocks.length>1)out.push('<button type="button" class="plan-fold" data-plan-fold="'+esc(key)+'" aria-expanded="true">▴ Fold '+blocks.length+' blocks</button>');run.forEach(function(i){out.push(html[i])})}
+    else out.push('<button type="button" class="plan-fold" data-plan-fold="'+esc(key)+'" aria-expanded="false">⋯ '+blocks.length+' blocks · '+esc(clock(rows[blocks[0]].at))+'–'+esc(clock(rows[blocks[blocks.length-1]].at))+'</button>');
+    run=[]}
+  rows.forEach(function(r,i){if(pinned(r)){flush();out.push(html[i])}else run.push(i)});flush();
+  box.innerHTML=out.join('')||'<p class="l">The next blocks will appear as the player prepares them.</p>';
   box.querySelectorAll('button,input').forEach(function(el){el.disabled=dirBusy||el.disabled});$('direction-add').disabled=dirBusy;
   if(focusId&&focusAction){var i=rows.findIndex(function(r){return r.id===focusId}),el=box.querySelector('[data-plan-index="'+i+'"] [data-plan-action="'+focusAction+'"]');if(el)el.focus({preventScroll:true})}
 }
@@ -498,7 +510,7 @@ $('direction-at').value=localInput();
 $('direction-form').onsubmit=function(e){e.preventDefault();if(!planDraft)return;var b=dirBlocks[+$('direction-block').value];if(!b)return;
   planDraft.push({id:'new:'+Date.now(),kind:b.kind,title:b.title,text:b.kind==='text'?$('direction-text').value:'',at:new Date($('direction-at').value).toISOString(),duration:30,status:'PENDING',dirty:true,skipped:false});planDraft.sort(function(a,b){return Date.parse(a.at)-Date.parse(b.at)});$('plan-add').open=false;directionView()
 };
-$('direction-list').onclick=function(e){if(e.target.closest('[data-reroll]')){rerollNext();return}var button=e.target.closest('[data-plan-action]');if(!button||!planDraft||dirBusy)return;var i=+button.closest('[data-plan-index]').dataset.planIndex,r=planDraft[i];
+$('direction-list').onclick=function(e){if(e.target.closest('[data-reroll]')){rerollNext();return}var fold=e.target.closest('[data-plan-fold]');if(fold){planUnfolded[fold.dataset.planFold]=!planUnfolded[fold.dataset.planFold];directionView();return}var button=e.target.closest('[data-plan-action]');if(!button||!planDraft||dirBusy)return;var i=+button.closest('[data-plan-index]').dataset.planIndex,r=planDraft[i];
   if(button.dataset.planAction==='segments'){planOpen[r.id]=!planOpen[r.id];directionView()}else if(button.dataset.planAction==='time'){planTimeId=planTimeId===r.id?null:r.id;directionView()}else if(button.dataset.planAction==='skip'){if(r.kind==='reminder'&&!r.skipped&&planConfirm!==r.id){planConfirm=r.id;directionView();return}r.skipConfirmed=r.kind==='reminder'&&planConfirm===r.id;planConfirm=null;r.skipped=!r.skipped;r.dirty=true;directionView()}else planMove(i,i+(button.dataset.planAction==='up'?-1:1));
 };
 $('direction-list').onchange=function(e){if(!planDraft||e.target.type!=='datetime-local'||!e.target.value)return;var i=+e.target.closest('[data-plan-index]').dataset.planIndex;planDraft[i].at=new Date(e.target.value).toISOString();planDraft[i].estimated=false;planDraft[i].dirty=true};
