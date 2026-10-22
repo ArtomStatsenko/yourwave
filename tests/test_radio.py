@@ -265,6 +265,48 @@ class SchedulingTests(unittest.TestCase):
         for t in ("packages", "items", "events", "air_plan"):
             self.svc.db.execute(f"DELETE FROM {t}")
 
+    def test_gap_filler_covers_a_song_youtube_music_has_not_loaded(self):
+        from unittest.mock import AsyncMock, Mock, patch
+        from radio import plugins
+        svc = self.svc
+        plugins.set_plugin("gap_filler", True)
+        self.addCleanup(plugins.set_plugin, "gap_filler", False)
+        svc.ytmusic_active, svc.state = True, "PLAYING"
+        svc.gap_voice = [("Секунду.", Path("/tmp/gap.wav"))]
+        svc.engine = Mock(next_music=AsyncMock(return_value=""), push_replay=AsyncMock(return_value="7"))
+        def song(started):
+            svc.current = {"kind": "music", "ref": f"ytmusic:{started}", "started": started, "duration": 200}
+        def tick(at):
+            with patch("radio.daemon.time.time", return_value=at), patch("radio.audio.duration", return_value=3), \
+                 patch("radio.audio.lufs", return_value=-16):
+                asyncio.run(svc._gap_tick())
+        song(10_000)
+        tick(10_000 + 150)                                                  # 50 s left: too early to tell
+        svc.engine.push_replay.assert_not_awaited()
+        tick(10_000 + 192)                                                  # 8 s left, next song not loaded
+        self.assertEqual(svc.engine.push_replay.await_args.args[1:3], ("gap", "Секунду."))
+        self.assertTrue(svc.id_pending)
+        svc.on_event({"kind": "gap", "ref": "Секунду."})
+        self.assertFalse(svc.id_pending)
+        self.assertEqual(svc.db.execute("SELECT detail FROM events WHERE type='GAP'").fetchone()[0], "Секунду.")
+        song(10_300)
+        tick(10_300 + 192)                                                  # 5 min later: not again yet
+        self.assertEqual(svc.engine.push_replay.await_count, 1)
+        song(11_000)
+        svc.engine.next_music.return_value = "ytmusic:next"
+        tick(11_000 + 192)                                                  # loaded in time: no line
+        self.assertEqual(svc.engine.push_replay.await_count, 1)
+        song(12_000)
+        svc.engine.next_music.return_value = ""
+        svc.cfg["broadcast"]["max_spoken_seconds_per_rolling_hour"] = 2
+        tick(12_000 + 192)                                                  # the speech limit is used up
+        self.assertEqual(svc.engine.push_replay.await_count, 1)
+        svc.cfg["broadcast"]["max_spoken_seconds_per_rolling_hour"] = 300
+        svc.ytmusic_active = False
+        song(13_000)
+        tick(13_000 + 192)                                                  # local music has no loading gaps
+        self.assertEqual(svc.engine.push_replay.await_count, 1)
+
     def test_audio_preset_rebuilds_prepared_packages(self):
         (config.DATA_DIR / "cache/audio-config.json").unlink(missing_ok=True)
         self.add("preset-story", "inbox", 0)
@@ -1009,7 +1051,7 @@ class SchedulingTests(unittest.TestCase):
                          {"github_trending", "github_new", "horizon", "reminders_calendar", "reminders_todoist", "weather", "ytmusic", "music_facts"})
         self.assertNotIn("voicestudio", grouped)
         self.assertNotIn("voice_over", grouped)
-        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "reroll_next"})
+        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "reroll_next", "gap_filler"})
         self.assertEqual({n for n, p in grouped.items() if p["section"] == "features"},
                          {"station_ids", "host_links", "new_tracks"})
         self.assertTrue(grouped["horizon"]["on"])  # grouping preserves the existing saved switches

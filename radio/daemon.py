@@ -26,6 +26,11 @@ LATE_ASSEMBLY_SEC = 60  # a news break (time check, next song) is assembled when
 REMIND_LATE_SEC = 40    # optional host inserts wait; timed reminders need enough time for synthesis
 BREAK_SEP = "|"         # a break airs several packages as one request: ref = their ids joined
 WEATHER_JOINS_SEC = 300  # a news section this soon after a weather slot airs in the same edition
+GAP_LEAD_SEC = 12       # gap filler: the next song must be loaded this long before the current one ends
+GAP_EVERY_SEC = 600     # gap filler: at most one line this often
+GAP_LINES = ("Секунду — следующая песня ещё догружается из YouTube Music. Не переключайтесь, сейчас продолжим.",
+             "Пока YouTube Music подтягивает следующий трек — короткая пауза, и снова музыка.",
+             "YouTube Music сегодня не торопится: следующая песня уже в пути, ещё пара секунд.")
 PLAN_HOURS = 12         # how far ahead the plan shows (and lets you edit) sections, reminders and weather
 RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
@@ -84,7 +89,9 @@ class Service:
         self.queued_break = None
         self.all_sources_checked = False  # set only after a *successful* check of every enabled source
         self.resume_offset: dict[str, float] = {}
-        self.weather_hold: dict[str, float] = {}  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
+        self.weather_hold: dict[str, float] = {}
+        self.gap_voice: list[tuple[str, Path]] = []  # gap filler lines, rendered ahead: a gap leaves seconds
+        self.gap_song, self.gap_said = 0.0, 0.0      # the song last checked, when the host last covered a gap  # weather slot -> start of the song its joining break first waited at  # ref -> seconds already played, for the song resumed at start
 
     # ---- lifecycle ----
     async def run(self) -> None:
@@ -137,6 +144,7 @@ class Service:
         asyncio.create_task(self.trending_loop())
         asyncio.create_task(self.horizon_loop())
         asyncio.create_task(self.reminders_loop())
+        asyncio.create_task(self.gap_loop())
         if isinstance(self.tts, VoiceStudio):
             asyncio.create_task(self.voice_loop())
         if self.output == "device" and self.cfg["output"]["mode"] == "browser":
@@ -227,6 +235,43 @@ class Service:
                 await self._pause()
                 self.auto_paused = True
                 log("no listeners: paused")
+
+    async def gap_loop(self) -> None:
+        while not self.stopping:
+            try:
+                await self._gap_tick()
+            except Exception as e:
+                log("gap filler:", type(e).__name__)
+            await asyncio.sleep(1)
+
+    async def _gap_tick(self) -> None:
+        """Experiment: YouTube Music has not loaded the next song by the end of this one -> one short line about
+        it instead of silence. Music comes back on its own after the line once the song is there."""
+        if not plugins.on(self.cfg, "gap_filler") or not self.ytmusic_active or self.state != "PLAYING":
+            return
+        if not self.gap_voice:
+            self.gap_voice = [(text, await asyncio.to_thread(cached_synthesize, self.tts, text, self._speech_check))
+                              for text in GAP_LINES]
+            return
+        cur = self.current
+        if not cur or cur["kind"] != "music" or not cur.get("duration") or cur["started"] == self.gap_song:
+            return
+        if cur["duration"] - (time.time() - cur["started"]) > GAP_LEAD_SEC:
+            return
+        self.gap_song = cur["started"]  # one look per song
+        if self.queued_break or self.replays or self.fresh_queued or self.queued_reminders or self.id_pending:
+            return  # something airs at this boundary anyway
+        if time.time() - self.gap_said < GAP_EVERY_SEC or await self.engine.next_music():
+            return
+        text, wav = self.gap_voice[int(time.time() // GAP_EVERY_SEC) % len(self.gap_voice)]
+        b = self.cfg["broadcast"]
+        speech = await asyncio.to_thread(audio.duration, wav)
+        if store.spoken_last_hour(self.db) + speech > b["max_spoken_seconds_per_rolling_hour"]:
+            return
+        gain = -16 - (await asyncio.to_thread(audio.lufs, wav) or -16)
+        await self.engine.push_replay(wav, "gap", text, gain, "", ',liq_cross_end_duration="1.5"')
+        self.gap_said, self.id_pending = time.time(), True
+        log("gap filler queued: the next YouTube Music song is not loaded")
 
     async def watch_engine(self) -> None:
         restarts = 0
@@ -322,6 +367,10 @@ class Service:
             store.log_event(self.db, self.session, self.current["kind"].upper(), self.current["ref"],
                             self.reminder_text.pop(self.current["ref"], ""))
             log(self.current["kind"], "on air")
+        elif self.current["kind"] == "gap":
+            self.id_pending = False
+            store.log_event(self.db, self.session, "GAP", "", self.current["ref"])
+            log("gap filler on air")
         elif self.current["kind"] == "id":
             self.songs_since_break, self.id_pending = 0, False
             store.log_event(self.db, self.session, "STATION_ID", self.current["ref"])

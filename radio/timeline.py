@@ -52,7 +52,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
     remote_refs = {"ytmusic:" + t["id"] for t in ytmusic.library()["tracks"]}
     since = store.iso(store.now() - timedelta(hours=hours))
     rows = db.execute("""SELECT id, at, type, ref, detail FROM events WHERE at>=? AND type IN
-                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','STATION_ID','REPLAY','REMINDER','WEATHER')
+                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','STATION_ID','REPLAY','REMINDER','WEATHER','GAP')
                          ORDER BY id DESC LIMIT ?""", (since, limit)).fetchall()
     out = []
     for r in rows:
@@ -101,6 +101,8 @@ def _build(db, hours: int, limit: int) -> list[dict]:
                         e["description"] = detail["description"]
                     elif isinstance(detail.get("links"), list):
                         e["links"] = detail["links"]
+        elif r["type"] == "GAP":
+            e.update(kind="host", title=r["detail"] or "Loading gap")
         elif r["type"] == "STATION_ID":
             e.update(kind="id", title="Station ID")
         else:
