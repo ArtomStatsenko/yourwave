@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenRouter · Personal Radio</title>
+<style>
+/* one centered message, same tokens as the radio page */
+:root{--bg:#f2f2ee;--ink:#17170f;--muted:#5f5f55;--line:#cfcfc5;--accent:#c2410c;--warn:#8f5200;--ok:#2b7348;--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#121210;--ink:#ece8dc;--muted:#9a968a;--line:#2e2d27;--accent:#ff6a3d;--warn:#f0b429;--ok:#5fd08a;color-scheme:dark}}
+body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);padding:48px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px))}
+main{max-width:640px;margin:0 auto;display:grid;gap:16px}
+.l{font-size:16px;color:var(--muted)}
+h1{margin:0;font-size:34px;line-height:42px;font-weight:600}
+h1::before{content:"●";font-size:20px;margin-right:12px;vertical-align:4px;color:var(--ok)}
+.fail h1::before{color:var(--warn)}
+a{color:var(--accent);font-size:20px;text-underline-offset:4px}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+</style>
+</head>
+<body>
+<main class="__CLASS__">
+<span class="l">OPENROUTER</span>
+<h1>__NOTE__</h1>
+<p class="l" style="margin:0">__DETAIL__</p>
+<a href="/">Back to the radio</a>
+</main>
+</body>
+</html>

@@ -16,6 +16,7 @@ from . import config, openrouter, plugins, settings, ytmusic
 from .timeline import timeline
 
 PAGE = Path(__file__).with_name("ui.html")
+CALLBACK = Path(__file__).with_name("callback.html")  # the page the browser lands on after OpenRouter sign-in
 COMMANDS = {"pause", "resume", "next", "skip-news", "stop"}
 
 
@@ -103,11 +104,12 @@ def serve(port: int) -> None:
                 q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 try:
                     openrouter.finish(q.get("state", [""])[0], q.get("code", [""])[0])
-                    note = "Signed in to OpenRouter."
+                    kind, note, detail = "", "Signed in to OpenRouter.", "You can close this tab, or go back to the radio."
                 except (ValueError, OSError) as e:
-                    note = "OpenRouter sign-in failed: " + (str(e) if isinstance(e, ValueError) else "no answer")
-                body = (f"<!doctype html><meta charset=utf-8><title>OpenRouter</title><p>{html.escape(note)}</p>"
-                        "<p><a href='/'>Back to the radio</a></p>").encode()
+                    kind, note = "fail", "OpenRouter sign-in failed."
+                    detail = str(e) if isinstance(e, ValueError) else "OpenRouter did not answer; try again."
+                body = (CALLBACK.read_text(encoding="utf-8").replace("__CLASS__", kind)
+                        .replace("__NOTE__", html.escape(note)).replace("__DETAIL__", html.escape(detail))).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
