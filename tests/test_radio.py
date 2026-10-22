@@ -1141,6 +1141,19 @@ class SchedulingTests(unittest.TestCase):
             svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
 
+    def test_every_fresh_take_is_checked_by_transcript(self):
+        from unittest.mock import Mock
+        svc = self.svc
+        text = "Новости технологий. Компания выпустила новую версию редактора кода."
+        svc.tts.transcribe = Mock(side_effect=["Продолжение следует...", text])
+        first = svc._say(text)  # the first take is heard as Whisper's noise hallucination, the second matches
+        self.assertEqual(svc.tts.transcribe.call_count, 2)
+        self.assertEqual(svc._say(text), first)  # cached: trusted, not transcribed again
+        self.assertEqual(svc.tts.transcribe.call_count, 2)
+        svc.tts.transcribe = Mock(side_effect=RuntimeError("no whisper"))
+        svc._say("Другая фраза ведущего для проверки без распознавания.")  # verification unavailable: spectrum only
+        del svc.tts.transcribe
+
     def test_weather_replaces_noise_that_passes_spectrum_check(self):
         from unittest.mock import Mock, patch
         svc = self.svc

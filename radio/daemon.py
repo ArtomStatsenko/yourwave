@@ -270,7 +270,7 @@ class Service:
         return f'annotate:kind="id",ref="startup":{self.cfg["jingles"]["stinger_in"][0]}'
 
     def _prepare_opener(self) -> None:
-        voice = cached_synthesize(self.tts, self._opener_text(), self._speech_check)
+        voice = self._say(self._opener_text())
         audio.render_notice(voice, Path(self.cfg["jingles"]["stinger_in"][0]), self._opener_file())
 
     async def _gap_tick(self) -> None:
@@ -291,7 +291,7 @@ class Service:
         if not self.gap_voice:
             if time.time() >= self.gap_retry:
                 self.gap_retry = time.time() + 60  # the voice server may still be starting: not every second
-                self.gap_voice = [(text, await asyncio.to_thread(cached_synthesize, self.tts, text, self._speech_check))
+                self.gap_voice = [(text, await asyncio.to_thread(self._say, text))
                                   for text in GAP_LINES]
             return
         cur = self.current
@@ -1153,7 +1153,27 @@ class Service:
 
     def _segment_voice(self, package_id, text):
         item = self.db.execute('SELECT i.kind FROM packages p JOIN items i ON i.id=p.item_id WHERE p.id=?', (package_id,)).fetchone()
-        return self._render_weather(text) if item and item['kind'] == 'weather' else cached_synthesize(self.tts, text, self._speech_check)
+        return self._render_weather(text) if item and item['kind'] == 'weather' else self._say(text)
+
+    def _say(self, text: str) -> Path:
+        """Voice a text, checked twice: the spectrum (no noise) and, for a fresh take, a local Whisper transcript that
+        must contain most of the text's words (no noise, no swallowed or garbled words)."""
+        words = {w[:5] for w in re.findall(r"[а-яё]{4,}", text.casefold())}  # 5-letter stems: endings may differ
+
+        def check(path):
+            if error := self._speech_check(path):
+                return error
+            # shortcut: a cached clip is trusted (it passed when made); only new takes are transcribed (~4 s each)
+            if len(words) < 3 or not path.name.endswith(".take.wav") or not hasattr(self.tts, "transcribe"):
+                return None
+            try:
+                heard = {w[:5] for w in re.findall(r"[а-яё]{4,}", self.tts.transcribe(path).casefold())}
+            except Exception as e:
+                log("speech verification unavailable:", type(e).__name__)  # the spectrum check stands
+                return None
+            return None if len(words & heard) >= len(words) * 0.6 else "speech does not match the text"
+
+        return cached_synthesize(self.tts, text, check)
 
     def _render_weather(self, text: str) -> Path:
         expected = set(re.findall(r"[а-яё]{4,}", text.casefold()))
@@ -1176,17 +1196,17 @@ class Service:
             except Exception as e:
                 log("calendar story:", type(e).__name__)  # a failed story still gets a short mention
         try:
-            return text, cached_synthesize(self.tts, text, self._speech_check)
+            return text, self._say(text)
         except RuntimeError:
             if text == short:
                 raise
-            return short, cached_synthesize(self.tts, short, self._speech_check)
+            return short, self._say(short)
 
     def _render_notice(self, text: str, fallback: str = "") -> Path:
         try:
-            voice = cached_synthesize(self.tts, text, self._speech_check)
+            voice = self._say(text)
         except RuntimeError:  # the voice cannot read this title in a longer phrase: the shortest form
-            voice = cached_synthesize(self.tts, fallback or text.removeprefix("Напоминание. "), self._speech_check)
+            voice = self._say(fallback or text.removeprefix("Напоминание. "))
         out = config.DATA_DIR / "cache/packages" / ("reminder-" + hashlib.sha256(text.encode()).hexdigest()[:16] + ".wav")
         audio.render_notice(voice, self.cfg["jingles"]["reminder"][0], out)
         return out
@@ -1315,7 +1335,7 @@ class Service:
             if links:
                 # The back-sell comes right after the song, before the news sounder; the time check after it.
                 if back := host.back_sell(self.set_songs, self.recent_jingles, seed):
-                    lead = cached_synthesize(self.tts, back, self._speech_check)
+                    lead = self._say(back)
                 segs.append((host.opener(air_time.astimezone(), b["station_name"], self.recent_jingles, seed), False))
                 owners.append(seed)
             prev = None
