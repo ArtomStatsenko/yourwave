@@ -23,6 +23,7 @@ class Liquidsoap:
         self.proc: asyncio.subprocess.Process | None = None
         self.stopped = False
         self.pidfile = config.RUN_DIR / "liquidsoap.pid"
+        self.tail: asyncio.Task | None = None
 
     async def start(self, on_event, first: list[str] | tuple = ()) -> None:
         """first: request lines to air before the shuffle (a host opener, a resumed song with liq_cue_in): the
@@ -48,6 +49,8 @@ class Liquidsoap:
     async def _start(self, on_event, paused: str) -> None:
         self.sock.unlink(missing_ok=True)
         events = config.RUN_DIR / "events.jsonl"
+        if self.tail:  # a restart: the old reader would read the truncated file from its old offset (partial lines)
+            self.tail.cancel()
         events.write_text("")
         env = dict(os.environ, RADIO_EVENTS=str(events), RADIO_M3U=str(self.m3u), RADIO_LIQ_SOCK=str(self.sock), RADIO_XFADE=str(self.xfade),
                    RADIO_LIQ_LOG=str(config.DATA_DIR / "logs/liquidsoap.log"), RADIO_OUTPUT=self.output,
@@ -60,7 +63,7 @@ class Liquidsoap:
             "liquidsoap", str(config.PKG_DIR / "radio.liq"), env=env,
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
         self.pidfile.write_text(str(self.proc.pid))
-        asyncio.create_task(self._tail_events(self.proc, events, on_event))
+        self.tail = asyncio.create_task(self._tail_events(self.proc, events, on_event))
         for _ in range(100):  # socket appears once the script is compiled and running
             if self.sock.exists():
                 return

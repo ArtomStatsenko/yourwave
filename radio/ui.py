@@ -66,6 +66,18 @@ class Stream:
 
 
 def serve(port: int) -> None:
+    server = make_server(port)
+    url = f"http://127.0.0.1:{server.server_port}/"
+    print(f"Personal Radio UI: {url}  (Ctrl+C — закрыть интерфейс; радио продолжит играть)")
+    webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+def make_server(port: int) -> ThreadingHTTPServer:
+    """The page server, not yet serving; server.token is the per-run API token the page gets."""
     from .__main__ import send, start_daemon
     token = secrets.token_urlsafe(16)
     cfg = config.load()
@@ -260,10 +272,6 @@ def serve(port: int) -> None:
             self._json(resp or {"ok": False, "error": "the radio is not answering"})
 
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    url = f"http://127.0.0.1:{port}/"
-    print(f"Personal Radio UI: {url}  (Ctrl+C — закрыть интерфейс; радио продолжит играть)")
-    webbrowser.open(url)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    port = server.server_port  # 0 in tests: the Host check must use the port that was really taken
+    server.token = token
+    return server

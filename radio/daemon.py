@@ -66,6 +66,7 @@ class Service:
         self.state = "STARTING"
         self.auto_paused, self.paused_at, self.heard_at = False, 0.0, time.time()
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
+        self.replay_missing: dict[str, int] = {}  # replay_id -> status polls in a row Liquidsoap did not list it
         self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
         self.reroll_task = None
         self.reroll_gen = 0  # each dice click; an older download that finishes after a newer click is dropped
@@ -191,6 +192,7 @@ class Service:
         self.stopping = True
         self._save_session()
         horizon.stop()
+        tts_mod.stop_whisper()  # a song being heard would keep the process alive after the socket is gone
         await self._stop_voice()
         self.stop_measure.set()
         await self.engine.stop()
@@ -1482,6 +1484,20 @@ class Service:
         log("replay queued:", kind, ref)
         return {"ok": True, "status": self.status()}
 
+    async def _forget_dropped_replays(self) -> None:
+        """A replay Liquidsoap could not load (a YouTube song it no longer serves, a file deleted meanwhile) is dropped
+        from its queue without an event; forgotten here too, else it blocks the gap filler and the intro talk for the
+        rest of the session. Two polls in a row: a request is briefly invisible while the queue resolves it."""
+        if not self.replays:
+            return
+        pending = (await asyncio.wait_for(self.engine.command('news.pending'), .5)).split()
+        for key, r in list(self.replays.items()):
+            self.replay_missing[key] = 0 if r['rid'] in pending else self.replay_missing.get(key, 0) + 1
+            if self.replay_missing[key] >= 2:
+                del self.replays[key]
+                log('replay dropped by the engine (could not load):', r['ref'])
+        self.replay_missing = {k: n for k, n in self.replay_missing.items() if k in self.replays}
+
     async def unqueue(self, kind: str, ref: str) -> dict:
         """Takes a replay off the queue. One that is already on air is left alone (it is no longer queued)."""
         for replay_id, r in list(self.replays.items()):
@@ -1820,6 +1836,7 @@ class Service:
             if getattr(self, 'engine', None) and self.engine.proc and self.engine.proc.returncode is None:
                 try:
                     ref = await asyncio.wait_for(self.engine.next_music(), .5)
+                    await self._forget_dropped_replays()
                     if ref:
                         self.next_track = ref
                         status['upcoming'].append({'kind': 'music', 'ref': ref, 'title': music.label(self.db, ref), 'stage': 'music'})

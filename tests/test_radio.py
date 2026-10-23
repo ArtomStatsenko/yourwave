@@ -936,7 +936,9 @@ class SchedulingTests(unittest.TestCase):
                 horizon.run(self.cfg)
             except Exception as e:
                 errors.append(e)
-        with patch.object(horizon, "_proxy", object()), \
+        from unittest.mock import Mock
+        proxy = Mock()
+        with patch.object(horizon, "_proxy", proxy), \
              patch.dict(os.environ, {"PATH": f"{bin_dir}:{os.environ['PATH']}"}):
             worker = threading.Thread(target=run)
             worker.start()
@@ -949,6 +951,8 @@ class SchedulingTests(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 3)
         self.assertIsInstance(errors[0], RuntimeError)
         self.assertIsNone(horizon._running)
+        proxy.server_close.assert_called_once()   # the Horizon port is free before the next radio starts
+        self.assertIsNone(horizon._proxy)
 
     def test_voicestudio_server_started_and_stopped_with_the_radio(self):
         from radio import plugins

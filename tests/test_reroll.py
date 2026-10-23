@@ -129,6 +129,20 @@ class RerollTests(unittest.TestCase):
         self.assertIsNone(self.svc.reroll_pending)
         self.assertFalse(self.svc.rerolling)
 
+    def test_a_replay_the_engine_dropped_is_forgotten(self):
+        plugins.set_plugin('reroll_next', True)
+        self.svc.replays = {'r1': {'kind': 'music', 'ref': '/tmp/other.wav', 'rid': '7', 'duration': 180}}
+        self.svc.engine.command = AsyncMock(return_value='7 9')   # still queued
+        asyncio.run(self.svc._forget_dropped_replays())
+        asyncio.run(self.svc._forget_dropped_replays())
+        self.assertIn('r1', self.svc.replays)
+        self.svc.engine.command = AsyncMock(return_value='9')     # YouTube did not serve it: dropped without an event
+        asyncio.run(self.svc._forget_dropped_replays())
+        self.assertIn('r1', self.svc.replays)                      # one miss: the queue may just be resolving it
+        asyncio.run(self.svc._forget_dropped_replays())
+        self.assertNotIn('r1', self.svc.replays)
+        self.assertEqual(self.svc._reroll_state()['ref'], '/tmp/next.wav')  # the dice is back on the real next song
+
     def test_youtube_reroll_skips_an_unavailable_song(self):
         from radio import ytmusic
         plugins.set_plugin('reroll_next', True)

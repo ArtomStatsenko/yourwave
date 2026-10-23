@@ -18,11 +18,16 @@ _running: subprocess.Popen | None = None
 def stop() -> None:
     """Ends a run in flight with uv's children (own process group), so a stopping radio exits at once
     instead of waiting up to the run's timeout and holding PROXY_PORT."""
+    global _proxy
     if (proc := _running) and proc.poll() is None:
         try:
             os.killpg(proc.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
+    if _proxy is not None:  # free PROXY_PORT now: the process may outlive the session while its threads finish
+        _proxy.shutdown()
+        _proxy.server_close()
+        _proxy = None
 
 
 def folder(cfg: dict) -> Path:
@@ -32,11 +37,11 @@ def folder(cfg: dict) -> Path:
 def run(cfg: dict, timeout: int = 1800) -> Path:
     """One Horizon run. Returns the briefing file it wrote. Raises on failure."""
     global _proxy
-    if _proxy is None:
-        _proxy = ollama_proxy.start(PROXY_PORT, lambda: editor.target(cfg))
     h = folder(cfg)
     if not (h / "data/config.json").exists():
         raise RuntimeError(f"Horizon is not set up in {h}")
+    if _proxy is None:
+        _proxy = ollama_proxy.start(PROXY_PORT, lambda: editor.target(cfg))
     global _running
     proc = _running = subprocess.Popen(["uv", "run", "horizon", "--hours", str(cfg["sources"]["horizon"]["hours"])],
                                        cwd=h, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,

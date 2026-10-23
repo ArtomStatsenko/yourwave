@@ -32,7 +32,8 @@ def intro_room(row) -> float | None:
 def scan(root: Path) -> list[Path]:
     files = []
     for d, _, names in os.walk(root, followlinks=True):
-        audio_names = [n for n in names if Path(n).suffix.lower() in EXTS and not n.startswith(".")]
+        # a quote breaks the playlist line's ref="..." (the song then has no length for the daemon): left out
+        audio_names = [n for n in names if Path(n).suffix.lower() in EXTS and not n.startswith(".") and '"' not in n]
         stems = {Path(n).stem for n in audio_names}
         # "Song.enhanced-....wav" is a copy of "Song.mp3": keep only the original.
         files += [Path(d) / n for n in audio_names if not (".enhanced" in n and n.split(".enhanced")[0] in stems)]

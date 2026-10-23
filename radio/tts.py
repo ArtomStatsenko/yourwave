@@ -87,10 +87,11 @@ class MlxClone:
         try:
             with urllib.request.urlopen(req, timeout=600) as r, open(raw, "wb") as f:
                 shutil.copyfileobj(r, f)
-            # mlx-audio leaves silence at the edges; the noise check reads a long quiet tail as noise (A/B test)
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(raw), "-af",
-                            "silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB"
-                            ":stop_duration=0.2", str(out)], check=True, capture_output=True)
+            # mlx-audio leaves silence at the edges; the noise check reads a long quiet tail as noise (A/B test).
+            # Edges only: stop_periods=-1 also cut the pauses between sentences to 0.2 s (measured: 0.6 s -> 0.24 s)
+            trim = "silenceremove=start_periods=1:start_threshold=-45dB"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(raw), "-af", f"{trim},areverse,{trim},areverse",
+                            str(out)], check=True, capture_output=True)
         finally:
             raw.unlink(missing_ok=True)
 
@@ -139,15 +140,30 @@ print(json.dumps([words[0]["start"], words[-1]["end"]] if len(segs) >= 3 and wor
 """
 
 
+_whisper: subprocess.Popen | None = None  # the song being heard, so a stopping radio can end it
+
+
+def stop_whisper() -> None:
+    if (p := _whisper) and p.poll() is None:
+        p.terminate()
+
+
 def vocal_span(path: Path) -> tuple[float, float] | None:
     """First and last sung word of a song (seconds), by the local Whisper with word times; None if it heard none.
     Runs at background priority (taskpolicy -b, nice 20): about 30 s a song, the radio and the Mac stay responsive."""
+    global _whisper
     python = Path(config.load()["voice"]["server_dir"]).expanduser() / ".venv/bin/python"
-    result = subprocess.run(["taskpolicy", "-b", "nice", "-n", "20", str(python), "-c", VOCAL_SCRIPT, str(path)],
-                            env=dict(os.environ, HF_HUB_OFFLINE="1"), capture_output=True, text=True, timeout=600)
-    if result.returncode:
+    _whisper = subprocess.Popen(["taskpolicy", "-b", "nice", "-n", "20", str(python), "-c", VOCAL_SCRIPT, str(path)],
+                                env=dict(os.environ, HF_HUB_OFFLINE="1"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                text=True)
+    try:
+        out, _ = _whisper.communicate(timeout=600)
+    except subprocess.TimeoutExpired:
+        _whisper.kill()
+        raise
+    if _whisper.returncode:
         raise RuntimeError("Local Whisper unavailable")
-    span = json.loads(result.stdout.strip().splitlines()[-1])
+    span = json.loads(out.strip().splitlines()[-1])
     return tuple(span) if span else None
 
 
