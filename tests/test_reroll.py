@@ -124,7 +124,7 @@ class RerollTests(unittest.TestCase):
         self.assertTrue(song.exists())                                      # Liquidsoap owns it now
         self.svc.engine.replace_music.reset_mock()
         with patch('radio.daemon.ytmusic.resolve', side_effect=ValueError('offline')):
-            self.assertIn('could not be loaded', self.reroll(refs[2])['error'])
+            self.assertIn('Could not load', self.reroll(refs[2])['error'])
         self.svc.engine.replace_music.assert_not_awaited()
         self.svc.engine.replace_music.side_effect = ValueError('STALE')
         with patch('radio.daemon.ytmusic.resolve', return_value=str(song)):

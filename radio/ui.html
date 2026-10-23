@@ -95,6 +95,7 @@ button:disabled{opacity:.4;cursor:default}button:disabled:hover{border-color:var
 .lim{height:4px;background:var(--line);max-width:240px;flex:1;min-width:80px}.lim i{display:block;height:4px;background:var(--ok)}
 /* timeline: two columns (time, title), no lines or cards; special kinds are marked by a prefix inside the title */
 .it{border:0}
+.reroll-track:disabled{opacity:.4}
 .reroll-track{display:inline-flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;padding:6px;border:0;color:var(--muted)}.reroll-track:hover{border:0;color:var(--accent)}
 #direction-list .music-spacer{height:4px}
 #direction-list .plan-fold{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:32px;padding:0 8px 0 var(--plan-title-x);border:0;background:none;color:var(--muted);font:inherit;font-size:16px;text-align:left;white-space:nowrap}
@@ -182,7 +183,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #direction-controls:not(.editing) .plan-bar{display:none}
 #direction-controls.editing,#tl{grid-column:1 / -1;min-width:0}
 #upcoming{grid-column:1 / -1;grid-row:1;min-width:0;color:var(--muted);align-self:center}
-#upcoming .tx{white-space:normal;overflow-wrap:anywhere}#upcoming .tx.pend{color:var(--muted)}  /* the next title wraps like every other title */#upcoming .tx.up-err{white-space:normal;font-size:16px;color:var(--warn)}
+#upcoming .tx{white-space:normal;overflow-wrap:anywhere}#upcoming .tx.pend,.then .tx{color:var(--muted)}  /* the next title wraps like every other title */#upcoming .tx.up-err{white-space:normal;font-size:16px;color:var(--warn)}
 #upcoming .tg{align-items:center;padding-left:8px}
 </style>
 </head>
@@ -524,7 +525,7 @@ function directionCatalog(){return api('/api/cmd',{cmd:'direction',action:'catal
 function rerollButton(){
   var r=st.next_reroll;if(!r||!pls.some(function(p){return p.name==='reroll_next'&&p.on}))return '';
   var label='Choose another random track';
-  return '<button type="button" class="reroll-track" data-reroll data-plan-action="reroll" aria-label="'+label+'" title="'+esc(r.reason||'Replace next track now')+'" aria-busy="'+rerollBusy+'"'+(!r.available||rerollBusy?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
+  return '<button type="button" class="reroll-track" data-reroll data-plan-action="reroll" aria-label="'+label+'" title="'+esc(r.reason||'Replace next track now')+'" aria-busy="'+!!(rerollBusy||r.pending)+'"'+(!r.available||rerollBusy?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
 }
 function rerollNext(){
   if(rerollBusy||!st.next_reroll||!st.next_reroll.available)return;
@@ -559,7 +560,10 @@ function directionView(){
     var kind=r.kind==='jingle'?'id':r.kind,title=r.title||r.kind;
     var detail=Array.from(new Set((r.content_title||'').split(' · '))).join(' · ');
     var nextMusic=r.kind==='music'&&i===rows.findIndex(function(n){return n.kind==='music'});
-    if(r.kind==='music'&&st.next_reroll)detail=nextMusic?st.next_reroll.title:'';
+    var musicK=r.kind==='music'?rows.slice(0,i).filter(function(n){return n.kind==='music'}).length:-1;
+    var later=(st.upcoming_tracks||[]).filter(function(t){return !st.next_reroll||t.ref!==st.next_reroll.ref});
+    var isThen=musicK>=1&&musicK<=2&&!!later[musicK-1];  // the two songs after next: tentative, shown with "~"
+    if(r.kind==='music'&&st.next_reroll)detail=nextMusic?st.next_reroll.title:isThen?later[musicK-1].title:'';
     if(r.kind==='music'&&!detail)return '<div class="music-spacer" aria-hidden="true"></div>';
     var shown=detail&&entryTitle(r.kind,detail).replace(/^Weather · /,'');
     if(shown&&detail!==r.kind&&shown.toLowerCase()!==title.toLowerCase())title+=' · '+shown;  // never "Reminder · Reminder"
@@ -567,7 +571,7 @@ function directionView(){
     var latest=((st.broadcast_plan||{}).rows||[]).find(function(n){return n.id===r.id})||r;
     var readiness=planReadiness(Object.assign({},latest,{skipped:r.skipped}));
     var editable=!!planDraft&&!r.locked&&r.kind!=='music',skippable=!!planDraft&&['news','weather','reminder'].includes(r.kind);
-    return '<div class="it '+esc(kind)+(nextMusic?' next-track':'')+(r.placeholder&&r.kind!=='music'?' placeholder':'')+(r.skipped?' skipped':'')+'" data-plan-index="'+i+'" data-plan-key="'+esc(r.id)+'" draggable="'+editable+'"><div class="hd"><div class="tg">'
+    return '<div class="it '+esc(kind)+(nextMusic?' next-track':'')+(isThen?' then':'')+(r.placeholder&&r.kind!=='music'?' placeholder':'')+(r.skipped?' skipped':'')+'"'+(isThen?' title="The order may change"':'')+' data-plan-index="'+i+'" data-plan-key="'+esc(r.id)+'" draggable="'+editable+'"><div class="hd"><div class="tg">'
       +(editable?'<button type="button" class="tm plan-time" data-plan-action="time" aria-label="Change time: '+esc(title)+'">':'<span class="tm plan-time">')+(r.estimated?'~':'')+esc(time)+(editable?'</button>':'</span>')+(r.edition?'<button type="button" class="tx edition-toggle" data-plan-action="segments" aria-expanded="'+!!planOpen[r.id]+'">':'<span class="tx">')+esc(title)+(r.edition?'</button>':'</span>')+(r.skipped?'<span class="skipped-label">skipped</span>':'')
       +(readiness?'<span class="l plan-readiness">'+esc(readiness)+'</span>':'')+'</div>'+(nextMusic?rerollButton():'')
       +(editable||skippable?'<div class="plan-inline">'+(editable?'<button type="button" data-plan-action="up" aria-label="Move earlier: '+esc(title)+'">↑</button><button type="button" data-plan-action="down" aria-label="Move later: '+esc(title)+'">↓</button>':'')+'<button type="button" data-plan-action="skip" aria-label="'+(r.skipped?'Restore block':planConfirm===r.id?'Confirm skip reminder':'Skip block')+'"'+'>'+(r.skipped?'↶':planConfirm===r.id?'Confirm skip':'×')+'</button></div>':'')+'</div>'
@@ -666,8 +670,10 @@ function timeline(){var a=document.activeElement&&document.activeElement.dataset
   var next=(st.upcoming||[]).find(function(x){return x.stage==='queued'})||(st.upcoming||[]).find(function(x){return x.stage==='next'})||(st.upcoming||[]).find(function(x){return x.stage==='music'});
   $('upcoming').hidden=!next||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll');
+  var then=(st.upcoming_tracks||[]).filter(function(t){return !next||t.ref!==next.ref}).slice(0,2);  // tentative: no time, no dice
+  var thenRows=then.map(function(t){return '<div class="it music then"><div class="tg"><span class="tm">then</span><span class="tx" title="The order may change">'+esc(entryTitle('music',t.title))+'</span></div></div>'}).join('');
   var nr=st.next_reroll||{},pend=nr.pending,nextTitle=pend?pend.title:entryTitle(next&&next.kind,next&&next.title),rerr=rerollError||nr.error||'';
-  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':'')+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
+  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':'')+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':'')+thenRows:'';
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
   $('tl').innerHTML=items.length?items.map(row).join(''):'<p class="l">nothing has aired yet</p>';

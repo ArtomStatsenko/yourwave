@@ -1553,7 +1553,8 @@ class Service:
                     if fail != UNAVAILABLE:
                         return fail
                     self.rerolling, self.reroll_error = True, None  # that song is unavailable: the next spare
-                self.reroll_error = ('No other track could be loaded from YouTube Music. Try again.', time.time() + 30)
+                self.reroll_error = (self._reroll_failed(picks[0], expected, "YouTube did not serve it or the spares"),
+                                     time.time() + 20)
                 self.rerolling = False
                 return self.reroll_error[0]
             self.reroll_task = asyncio.create_task(swap_first_available())
@@ -1562,6 +1563,9 @@ class Service:
         if fail := await self._swap_next(expected, replacement, uri, slot):  # a local file swaps at once
             return {'ok': False, 'error': fail}
         return await self.dispatch('status')
+
+    def _reroll_failed(self, new, old, reason):
+        return f"Could not load “{music.label(self.db, new)}”: {reason}. Keeping “{music.label(self.db, old)}”."
 
     async def _swap_next(self, expected, replacement, uri, slot):
         downloaded = None
@@ -1575,7 +1579,7 @@ class Service:
                     fail = UNAVAILABLE
                     return fail
                 except Exception:
-                    fail = 'That song could not be loaded from YouTube Music. Try again.'
+                    fail = self._reroll_failed(replacement, expected, "YouTube Music did not answer")
                     return fail
                 uri = uri.removesuffix(replacement) + 'tmp:' + downloaded  # Liquidsoap removes it after airing
             rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
@@ -1588,11 +1592,12 @@ class Service:
             elif self.current['ref'] != replacement:
                 self.next_track = replacement
         except (OSError, ValueError, asyncio.TimeoutError, asyncio.IncompleteReadError) as e:
-            fail = str(e) if isinstance(e, ValueError) and str(e) else 'Could not replace the next track. Try again.'
+            fail = self._reroll_failed(replacement, expected, "the next song changed meanwhile" if "changed" in str(e)
+                                       else "it did not load in time")
         finally:
             self.rerolling, self.reroll_pending = False, None
             if fail and fail != UNAVAILABLE:
-                self.reroll_error = (fail, time.time() + 30)  # shown under the next title for a while
+                self.reroll_error = (fail, time.time() + 20)  # under the next title until the next reroll or 20 s
             if downloaded:  # not handed to Liquidsoap
                 Path(downloaded).unlink(missing_ok=True)
         return fail
