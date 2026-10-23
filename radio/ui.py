@@ -205,9 +205,9 @@ def serve(port: int) -> None:
                         raise OSError
                     voice.synthesize(VOICE_SAMPLE, config.RUN_DIR / "voice-sample.wav")
                 except OSError:
-                    return self._json({"ok": False, "error": "The voice server is not running yet. Press Play; the radio starts it."}, 400)
+                    return self._json({"ok": False, "error": "the voice engine did not answer"}, 400)
                 except (ValueError, RuntimeError) as e:
-                    return self._json({"ok": False, "error": f"Could not voice the sample: {e}"}, 400)
+                    return self._json({"ok": False, "error": str(e)}, 400)
                 resp = {"ok": True, "url": f"/voice-sample.wav?{time.time_ns()}"}
             elif cmd == "llm_key":  # the key is stored, never echoed back
                 try:

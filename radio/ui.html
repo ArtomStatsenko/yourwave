@@ -167,6 +167,8 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .ab{font-size:16px;padding:6px 14px;min-height:36px}.keyrow .ab{min-width:9ch}
 .fb{font-size:16px;line-height:24px;min-height:24px}.fb.bad{color:var(--warn)}.fb.ok{color:var(--ok)}
 .pick-hint{color:var(--warn)}
+.act{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.act .ab{min-width:17ch}.fb.wait{color:var(--muted)}
+.ab:disabled{opacity:.5;cursor:default}.ab:disabled:hover{border-color:var(--line)}
 .st input[type=url],.st input[type=password],.st input[type=text],.st select{box-sizing:border-box;width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
 .st .rs{border:0;padding:0 4px;font-size:16px;color:var(--accent);text-decoration:underline}.st .rs:hover{border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
@@ -440,26 +442,44 @@ function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model
       :'<input type="text" id="st-'+m.key+'" data-st="'+m.key+'" minlength="'+m.min+'" maxlength="'+m.max+'" value="'+esc(m.value)+'">')
     +(st==='no_model'?'<div class="l pick-hint">'+esc(c.detail)+'. Pick another model.</div>':'<div class="l">Models offered by the provider</div>')+'</div>';
   return h+'</section>'}
-var sample={busy:false,msg:'',cls:''};  // the voice sample button: its own feedback, never the player's error line
-function voiceView(s){  // interim Voice block (summary, engine, sample); the design session sends the final markup
-  var vs=s.voice_state,g=vs.state==='ready'?['ok','●']:vs.state==='starting'?['wait','○']:['bad','▲'];
+var sample={st:'idle',err:'',t0:0},sampleTick=null,sampleAudio=null,voicePending=null;  // VoiceSettings: idle|busy|playing|error
+function sampleFb(){  // the feedback line under the sample button (never the player's #er)
+  if(sample.st==='busy'){var s=Math.floor((Date.now()-sample.t0)/1000),vs=stg.find(function(x){return x.voice_state});
+    return ['wait','Rendering a sample · '+s+' s'+(s>20||(vs&&vs.voice_state.state!=='ready')?' (the first start takes about a minute)':'')]}
+  if(sample.st==='playing')return ['ok','Playing the sample…'];
+  if(sample.st==='error')return ['bad','Could not make a sample: '+sample.err+'. Try again in a minute.'];
+  return ['',''] }
+function voiceView(s){  // design system: VoiceSettings
+  var vs=voicePending?{state:'starting',detail:'Starting…'}:s.voice_state;
+  var g=vs.state==='ready'?['ok','●']:vs.state==='starting'?['wait','○']:['bad','▲'],parts=vs.detail.split(' · '),fb=sampleFb();
+  var label=function(o){return s.labels[o]||o};
   return '<section class="ai" aria-label="Voice"><div class="ai-h">Voice</div>'
-    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(vs.engine_title)+'</div>'
-    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(vs.detail)+'</span></div></div>'
+    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(label(s.value))+'</div>'
+    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(parts[0])+(parts[1]?' <span class="d">· '+esc(parts[1])+'</span>':'')+'</span></div></div>'
     +'<div class="st"><label for="st-voice_engine">'+esc(s.title)+'</label><select id="st-voice_engine" data-st="voice_engine">'
-    +s.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===s.value?' selected':'')+'>'+esc(s.labels[o]||o)+'</option>'}).join('')+'</select>'
-    +'<div class="l">'+esc(s.hint)+'</div>'
-    +'<div class="row"><button type="button" class="ab" id="voice-sample"'+(sample.busy?' disabled aria-busy="true"':'')+'>'+(sample.busy?'voicing…':'Play a sample')+'</button></div>'
-    +'<div class="fb '+sample.cls+'" role="status" aria-live="polite">'+esc(sample.msg)+'</div></div></section>'}
-function playSample(){if(sample.busy)return;sample={busy:true,msg:'Voicing a sample… (the first one after a start can take a minute)',cls:''};settingsView(true);
-  api('/api/cmd',{cmd:'voice_sample'}).then(function(d){if(!d||d.ok===false)throw Error(d&&d.error);
-    sample={busy:false,msg:'Playing the sample.',cls:'ok'};new Audio(d.url).play().catch(function(){sample.msg='The sample is ready, but the browser blocked playback. Press the button again.'})})
-  .catch(function(e){sample={busy:false,msg:e.message||'Could not voice the sample.',cls:'bad'}}).finally(function(){sample.busy=false;settingsView(true)})}
+    +s.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===s.value?' selected':'')+'>'+esc(label(o))+'</option>'}).join('')+'</select>'
+    +'<div class="l">'+esc(s.hint)+' · default '+esc(label(s.default))+'</div></div>'
+    +'<div class="st"><label for="voice-sample">Sample</label><div class="act"><button type="button" class="ab" id="voice-sample"'+(sample.st==='busy'?' disabled aria-busy="true"':'')+'>'
+    +(sample.st==='busy'?'Rendering…':sample.st==='playing'?'■ Stop':'Play a sample')+'</button></div>'
+    +'<div class="fb '+fb[0]+'" id="voice-fb" role="status" aria-live="polite">'+esc(fb[1])+'</div></div></section>'}
+function sampleState(st,err){sample.st=st;sample.err=err||'';clearInterval(sampleTick);
+  if(st==='busy'){sample.t0=Date.now();sampleTick=setInterval(function(){var f=$('voice-fb'),t=sampleFb();if(f){f.textContent=t[1]}},1000)}
+  settingsView(true)}
+function playSample(){
+  if(sample.st==='playing'){if(sampleAudio)sampleAudio.pause();sampleState('idle');return}
+  if(sample.st==='busy')return;
+  sampleState('busy');
+  api('/api/cmd',{cmd:'voice_sample'}).then(function(d){if(!d||d.ok===false)throw Error(d&&d.error||'the radio did not answer');
+    sampleAudio=new Audio(d.url);sampleAudio.onended=function(){sampleState('idle')};
+    return sampleAudio.play().then(function(){sampleState('playing')})})
+  .catch(function(e){sampleState('error',(e&&e.message)||'the voice engine did not answer')})}
 function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
   var box=$('settings'),f=document.activeElement;
+  if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // the poll must not redraw a sample in progress
   if(!force&&(box.contains(f)&&['range','text','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
   var u=function(s,v){return v+(s.unit?' '+s.unit:'')},prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
-  box.innerHTML=stg.map(function(s){if(s===prov)return aiView(prov,model);if(s===model)return '';if(s.voice_state)return voiceView(s);
+  var voice=stg.find(function(s){return s.voice_state});
+  box.innerHTML=stg.map(function(s){if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
@@ -476,6 +496,7 @@ $('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st}),value=s.step===null?r.value:+r.value;s.value=value;
   if(s.key==='llm_provider')keyFb={cls:'',text:''};
+  if(s.key==='voice_engine'){voicePending=value;setTimeout(function(){voicePending=null},6000)}
   api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save'})};
 $('stg').onkeydown=function(e){if(e.key==='Enter'&&e.target.id==='llm-key'){e.preventDefault();var b=document.querySelector('[data-key]');if(b)saveKey(b.dataset.key,e.target.value)}};
 $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();return}

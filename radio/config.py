@@ -119,7 +119,7 @@ engine = "voicestudio"     # "voicestudio" (OmniVoice, a voice by description) o
                             # voices/host.wav + .txt in the data folder, via mlx-audio); switched on the Settings tab
 mlx_audio_dir = "~/tts-lab" # a venv with mlx-audio[server] (.venv/bin/mlx_audio.server); the radio starts it
 mlx_audio_url = "http://127.0.0.1:3901"
-qwen_model = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
+qwen_model = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"  # as good as bf16, twice as fast, less memory (A/B test)
 cohost_instruct = "female, young adult, moderate pitch"  # plugin "Two hosts": the second designed voice
 cohost_seed = 7            # picked by ear from 7 / 21 / 99
 chars_per_sec = 14.0        # speech-length estimate, measured on this voice

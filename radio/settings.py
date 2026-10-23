@@ -14,8 +14,8 @@ SETTINGS = {
     "cohost_name": ("broadcast", "cohost_name", "Co-host's name", "The second voice (Two hosts)", 1, 30, None, ""),
     "station_name": ("broadcast", "station_name", "Station name",
                      "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
-    "voice_engine": ("voice", "engine", "Voice engine", "Who speaks for the host. New phrases use it at once; "
-                     "phrases already voiced stay as they are", 1, 20, None, ""),
+    "voice_engine": ("voice", "engine", "Voice engine", "Switching takes effect for new phrases; already voiced ones stay",
+                     1, 20, None, ""),
     "llm_provider": ("editor", "provider", "Provider", "Where the host's words come from", 1, 20, None, ""),
     # one model row per provider; the page shows the selected provider's
     "ollama_model": ("editor", "model", "Model", "A local Ollama model", 1, 200, None, ""),
@@ -160,4 +160,5 @@ def _voice_state(live: dict) -> dict:
     except OSError:
         port = int(url.rsplit(":", 1)[-1])
         return {"state": "starting" if tts.port_open(port) else "down", "engine_title": title,
-                "detail": "Starting…" if tts.port_open(port) else "Not running: the radio starts it when it plays"}
+                "detail": "Starting…" if tts.port_open(port)
+                else "Not running · the radio starts it when it plays"}
