@@ -86,6 +86,43 @@ class RerollTests(unittest.TestCase):
         self.svc.engine.replace_music.assert_awaited_once()
         self.assertIsNone(self.svc.reroll_pending)
 
+    def test_a_second_click_while_loading_replaces_the_pick(self):
+        import threading
+        plugins.set_plugin('reroll_next', True)
+        refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc', 'ytmusic:ddddddddddd', 'ytmusic:eeeeeeeeeee']
+        self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
+        self.svc.library = set(refs)
+        self.svc.engine.music_choices.return_value = {r: f'annotate:kind="music",ref="{r}",liq_amplify="0 dB":{r}' for r in refs}
+        first_loaded, files, calls = threading.Event(), [], []
+
+        def resolve(vid):
+            calls.append(vid)
+            if len(calls) == 1:
+                first_loaded.wait(5)  # the first pick is still downloading when the second click comes
+            f = config.DATA_DIR / f'{vid}.webm'
+            f.write_bytes(b'x')
+            files.append(f)
+            return str(f)
+
+        async def go():
+            with patch('radio.daemon.ytmusic.resolve', side_effect=resolve):
+                first = await self.svc.dispatch('reroll-next', {'ref': refs[1]})
+                first_task = self.svc.reroll_task
+                while not calls:
+                    await asyncio.sleep(0.01)  # its download has started
+                self.assertTrue(first['status']['next_reroll']['available'])  # the dice stays clickable
+                second = await self.svc.dispatch('reroll-next', {'ref': refs[1]})
+                self.assertNotEqual(first['status']['next_reroll']['pending'], second['status']['next_reroll']['pending'])
+                await self.svc.reroll_task
+                first_loaded.set()
+                await first_task
+        asyncio.run(go())
+        self.svc.engine.replace_music.assert_awaited_once()  # only the latest pick airs
+        self.assertIn(files[0].name.removesuffix('.webm'), self.svc.engine.replace_music.call_args.args[1])
+        self.assertFalse(files[1].exists())                  # the dropped download is deleted
+        self.assertIsNone(self.svc.reroll_pending)
+        self.assertFalse(self.svc.rerolling)
+
     def test_youtube_reroll_skips_an_unavailable_song(self):
         from radio import ytmusic
         plugins.set_plugin('reroll_next', True)

@@ -525,7 +525,7 @@ function directionCatalog(){return api('/api/cmd',{cmd:'direction',action:'catal
 function rerollButton(){
   var r=st.next_reroll;if(!r||!pls.some(function(p){return p.name==='reroll_next'&&p.on}))return '';
   var label='Choose another random track';
-  return '<button type="button" class="reroll-track" data-reroll data-plan-action="reroll" aria-label="'+label+'" title="'+esc(r.reason||'Replace next track now')+'" aria-busy="'+!!(rerollBusy||r.pending)+'"'+(!r.available||rerollBusy?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
+  return '<button type="button" class="reroll-track" data-reroll data-plan-action="reroll" aria-label="'+label+'" title="'+esc(r.reason||'Replace next track now')+'" aria-busy="'+rerollBusy+'"'+(!r.available||rerollBusy?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
 }
 function rerollNext(){
   if(rerollBusy||!st.next_reroll||!st.next_reroll.available)return;

@@ -68,6 +68,7 @@ class Service:
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
         self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
         self.reroll_task = None
+        self.reroll_gen = 0  # each dice click; an older download that finishes after a newer click is dropped
         self.current: dict | None = None
         self.skip_flag = False
         self.next_transition_sec = None
@@ -1518,7 +1519,7 @@ class Service:
             reason = 'The host transition is already prepared'
         elif remaining <= max(10, self.cfg['music']['crossfade_sec'] + 3):
             reason = 'The next track is already starting'
-        elif self.rerolling:
+        elif self.rerolling and not self.reroll_pending:  # while a song downloads, another click replaces the pick
             reason = 'Choosing another track'
         state = {'ref': slot['ref'], 'title': music.label(self.db, slot['ref']), 'available': not reason, 'reason': reason}
         if self.reroll_pending:
@@ -1535,7 +1536,7 @@ class Service:
             return {'ok': False, 'error': (state or {}).get('reason') or 'The next track changed. Try again.'}
         slot = self._next_music_slot()
         choices = self.engine.music_choices(expected)
-        excluded = {expected, self.current['ref'], *self.fresh_queued, *(r['ref'] for r in self.replays.values())}
+        excluded = {expected, self.current['ref'], self.reroll_pending, *self.fresh_queued, *(r['ref'] for r in self.replays.values())}
         choices = {ref: uri for ref, uri in choices.items() if ref in self.library and ref not in excluded}
         if not choices:
             return {'ok': False, 'error': 'No other track is available'}
@@ -1544,15 +1545,21 @@ class Service:
             uri = choices[ref]
             return uri.replace('annotate:', 'annotate:replay_id="' + slot['replay_id'] + '",', 1) if slot.get('replay_id') else uri
         replacement = picks[0]
+        self.reroll_gen += 1
+        gen = self.reroll_gen
         self.rerolling, self.reroll_pending, self.reroll_error = True, replacement, None
         if replacement.startswith('ytmusic:'):  # a download: answer now with the new title, swap when it is loaded
             async def swap_first_available():
                 for ref in picks:
+                    if gen != self.reroll_gen:
+                        return None
                     self.reroll_pending = ref
-                    fail = await self._swap_next(expected, ref, uri_of(ref), slot)
+                    fail = await self._swap_next(expected, ref, uri_of(ref), slot, gen)
                     if fail != UNAVAILABLE:
                         return fail
                     self.rerolling, self.reroll_error = True, None  # that song is unavailable: the next spare
+                if gen != self.reroll_gen:
+                    return None
                 self.reroll_error = (self._reroll_failed(picks[0], expected, "YouTube did not serve it or the spares"),
                                      time.time() + 20)
                 self.rerolling = False
@@ -1560,14 +1567,14 @@ class Service:
             self.reroll_task = asyncio.create_task(swap_first_available())
             return await self.dispatch('status')
         uri = uri_of(replacement)
-        if fail := await self._swap_next(expected, replacement, uri, slot):  # a local file swaps at once
+        if fail := await self._swap_next(expected, replacement, uri, slot, gen):  # a local file swaps at once
             return {'ok': False, 'error': fail}
         return await self.dispatch('status')
 
     def _reroll_failed(self, new, old, reason):
         return f"Could not load “{music.label(self.db, new)}”: {reason}. Keeping “{music.label(self.db, old)}”."
 
-    async def _swap_next(self, expected, replacement, uri, slot):
+    async def _swap_next(self, expected, replacement, uri, slot, gen):
         downloaded = None
         fail = None
         try:
@@ -1581,6 +1588,8 @@ class Service:
                 except Exception:
                     fail = self._reroll_failed(replacement, expected, "YouTube Music did not answer")
                     return fail
+                if gen != self.reroll_gen:
+                    return None  # a newer click took over: drop this song, the finally deletes the file
                 uri = uri.removesuffix(replacement) + 'tmp:' + downloaded  # Liquidsoap removes it after airing
             rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
             downloaded = None
@@ -1595,8 +1604,9 @@ class Service:
             fail = self._reroll_failed(replacement, expected, "the next song changed meanwhile" if "changed" in str(e)
                                        else "it did not load in time")
         finally:
-            self.rerolling, self.reroll_pending = False, None
-            if fail and fail != UNAVAILABLE:
+            if gen == self.reroll_gen:  # an older download must not clear the newer pick's state
+                self.rerolling, self.reroll_pending = False, None
+            if fail and fail != UNAVAILABLE and gen == self.reroll_gen:
                 self.reroll_error = (fail, time.time() + 20)  # under the next title until the next reroll or 20 s
             if downloaded:  # not handed to Liquidsoap
                 Path(downloaded).unlink(missing_ok=True)
