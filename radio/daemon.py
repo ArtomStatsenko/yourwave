@@ -66,7 +66,7 @@ class Service:
         self.state = "STARTING"
         self.auto_paused, self.paused_at, self.heard_at = False, 0.0, time.time()
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
-        self.replay_missing: dict[str, int] = {}  # replay_id -> status polls in a row Liquidsoap did not list it
+        self.replays_checked = 0.0  # when Liquidsoap's queue was last compared with them
         self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
         self.reroll_task = None
         self.reroll_gen = 0  # each dice click; an older download that finishes after a newer click is dropped
@@ -279,7 +279,7 @@ class Service:
             if self.stopping or self.rendering or self.assembling:
                 continue
             try:  # an error here must not end the loop for the rest of the session
-                if not (f := music.to_hear(self.db, self.files)):
+                if not (f := await asyncio.to_thread(music.to_hear, self.db, self.files)):
                     continue
                 await asyncio.to_thread(music.hear, self.db, f)
                 log("vocals heard:", f.name)
@@ -1487,16 +1487,16 @@ class Service:
     async def _forget_dropped_replays(self) -> None:
         """A replay Liquidsoap could not load (a YouTube song it no longer serves, a file deleted meanwhile) is dropped
         from its queue without an event; forgotten here too, else it blocks the gap filler and the intro talk for the
-        rest of the session. Two polls in a row: a request is briefly invisible while the queue resolves it."""
-        if not self.replays:
+        rest of the session. Two looks in a row, 10 s apart: a request is briefly invisible while the queue resolves it."""
+        if not self.replays or time.time() - self.replays_checked < 10:
             return
-        pending = (await asyncio.wait_for(self.engine.command('news.pending'), .5)).split()
+        self.replays_checked = time.time()
+        pending = await asyncio.wait_for(self.engine.pending(), .5)
         for key, r in list(self.replays.items()):
-            self.replay_missing[key] = 0 if r['rid'] in pending else self.replay_missing.get(key, 0) + 1
-            if self.replay_missing[key] >= 2:
+            r['missing'] = 0 if r['rid'] in pending else r.get('missing', 0) + 1
+            if r['missing'] >= 2:
                 del self.replays[key]
                 log('replay dropped by the engine (could not load):', r['ref'])
-        self.replay_missing = {k: n for k, n in self.replay_missing.items() if k in self.replays}
 
     async def unqueue(self, kind: str, ref: str) -> dict:
         """Takes a replay off the queue. One that is already on air is left alone (it is no longer queued)."""
@@ -1567,15 +1567,11 @@ class Service:
         if replacement.startswith('ytmusic:'):  # a download: answer now with the new title, swap when it is loaded
             async def swap_first_available():
                 for ref in picks:
-                    if gen != self.reroll_gen:
-                        return None
                     self.reroll_pending = ref
                     fail = await self._swap_next(expected, ref, uri_of(ref), slot, gen)
                     if fail != UNAVAILABLE:
                         return fail
                     self.rerolling, self.reroll_error = True, None  # that song is unavailable: the next spare
-                if gen != self.reroll_gen:
-                    return None
                 self.reroll_error = (self._reroll_failed(picks[0], expected, "YouTube did not serve it or the spares"),
                                      time.time() + 20)
                 self.rerolling = False
@@ -1625,8 +1621,8 @@ class Service:
         finally:
             if gen == self.reroll_gen:  # an older download must not clear the newer pick's state
                 self.rerolling, self.reroll_pending = False, None
-            if fail and fail != UNAVAILABLE and gen == self.reroll_gen:
-                self.reroll_error = (fail, time.time() + 20)  # under the next title until the next reroll or 20 s
+                if fail and fail != UNAVAILABLE:
+                    self.reroll_error = (fail, time.time() + 20)  # under the next title until the next reroll or 20 s
             if downloaded:  # not handed to Liquidsoap
                 Path(downloaded).unlink(missing_ok=True)
         return fail

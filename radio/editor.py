@@ -149,12 +149,15 @@ class Editor:
     def __init__(self, cfg: dict):
         self.cfg = cfg  # the daemon's live dict: Settings changes reach it
         self.max_calls = cfg["editor"]["max_llm_calls_per_session"]  # per rolling hour: a long session keeps its news
-        self.calls = 0
         self.call_times: list[float] = []
 
     @property
     def enabled(self) -> bool:
         return self.cfg["editor"]["llm_enabled"]
+
+    @property
+    def calls(self) -> int:
+        return len(self.call_times)  # in the rolling hour, like the limit
 
     def _cache(self, prompt: str, t: dict):
         key = hashlib.sha256(f"{t['provider']}|{t['model']}|{PROMPT_VERSION}|{prompt}".encode()).hexdigest()[:32]
@@ -184,7 +187,6 @@ class Editor:
         self.call_times = [t for t in self.call_times if time.time() - t < 3600]
         if len(self.call_times) >= self.max_calls:
             return None
-        self.calls += 1
         self.call_times.append(time.time())
         if t["provider"] == "openai":
             return self._finish(cached, name, output_text(self._post(t, "/v1/responses", {

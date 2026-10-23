@@ -160,7 +160,7 @@ def vocal_span(path: Path) -> tuple[float, float] | None:
         out, _ = _whisper.communicate(timeout=600)
     except subprocess.TimeoutExpired:
         _whisper.kill()
-        raise
+        return None  # a song Whisper cannot finish counts as unheard, so the next songs get their turn
     if _whisper.returncode:
         raise RuntimeError("Local Whisper unavailable")
     span = json.loads(out.strip().splitlines()[-1])

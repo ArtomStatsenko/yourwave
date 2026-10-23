@@ -132,7 +132,7 @@ class Liquidsoap:
 
     async def wait_insert(self, rid=None):
         for _ in range(60):
-            if (not rid or rid in (await self.command('news.pending')).split()) and await self.command('news.ready') == 'true':
+            if (not rid or rid in await self.pending()) and await self.command('news.ready') == 'true':
                 return
             await asyncio.sleep(.05)
         raise TimeoutError('The next section is not loaded yet; try again shortly')
@@ -151,6 +151,10 @@ class Liquidsoap:
         ending += ',liq_cross_start_duration="12"'
         uri = f'annotate:kind="news",ref="{safe_id}",liq_amplify="{gain:+.1f} dB",{ending},liq_fade_in="0.1":{wav}'
         return (await self.command(f"news.push {uri}")).strip()
+
+    async def pending(self) -> list[str]:
+        """Request ids in the news queue, the one on air first. A request that could not load is simply not there."""
+        return (await self.command('news.pending')).split()
 
     async def push_station_id(self, wav: Path, gain_db: float, tail_sec: float = 0.0) -> None:
         # Goes through the same queue as news, so it too waits for the song boundary. The next song starts
@@ -208,7 +212,7 @@ class Liquidsoap:
             await self.command(f"{queue}.remove {rid}")
             if queue != "news":
                 return
-            gone = gone + 1 if rid not in (await self.command('news.pending')).split() else 0
+            gone = gone + 1 if rid not in await self.pending() else 0
             if gone == 2:
                 return
             await asyncio.sleep(.05)

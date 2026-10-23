@@ -132,14 +132,17 @@ class RerollTests(unittest.TestCase):
     def test_a_replay_the_engine_dropped_is_forgotten(self):
         plugins.set_plugin('reroll_next', True)
         self.svc.replays = {'r1': {'kind': 'music', 'ref': '/tmp/other.wav', 'rid': '7', 'duration': 180}}
-        self.svc.engine.command = AsyncMock(return_value='7 9')   # still queued
-        asyncio.run(self.svc._forget_dropped_replays())
-        asyncio.run(self.svc._forget_dropped_replays())
+        from radio import daemon
+        def look():  # a status poll, 10 s after the previous one (looks closer together are skipped)
+            daemon.time.time.return_value += 10
+            asyncio.run(self.svc._forget_dropped_replays())
+        self.svc.engine.pending = AsyncMock(return_value=['7', '9'])   # still queued
+        look(); look()
         self.assertIn('r1', self.svc.replays)
-        self.svc.engine.command = AsyncMock(return_value='9')     # YouTube did not serve it: dropped without an event
-        asyncio.run(self.svc._forget_dropped_replays())
+        self.svc.engine.pending = AsyncMock(return_value=['9'])     # YouTube did not serve it: dropped without an event
+        look()
         self.assertIn('r1', self.svc.replays)                      # one miss: the queue may just be resolving it
-        asyncio.run(self.svc._forget_dropped_replays())
+        look()
         self.assertNotIn('r1', self.svc.replays)
         self.assertEqual(self.svc._reroll_state()['ref'], '/tmp/next.wav')  # the dice is back on the real next song
 
