@@ -113,13 +113,19 @@ class RerollTests(unittest.TestCase):
                 self.assertTrue(first['status']['next_reroll']['available'])  # the dice stays clickable
                 second = await self.svc.dispatch('reroll-next', {'ref': refs[1]})
                 self.assertNotEqual(first['status']['next_reroll']['pending'], second['status']['next_reroll']['pending'])
-                await self.svc.reroll_task
+                latest = second['status']['next_reroll']['pending']['title']
+                await asyncio.sleep(0.2)
+                self.assertEqual(len(calls), 1)               # one download at a time: the second waits
                 first_loaded.set()
                 await first_task
-        asyncio.run(go())
+                await self.svc.reroll_task
+            return latest
+        latest = asyncio.run(go())
+        self.assertEqual(len(calls), 2)
         self.svc.engine.replace_music.assert_awaited_once()  # only the latest pick airs
-        self.assertIn(files[0].name.removesuffix('.webm'), self.svc.engine.replace_music.call_args.args[1])
-        self.assertFalse(files[1].exists())                  # the dropped download is deleted
+        self.assertIn(calls[1], self.svc.engine.replace_music.call_args.args[1])
+        self.assertFalse(files[0].exists())                  # the dropped download is deleted
+        self.assertTrue(latest)
         self.assertIsNone(self.svc.reroll_pending)
         self.assertFalse(self.svc.rerolling)
 

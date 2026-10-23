@@ -543,6 +543,19 @@ class SchedulingTests(unittest.TestCase):
         self.assertEqual(music.intro_room(row("instrumental", None)), 12.0)
         self.assertIsNone(music.intro_room(row("none", None)))
 
+    def test_vocal_timing_skips_a_song_deleted_while_playing(self):
+        import threading
+        from radio import music
+        db = self.svc.db
+        gone, kept = TMP / "Gone - Song.mp3", TMP / "Kept - Song.mp3"
+        for f in (gone, kept):
+            f.write_bytes(b"z")
+            db.execute("INSERT OR REPLACE INTO tracks(path, sig, ok, lyrics, artist, title) VALUES(?,?,1,'none','A','T')",
+                       (str(f), music._sig(f)))
+        gone.unlink()                                            # renamed in Finder while the radio runs
+        self.assertEqual(music.to_hear(db, [gone, kept]), kept)  # no crash: the next song gets its turn
+        music.find_vocals(db, [gone], threading.Event())         # no crash in the background thread either
+
     def test_playlist_outro_talk_point(self):
         from radio import music
         db = self.svc.db
@@ -1358,6 +1371,22 @@ class LlmProviderTests(unittest.TestCase):
         p = patch.object(config, "DATA_DIR", Path(tmp.name))
         p.start()
         self.addCleanup(p.stop)
+
+    def test_llm_limit_is_per_hour_not_per_session(self):
+        import io
+        import urllib.request
+        from unittest.mock import patch
+        from radio import editor
+        cfg = config.load()
+        cfg["editor"]["max_llm_calls_per_session"] = 2
+        answer = {"choices": [{"message": {"content": "Проект помогает быстро писать код."}}]}
+        ed, clock = editor.Editor(cfg), [1000.0]
+        with patch.object(urllib.request, "urlopen", lambda req, timeout: io.BytesIO(json.dumps(answer).encode())), \
+             patch("radio.editor.time.time", lambda: clock[0]):
+            self.assertTrue(ed._ask("one") and ed._ask("two"))
+            self.assertIsNone(ed._ask("three"))           # the limit within the hour
+            clock[0] += 3601
+            self.assertTrue(ed._ask("three"))             # an hour later the radio retells again
 
     def test_provider_switch_reaches_editor_and_horizon_proxy(self):
         import io

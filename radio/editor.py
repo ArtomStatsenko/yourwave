@@ -148,8 +148,9 @@ def connection(cfg: dict) -> dict:
 class Editor:
     def __init__(self, cfg: dict):
         self.cfg = cfg  # the daemon's live dict: Settings changes reach it
-        self.max_calls = cfg["editor"]["max_llm_calls_per_session"]
+        self.max_calls = cfg["editor"]["max_llm_calls_per_session"]  # per rolling hour: a long session keeps its news
         self.calls = 0
+        self.call_times: list[float] = []
 
     @property
     def enabled(self) -> bool:
@@ -180,9 +181,11 @@ class Editor:
         cached = self._cache(prompt, t)
         if cached.exists():
             return cached.read_text(encoding="utf-8") or None
-        if self.calls >= self.max_calls:
+        self.call_times = [t for t in self.call_times if time.time() - t < 3600]
+        if len(self.call_times) >= self.max_calls:
             return None
         self.calls += 1
+        self.call_times.append(time.time())
         if t["provider"] == "openai":
             return self._finish(cached, name, output_text(self._post(t, "/v1/responses", {
                 "model": t["model"], "input": prompt, "max_output_tokens": 300})))

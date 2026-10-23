@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -152,6 +153,8 @@ def label(db, path) -> str:
 
 def find_vocals(db, files: list[Path], stop) -> None:
     for f in files:
+        if not f.exists():
+            continue  # renamed or deleted while the radio runs
         row = db.execute("SELECT ok, lyrics, outro_sec FROM tracks WHERE path=? AND sig=?", (str(f), _sig(f))).fetchone()
         s = song(db, f)
         done = row and row["lyrics"] is not None and not (row["lyrics"] == "synced" and row["outro_sec"] is None)
@@ -171,14 +174,17 @@ def to_hear(db, files: list[Path]) -> Path | None:
     """The next song for the local Whisper: one LRCLIB did not know, the newest file first (new tracks get their
     timing soonest)."""
     unknown = {r[0] for r in db.execute("SELECT path FROM tracks WHERE ok=1 AND lyrics='none'")}
-    todo = [f for f in files if str(f) in unknown]
+    todo = [f for f in files if str(f) in unknown and f.exists()]
     return max(todo, key=lambda f: getattr(f.stat(), "st_birthtime", f.stat().st_mtime)) if todo else None
 
 
 def hear(db, f: Path) -> None:
     """Where the vocals of one song start and end, by the local Whisper; "unheard" when it found no reliable words."""
     from . import tts
-    span = tts.vocal_span(f)
+    try:
+        span = tts.vocal_span(f)
+    except subprocess.TimeoutExpired:
+        span = None  # a song Whisper cannot finish: marked, so the next songs get their turn
     dur = audio.duration(f)
     if span and 0 <= span[0] < span[1] <= dur + 1:
         db.execute("UPDATE tracks SET lyrics='heard', vocal_sec=?, outro_sec=? WHERE path=?",

@@ -21,6 +21,8 @@ def send(cmd: str, timeout=10, **args) -> dict | None:
             return json.loads(s.makefile().readline())
     except (FileNotFoundError, ConnectionRefusedError):
         return None
+    except (ValueError, ConnectionResetError):  # the radio closed the connection without an answer (stopping)
+        return {"ok": False, "error": "The radio did not answer. Try again."}
     except TimeoutError:  # busy, not stopped: the page must not offer to start a second radio
         return {"ok": False, "error": "The radio did not answer in time. Try again."}
 
@@ -157,9 +159,9 @@ def cmd_source(_):
 
 
 def cmd_doctor(_):
-    from . import music
-    from .tts import VoiceStudio
+    from . import music, settings, tts as tts_mod
     cfg = config.load()
+    settings.apply(cfg, settings.base(cfg))  # the voice chosen on the Settings tab, as the radio uses it
     ok = True
 
     def check(name, good, detail=""):
@@ -174,11 +176,14 @@ def cmd_doctor(_):
     files = music.scan(cfg["music"]["path"]) if cfg["music"]["path"].exists() else []
     check("music", files, f"{len(files)} files in {cfg['music']['path']}")
     v = cfg["voice"]
-    tts = VoiceStudio(v["base_url"], v["voice_id"], v["language"], v["speed"], v["instruct"], v["seed"])
+    tts = tts_mod.make_voice(cfg)
     healthy = tts.health()
-    check("VoiceStudio health", healthy, v["base_url"])
+    qwen = v["engine"] == "qwen3"
+    check("Qwen3-TTS health" if qwen else "VoiceStudio health", healthy, v["mlx_audio_url"] if qwen else v["base_url"])
     if healthy:
-        if v["voice_id"] == "default":
+        if qwen:
+            check("voice", True, f"clone of {config.DATA_DIR / 'voices/host.wav'}")
+        elif v["voice_id"] == "default":
             check("voice", True, f"built-in, designed: {v['instruct'] or 'engine default'} (seed {v['seed']})")
         else:
             voice = next((x for x in tts.voices() if x["voice_id"] == v["voice_id"]), None)

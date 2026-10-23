@@ -106,7 +106,7 @@ openai_api_key = ""         # or the OPENAI_API_KEY environment variable; the ke
 openrouter_model = "openai/gpt-4.1-mini"  # the key comes from "Sign in with OpenRouter" on the Settings tab
 deepseek_model = "deepseek-flash"   # DeepSeek and xAI (Grok): the API key is pasted on the Settings tab
 xai_model = "grok-4.3"
-max_llm_calls_per_session = 16  # up to 3 retellings per hourly fetch, cached
+max_llm_calls_per_session = 16  # per rolling hour (the name is kept for old configs); answers are cached
 
 [voice]
 base_url = "http://127.0.0.1:3900"

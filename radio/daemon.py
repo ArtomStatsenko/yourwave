@@ -69,6 +69,7 @@ class Service:
         self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
         self.reroll_task = None
         self.reroll_gen = 0  # each dice click; an older download that finishes after a newer click is dropped
+        self.reroll_download = asyncio.Lock()  # one yt-dlp at a time: fast clicks must not start parallel downloads
         self.current: dict | None = None
         self.skip_flag = False
         self.next_transition_sec = None
@@ -275,10 +276,9 @@ class Service:
             await asyncio.sleep(HEAR_EVERY_SEC)
             if self.stopping or self.rendering or self.assembling:
                 continue
-            f = music.to_hear(self.db, self.files)
-            if not f:
-                continue
-            try:
+            try:  # an error here must not end the loop for the rest of the session
+                if not (f := music.to_hear(self.db, self.files)):
+                    continue
                 await asyncio.to_thread(music.hear, self.db, f)
                 log("vocals heard:", f.name)
             except Exception as e:
@@ -359,9 +359,11 @@ class Service:
         log("gap filler queued: the next YouTube Music song is not loaded, a local one follows")
 
     async def watch_engine(self) -> None:
-        restarts = 0
+        restarts, started = 0, time.time()
         while not self.stopping:
             await self.engine.proc.wait()
+            if time.time() - started > 600:
+                restarts = 0  # only a crash soon after a restart means the engine cannot run; one days later does not
             if self.stopping:
                 return
             self.last_error = f"liquidsoap exited with code {self.engine.proc.returncode}"
@@ -374,6 +376,7 @@ class Service:
             self._reset_inflight()
             self.current, self.id_pending = None, False
             await self.engine.start(self.on_event)
+            started = time.time()
             self.state = "PLAYING"
 
     def _reset_inflight(self) -> None:
@@ -492,7 +495,6 @@ class Service:
 
     async def trending_loop(self) -> None:
         """Check enabled sources near the next news section, respecting refresh and retry delays."""
-        gt, gn = self.cfg["sources"]["github_trending"], self.cfg["sources"]["github_new"]
         next_fetch, was_on = 0.0, set()
         while not self.stopping:
             on = {n for n in ("github_trending", "github_new") if plugins.on(self.cfg, n)}
@@ -721,8 +723,6 @@ class Service:
                    and content.parse_time(r['at']) <= deadline for r in self._broadcast_plan()['rows'])
 
     def _live_settings(self) -> None:
-        if self.defaults is None:
-            self.defaults = settings.base(self.cfg)
         settings.apply(self.cfg, self.defaults)
         if not self.mock_voice and self.cfg["voice"]["engine"] != self.voice_engine:
             # The voice engine switched on the Settings tab: new phrases use it; voice_loop starts its server
@@ -1581,7 +1581,10 @@ class Service:
             if replacement.startswith('ytmusic:'):
                 # Download here: inside Liquidsoap's replace command the download blocks every engine command.
                 try:
-                    downloaded = await asyncio.to_thread(ytmusic.resolve, replacement.removeprefix('ytmusic:'))
+                    async with self.reroll_download:
+                        if gen != self.reroll_gen:
+                            return None  # a newer click came while an older download ran: only the latest loads
+                        downloaded = await asyncio.to_thread(ytmusic.resolve, replacement.removeprefix('ytmusic:'))
                 except ytmusic.Unavailable:
                     fail = UNAVAILABLE
                     return fail
