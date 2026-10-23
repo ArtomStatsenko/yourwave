@@ -182,7 +182,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #direction-controls:not(.editing) .plan-bar{display:none}
 #direction-controls.editing,#tl{grid-column:1 / -1;min-width:0}
 #upcoming{grid-column:1 / -1;grid-row:1;min-width:0;color:var(--muted);align-self:center}
-#upcoming .tx{white-space:normal;overflow-wrap:anywhere}  /* the next title wraps like every other title */#upcoming .tx.up-err{white-space:normal;font-size:16px;color:var(--warn)}
+#upcoming .tx{white-space:normal;overflow-wrap:anywhere}#upcoming .tx.pend{color:var(--muted)}  /* the next title wraps like every other title */#upcoming .tx.up-err{white-space:normal;font-size:16px;color:var(--warn)}
 #upcoming .tg{align-items:center;padding-left:8px}
 </style>
 </head>
@@ -666,7 +666,8 @@ function timeline(){var a=document.activeElement&&document.activeElement.dataset
   var next=(st.upcoming||[]).find(function(x){return x.stage==='queued'})||(st.upcoming||[]).find(function(x){return x.stage==='next'})||(st.upcoming||[]).find(function(x){return x.stage==='music'});
   $('upcoming').hidden=!next||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll');
-  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx" title="'+esc(entryTitle(next.kind,next.title))+'">'+esc(entryTitle(next.kind,next.title))+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerollError?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerollError)+'</span></div>':''):'';
+  var nr=st.next_reroll||{},pend=nr.pending,nextTitle=pend?pend.title:entryTitle(next&&next.kind,next&&next.title),rerr=rerollError||nr.error||'';
+  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':'')+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
   $('tl').innerHTML=items.length?items.map(row).join(''):'<p class="l">nothing has aired yet</p>';

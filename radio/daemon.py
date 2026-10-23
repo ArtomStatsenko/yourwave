@@ -41,6 +41,8 @@ NUMBER_WORD = re.compile(r"(ноль|один|одна|одно|одну|одн�
                          r"\w+дцать|сорок|\w+десят|девяносто|двести|триста|\w+сот|тысяч\w*|миллион\w*)$")
 
 
+UNAVAILABLE = "unavailable"  # a reroll pick YouTube does not serve: the next spare is tried
+UPCOMING_SHOWN = 6     # planned songs shown on the page (the next one first)
 HEAR_EVERY_SEC = 180  # one song every 3 minutes: the library (~270 songs) is done in about a day, never at once
 
 
@@ -64,6 +66,8 @@ class Service:
         self.state = "STARTING"
         self.auto_paused, self.paused_at, self.heard_at = False, 0.0, time.time()
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
+        self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
+        self.reroll_task = None
         self.current: dict | None = None
         self.skip_flag = False
         self.next_transition_sec = None
@@ -1516,9 +1520,16 @@ class Service:
             reason = 'The next track is already starting'
         elif self.rerolling:
             reason = 'Choosing another track'
-        return {'ref': slot['ref'], 'title': music.label(self.db, slot['ref']), 'available': not reason, 'reason': reason}
+        state = {'ref': slot['ref'], 'title': music.label(self.db, slot['ref']), 'available': not reason, 'reason': reason}
+        if self.reroll_pending:
+            state['pending'] = {'title': music.label(self.db, self.reroll_pending)}
+        if self.reroll_error and time.time() < self.reroll_error[1]:
+            state['error'] = self.reroll_error[0]
+        return state
 
     async def _reroll_next(self, expected):
+        """Picks the replacement at once and answers: the page shows its title right away (a YouTube Music song still
+        downloads for 5–20 s); the swap happens in the background, a failure is shown under the next title."""
         state = self._reroll_state()
         if not state or not state['available'] or expected != state['ref']:
             return {'ok': False, 'error': (state or {}).get('reason') or 'The next track changed. Try again.'}
@@ -1528,19 +1539,44 @@ class Service:
         choices = {ref: uri for ref, uri in choices.items() if ref in self.library and ref not in excluded}
         if not choices:
             return {'ok': False, 'error': 'No other track is available'}
-        replacement = random.choice(list(choices))
-        uri = choices[replacement]
-        if slot.get('replay_id'):
-            uri = uri.replace('annotate:', 'annotate:replay_id="' + slot['replay_id'] + '",', 1)
-        self.rerolling = True
+        picks = random.sample(list(choices), min(3, len(choices)))  # a YouTube song may be unavailable: two spares
+        def uri_of(ref):
+            uri = choices[ref]
+            return uri.replace('annotate:', 'annotate:replay_id="' + slot['replay_id'] + '",', 1) if slot.get('replay_id') else uri
+        replacement = picks[0]
+        self.rerolling, self.reroll_pending, self.reroll_error = True, replacement, None
+        if replacement.startswith('ytmusic:'):  # a download: answer now with the new title, swap when it is loaded
+            async def swap_first_available():
+                for ref in picks:
+                    self.reroll_pending = ref
+                    fail = await self._swap_next(expected, ref, uri_of(ref), slot)
+                    if fail != UNAVAILABLE:
+                        return fail
+                    self.rerolling, self.reroll_error = True, None  # that song is unavailable: the next spare
+                self.reroll_error = ('No other track could be loaded from YouTube Music. Try again.', time.time() + 30)
+                self.rerolling = False
+                return self.reroll_error[0]
+            self.reroll_task = asyncio.create_task(swap_first_available())
+            return await self.dispatch('status')
+        uri = uri_of(replacement)
+        if fail := await self._swap_next(expected, replacement, uri, slot):  # a local file swaps at once
+            return {'ok': False, 'error': fail}
+        return await self.dispatch('status')
+
+    async def _swap_next(self, expected, replacement, uri, slot):
         downloaded = None
+        fail = None
         try:
             if replacement.startswith('ytmusic:'):
                 # Download here: inside Liquidsoap's replace command the download blocks every engine command.
                 try:
                     downloaded = await asyncio.to_thread(ytmusic.resolve, replacement.removeprefix('ytmusic:'))
+                except ytmusic.Unavailable:
+                    fail = UNAVAILABLE
+                    return fail
                 except Exception:
-                    return {'ok': False, 'error': 'That song could not be loaded from YouTube Music. Try again.'}
+                    fail = 'That song could not be loaded from YouTube Music. Try again.'
+                    return fail
                 uri = uri.removesuffix(replacement) + 'tmp:' + downloaded  # Liquidsoap removes it after airing
             rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
             downloaded = None
@@ -1551,13 +1587,15 @@ class Service:
                 self.fresh_queued = {replacement if ref == expected else ref: rid if ref == expected else old_rid for ref, old_rid in self.fresh_queued.items()}
             elif self.current['ref'] != replacement:
                 self.next_track = replacement
-        except (OSError, ValueError, asyncio.TimeoutError, asyncio.IncompleteReadError):
-            return {'ok': False, 'error': 'Could not replace the next track. Try again.'}
+        except (OSError, ValueError, asyncio.TimeoutError, asyncio.IncompleteReadError) as e:
+            fail = str(e) if isinstance(e, ValueError) and str(e) else 'Could not replace the next track. Try again.'
         finally:
-            self.rerolling = False
+            self.rerolling, self.reroll_pending = False, None
+            if fail and fail != UNAVAILABLE:
+                self.reroll_error = (fail, time.time() + 30)  # shown under the next title for a while
             if downloaded:  # not handed to Liquidsoap
                 Path(downloaded).unlink(missing_ok=True)
-        return await self.dispatch('status')
+        return fail
 
     def _direction_catalog(self):
         blocks = [{'kind': 'news', 'ref': '', 'title': 'Host edition'},
@@ -1768,6 +1806,9 @@ class Service:
                         self.next_track = ref
                         status['upcoming'].append({'kind': 'music', 'ref': ref, 'title': music.label(self.db, ref), 'stage': 'music'})
                         status['next_reroll'] = self._reroll_state()
+                        later = await asyncio.wait_for(self.engine.upcoming_music(), .5)
+                        # tentative: a reshuffle, a break or a reroll can change the order; only the next is certain
+                        status['upcoming_tracks'] = [{'ref': r, 'title': music.label(self.db, r)} for r in later[:UPCOMING_SHOWN]]
                         if plugins.on(self.cfg, 'air_direction'):
                             status['broadcast_plan'] = self._broadcast_plan()
                 except (OSError, asyncio.TimeoutError, asyncio.IncompleteReadError):

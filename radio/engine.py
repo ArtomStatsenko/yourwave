@@ -169,6 +169,10 @@ class Liquidsoap:
         """The playlist's next song (the one after the current song and anything queued), for the set opener."""
         return (await self.command('music.peek')).strip() or None
 
+    async def upcoming_music(self) -> list[str]:
+        """The next songs in air order (queued, then the rest of the shuffle round); only the first is certain."""
+        return [r for r in (await self.command('music.upcoming')).splitlines() if r.strip()]
+
     def music_choices(self, expected: str) -> dict[str, str]:
         paths = [self.m3u, self.fallback_m3u]
         for path in paths:

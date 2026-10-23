@@ -34,7 +34,14 @@ class RerollTests(unittest.TestCase):
         self.addCleanup(self.clock.stop)
 
     def reroll(self, expected='/tmp/next.wav'):
-        return asyncio.run(self.svc.dispatch('reroll-next', {'ref': expected}))
+        """The answer, and for a YouTube Music song (swapped in the background) the outcome of that swap."""
+        async def go():
+            self.svc.reroll_task = None
+            answer = await self.svc.dispatch('reroll-next', {'ref': expected})
+            if self.svc.reroll_task and (fail := await self.svc.reroll_task):
+                return {'ok': False, 'error': fail}
+            return answer
+        return asyncio.run(go())
 
     def test_disabled_experiment_does_not_change_playback(self):
         self.assertIsNone(self.svc.status()['next_reroll'])
@@ -50,6 +57,55 @@ class RerollTests(unittest.TestCase):
         self.assertEqual(self.svc.engine.replace_music.call_args.args[0], '/tmp/next.wav')
         self.assertIn('ref="/tmp/other.wav"', self.svc.engine.replace_music.call_args.args[1])
         self.assertEqual(self.svc.editor.calls, 0)
+
+    def test_youtube_reroll_answers_at_once_with_the_new_title(self):
+        import threading
+        plugins.set_plugin('reroll_next', True)
+        refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc']
+        self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
+        self.svc.library = set(refs)
+        self.svc.engine.music_choices.return_value = {r: f'annotate:kind="music",ref="{r}",liq_amplify="0 dB":{r}' for r in refs}
+        song = config.DATA_DIR / 'song2.webm'
+        song.write_bytes(b'x')
+        loaded = threading.Event()
+
+        def slow(vid):
+            loaded.wait(5)  # YouTube Music still downloading
+            return str(song)
+
+        async def go():
+            with patch('radio.daemon.ytmusic.resolve', side_effect=slow):
+                answer = await self.svc.dispatch('reroll-next', {'ref': refs[1]})
+                pending = answer['status']['next_reroll'].get('pending')
+                self.svc.engine.replace_music.assert_not_awaited()  # not swapped yet...
+                loaded.set()
+                await self.svc.reroll_task
+            return pending
+        pending = asyncio.run(go())
+        self.assertTrue(pending and pending['title'])  # ...but the page already shows the new title
+        self.svc.engine.replace_music.assert_awaited_once()
+        self.assertIsNone(self.svc.reroll_pending)
+
+    def test_youtube_reroll_skips_an_unavailable_song(self):
+        from radio import ytmusic
+        plugins.set_plugin('reroll_next', True)
+        refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc', 'ytmusic:ddddddddddd']
+        self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
+        self.svc.library = set(refs)
+        self.svc.engine.music_choices.return_value = {r: f'annotate:kind="music",ref="{r}",liq_amplify="0 dB":{r}' for r in refs}
+        song = config.DATA_DIR / 'song3.webm'
+        song.write_bytes(b'x')
+        answers = iter([ytmusic.Unavailable('gone'), str(song)])
+
+        def resolve(vid):
+            a = next(answers)
+            if isinstance(a, Exception):
+                raise a
+            return a
+        with patch('radio.daemon.ytmusic.resolve', side_effect=resolve):
+            self.assertTrue(self.reroll(refs[1])['ok'])  # the first pick is unavailable: the spare airs instead
+        self.svc.engine.replace_music.assert_awaited_once()
+        self.assertIsNone(self.svc.reroll_error)
 
     def test_youtube_music_replacement_is_downloaded_outside_the_engine(self):
         plugins.set_plugin('reroll_next', True)

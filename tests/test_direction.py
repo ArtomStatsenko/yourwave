@@ -1052,8 +1052,10 @@ class DirectionTests(unittest.TestCase):
         pid = self.add_news('queued bulletin')
         self.svc.db.execute("UPDATE packages SET status='QUEUED' WHERE id=?", (pid,))
         self.svc.replays['repeat'] = {'kind': 'music', 'ref': '/tmp/Artist - Repeat.mp3', 'rid': '42'}
-        self.svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value='/tmp/Artist - Next.mp3'))
+        self.svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value='/tmp/Artist - Next.mp3'),
+                               upcoming_music=AsyncMock(return_value=['/tmp/Artist - Next.mp3', '/tmp/Artist - Later.mp3']))
         status = asyncio.run(self.svc.dispatch('status'))['status']
+        self.assertEqual([t['ref'] for t in status['upcoming_tracks']], ['/tmp/Artist - Next.mp3', '/tmp/Artist - Later.mp3'])
         self.assertEqual([r['title'] for r in status['upcoming'] if r['stage'] == 'queued'], ['Artist - Repeat', 'queued bulletin'])
         self.assertEqual([r['title'] for r in status['upcoming'] if r['stage'] == 'music'], ['Artist - Next'])
         self.svc.engine.next_music = AsyncMock(side_effect=OSError('not connected'))

@@ -65,6 +65,20 @@ def replace_music(get_queue, set_queue, arg) =
   end
 end
 
+# The next songs in air order: the queued requests, then the rest of this shuffle round (refs, one per line).
+def upcoming_music_refs(playlist_source) =
+  def ref_of(r) =
+    m = request.metadata(r)
+    m["ref"]
+  end
+  def ref_in(uri) =
+    m = r/ref="([^"]*)"/.exec(uri)
+    m[1]
+  end
+  refs = list.append(list.map(ref_of, playlist_source.queue()), list.map(ref_in, playlist_source.remaining_files()))
+  string.concat(separator="\n", list.prefix(12, list.filter(fun (x) -> x != "", refs)))
+end
+
 def queued_music_ref(playlist_source) =
   q = playlist_source.queue()
   if list.is_empty(q) or request.status(list.hd(q)) != "ready" then "" else
@@ -82,10 +96,12 @@ music = if local_playlist != "" then
   local_music = playlist(id="local_music", mode="randomize", local_playlist)
   server.register("local_music.replace", fun (arg) -> replace_music(local_music.queue, local_music.set_queue, arg))
   server.register("music.peek", fun (_) -> queued_music_ref(if yt_offline() then local_music else primary_music end))
+  server.register("music.upcoming", fun (_) -> upcoming_music_refs(if yt_offline() then local_music else primary_music end))
   # Local songs also cover a YouTube Music song that has not loaded by the boundary: never silence.
   fallback(track_sensitive=true, [music, switch([({yt_offline() or not primary_music.is_ready()}, local_music)])])
 else
   server.register("music.peek", fun (_) -> queued_music_ref(primary_music))
+  server.register("music.upcoming", fun (_) -> upcoming_music_refs(primary_music))
   music
 end
 news = request.queue(id="news")
