@@ -167,10 +167,15 @@ def back_sell(songs: list[tuple[str, str]], recent: dict, seed: str) -> str | No
     return text + (f" Последней прозвучала «{_title(songs[-1][1])}»." if shape == 2 else "")
 
 
-def set_opener(minutes: int, first: tuple[str, str] | None, recent: dict, seed: str, novelty: bool = False) -> str:
+def set_opener(minutes: int | None, first: tuple[str, str] | None, recent: dict, seed: str, novelty: bool = False) -> str:
     """The set announcement, sometimes with the first song (not always: then it sounds read off a card)."""
-    text = (_rotate(NEW_SET_OPENERS, "host_new", recent, seed) if novelty
-            else _rotate(SET_OPENERS, "host_set", recent, seed)).format(minutes=minutes_words(minutes))
+    if minutes is None:
+        choices = (["А теперь — новинки нашей библиотеки.", "Дальше — новая музыка."] if novelty
+                   else [line for line in SET_OPENERS if '{minutes}' not in line])
+        text = _rotate(choices, 'host_new' if novelty else 'host_set', recent, seed)
+    else:
+        text = (_rotate(NEW_SET_OPENERS, "host_new", recent, seed) if novelty
+                else _rotate(SET_OPENERS, "host_set", recent, seed)).format(minutes=minutes_words(minutes))
     if first and _shape(seed, "first", [1, 2]):  # 2 of 3 breaks name it
         text += _rotate(FIRST_SONG, "host_first", recent, seed).format(artist=_quoted(first[0]), title=_title(first[1]))
     return text

@@ -35,13 +35,12 @@ cohost_name = "Маша"
 station_name = "Personal Radio"  # said in host links; a Latin name is voiced in «quotes» (reads as English)
 host_links = true           # news break: back-sell of the last songs, time check, ... set opener for the next music
 talkover_share = 0.5        # without lyrics: share of bulletins that end with the host talking over the next song's start
-music_set_minutes = 20      # music between news breaks ("двадцать минут музыки без перерыва"); the first break
-                            # of a session comes after one song
+music_set_minutes = 20      # length of new-tracks selections; editions follow :00/:30 clock slots
 max_break_speech_sec = 120  # one break gathers the ready bulletins up to this much speech (rolling-hour limit applies)
 new_every_sets = 3          # plugin "new tracks": every Nth set is made of songs added to the library in the last
 new_days = 14               # new_days days that have not been on air yet; 0 = off. Needs at least new_min_tracks
 new_min_tracks = 3          # such songs, else the set is a normal one
-station_id_every_songs = 0  # minimal pack has no spoken station ID; set a recording and interval to enable
+station_id_every_songs = 0  # legacy key: 0 disables; positive enables clock ID opportunities (30 min cooldown)
 
 [sources]
 max_age_hours = 24

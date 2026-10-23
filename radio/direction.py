@@ -42,7 +42,7 @@ def weather_rows(db, cfg, at, changes):
                   for key in changes if key.startswith('weather:slot:')})
     for key, slot in slots.items():
         due = changes.get(key, {}).get('not_before') or store.iso(slot)
-        if key not in fired and store.iso(at - timedelta(minutes=30)) < due and (due <= store.iso(at + timedelta(days=1)) or bool(changes.get(key, {}).get('not_before'))):
+        if key not in fired and store.iso(at - timedelta(minutes=5)) < due and (due <= store.iso(at + timedelta(days=1)) or bool(changes.get(key, {}).get('not_before'))):
             rows.append({'id': key, 'kind': 'weather', 'ref': '', 'title': 'Weather · ' + cfg['weather']['city'],
                          'not_before': due, 'status': 'PENDING'})
     return sorted(rows, key=lambda r: r['not_before'])

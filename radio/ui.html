@@ -670,10 +670,8 @@ function timeline(){var a=document.activeElement&&document.activeElement.dataset
   var next=(st.upcoming||[]).find(function(x){return x.stage==='queued'})||(st.upcoming||[]).find(function(x){return x.stage==='next'})||(st.upcoming||[]).find(function(x){return x.stage==='music'});
   $('upcoming').hidden=!next||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll');
-  var then=(st.upcoming_tracks||[]).filter(function(t){return !next||t.ref!==next.ref}).slice(0,2);  // tentative: no time, no dice
-  var thenRows=then.map(function(t){return '<div class="it music then"><div class="tg"><span class="tm">then</span><span class="tx" title="The order may change">'+esc(entryTitle('music',t.title))+'</span></div></div>'}).join('');
   var nr=st.next_reroll||{},pend=nr.pending,nextTitle=pend?pend.title:entryTitle(next&&next.kind,next&&next.title),rerr=rerollError||nr.error||'';
-  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':'')+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':'')+thenRows:'';
+  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':'')+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
   $('tl').innerHTML=items.length?items.map(row).join(''):'<p class="l">nothing has aired yet</p>';

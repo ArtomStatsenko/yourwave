@@ -270,6 +270,10 @@ class TrendingTests(unittest.TestCase):
 
 class SchedulingTests(unittest.TestCase):
     def setUp(self):
+        from unittest.mock import patch
+        clock_patch = patch('radio.daemon.now', return_value=store.now().replace(minute=0, second=0, microsecond=0))
+        self.clock = clock_patch.start()
+        self.addCleanup(clock_patch.stop)
         self.cfg = config.load()
         self.svc = Service(self.cfg, tts=MockTTS(), output="x")
         for t in ("packages", "items", "events", "air_plan"):
@@ -396,10 +400,10 @@ class SchedulingTests(unittest.TestCase):
 
     def fake_engine(self, pushed):
         class FakeEngine:
-            async def push_station_id(self, f, gain, tail=0.0):
+            async def push_station_id(self, f, gain, tail=0.0, expires=0.0):
                 pushed.append(("id", f.name))
 
-            async def push_news(self, wav, pid, talkover=0.0):
+            async def push_news(self, wav, pid, talkover=0.0, expires=0.0):
                 pushed.append(("news", pid, wav.name))
 
             async def next_music(self):
@@ -435,22 +439,16 @@ class SchedulingTests(unittest.TestCase):
                 self.svc._queue_fresh.assert_not_awaited()
                 self.svc._assemble_break.assert_not_called()
 
-    def test_station_id_inside_music_set(self):
+    def test_station_id_is_not_triggered_by_song_starts(self):
         pushed = []
         self.fake_engine(pushed)
-        self.cfg["broadcast"]["station_id_every_songs"] = 3
-        self.svc.defaults = radio_settings.base(self.cfg)  # these edits stand for config.toml values
-        self.svc.on_event({"kind": "music", "ref": "/m/0.mp3"})
-        self.svc.on_event({"kind": "news", "ref": "x#1"})        # a break has aired: a set is running
-        for i in range(3):
-            self.svc.on_event({"kind": "music", "ref": f"/m/{i}.mp3"})
+        self.cfg['broadcast']['station_id_every_songs'] = 3
+        self.svc.defaults = radio_settings.base(self.cfg)
+        self.clock.return_value += timedelta(minutes=10)
+        for i in range(10):
+            self.svc.on_event({'kind': 'music', 'ref': f'/m/{i}.mp3'})
             asyncio.run(self.svc.schedule())
-        self.assertEqual([k[0] for k in pushed], ["id"])          # after the 3rd song, not before
-        self.add("d", "chatgpt", 1)
-        self.svc.on_event({"kind": "id", "ref": pushed[0][1]})
-        self.svc.on_event({"kind": "music", "ref": "/m/4.mp3"})
-        asyncio.run(self.svc.schedule())
-        self.assertEqual(len(pushed), 1)                           # ready news waits for the end of the set
+        self.assertEqual(pushed, [])
 
     def test_late_assembly_waits_for_song_end(self):
         pushed, got = [], []
@@ -487,6 +485,7 @@ class SchedulingTests(unittest.TestCase):
         self.svc.on_event({"kind": "music", "ref": "/m/2.mp3"})
         asyncio.run(self.svc.schedule())
         self.assertEqual(len(pushed), 1)                       # a set has just started: no break
+        self.clock.return_value += timedelta(minutes=30)
         self.svc.set_started -= 19 * 60 + 55                   # the set reaches 20 minutes at this song's end
         asyncio.run(self.svc.schedule())
         self.assertEqual([p[1] for p in pushed[1:]], ["c#1"])
@@ -636,6 +635,7 @@ class SchedulingTests(unittest.TestCase):
         self.svc.on_event({"kind": "news", "ref": pushed[0][1]})
         self.svc.on_event({"kind": "music", "ref": str(old)})
         self.add("c", "chatgpt", 1)
+        self.clock.return_value += timedelta(minutes=30)
         self.svc.set_started -= 19 * 60 + 55
         self.svc.current["duration"], self.svc.current["started"] = 30.0, time.time() - 29
         asyncio.run(self.svc.schedule())                                      # break 2: the new tracks (1 min = 2 songs)
@@ -657,7 +657,7 @@ class SchedulingTests(unittest.TestCase):
         svc._render_notice = lambda text, fallback="": Path("/tmp/notice.wav")
         svc.cfg = dict(self.cfg, reminders=dict(self.cfg["reminders"], calendar_url="https://example.test/secret.ics",
                                                 todoist_token="tok"))
-        soon = (datetime.now(timezone.utc) + timedelta(minutes=10)).strftime("%Y%m%dT%H%M%SZ")
+        soon = (self.clock.return_value + timedelta(minutes=10)).strftime("%Y%m%dT%H%M%SZ")
         ics = ReminderTests.ics(f"UID:e1\r\nSUMMARY:Стендап\r\nDTSTART:{soon}")
         real = reminders.fetch_ics, reminders.fetch_todoist
         reminders.fetch_ics, reminders.fetch_todoist = lambda url: ics, lambda token: []
@@ -1071,29 +1071,14 @@ class SchedulingTests(unittest.TestCase):
             path.unlink(missing_ok=True)
             settings.apply(svc.cfg, d)
 
-    def test_longer_sets_make_breaks_rarer(self):
+    def test_new_track_set_length_does_not_move_host_editions(self):
         from radio import settings
-        svc, pushed = self.svc, []
-        self.fake_engine(pushed)
-        svc._assemble_break = lambda pkgs, air, links, first, room, novelty: (Path("/tmp/b.wav"), 0)
-        self.cfg["broadcast"]["station_id_every_songs"] = 0
-        self.add("a", "chatgpt", 1)
-        svc.on_event({"kind": "music", "ref": "/m/1.mp3"})
-        svc.on_event({"kind": "news", "ref": "x#1"})          # a break has aired: a set is running
-        svc.on_event({"kind": "music", "ref": "/m/2.mp3"})
-        svc.set_started -= 25 * 60                            # the set has already run 25 minutes
-        svc.current["duration"], svc.current["started"] = 30.0, time.time() - 29
-        path = config.DATA_DIR / "settings.json"
-        try:
-            settings.set_setting("music_set_minutes", 40)
-            asyncio.run(svc.schedule())
-            self.assertEqual(pushed, [])                       # 25 min < 40: the break waits
-            settings.set_setting("music_set_minutes", 20)
-            asyncio.run(svc.schedule())
-            self.assertEqual([p[0] for p in pushed], ["news"])  # live, without a restart
-        finally:
-            path.unlink(missing_ok=True)
-            settings.apply(svc.cfg, svc.defaults or settings.base(svc.cfg))
+        before = self.svc._clock_rows()
+        for length in (20, 40):
+            settings.set_setting('music_set_minutes', length)
+            self.svc._live_settings()
+            self.assertEqual(self.svc._clock_rows(), before)
+        (config.DATA_DIR / 'settings.json').unlink(missing_ok=True)
 
     def test_plugin_switches(self):
         from radio import plugins
@@ -1146,7 +1131,7 @@ class SchedulingTests(unittest.TestCase):
                 asyncio.run(svc._weather_tick())
                 asyncio.run(svc._weather_tick())
                 fetch.assert_called_once_with("Da Lat", at)
-                self.assertFalse(asyncio.run(svc._remind(300)))
+                self.assertFalse(asyncio.run(svc._remind(280)))
                 self.assertFalse(asyncio.run(svc._remind(20)))
                 self.assertEqual(pushed, [])  # weather is material inside an edition, never a separate replay
                 pid = 'system:' + report['key'] + '#1'
@@ -1328,11 +1313,13 @@ class SchedulingTests(unittest.TestCase):
             entry = next(e for e in timeline._build(db, 12, 50) if e["kind"] == "host")
             self.assertIn(facts["text"], entry["parts"][0]["text"])
             self.assertEqual(entry["parts"][0]["links"][0]["url"], facts["urls"][0])
+            self.clock.return_value += timedelta(minutes=10)
             asyncio.run(svc._maybe_music_link())
-            self.assertEqual(fetch.call_count, 1)  # next set has not reached its interval
-            svc.set_started -= svc.cfg["broadcast"]["music_set_minutes"] * 60 + 1
+            self.assertEqual(fetch.call_count, 1)  # next clock edition is outside the preparation window
+            self.clock.return_value += timedelta(minutes=20)
             fetch.return_value = None
-            asyncio.run(svc._maybe_music_link())
+            with patch("radio.content.now", return_value=self.clock.return_value):
+                asyncio.run(svc._maybe_music_link())
             self.assertEqual(fetch.call_count, 2)
             latest = db.execute("SELECT script_path FROM packages WHERE status='PENDING'").fetchone()
             self.assertNotIn("2009", Path(latest[0]).read_text())
@@ -1695,6 +1682,10 @@ class EndToEnd(unittest.TestCase):
         write_digest("nodate.md", None, body="Новость без даты.")
         out = TMP / "broadcast.wav"
         svc = Service(self.cfg, tts=MockTTS(), output=str(out))
+        # Schedule this integration edition now, independent of when the test runs.
+        from radio import broadcast_clock
+        svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,'news',?)",
+                       (broadcast_clock.PREFIX + str(int(time.time())), store.iso(store.now())))
 
         async def scenario():
             task = asyncio.create_task(svc.run())
@@ -1707,7 +1698,9 @@ class EndToEnd(unittest.TestCase):
             await svc.stop()
             await task
 
-        asyncio.run(scenario())
+        from unittest.mock import patch
+        with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}):
+            asyncio.run(scenario())
         db = svc.db
         states = dict(db.execute("SELECT file, state FROM items").fetchall())
         self.assertEqual(states[str(config.DATA_DIR / "inbox/old.md")], "EXPIRED")

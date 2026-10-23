@@ -56,31 +56,25 @@ class DirectionTests(unittest.TestCase):
         return pid
 
     def test_preparation_follows_section_time_and_skip(self):
-        pid = self.preparation_section(240)
-        self.assertFalse(self.svc._news_preparation_due(900))
-        self.assertFalse(self.svc._news_preparation_due(300))
-        row = next(r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'news' and pid in r.get('content_members', []))
-        self.assertTrue(row['text_ready'])
-        self.assertFalse(row['preparation_started'])
-        self.clock.return_value = self.AT + timedelta(minutes=230)
+        self.add_news('preparation')
+        self.clock.return_value = self.AT + timedelta(minutes=16)
         self.assertTrue(self.svc._news_preparation_due(900))
         self.assertFalse(self.svc._news_preparation_due(300))
-        self.clock.return_value = self.AT + timedelta(minutes=236)
+        self.clock.return_value = self.AT + timedelta(minutes=26)
         self.assertTrue(self.svc._news_preparation_due(300))
         snap = self.svc._broadcast_plan()
-        row = next(r for r in snap['rows'] if r['kind'] == 'news' and not r['skipped'])
+        row = next(r for r in snap['rows'] if r['kind'] == 'news')
         self.save_plan(snap, [{'id': row['id'], 'at': row['at'], 'skipped': True}])
         self.assertFalse(self.svc._news_preparation_due(300))
-        self.assertEqual(self.svc.db.execute('SELECT status FROM packages WHERE id=?', (pid,)).fetchone()[0], 'PENDING')
 
     def test_skipped_section_leaves_the_plan_once_its_time_passes(self):
         pid = self.preparation_section(10)
         snap = self.svc._broadcast_plan()
         row = next(r for r in snap['rows'] if pid in r.get('content_members', []))
         self.save_plan(snap, [{'id': row['id'], 'at': row['at'], 'skipped': True}])
-        self.clock.return_value = self.AT + timedelta(minutes=10 + self.cfg['broadcast']['music_set_minutes'] - 1)
+        self.clock.return_value = self.AT + timedelta(minutes=14)
         self.assertTrue(any(r['skipped'] for r in self.svc._broadcast_plan()['rows']))
-        self.clock.return_value = self.AT + timedelta(minutes=10 + self.cfg['broadcast']['music_set_minutes'])
+        self.clock.return_value = self.AT + timedelta(minutes=15)
         self.assertFalse(any(r['skipped'] for r in self.svc._broadcast_plan()['rows']))
 
     def test_voice_waits_until_five_minutes_and_keeps_existing_material(self):
@@ -170,17 +164,14 @@ class DirectionTests(unittest.TestCase):
             asyncio.run(self.svc._remind(180))                               # three minutes before the song ends
         self.assertEqual(self.svc.db.execute("SELECT status FROM packages WHERE item_id=?", ('system:' + key,)).fetchone()[0], 'READY')
 
-    def test_gap_queues_a_ready_edition_before_its_time(self):
-        pid = self.add_news('one')
+    def test_gap_never_pulls_a_future_clock_edition_forward(self):
+        self.add_news('one')
+        self.clock.return_value = self.AT + timedelta(minutes=10)
         self.svc.current = {'kind': 'music', 'ref': 'ytmusic:a', 'started': 1000, 'duration': 200}
-        self.svc.set_started = 1000                                         # the set has just begun: no break due
-        store.log_event(self.svc.db, self.svc.session, 'PACKAGE_STARTED', 'earlier#1')
-        self.svc.engine = Mock(push_news=AsyncMock(return_value='8'))
-        with patch('radio.daemon.time.time', return_value=1190), \
-             patch('radio.audio.join_packages', return_value=Path('/tmp/joined.wav')):
-            self.assertEqual(self.svc._waiting_break(10), [])
+        self.svc.engine = Mock(push_news=AsyncMock())
+        with patch('radio.daemon.time.time', return_value=1190):
             asyncio.run(self.svc.schedule(immediate=True, gap=True))
-        self.assertEqual(self.svc.queued_break, ('8', [pid]))
+        self.svc.engine.push_news.assert_not_awaited()
 
     def test_weather_and_multiple_sources_share_one_edition_and_skip(self):
         plugins.set_plugin('weather', True)
@@ -293,10 +284,10 @@ class DirectionTests(unittest.TestCase):
         with patch('radio.daemon.time.time', return_value=1100):
             rows = self.svc._broadcast_plan()['rows']
         news = next(r for r in rows if r['kind'] == 'news' and not r.get('placeholder'))
-        before = [r for r in rows if r['kind'] == 'music' and r['at'] < news['at']]
-        after = next(r for r in rows if r['kind'] == 'music' and r['at'] >= news['at'])
+        before = [r for r in rows if r['id'] == 'section:music:replays']
+        after = next(r for r in rows if r['kind'] == 'music' and r['id'] != 'section:music:replays')
         self.assertEqual(news['status'], 'READY')
-        self.assertEqual(news['at'], store.iso(self.AT + timedelta(seconds=80 + 120)))  # after the song and the replay
+        self.assertEqual(news['at'], store.iso(self.AT))  # editorial target stays fixed; music timings remain estimates
         self.assertEqual([r['content_title'] for r in before], ['Artist - Replay'])
         self.assertEqual(after['content_title'], 'Artist - Shuffle')
 
@@ -345,20 +336,12 @@ class DirectionTests(unittest.TestCase):
         self.assertFalse(self.svc.queued_reminders)
         self.assertNotIn(r['key'], self.svc.reminders_due)
 
-    def test_saved_slot_overlapping_the_edition_is_one_block(self):
-        pid = self.add_news('one')
-        plugins.set_plugin('horizon', True)
-        rows = self.svc._broadcast_plan()['rows']
-        edition = next(r for r in rows if pid in [*r['members'], *r.get('content_members', [])])
-        slot = next(r for r in rows if r['id'].startswith('section:news:future:'))
-        when = self.AT + timedelta(minutes=20)
-        self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,?,?)", (slot['id'], 'news', store.iso(when - timedelta(seconds=15))))
-        self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,?,?)", (edition['id'], 'news', store.iso(when)))
-        news = [r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'news' and content.parse_time(r['at']) < when + timedelta(minutes=5)]
-        self.assertEqual(len(news), 1)
-        self.assertEqual(news[0]['id'], edition['id'])
-        self.assertEqual(news[0]['at'], store.iso(when))
-        self.assertEqual(news[0]['status'], 'READY')
+    def test_saved_clock_occurrence_does_not_duplicate_the_computed_slot(self):
+        snap = self.svc._broadcast_plan()
+        row = next(r for r in snap['rows'] if r['kind'] == 'news')
+        self.save_plan(snap, [{'id': row['id'], 'at': row['at']}])
+        rows = [r for r in self.svc._broadcast_plan()['rows'] if r['id'] == row['id']]
+        self.assertEqual(len(rows), 1)
 
     def weather_and_news(self, seconds_after):
         """The 17:00 UTC weather slot (not prepared yet) and a ready edition `seconds_after` it."""
@@ -370,14 +353,13 @@ class DirectionTests(unittest.TestCase):
         return pid, edition['id'], slot
 
     def test_news_right_after_a_weather_slot_is_one_edition(self):
-        pid, section, slot = self.weather_and_news(72)
+        plugins.set_plugin('weather', True)
+        pid = self.add_news('one')
         rows = self.svc._broadcast_plan()['rows']
-        clock = next(r for r in rows if r['kind'] == 'weather' and r['at'] == store.iso(slot))
+        clock = next(r for r in rows if r['kind'] == 'weather' and r['at'] == store.iso(self.AT))
         self.assertIn(pid, clock['content_members'])
-        self.assertIn(section, clock['edition_news_ids'])
-        self.assertFalse(any(r['kind'] == 'news' and slot <= content.parse_time(r['at']) < slot + timedelta(minutes=5) for r in rows))
-        self.clock.return_value = slot - timedelta(minutes=3)
-        self.assertTrue(self.svc._news_preparation_due(300))              # the edition inside still gets prepared
+        self.assertTrue(clock['edition_news_ids'])
+        self.assertFalse(any(r['kind'] == 'news' and r['at'] == store.iso(self.AT) for r in rows))
 
     def test_news_well_after_a_weather_slot_stays_apart(self):
         pid, section, slot = self.weather_and_news(6 * 60)
@@ -386,19 +368,17 @@ class DirectionTests(unittest.TestCase):
         self.assertTrue(any(r['id'] == section for r in rows))
 
     def test_moving_or_skipping_the_joint_edition_acts_on_the_news_too(self):
-        pid, section, slot = self.weather_and_news(72)
+        plugins.set_plugin('weather', True)
+        self.add_news('one')
         snap = self.svc._broadcast_plan()
-        clock = next(r for r in snap['rows'] if r['kind'] == 'weather' and r['at'] == store.iso(slot))
-        later = slot + timedelta(minutes=40)
-        self.save_plan(snap, [{'id': clock['id'], 'at': store.iso(later)}])
-        moved = self.svc.db.execute('SELECT not_before FROM air_plan WHERE id=?', (section,)).fetchone()[0]
-        self.assertEqual(moved, store.iso(later))
-        snap = self.svc._broadcast_plan()
-        clock = next(r for r in snap['rows'] if r['kind'] == 'weather' and r['at'] == store.iso(later))
-        self.assertIn(pid, clock['content_members'])
-        self.save_plan(snap, [{'id': clock['id'], 'at': clock['at'], 'skipped': True}])
-        self.assertEqual(self.svc.db.execute('SELECT skipped FROM air_plan WHERE id=?', (section,)).fetchone()[0], 1)
-        self.assertTrue(all(r['skipped'] for r in self.svc._broadcast_plan()['rows'] if pid in [*r['members'], *r.get('content_members', [])]))
+        row = next(r for r in snap['rows'] if r['kind'] == 'weather')
+        news_ids = row['edition_news_ids']
+        later = store.iso(self.AT + timedelta(minutes=10))
+        self.save_plan(snap, [{'id': row['id'], 'at': later}])
+        for key in news_ids:
+            edit = self.svc.db.execute('SELECT not_before FROM air_plan WHERE id=?', (key,)).fetchone()
+            self.assertEqual(edit[0], later)
+        self.assertFalse(self.svc._break_due(0))
 
     def test_saved_order_remains_the_same_and_does_not_duplicate_music_placeholder(self):
         plugins.set_plugin('weather', True)
@@ -438,22 +418,20 @@ class DirectionTests(unittest.TestCase):
             self.save_plan(snap, [{'id': news['id'], 'at': due}])
         self.assertEqual(self.svc.db.execute('SELECT COUNT(*) FROM air_plan').fetchone()[0], 0)
 
-    def test_plan_defers_skips_and_restores_a_real_bulletin_as_one_block(self):
-        ids = [self.add_news(x) for x in ('one', 'two')]
+    def test_moving_and_skipping_an_occurrence_preserves_the_next_clock_slot(self):
+        self.add_news('one')
+        snap = self.svc._broadcast_plan()
+        row = next(r for r in snap['rows'] if r['kind'] == 'news')
         due = store.iso(self.AT + timedelta(minutes=15))
-        snap = self.svc._broadcast_plan()
-        news = next(r for r in snap['rows'] if r['kind'] == 'news')
-        self.save_plan(snap, [{'id': news['id'], 'at': due, 'rank': 1}])
-        self.assertEqual(self.svc._pick_break(), [])
+        self.save_plan(snap, [{'id': row['id'], 'at': due}])
+        self.assertFalse(self.svc._break_due(0))
         self.clock.return_value = self.AT + timedelta(minutes=15)
-        self.assertEqual({r['id'] for r in self.svc._pick_break()}, set(ids))
+        self.assertTrue(self.svc._break_due(0))
         snap = self.svc._broadcast_plan()
-        self.save_plan(snap, [{'id': news['id'], 'at': due, 'skipped': True}])
-        self.assertEqual(self.svc._pick_break(), [])
-        snap = self.svc._broadcast_plan()
-        skipped = next(r for r in snap['rows'] if r.get('skipped'))
-        self.save_plan(snap, [{'id': skipped['id'], 'at': due, 'skipped': False}])
-        self.assertEqual({r['id'] for r in self.svc._pick_break()}, set(ids))
+        self.save_plan(snap, [{'id': row['id'], 'at': due, 'skipped': True}])
+        self.assertFalse(self.svc._break_due(0))
+        self.clock.return_value = self.AT + timedelta(minutes=30)
+        self.assertTrue(self.svc._break_due(0))
 
     def test_placeholder_news_waits_for_preparation_and_obeys_edited_section_time(self):
         from unittest.mock import AsyncMock
@@ -502,7 +480,7 @@ class DirectionTests(unittest.TestCase):
         placeholder = next(r for r in snap['rows'] if r['kind'] == 'news')
         self.save_plan(snap, [{'id': placeholder['id'], 'at': store.iso(self.AT), 'skipped': True}])
         self.assertFalse(self.svc._break_due(0))
-        self.clock.return_value = self.AT + timedelta(minutes=self.cfg['broadcast']['music_set_minutes'] + 1)
+        self.clock.return_value = self.AT + timedelta(minutes=30)
         self.assertTrue(self.svc._break_due(0))
 
     def test_existing_reminder_can_be_deferred_without_losing_original_details(self):
@@ -532,14 +510,14 @@ class DirectionTests(unittest.TestCase):
         self.assertFalse(self.svc._break_due(0))
         self.assertEqual(self.svc._pick_break(), [])
         self.assertEqual({r['status'] for r in self.svc.db.execute('SELECT status FROM packages')}, {'READY'})
-        self.clock.return_value = self.AT + timedelta(minutes=self.cfg['broadcast']['music_set_minutes'] + 1)
+        self.clock.return_value = self.AT + timedelta(minutes=30)
         self.assertTrue(self.svc._break_due(0))
         self.assertEqual({r['id'] for r in self.svc._pick_break()}, {first, second})
 
     def test_future_section_skip_does_not_skip_the_nearer_news(self):
         self.add_news('one')
         snap = self.svc._broadcast_plan()
-        future = next(r for r in snap['rows'] if r['id'].startswith('section:news:future:'))
+        future = next(r for r in snap['rows'] if r['id'].startswith('section:news:clock:') and content.parse_time(r['at']) > self.AT)
         self.save_plan(snap, [{'id': future['id'], 'at': future['at'], 'skipped': True}])
         self.assertTrue(self.svc._pick_break())
         self.clock.return_value = content.parse_time(future['at'])
@@ -642,7 +620,7 @@ class DirectionTests(unittest.TestCase):
         self.add_news('one')
         self.command(action='insert', kind='news', at=store.iso(self.AT + timedelta(minutes=5)))
         snap = self.svc._broadcast_plan()
-        row = next(r for r in snap['rows'] if r['kind'] == 'news' and r.get('members') == ['one#1'])
+        row = next(r for r in snap['rows'] if r['kind'] == 'news' and 'one#1' in r.get('members', []))
         saved = self.save_plan(snap, [{'id': row['id'], 'at': row['at'], 'skipped': True}])
         self.assertEqual([r['id'] for r in saved['broadcast_plan']['rows'] if r['kind'] == 'news' and r['skipped']], [row['id']])
 
@@ -696,18 +674,12 @@ class DirectionTests(unittest.TestCase):
         self.assertTrue(self.svc._break_due(0))
         self.assertTrue(self.svc._pick_break())
 
-    def test_editing_a_previously_saved_topic_schedule_converts_it_to_one_section(self):
+    def test_legacy_scheduled_topic_does_not_replace_the_clock_grid(self):
         pid = self.add_news('one')
-        self.command(action='time', id=pid, at=store.iso(self.AT + timedelta(minutes=5)))
-        snap = self.svc._broadcast_plan()
-        row = next(r for r in snap['rows'] if pid in r.get('legacy_members', []))
-        due = store.iso(self.AT + timedelta(minutes=10))
-        saved = self.save_plan(snap, [{'id': row['id'], 'at': due, 'skipped': False}])
-        self.assertIsNone(self.svc.db.execute('SELECT 1 FROM air_plan WHERE id=?', (pid,)).fetchone())
-        sections = [r for r in saved['broadcast_plan']['rows'] if r['kind'] == 'news' and not r.get('placeholder')]
-        self.assertEqual(len(sections), 1)
-        self.assertEqual(sections[0]['at'], due)
-        self.assertFalse(self.svc._break_due(0))
+        self.command(action='time', id=pid, at=store.iso(self.AT + timedelta(minutes=15)))
+        rows = self.svc._broadcast_plan()['rows']
+        self.assertTrue(any(pid in r['members'] and r['at'] == store.iso(self.AT + timedelta(minutes=15)) for r in rows))
+        self.assertTrue(any(r['id'].startswith('section:news:clock:') and r['at'] == store.iso(self.AT + timedelta(minutes=30)) for r in rows))
 
     def test_moving_the_skipped_section_keeps_only_that_section_skipped(self):
         self.add_news('one')
@@ -764,48 +736,23 @@ class DirectionTests(unittest.TestCase):
         self.svc.engine.push_replay.assert_not_awaited()
         self.assertFalse(any(r['id'] == key for r in self.svc._broadcast_plan()['rows']))
 
-    def test_overdue_news_slots_are_one_section_and_postpone_together(self):
-        from unittest.mock import AsyncMock
-        import time
-        pid = self.add_news('one')
-        keys = ['section:news:future:old' + str(n) for n in range(3)]
-        for n, key in enumerate(keys):
-            self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,'news',?)",
-                                (key, store.iso(self.AT - timedelta(minutes=30 - n * 10))))
-        snap = self.svc._broadcast_plan()
-        section = next(r for r in snap['rows'] if r['kind'] == 'news' and set(keys) <= set(r['members']))
-        self.assertTrue(section['id'].startswith('section:news:current:'))
-        self.assertTrue(all(content.parse_time(r['at']) >= self.AT for r in snap['rows']))
-        due = self.AT + timedelta(minutes=10)
-        saved = self.save_plan(snap, [{'id': section['id'], 'at': store.iso(due)}])
-        self.assertEqual(sum(r['kind'] == 'news' and r['at'] == store.iso(due) for r in saved['broadcast_plan']['rows']), 1)
-        self.assertFalse(self.svc._break_due(0))
-        self.assertEqual(self.svc._pick_break(), [])
-        self.clock.return_value = due
-        plugins.set_plugin('host_links', False)
-        self.svc.current = {'kind': 'music', 'ref': '/tmp/song.wav', 'started': time.time(), 'duration': 2}
-        self.svc.engine = Mock(push_news=AsyncMock(return_value='92'))
-        asyncio.run(self.svc.schedule())
-        self.svc.engine.push_news.assert_awaited_once()
-        self.svc.on_event({'kind': 'news', 'ref': pid})
-        for key in [section['id'], *keys]:
-            self.assertEqual(self.svc.db.execute('SELECT status FROM air_plan WHERE id=?', (key,)).fetchone()[0], 'PLAYED')
+    def test_missed_clock_editions_never_form_a_catchup_block(self):
+        from radio import broadcast_clock
+        for n in (30, 60, 90):
+            target = self.AT - timedelta(minutes=n)
+            self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,'news',?)", (broadcast_clock.PREFIX + str(int(target.timestamp())), store.iso(target)))
+        rows = self.svc._clock_rows()
+        self.assertTrue(all(content.parse_time(r['at']) >= self.AT for r in rows))
+        self.assertEqual(rows[0]['at'], store.iso(self.AT))
 
-    def test_overdue_news_section_skip_and_restore_cover_all_its_slots(self):
-        self.add_news('one')
-        for n in range(3):
-            self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,'news',?)",
-                                ('section:news:future:old' + str(n), store.iso(self.AT - timedelta(minutes=n + 1))))
+    def test_clock_skip_can_be_undone_inside_its_window(self):
         snap = self.svc._broadcast_plan()
-        section = next(r for r in snap['rows'] if r['id'].startswith('section:news:current:'))
-        self.save_plan(snap, [{'id': section['id'], 'at': section['at'], 'skipped': True}])
+        row = next(r for r in snap['rows'] if r['kind'] == 'news')
+        self.save_plan(snap, [{'id': row['id'], 'at': row['at'], 'skipped': True}])
+        self.assertFalse(self.svc._break_due(0))
         snap = self.svc._broadcast_plan()
-        skipped = [r for r in snap['rows'] if r['kind'] == 'news' and r['skipped']]
-        self.assertEqual(len(skipped), 1)
-        self.assertEqual(self.svc._pick_break(), [])
-        self.save_plan(snap, [{'id': skipped[0]['id'], 'at': skipped[0]['at'], 'skipped': False}])
-        self.assertTrue(self.svc._pick_break())
-        self.assertFalse(any(r['kind'] == 'news' and r['skipped'] for r in self.svc._broadcast_plan()['rows']))
+        self.save_plan(snap, [{'id': row['id'], 'at': row['at'], 'skipped': False}])
+        self.assertTrue(self.svc._break_due(0))
 
     def test_grouped_section_skip_still_cancels_the_actual_queued_break(self):
         from unittest.mock import AsyncMock
@@ -896,7 +843,7 @@ class DirectionTests(unittest.TestCase):
         due = self.AT + timedelta(minutes=5)
         self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before,skipped) VALUES('section:news:saved:skip','news',?,1)", (store.iso(due),))
         self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES('section:news:saved:other','news',?)", (store.iso(self.AT),))
-        self.clock.return_value = self.AT + timedelta(minutes=10)
+        self.clock.return_value = self.AT + timedelta(minutes=9)
         row = next(r for r in self.svc._broadcast_plan()['rows'] if r['id'] == 'section:news:saved:skip')
         self.assertTrue(row['skipped'])
         self.assertEqual(row['at'], store.iso(due))
@@ -937,7 +884,7 @@ class DirectionTests(unittest.TestCase):
             asyncio.run(self.svc.schedule())
         self.svc.engine.push_news.assert_not_awaited()
 
-    def test_next_queues_ready_edition_before_skipping_song(self):
+    def test_next_keeps_ready_edition_out_of_the_skip_path(self):
         pid = self.next_fixture()
         order = []
         async def push(*args):
@@ -952,8 +899,9 @@ class DirectionTests(unittest.TestCase):
         self.svc.engine.command.side_effect = skip
         with patch('radio.daemon.time.time', return_value=1000), patch.object(self.svc, '_assemble_break', side_effect=AssertionError('must not synthesize on Next')):
             self.assertTrue(asyncio.run(self.svc.dispatch('next'))['ok'])
-        self.assertEqual(order, ['queue', 'loaded', 'skip'])
-        self.assertEqual(self.svc.queued_break, ('42', [pid]))
+        self.assertEqual(order, ['skip'])
+        self.assertIsNone(self.svc.queued_break)
+        self.svc.engine.wait_music.assert_awaited_once()
 
     def test_next_does_not_wait_for_host_links_already_being_synthesized(self):
         import threading
@@ -975,8 +923,7 @@ class DirectionTests(unittest.TestCase):
                 await normal
         with patch('radio.daemon.time.time', return_value=1000), patch.object(self.svc, '_assemble_break', side_effect=assemble):
             asyncio.run(scenario())
-        self.svc.engine.push_news.assert_awaited_once()
-        self.assertEqual(self.svc.engine.push_news.call_args.args[0], Path('/tmp/test.wav'))
+        self.svc.engine.push_news.assert_not_awaited()
 
     def test_manual_transition_speed_is_used_only_for_the_next_track(self):
         self.next_fixture()
@@ -1018,13 +965,12 @@ class DirectionTests(unittest.TestCase):
         self.svc.engine.push_news.assert_not_awaited()
         self.svc.engine.command.assert_awaited_once_with('skip')
 
-    def test_next_does_not_skip_a_section_that_started_during_assembly(self):
+    def test_next_does_not_skip_a_section_that_started_while_music_loaded(self):
         self.next_fixture()
-        def load(*args):
+        async def loaded():
             self.svc.current = {'kind': 'news', 'ref': 'already-started', 'started': 1001}
-            return Path('/tmp/edition.wav'), 0
-        with patch('radio.daemon.time.time', return_value=1000), patch('radio.daemon.audio.join_packages', side_effect=load):
-            asyncio.run(self.svc.dispatch('next'))
+        self.svc.engine.wait_music.side_effect = loaded
+        asyncio.run(self.svc.dispatch('next'))
         self.svc.engine.command.assert_not_awaited()
         self.svc.engine.push_news.assert_not_awaited()
 

@@ -24,8 +24,8 @@ SETTINGS = {
     "xai_model": ("editor", "xai_model", "Model", "A Grok model from xAI", 1, 200, None, ""),
     "openrouter_model": ("editor", "openrouter_model", "Model", "Any model on OpenRouter, billed to your OpenRouter "
                          "credits", 1, 200, None, ""),
-    "music_set_minutes": ("broadcast", "music_set_minutes", "Music between breaks",
-                          "How much music plays in a row before the next news break. More — breaks come less often",
+    "music_set_minutes": ("broadcast", "music_set_minutes", "New music set length",
+                          "Length of a new-tracks selection. Host editions follow the clock at :00 and :30.",
                           5, 90, 5, "min"),
     "max_break_speech_sec": ("broadcast", "max_break_speech_sec", "News break length",
                              "How much speech one break holds while there are enough ready stories. More — a longer "
@@ -35,8 +35,8 @@ SETTINGS = {
                                             "wait when it is used up", 60, 900, 30, "s"),
     "new_every_sets": ("broadcast", "new_every_sets", "New tracks: every Nth set",
                        "Every Nth set is made of new songs. 0 — never", 0, 10, 1, ""),
-    "station_id_every_songs": ("broadcast", "station_id_every_songs", "Station IDs: every N songs",
-                               "A station ID after every N songs inside a set. 0 — none", 0, 10, 1, ""),
+    "station_id_every_songs": ("broadcast", "station_id_every_songs", "Station ID opportunities",
+                               "0 disables; positive values allow a clock ID after 30 minutes without branding.", 0, 10, 1, ""),
     "lead_min": ("reminders", "lead_min", "Reminders: minutes ahead",
                  "How many minutes before a calendar event or a Todoist task to remind", 1, 60, 1, "min"),
 }

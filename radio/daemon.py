@@ -12,7 +12,7 @@ import uuid
 from datetime import timedelta
 from pathlib import Path
 
-from . import audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
+from . import broadcast_clock, audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
 from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
@@ -81,6 +81,7 @@ class Service:
         self.rendering = False
         self.assembling = self.rerolling = False
         self.schedule_lock = asyncio.Lock()
+        self.handoff_lock = asyncio.Lock()
         self.schedule_generation = 0
         self.tts_retry_at, self.tts_backoff = 0.0, 60.0
         self.stop_measure = threading.Event()
@@ -107,7 +108,11 @@ class Service:
         self.fresh_queued: dict[str, str] = {}  # path -> request id of new songs waiting in Liquidsoap's fresh queue
         self.pkg_jingles: dict = {}     # package id -> jingles chosen at render, reused at final assembly
         self.id_pending = False
+        self.gap_rid = None
         self.queued_break = None
+        self.queued_clock = None
+        self.manual_switch = False
+        self.manual_skip_pending = False
         self.all_sources_checked = False  # set only after a *successful* check of every enabled source
         self.resume_offset: dict[str, float] = {}  # ref -> seconds already played, for the song resumed at start
         self.weather_hold: dict[str, float] = {}   # weather slot -> start of the song its joining break first waited at
@@ -119,6 +124,8 @@ class Service:
     async def run(self) -> None:
         self._cleanup_cache()
         self._reset_inflight()
+        self.db.execute("UPDATE air_plan SET status='EXPIRED',rid=NULL WHERE not_before<=? AND kind!='reminder' AND status IN ('PENDING','QUEUED','PREPARING')", (iso(now() - broadcast_clock.WINDOW),))
+        self.db.execute("UPDATE air_plan SET status='EXPIRED',rid=NULL WHERE id LIKE ? AND not_before<=? AND status IN ('PENDING','QUEUED','PREPARING')", (broadcast_clock.PREFIX + '%', iso(now() - broadcast_clock.WINDOW)))
         self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE status IN ('QUEUED','PREPARING')")
         self._refresh_audio_cache()
         # Unplayed remarks about a previous session's music are stale.
@@ -240,8 +247,23 @@ class Service:
             return line.replace("annotate:", f'annotate:liq_cue_in="{position:.2f}",', 1) if line else ""
         return ""
 
+    async def _cancel_automatic(self, status='PENDING'):
+        self.schedule_generation += 1
+        async with self.handoff_lock:
+            if self.gap_rid:
+                await self.engine.remove(self.gap_rid)
+                self.gap_rid, self.id_pending = None, False
+            if self.queued_break:
+                rid, ids = self.queued_break
+                await self.engine.remove(rid)
+                self.db.executemany("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", [(key,) for key in ids])
+                self.db.execute("UPDATE air_plan SET status=?,rid=NULL WHERE rid=? AND status='QUEUED'", (status, rid))
+                self.queued_break = self.queued_clock = None
+                self.id_pending = False
+
     async def _pause(self) -> None:
         await self.engine.command("pause")
+        await self._cancel_automatic()
         self.state, self.paused_at = "PAUSED", time.time()
         await self._expire_reminders()
 
@@ -356,7 +378,7 @@ class Service:
         if store.spoken_last_hour(self.db) + speech > b["max_spoken_seconds_per_rolling_hour"]:
             return
         gain = -16 - (await asyncio.to_thread(audio.lufs, wav) or -16)
-        await self.engine.push_replay(wav, "gap", text, gain, "", ',liq_cross_end_duration="1.5"')
+        self.gap_rid = await self.engine.push_replay(wav, "gap", text, gain, "", ',liq_cross_end_duration="1.5"')
         self.gap_said, self.id_pending = time.time(), True
         log("gap filler queued: the next YouTube Music song is not loaded, a local one follows")
 
@@ -411,9 +433,21 @@ class Service:
 
     # ---- playback events from Liquidsoap ----
     def on_event(self, m: dict) -> None:
+        if m.get('kind') == 'health':
+            if m.get('ref') == 'silence':
+                self.last_error = 'Audio output has been silent for 20 seconds'
+                store.log_event(self.db, self.session, 'AUDIO_SILENCE')
+            elif self.last_error == 'Audio output has been silent for 20 seconds':
+                self.last_error = ''
+            return
+        self.manual_skip_pending = False
         prev = self.current
         if prev and prev["kind"] == "news":
             status = "SKIPPED" if self.skip_flag else "PLAYED"
+            if prev.get('clock_id'):
+                store.log_event(self.db, self.session, 'CLOCK_INTERRUPTED' if self.skip_flag else 'CLOCK_COMPLETED', prev['clock_id'])
+                if self.skip_flag:
+                    self.db.execute("UPDATE air_plan SET status='INTERRUPTED' WHERE id=?", (prev['clock_id'],))
             for pid in prev["ref"].split(BREAK_SEP):
                 cur = self.db.execute("UPDATE packages SET status=?, played_at=? WHERE id=? AND status='PLAYING'",
                                       (status, iso(now()), pid))
@@ -434,6 +468,13 @@ class Service:
                         if self.next_transition_sec is not None else self.cfg['music']['crossfade_sec']}
         self.next_transition_sec = None
         if self.current["kind"] == "news":
+            if self.queued_clock:
+                self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (self.queued_clock['id'],))
+                store.log_event(self.db, self.session, 'CLOCK_STARTED', self.queued_clock['id'])
+                self.current['clock_id'] = self.queued_clock['id']
+                self.queued_clock = None
+            if plugins.on(self.cfg, 'host_links'):
+                store.log_event(self.db, self.session, 'STATION_BRANDING', self.current['ref'])
             self.queued_break = None
             self.db.executemany("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE kind='news' AND ref=? AND status='QUEUED'", [(pid,) for pid in self.current['ref'].split(BREAK_SEP)])
             self.songs_since_break, self.set_started, self.set_songs = 0, None, []
@@ -458,10 +499,14 @@ class Service:
                             self.reminder_text.pop(self.current["ref"], ""))
             log(self.current["kind"], "on air")
         elif self.current["kind"] == "gap":
+            self.gap_rid = None
             self.id_pending = False
             store.log_event(self.db, self.session, "GAP", "", self.current["ref"])
             log("gap filler on air")
         elif self.current["kind"] == "id":
+            if self.queued_clock:
+                self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (self.queued_clock['id'],))
+                self.queued_clock = self.queued_break = None
             self.songs_since_break, self.id_pending = 0, False
             store.log_event(self.db, self.session, "STATION_ID", self.current["ref"])
             log("station id:", self.current["ref"])
@@ -670,7 +715,7 @@ class Service:
     async def _maybe_music_link(self) -> None:
         self._live_settings()
         if (not self.all_sources_checked or not plugins.on(self.cfg, "music_facts") or self.state != "PLAYING"
-                or not self.current or self.current["kind"] != "music" or not self._break_due(0)):
+                or not self.current or self.current["kind"] != "music" or not self._news_preparation_due(TEXT_LEAD_SEC)):
             return
         pending = ("SELECT i.source FROM packages p JOIN items i ON i.id=p.item_id "
                    "WHERE p.status IN ('PENDING','READY','QUEUED','PLAYING') AND i.state='NEW'")
@@ -720,9 +765,8 @@ class Service:
         if self.state != 'PLAYING':
             return False
         deadline = now() + timedelta(seconds=lead)
-        # Use the editor's real section forecast so moving or skipping a section also moves preparation.
-        return any((r['kind'] == 'news' or r.get('edition_news_ids')) and not r['skipped'] and r['status'] not in ('QUEUED', 'PREPARING')
-                   and content.parse_time(r['at']) <= deadline for r in self._broadcast_plan()['rows'])
+        return any(not r['skipped'] and r['status'] not in ('QUEUED', 'PREPARING') and
+                   content.parse_time(r['at']) <= deadline for r in self._clock_rows())
 
     def _live_settings(self) -> None:
         settings.apply(self.cfg, self.defaults)
@@ -735,7 +779,7 @@ class Service:
 
     def _waiting_break(self, remaining):
         pkgs = self._pick_break()
-        due = self._break_due(remaining) or any(self._host_segment(p) == 'weather' for p in pkgs)
+        due = self._break_due(remaining)
         if not due:
             changes = direction.edits(self.db) if plugins.on(self.cfg, 'air_direction') else {}
             if not any(changes.get(p['id'], {}).get('not_before') and changes[p['id']]['not_before'] <= iso(now()) for p in pkgs):
@@ -771,6 +815,15 @@ class Service:
     async def _schedule(self, immediate=False, gap=False) -> None:
         generation = self.schedule_generation
         self._live_settings()
+        overdue = self.db.execute("SELECT * FROM air_plan WHERE kind!='reminder' AND not_before<=? AND status IN ('PENDING','QUEUED','PREPARING')", (iso(now() - broadcast_clock.WINDOW),)).fetchall()
+        for row in overdue:
+            if row['status'] == 'QUEUED' and row['rid']:
+                await self._cancel_direction_job(row)
+            self.db.execute("UPDATE air_plan SET status='EXPIRED',rid=NULL WHERE id=?", (row['id'],))
+        if self.queued_clock and now() >= content.parse_time(self.queued_clock['ends']):
+            await self._cancel_automatic('EXPIRED')
+        if self.manual_switch or self.manual_skip_pending:
+            return
         if self.current is None:
             return  # Play starts with music: nothing is queued before the first song is on air
         if plugins.on(self.cfg, 'air_direction') and self.db.execute("SELECT 1 FROM air_plan WHERE status='QUEUED'").fetchone():
@@ -778,6 +831,8 @@ class Service:
         if self.state != "PLAYING" or self.id_pending or self.rerolling or self.db.execute(
                 "SELECT 1 FROM packages WHERE status IN ('QUEUED','PLAYING')").fetchone():
             return  # one insert (package or station ID) in the engine at a time
+        if self.current['kind'] != 'music':
+            return
         remaining = 10.0
         if self.current["kind"] == "music" and self.current.get("duration"):
             remaining = self.current["duration"] - (time.time() - self.current["started"])
@@ -785,7 +840,10 @@ class Service:
             return
         if not immediate and self.reminders_due and await self._remind(remaining):
             return
-        pkgs = self._pick_break() if gap else self._waiting_break(remaining)
+        slot = self._clock_slot(now() + timedelta(seconds=max(0, remaining)))
+        pkgs = self._waiting_break(remaining)
+        if not slot and not self._requested_edition():
+            pkgs = []
         current = self.current
         if immediate:
             remaining = 0.0
@@ -820,7 +878,7 @@ class Service:
                     wav, talkover = done
                 else:
                     pkgs, new = pkgs[:1], []  # fallback: the first bulletin, pre-rendered
-            if generation != self.schedule_generation or immediate and self.current is not current:
+            if generation != self.schedule_generation or self.current is not current:
                 return
             if self._news_skipped(now() + timedelta(seconds=max(0, remaining))) and any(not p['id'].startswith('system:') for p in pkgs):
                 return
@@ -834,32 +892,48 @@ class Service:
                         not notice or not direction.allowed({'id': key}, changes, now()) or
                         notice['kind'] == 'weather' and (not self._weather_enabled() or air >= notice['expires'])):
                     return
+            if slot and not (content.parse_time(slot['at']) <= now() + timedelta(seconds=max(0, remaining)) < content.parse_time(slot['ends'])):
+                return
             ids = [p["id"] for p in pkgs]
-            rid = await self.engine.push_news(wav, BREAK_SEP.join(ids), talkover)
-            self.queued_break = (rid, ids)
-            for p in pkgs:
-                if self._host_segment(p):
-                    self.db.execute("INSERT INTO air_plan(id,kind,ref,status,rid) VALUES(?,? ,?,'QUEUED',?) ON CONFLICT(id) DO UPDATE SET status='QUEUED',rid=excluded.rid,ref=excluded.ref",
-                                    (p['item_id'].removeprefix('system:'), 'weather' if self._host_segment(p) == 'weather' else 'news', p['id'], rid))
-            self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=? WHERE id LIKE 'section:news:%' AND skipped=0 AND status IN ('PENDING','ERROR') AND not_before<=?",
-                            (rid, ids[0], iso(now() + timedelta(seconds=max(0, remaining)))))
-            self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=? WHERE id LIKE 'direction:%' AND kind='news' AND skipped=0 AND status='PENDING' AND not_before<=?", (rid, ids[0], iso(now())))
-            self.db.executemany("UPDATE packages SET status='QUEUED' WHERE id=?", [(i,) for i in ids])
-            log("break queued for next song boundary:", ", ".join(ids))
-            if new:
-                await self._queue_fresh(new)
-            return
-        every = self.cfg["broadcast"]["station_id_every_songs"]  # 0 = no call signs
-        every = every if plugins.on(self.cfg, "station_ids") else 0
-        if every and self.current["kind"] == "music" and self.songs_since_break >= every:
-            # shortcut: the ~2 s of speech in a call sign is not counted in the rolling-hour budget.
-            f = audio.choose_jingles({"station_id": self.cfg["jingles"]["station_id"]}, f"id{time.time()}",
-                                     self.recent_jingles)["station_id"]
+            async with self.handoff_lock:
+                if generation != self.schedule_generation or self.manual_switch or self.manual_skip_pending:
+                    return
+                rid = await self.engine.push_news(wav, BREAK_SEP.join(ids), talkover, expires=content.parse_time(slot['ends']).timestamp() if slot else 0)
+                if generation != self.schedule_generation or self.current is not current or self.state != 'PLAYING':
+                    await self.engine.remove(rid)
+                    return
+                self.queued_break = (rid, ids)
+                if slot:
+                    self.queued_clock = slot
+                    self.db.execute("INSERT INTO air_plan(id,kind,not_before,status,rid) VALUES(?,'news',?,'QUEUED',?) ON CONFLICT(id) DO UPDATE SET status='QUEUED',rid=excluded.rid", (slot['id'], slot['at'], rid))
+                for p in pkgs:
+                    if self._host_segment(p):
+                        self.db.execute("INSERT INTO air_plan(id,kind,ref,status,rid) VALUES(?,? ,?,'QUEUED',?) ON CONFLICT(id) DO UPDATE SET status='QUEUED',rid=excluded.rid,ref=excluded.ref",
+                                        (p['item_id'].removeprefix('system:'), 'weather' if self._host_segment(p) == 'weather' else 'news', p['id'], rid))
+                self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=? WHERE id LIKE 'section:news:%' AND skipped=0 AND status IN ('PENDING','ERROR') AND not_before<=?",
+                                (rid, ids[0], iso(now() + timedelta(seconds=max(0, remaining)))))
+                self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=? WHERE id LIKE 'direction:%' AND kind='news' AND skipped=0 AND status='PENDING' AND not_before<=?", (rid, ids[0], iso(now())))
+                self.db.executemany("UPDATE packages SET status='QUEUED' WHERE id=?", [(i,) for i in ids])
+                log("break queued for next song boundary:", ", ".join(ids))
+                if new:
+                    await self._queue_fresh(new)
+                return
+
+        if slot and remaining <= 10 and plugins.on(self.cfg, 'station_ids'):
+            branded = self.db.execute("SELECT MAX(at) FROM events WHERE type IN ('STATION_ID','STATION_BRANDING')").fetchone()[0]
+            if branded and now() - content.parse_time(branded) < timedelta(minutes=30):
+                return
+            f = audio.choose_jingles({'station_id': self.cfg['jingles']['station_id']}, slot['id'], self.recent_jingles)['station_id']
             gain = -16 - (await asyncio.to_thread(audio.lufs, f) or -16)
-            _, loud_end = await asyncio.to_thread(audio.active_span, f)
-            await self.engine.push_station_id(f, gain, audio.duration(f) - loud_end)
-            self.id_pending = True
-            log("station id queued:", f.name)
+            _, end = await asyncio.to_thread(audio.active_span, f)
+            if generation != self.schedule_generation or self.current is not current or now() >= content.parse_time(slot['ends']):
+                return
+            async with self.handoff_lock:
+                if generation != self.schedule_generation or self.manual_switch or self.manual_skip_pending:
+                    return
+                rid = await self.engine.push_station_id(f, gain, audio.duration(f) - end, expires=content.parse_time(slot['ends']).timestamp())
+                self.queued_break, self.queued_clock, self.id_pending = (rid, []), slot, True
+                self.db.execute("INSERT INTO air_plan(id,kind,not_before,status,rid) VALUES(?,'news',?,'QUEUED',?) ON CONFLICT(id) DO UPDATE SET status='QUEUED',rid=excluded.rid", (slot['id'], slot['at'], rid))
 
     async def _render_task(self, p: dict) -> None:
         try:
@@ -1096,7 +1170,7 @@ class Service:
             if not slots:
                 return None
             key = slots[0]['id']
-        elif (at - slot >= timedelta(minutes=30) or self.db.execute(
+        elif (at - slot >= broadcast_clock.WINDOW or self.db.execute(
                 "SELECT 1 FROM reminders WHERE key=?", (key,)).fetchone()):
             return None
         if self.db.execute("SELECT 1 FROM air_plan WHERE id=? AND status='QUEUED'", (key,)).fetchone():
@@ -1106,6 +1180,8 @@ class Service:
         try:
             r = await asyncio.to_thread(weather.fetch, self.cfg["weather"]["city"], at)
             r["key"] = key
+            due = content.parse_time(changes.get(key, {}).get('not_before')) if plugins.on(self.cfg, 'air_direction') else slot
+            r['expires'] = min(r['expires'], (due or slot) + broadcast_clock.WINDOW)
             self.reminders_due[r["key"]] = r
             self.sources["weather"] = "ok"
             self.wake.set()
@@ -1317,57 +1393,39 @@ class Service:
         self.fresh_queued = {}
 
     def _news_skipped(self, at=None):
-        if not plugins.on(self.cfg, 'air_direction'):
-            return False
         at = at or now()
-        start = at - timedelta(minutes=self.cfg['broadcast']['music_set_minutes'])
-        skip = self.db.execute("SELECT not_before FROM air_plan WHERE id LIKE 'news-skip:%' AND skipped=1 "
-                               "AND not_before<=? AND not_before>? ORDER BY not_before DESC LIMIT 1", (iso(at), iso(start))).fetchone()
-        if not skip:
-            return False
-        return not self.db.execute("SELECT 1 FROM air_plan WHERE (id LIKE 'section:news:%' OR id LIKE 'direction:%' AND kind='news') "
-                                   "AND skipped=0 AND status IN ('PENDING','PREPARING','QUEUED') AND not_before>? AND not_before<=?",
-                                   (skip['not_before'], iso(at))).fetchone()
+        return any(r['skipped'] and content.parse_time(r['at']) <= at < content.parse_time(r['ends']) for r in self._clock_rows())
 
     def _requested_edition(self):
         if not plugins.on(self.cfg, 'air_direction'):
             return None
-        return self.db.execute("SELECT id FROM air_plan WHERE id LIKE 'direction:%' AND kind='news' AND skipped=0 AND status='PENDING' AND not_before<=? ORDER BY not_before LIMIT 1", (iso(now()),)).fetchone()
+        return self.db.execute("SELECT id FROM air_plan WHERE (id LIKE 'direction:%' OR id LIKE 'section:news:%') AND kind='news' AND skipped=0 AND status='PENDING' AND not_before<=? AND not_before>? ORDER BY not_before LIMIT 1", (iso(now()), iso(now() - broadcast_clock.WINDOW))).fetchone()
 
     def _break_due(self, remaining: float, directed=True) -> bool:
-        """A news break ends a music set: the first of a session after one song, then when the set reaches
-        music_set_minutes by the end of the current song."""
-        if directed and self._news_skipped(now() + timedelta(seconds=max(0, remaining))):
-            return False
+        air = now() + timedelta(seconds=max(0, remaining))
         if directed and self._requested_edition():
             return True
-        if directed and plugins.on(self.cfg, 'air_direction'):
-            section = self.db.execute('SELECT * FROM air_plan WHERE id=?', (self._news_section_id(),)).fetchone()
-            if section and section['status'] not in ('PLAYED', 'ERROR') and not (section['skipped'] and section['not_before'] and now() >= content.parse_time(section['not_before']) + timedelta(seconds=self.cfg['broadcast']['music_set_minutes'] * 60)):
-                return not section['skipped'] and (not section['not_before'] or section['not_before'] <= iso(now()))
-        if not self.db.execute("SELECT 1 FROM events WHERE session_id=? AND type='PACKAGE_STARTED'",
-                               (self.session,)).fetchone():
-            return self.songs_since_break >= 1 or self.set_started is not None
-        return bool(self.set_started) and (time.time() - self.set_started + max(0.0, remaining)
-                                           >= self.cfg["broadcast"]["music_set_minutes"] * 60)
+        return self._clock_slot(air) is not None
 
-    def _pick_break(self) -> list:
+    def _pick_break(self, preview=False) -> list:
         """Ready bulletins for one break: in rotation order (the section aired longest ago opens the break), a
         section's bulletins together; up to max_break_speech_sec and what the rolling-hour limit still allows."""
+        if not preview and self._news_skipped():
+            return []
         b = self.cfg["broadcast"]
         budget = min(b["max_break_speech_sec"], b["max_spoken_seconds_per_rolling_hour"] - store.spoken_last_hour(self.db))
+        slot = self._clock_slot() or next(iter(self._clock_rows()), None)
+        budget = min(budget, 33 if slot and slot['light'] else 108)
         budget -= 12 if plugins.on(self.cfg, "host_links") else 0  # back-sell, time check, set opener (~10 s)
         ready = content.ready_to_air(self.db, self._sources_off())
         changes = direction.edits(self.db) if plugins.on(self.cfg, "air_direction") else {}
         if changes:
             candidates = direction.news(self.db)
             ready = direction.ordered([r for r in candidates if r['status'] == 'READY' and r['source'] not in self._sources_off()
-                     and direction.allowed(r, changes, now()) and not any(
+                     and changes.get(r['id'], {}).get('status') != 'EXPIRED' and direction.allowed(r, changes, now()) and not any(
                          p['item_id'] == r['item_id'] and p['part'] < r['part'] and not changes.get(p['id'], {}).get('skipped')
                          for p in candidates)], changes)
         section = self.db.execute('SELECT * FROM air_plan WHERE id=?', (self._news_section_id(),)).fetchone() if plugins.on(self.cfg, 'air_direction') else None
-        if self._news_skipped() or section and not self._requested_edition() and not section['skipped'] and section['not_before'] and section['not_before'] > iso(now()):
-            ready = [p for p in ready if p['id'].startswith('system:')]
         ready = [p for p in ready if not self._host_segment(p) or
                  ((notice := self.reminders_due.get(p['item_id'].removeprefix('system:'))) and
                   (notice['kind'] != 'weather' or self._weather_enabled() and now() < notice['expires']) and
@@ -1411,7 +1469,7 @@ class Service:
                     owners.append(p["id"])
                 prev = p["id"].split(":")[0]
             if links:
-                segs.append((host.set_opener(b["music_set_minutes"], first, self.recent_jingles, seed, novelty), False))
+                segs.append((host.set_opener(None, first, self.recent_jingles, seed, novelty), False))
                 owners.append(seed)
             speakers = [None] * len(segs)
             if plugins.on(self.cfg, "duo_hosts") and len(pkgs) > 1:
@@ -1733,7 +1791,8 @@ class Service:
             await self.engine.remove(rid)
             self.db.executemany("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", [(pid,) for pid in ids])
             self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE rid=? AND status='QUEUED'", (rid,))
-            self.queued_break = None
+            self.queued_break = self.queued_clock = None
+            self.id_pending = False
             return
         await self.engine.remove(row['rid'])
         if row['kind'] == 'news':
@@ -1851,22 +1910,30 @@ class Service:
             await self._resume()
         elif cmd == "next":
             current = self.current
-            if current and current['kind'] == 'music':
-                remaining = max(0, current.get('duration', 0) - (time.time() - current['started']))
-                if self.queued_break or self._waiting_break(remaining):
-                    await self.schedule(immediate=True)
-                if self.queued_break or self.queued_reminders or self.replays or self.id_pending:
-                    await self.engine.wait_insert(self.queued_break[0] if self.queued_break else None)
-                else:
+            self.manual_switch = True
+            try:
+                await self._cancel_automatic()
+                if current and current['kind'] == 'music':
+                    if self.queued_reminders:
+                        for key, (rid, notice) in list(self.queued_reminders.items()):
+                            await self.engine.remove(rid)
+                            self.reminders_due[key] = notice
+                            self.reminder_text.pop(key, None)
+                            self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE rid=? AND status='QUEUED'", (rid,))
+                        self.queued_reminders.clear()
+                        self.id_pending = False
                     await self.engine.wait_music()
-            if self.current is current:
-                self.skip_flag = bool(current and current['kind'] == 'news')
-                self.next_transition_sec = .1
-                try:
-                    await self.engine.command("skip")
-                except Exception:
-                    self.next_transition_sec = None
-                    raise
+                if self.current is current:
+                    self.skip_flag = bool(current and current['kind'] == 'news')
+                    self.next_transition_sec = .1
+                    self.manual_skip_pending = True
+                    await self.engine.command('skip')
+            except Exception:
+                self.manual_skip_pending = False
+                self.next_transition_sec = None
+                raise
+            finally:
+                self.manual_switch = False
         elif cmd == "skip-news":
             if not (self.current and self.current["kind"] == "news"):
                 return {"ok": False, "error": "no bulletin is on air"}
@@ -1893,11 +1960,17 @@ class Service:
             return 'Host edition'
         return {"id": "Station ID", "reminder": "Reminder", "weather": "Weather"}.get(kind, kind)
 
+    def _clock_rows(self):
+        return broadcast_clock.rows(self.db, now(), PLAN_HOURS, self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'))
+
+    def _clock_slot(self, at=None):
+        at = at or now()
+        return next((r for r in self._clock_rows() if not r['skipped'] and
+                     content.parse_time(r['at']) <= at < content.parse_time(r['ends'])), None)
+
     def _news_section_id(self):
-        active = self.db.execute("SELECT id FROM air_plan WHERE id LIKE 'section:news:%' "
-                                 "AND status NOT IN ('PLAYED','ERROR') AND (id NOT LIKE 'section:news:future:%' OR not_before<=?) AND (skipped=0 OR not_before>?) "
-                                 "ORDER BY CASE WHEN skipped=0 AND not_before<=? THEN 0 ELSE 1 END,not_before LIMIT 1", (iso(now()), iso(now() - timedelta(minutes=self.cfg['broadcast']['music_set_minutes'])), iso(now()))).fetchone()
-        return active['id'] if active else f"section:news:{self.session}:{int(self.set_started or 0)}"
+        rows = self._clock_rows()
+        return rows[0]['id'] if rows else ''
 
     def _broadcast_plan(self):
         at = now()
@@ -1907,79 +1980,30 @@ class Service:
         # Replays wait in the news queue: they air before a break or insert that is not queued ahead of them.
         replays = [r for r in self.replays.values() if not self.queued_break or int(r['rid'] or 0) < int(self.queued_break[0] or 0)]
         first = boundary + timedelta(seconds=sum(r.get('duration') or 0 for r in replays))
-        interval = self.cfg['broadcast']['music_set_minutes'] * 60
-        news_at = first
-        if not self._break_due(remaining, directed=False) and self.set_started:
-            news_at = max(first, at + timedelta(seconds=max(0, interval - (time.time() - self.set_started))))
+        interval = 1800
         horizon = at + timedelta(hours=PLAN_HOURS)
         plan = direction.rows(self.db, self.cfg, at)
-        result, seen_rows = [], set()
-        for r in plan:
-            if r['id'] in seen_rows:
-                continue
-            seen_rows.add(r['id'])
-            if r['kind'] == 'music':
-                continue
-            if r['id'].startswith('section:news:') and not r['id'].startswith('section:news:future:') and r['id'] != self._news_section_id() and not r['skipped']:
-                continue
-            if r['kind'] == 'news' and not r['id'].startswith(('direction:', 'section:')) and not r['not_before']:
-                continue
-            due = content.parse_time(r['not_before'])
-            if due and due > horizon and not r.get('edited'):
-                continue
-            result.append({**r, 'title': self.cfg['weather']['city'] if r['kind'] == 'weather' and r['title'] == 'Weather' else r['title'], 'at': iso(due if r['skipped'] else max(first, due)) if due else iso(first), 'duration': r.get('duration_sec') or r.get('est_speech_sec') or 30,
-                           'estimated': not due or due < boundary, 'locked': r['status'] in ('QUEUED', 'PREPARING'),
-                           'members': [r['id']]})
-        grouped, timed = [], {}
-        for r in result:
-            if r['kind'] != 'news' or r['id'].startswith(('direction:', 'section:')):
-                grouped.append(r)
-                continue
-            key = (r['not_before'], r['skipped'])
-            if key not in timed:
-                r['title'] = timeline.topic_name(r['title'])
-                timed[key] = r
-                grouped.append(r)
-            else:
-                block = timed[key]
-                block['members'] += r['members']
-                block['title'] = ' · '.join(dict.fromkeys([block['title'], timeline.topic_name(r['title'])]))
-                block['duration'] += r['duration']
-                block['locked'] = block['locked'] or r['locked']
-                if r['status'] in ('QUEUED', 'PREPARING', 'PENDING'):
-                    block['status'] = r['status']
-        result = grouped
-        candidates = [r for r in plan if r['kind'] == 'news' and not r['id'].startswith(('direction:', 'section:')) and not r['skipped'] and not r['not_before'] and not self._host_segment(r)]
-        picked = self._pick_break()
+        result = self._clock_rows()
+        selected = self._pick_break(preview=True)
+        if not selected:
+            selected = [r for r in direction.news(self.db) if r['source'] not in self._sources_off()][:2]
         if self.queued_break:
-            picked = [{'id': key} for key in self.queued_break[1]]
-        selected = [r for r in candidates if r['id'] in {p['id'] for p in picked}] or candidates[:3]
-        section_id = self._news_section_id()
-        section = next((r for r in result if r['id'] == section_id), None)
-        requested = next((r for r in sorted(result, key=lambda r: r['at']) if r['kind'] == 'news' and r['id'].startswith('direction:') and not r['skipped'] and content.parse_time(r['at']) <= (content.parse_time(section['at']) if section else news_at)), None)
-        section = requested or section
-        if selected and section:
-            section['content_members'] = [r['id'] for r in selected]
-            section['title'] = ' · '.join(dict.fromkeys(timeline.topic_name(r['title']) for r in selected))
-            section['duration'] = sum(r.get('duration_sec') or r.get('est_speech_sec') or 30 for r in selected)
-            if section['status'] == 'PENDING' and all(r['status'] == 'READY' for r in selected):
-                section['status'] = 'READY'
-        elif selected:
-            due = max([news_at] + [content.parse_time(r['not_before']) for r in selected if r['not_before']])
-            titles = list(dict.fromkeys(timeline.topic_name(r['title']) for r in selected))
-            result.append({'id': section_id, 'kind': 'news', 'title': ' · '.join(titles),
-                           'members': [r['id'] for r in selected], 'at': iso(due), 'not_before': selected[0]['not_before'],
-                           'estimated': True, 'duration': sum(r.get('duration_sec') or r.get('est_speech_sec') or 30 for r in selected),
-                           'status': 'QUEUED' if any(r['status'] == 'QUEUED' for r in selected) else 'READY' if all(r['status'] == 'READY' for r in selected) else 'PENDING',
-                           'locked': any(r['status'] == 'QUEUED' for r in selected), 'skipped': False, 'rid': self.queued_break[0] if self.queued_break else None})
-        elif not section and not any(r['kind'] == 'news' and not r['skipped'] for r in result) and any(plugins.on(self.cfg, p) for p in ('horizon', 'github_trending', 'github_new')):
-            result.append({'id': section_id, 'kind': 'news', 'title': 'News', 'members': [], 'placeholder': True,
-                           'at': iso(news_at), 'not_before': None, 'estimated': True, 'duration': 60, 'status': 'PENDING', 'locked': False, 'skipped': False})
-        skipped = [r for r in plan if r['kind'] == 'news' and r['skipped'] and not r['id'].startswith(('direction:', 'section:'))]
-        if skipped:
-            result.append({'id': skipped[0]['id'], 'kind': 'news', 'title': 'Skipped bulletin', 'members': [r['id'] for r in skipped],
-                           'at': iso(news_at), 'not_before': skipped[0]['not_before'], 'estimated': True,
-                           'duration': 0, 'status': 'READY', 'locked': False, 'skipped': True})
+            ids = set(self.queued_break[1])
+            selected = [r for r in plan if r['id'] in ids]
+        for row in result:
+            if row is result[0]:
+                row['content_members'] = [r['id'] for r in selected]
+                row['members'] += row['content_members']
+                if self.queued_break:
+                    row['status'], row['locked'], row['rid'] = 'QUEUED', True, self.queued_break[0]
+                row['placeholder'] = not bool(selected)
+                if not self.queued_break and selected and all(r['status'] == 'READY' for r in selected):
+                    row['status'] = 'READY'
+        result += [{**r, 'at': r['not_before'] or iso(first), 'duration': 30,
+                    'estimated': not bool(r['not_before']), 'locked': r['status'] in ('QUEUED', 'PREPARING'),
+                    'members': [r['id']]} for r in plan
+                   if r['kind'] != 'music' and not r['id'].startswith(broadcast_clock.PREFIX) and at - broadcast_clock.WINDOW < content.parse_time(r['not_before'] or iso(at)) <= horizon and
+                   (r['kind'] != 'news' or r['id'].startswith(('direction:', 'section:news:')) or r['not_before'])]
         changes = direction.edits(self.db)
         early_titles = [music.label(self.db, r['ref']) for r in replays if r['kind'] == 'music']
         music_titles = [music.label(self.db, r['ref']) for r in self.replays.values() if r['kind'] == 'music' and r not in replays]
@@ -2002,16 +2026,6 @@ class Service:
                            'duration': 30, 'estimated': not bool(edit.get('not_before')), 'locked': key in self.queued_reminders,
                            'status': 'QUEUED' if key in self.queued_reminders else 'PENDING', 'skipped': bool(edit.get('skipped')),
                            'rid': self.queued_reminders[key][0] if key in self.queued_reminders else None})
-        # shortcut: future sets show the configured interval, not songs or speech that have not been prepared.
-        future = news_at + timedelta(seconds=interval)
-        while future <= horizon:
-            anchor = int(future.timestamp() // interval)
-            key = f'section:news:future:{anchor}'
-            if not any(r['id'] == key or r['kind'] == 'news' and not r['skipped'] and abs((content.parse_time(r['at']) - future).total_seconds()) <= max(60, r['duration']) for r in result) and any(plugins.on(self.cfg, p) for p in ('horizon', 'github_trending', 'github_new')):
-                result.append({'id': key, 'kind': 'news', 'title': 'News', 'members': [], 'placeholder': True,
-                               'at': iso(future), 'not_before': None, 'estimated': True, 'duration': 60,
-                               'status': 'PENDING', 'locked': False, 'skipped': False})
-            future += timedelta(seconds=interval)
         for row in result:
             if row['kind'] == 'news':
                 skip_id = 'news-skip:' + row['id']
@@ -2076,6 +2090,13 @@ class Service:
         result.sort(key=lambda r: (r['at'], not r['locked']))
         cursor, previous = boundary, 'opening:' + self.session
         music_sections = []
+        if early_titles and first > boundary:
+            music_sections.append({'id': 'section:music:replays', 'kind': 'music', 'title': 'Music',
+                                   'content_title': ' · '.join(early_titles), 'at': iso(boundary), 'not_before': None,
+                                   'duration': (first - boundary).total_seconds(), 'members': [], 'placeholder': True,
+                                   'estimated': True, 'status': 'PENDING', 'locked': False, 'skipped': False})
+            early_titles = []
+            cursor = first
         for row in [r for r in result if not r['skipped']] + [None]:
             end = max(cursor, content.parse_time(row['at'])) if row else max(cursor, horizon)
             if end > cursor:
@@ -2172,7 +2193,7 @@ class Service:
                 raise ValueError('A block is already selected or preparing. Cancel and reopen Edit.')
             if row['kind'] == 'reminder' and change.get('skipped') and not row.get('skipped') and change.get('skip_confirmed') is not True:
                 raise ValueError('Confirm skipping this reminder')
-            due = direction.requested_time(row['at'] if row.get('locked') else change.get('at'), now())
+            due = content.parse_time(row['at']) if change.get('skipped') is not None and change.get('at') == row['at'] else direction.requested_time(change.get('at'), now())
             if row['kind'] == 'reminder' and row.get('ends') and due >= content.parse_time(row['ends']):
                 raise ValueError('The event is over by then; move the reminder earlier or skip it')
             validated.append((row, change, due, rank))
@@ -2224,13 +2245,13 @@ class Service:
                         continue
                 if row.get('placeholder') and row['id'].startswith('section:'):
                     self.db.execute("INSERT OR IGNORE INTO air_plan(id,kind,text) VALUES(?,?,?)", (row['id'], row['kind'], row['title']))
-                keys = row['members'] or [row['id']]
+                keys = list(dict.fromkeys([*row['members'], *row.get('edition_news_ids', [])])) or [row['id']]
                 if row['kind'] == 'reminder' and str(row.get('ref', '')).startswith(('cal:', 'todoist:')):
                     keys = list(dict.fromkeys([*keys, 'reminder:' + row['ref']]))
                 for key in keys:
                     self.db.execute("INSERT INTO air_plan(id,kind,ref,not_before,rank,skipped) VALUES(?,?,?,?,?,?) "
                                     "ON CONFLICT(id) DO UPDATE SET not_before=excluded.not_before,rank=excluded.rank,skipped=excluded.skipped,error=NULL,status=CASE WHEN air_plan.status='ERROR' THEN 'PENDING' ELSE air_plan.status END",
-                                    (key, row['kind'], '' if row.get('placeholder') else row.get('ref') or key, iso(due), rank, skipped))
+                                    (key, 'news' if key.startswith(broadcast_clock.PREFIX) else row['kind'], '' if row.get('placeholder') else row.get('ref') or key, iso(due), rank, skipped))
         self.wake.set()
         return {'ok': True, 'broadcast_plan': self._broadcast_plan()}
 

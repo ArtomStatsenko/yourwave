@@ -134,7 +134,18 @@ end
 
 
 # track_sensitive: a ready news package only starts at a song boundary, never mid-song.
-radio = fallback(id="switch", track_sensitive=true, [news, fresh, music])
+# Reject an expired insert at the handoff even if the Python scheduler is unavailable.
+def news_eligible() =
+  current = news.current()
+  q = if null.defined(current) then [null.get(current)] else news.queue() end
+  if list.is_empty(q) then false else
+    m = request.metadata(list.hd(q))
+    until = float_of_string(default=0., m["air_until"])
+    until == 0. or time() < until
+  end
+end
+eligible_news = switch(track_sensitive=true, [({news_eligible()}, news)])
+radio = fallback(id="switch", track_sensitive=true, [eligible_news, fresh, music])
 # Track events are taken before crossfade, which drops metadata on its transition tracks.
 radio.on_track(synchronous=false, emit_track)
 radio = amplify(1., radio)  # per-track gain from the liq_amplify annotation (measured LUFS)
@@ -177,6 +188,13 @@ def transition(a, b) =
   end
 end
 radio = cross(duration=xfade + 1., transition, radio)
+# shortcut: conservative silence alarm; calibrate on station recordings before automatic recovery.
+radio = blank.detect(threshold=-55., max_blank=20., min_noise=1., track_sensitive=false, radio)
+def audio_health(state) =
+  file.write(append=true, data=json.stringify(compact=true, {kind="health", ref=state}) ^ "\n", events_path)
+end
+radio.on_blank(synchronous=false, {audio_health("silence")})
+radio.on_noise(synchronous=false, {audio_health("audible")})
 radio = limit(threshold=-1.5, radio)  # gentle; the ffmpeg sink's alimiter is the hard ceiling
 
 # Pause = the output keeps running on silence; the radio source is not pulled meanwhile, so it stays in place.

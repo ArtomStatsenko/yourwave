@@ -137,7 +137,7 @@ class Liquidsoap:
             await asyncio.sleep(.05)
         raise TimeoutError('The next section is not loaded yet; try again shortly')
 
-    async def push_news(self, wav: Path, package_id: str, talkover_sec: float = 0.0) -> str:
+    async def push_news(self, wav: Path, package_id: str, talkover_sec: float = 0.0, expires: float = 0.0) -> str:
         safe_id = package_id.replace('"', "")
         # Short fades around the package so the stinger is heard; songs keep the full crossfade.
         gain = 0.0  # packages are mastered to -16 LUFS like the music
@@ -149,19 +149,19 @@ class Liquidsoap:
                   else 'liq_cross_end_duration="1.5"')
         # Start window longer than any song's end window: radio.liq then places the break by liq_talk_up.
         ending += ',liq_cross_start_duration="12"'
-        uri = f'annotate:kind="news",ref="{safe_id}",liq_amplify="{gain:+.1f} dB",{ending},liq_fade_in="0.1":{wav}'
+        uri = f'annotate:air_until="{expires:.3f}",kind="news",ref="{safe_id}",liq_amplify="{gain:+.1f} dB",{ending},liq_fade_in="0.1":{wav}'
         return (await self.command(f"news.push {uri}")).strip()
 
     async def pending(self) -> list[str]:
         """Request ids in the news queue, the one on air first. A request that could not load is simply not there."""
         return (await self.command('news.pending')).split()
 
-    async def push_station_id(self, wav: Path, gain_db: float, tail_sec: float = 0.0) -> None:
+    async def push_station_id(self, wav: Path, gain_db: float, tail_sec: float = 0.0, expires: float = 0.0) -> str:
         # Goes through the same queue as news, so it too waits for the song boundary. The next song starts
         # over the call sign's decaying tail instead of after it.
-        uri = (f'annotate:kind="id",ref="{wav.name}",liq_amplify="{gain_db:+.2f} dB",'
+        uri = (f'annotate:air_until="{expires:.3f}",kind="id",ref="{wav.name}",liq_amplify="{gain_db:+.2f} dB",'
                f'liq_cross_duration="{max(1.0, tail_sec + 0.3):.2f}",liq_fade_in="0.1":{wav}')
-        await self.command(f"news.push {uri}")
+        return (await self.command(f"news.push {uri}")).strip()
 
     async def push_replay(self, wav: Path, kind: str, ref: str, gain_db: float, replay_id: str, tags: str = "",
                           queue: str = "news") -> str:

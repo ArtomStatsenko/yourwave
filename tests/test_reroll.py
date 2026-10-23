@@ -331,6 +331,42 @@ class RerollTests(unittest.TestCase):
         self.assertGreater(power(refs[following]), power(refs[current]) * 10,
                            'The old song is still audible 350 ms after manual skip')
 
+    def test_engine_rejects_expired_insert_without_scheduler(self):
+        self.clock.stop()
+        tone = config.DATA_DIR / 'tone.wav'
+        with wave.open(str(tone), 'wb') as out:
+            out.setnchannels(2)
+            out.setsampwidth(2)
+            out.setframerate(44100)
+            out.writeframes(b'\x10\x00' * 2 * 44100 * 5)
+        playlist = config.RUN_DIR / 'expiry.m3u'
+        playlist.write_text(f'annotate:kind="music",ref="tone":{tone}\n')
+        engine = Liquidsoap(playlist, .1, str(config.DATA_DIR / 'expiry.wav'))
+        events = []
+        async def wait_for(predicate):
+            deadline = time.monotonic() + 8
+            while not predicate() and time.monotonic() < deadline:
+                await asyncio.sleep(.05)
+            self.assertTrue(predicate(), events)
+        async def scenario():
+            with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}):
+                await engine.start(events.append)
+            try:
+                await wait_for(lambda: bool(events))
+                expired = await engine.push_news(tone, 'expired', expires=time.time() - 1)
+                await asyncio.sleep(.3)
+                await engine.command('skip')
+                await asyncio.sleep(1)
+                self.assertFalse(any(e['ref'] == 'expired' for e in events))
+                await engine.remove(expired)
+                rid = await engine.push_news(tone, 'valid', expires=time.time() + 30)
+                await engine.wait_insert(rid)
+                await engine.command('skip')
+                await wait_for(lambda: any(e['ref'] == 'valid' for e in events))
+            finally:
+                await engine.stop()
+        asyncio.run(scenario())
+
     def test_restart_within_minutes_continues_session_set_and_song(self):
         self.svc.set_started, self.svc.songs_since_break = 900, 3
         self.svc.current['started'] = 940
