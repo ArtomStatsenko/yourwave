@@ -48,7 +48,10 @@ def log(*a):
 class Service:
     def __init__(self, cfg: dict, tts=None, output: str = "device"):
         self.cfg, self.output = cfg, output
-        self.defaults = None  # the config.toml values, taken at the first decision; settings.json (the UI) overrides them
+        # config.toml gives the defaults, settings.json (the Settings tab) overrides them: applied before anything runs,
+        # else the first jobs (the GitHub fetch right after start) used the default AI provider, not the chosen one
+        self.defaults = settings.base(cfg)
+        settings.apply(cfg, self.defaults)
         self.mock_voice = tts is not None
         self.voice_engine = cfg["voice"]["engine"]
         self.tts = tts or tts_mod.make_voice(cfg)

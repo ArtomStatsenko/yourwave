@@ -15,9 +15,14 @@ radio.github_trending.fetch_readme = lambda owner, repo, **kw: ""  # no network 
 os.environ["RADIO_DATA_DIR"] = str(TMP / "data")
 
 from radio import config, content, daemon, music, store  # noqa: E402
+from radio import settings as radio_settings  # noqa: E402
 config.DATA_DIR = TMP / "data"  # isolate even when another test imported config first
 config.RUN_DIR = config.DATA_DIR / "run"
 config.SOCK = config.RUN_DIR / "radio.sock"
+config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+# No real AI in tests: the default provider (local Ollama) points at a closed port, so nothing reaches the user's
+# Ollama (it loaded a 3 GB model on every test run). Tests that need answers mock urlopen.
+(config.DATA_DIR / "config.toml").write_text('[editor]\nbase_url = "http://127.0.0.1:9"\n')
 from radio.daemon import Service  # noqa: E402
 from radio.tts import MockTTS  # noqa: E402
 
@@ -434,6 +439,7 @@ class SchedulingTests(unittest.TestCase):
         pushed = []
         self.fake_engine(pushed)
         self.cfg["broadcast"]["station_id_every_songs"] = 3
+        self.svc.defaults = radio_settings.base(self.cfg)  # these edits stand for config.toml values
         self.svc.on_event({"kind": "music", "ref": "/m/0.mp3"})
         self.svc.on_event({"kind": "news", "ref": "x#1"})        # a break has aired: a set is running
         for i in range(3):
@@ -604,6 +610,7 @@ class SchedulingTests(unittest.TestCase):
         os.utime(old, (time.time() - 40 * 86400,) * 2)                       # added long ago: not new
         b = self.cfg["broadcast"]
         b.update(new_every_sets=2, new_days=14, new_min_tracks=3, music_set_minutes=1, station_id_every_songs=0)
+        self.svc.defaults = radio_settings.base(self.cfg)  # these edits stand for config.toml values
         self.svc.files = songs
         self.svc.intro_rooms = {str(f): None for f in songs}
         self.svc.replays = {}
@@ -997,6 +1004,16 @@ class SchedulingTests(unittest.TestCase):
         opens = {host.set_opener(20, ("A", "t"), {}, f"s{i}") for i in range(40)}
         self.assertTrue(any("«A»" in o for o in opens) and any("«A»" not in o for o in opens))
         self.assertEqual(host.back_sell([], {}, "s"), None)
+
+    def test_settings_apply_before_the_first_job(self):
+        from radio import settings
+        try:
+            settings.set_setting("llm_provider", "deepseek")
+            svc = Service(config.load(), tts=MockTTS(), output="x")
+            self.assertEqual(svc.cfg["editor"]["provider"], "deepseek")  # not the config default (ollama)
+            svc.db.close()
+        finally:
+            settings.reset("llm_provider")
 
     def test_settings_from_the_ui(self):
         from radio import settings

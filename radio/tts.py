@@ -148,7 +148,8 @@ def start_backend(project: str, port: int, log) -> subprocess.Popen:
 
 def start_mlx_server(folder: str, port: int, log) -> subprocess.Popen:
     """mlx-audio's OpenAI-compatible server from its own venv (folder/.venv), for the "qwen3" voice engine."""
-    server = Path(folder).expanduser() / ".venv/bin/mlx_audio.server"
+    root = Path(folder).expanduser()
+    server = (root if root.is_absolute() else config.DATA_DIR / root) / ".venv/bin/mlx_audio.server"
     if not server.exists():
         raise FileNotFoundError(f"no mlx-audio server in {folder} (uv pip install 'mlx-audio[server]')")
     # cwd: the server writes its logs/ next to where it runs (the root of the disk is read-only)

@@ -58,7 +58,7 @@ Chatterbox ставит ударения пакетом `russian-text-stresser` 
 
 ## Где всё лежит
 
-- Окружение: `~/tts-lab` (mlx-audio 0.6.1, скрипты `bench2.py`, `bench3.py`, `score.py`, `sim.py`). VoiceStudio и радио не затронуты.
+- Окружение замеров: `~/tts-lab` (mlx-audio 0.6.1, скрипты `bench2.py`, `bench3.py`, `bench4.py`, `score.py`, `sim.py`). Радио его не использует: его сервер Qwen живёт в папке данных радио, `mlx-audio/` (своё окружение, та же версия).
 - Клон-профиль в VoiceStudio: «Radio host (clone test)», id `a7f325a9`.
 - Образцы: `recordings/voice-samples/ab/` (0–6 — этап 1, 2-* — модели, 3-* — эмоции).
 

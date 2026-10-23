@@ -117,7 +117,8 @@ instruct = "male, young adult, moderate pitch"
 seed = 42                   # fixed seed keeps the designed voice the same in every clip
 engine = "voicestudio"     # "voicestudio" (OmniVoice, a voice by description) or "qwen3" (Qwen3-TTS cloning
                             # voices/host.wav + .txt in the data folder, via mlx-audio); switched on the Settings tab
-mlx_audio_dir = "~/tts-lab" # a venv with mlx-audio[server] (.venv/bin/mlx_audio.server); the radio starts it
+mlx_audio_dir = "mlx-audio" # relative to the data folder: a venv with mlx-audio[server] (.venv/bin/mlx_audio.server),
+                            # the radio starts it. Install: uv venv .venv && uv pip install "mlx-audio[server]==0.6.1"
 mlx_audio_url = "http://127.0.0.1:3901"
 qwen_model = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"  # as good as bf16, twice as fast, less memory (A/B test)
 cohost_instruct = "female, young adult, moderate pitch"  # plugin "Two hosts": the second designed voice
