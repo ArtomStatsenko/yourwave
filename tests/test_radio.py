@@ -998,8 +998,9 @@ class SchedulingTests(unittest.TestCase):
         songs = [(a, a.lower()) for a in "ABACD"]
         backs = {host.back_sell(songs, {}, f"s{i}") for i in range(40)}
         self.assertIn(None, backs)                                        # sometimes no back-sell at all
-        self.assertTrue(any(b and "«A», «C» и «D» с песней «d»" in b for b in backs))
-        self.assertTrue(any(b and "«A», «C» и «D»." in b for b in backs))  # artists only
+        self.assertTrue(any(b and "«A», «C», «D». Последней прозвучала «d»." in b for b in backs))
+        self.assertTrue(any(b and b.endswith("«A», «C», «D».") for b in backs))  # the set, artists only
+        self.assertFalse(any(b and " и «" in b for b in backs))  # never "X и Y": it sounds like a joint track
         self.assertTrue(any(b and "«D»" in b and "«A»" not in b for b in backs))  # just the last song
         opens = {host.set_opener(20, ("A", "t"), {}, f"s{i}") for i in range(40)}
         self.assertTrue(any("«A»" in o for o in opens) and any("«A»" not in o for o in opens))

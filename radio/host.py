@@ -61,7 +61,8 @@ def opener(air_time: datetime, station: str, recent: dict, seed: str) -> str:
 # ---- music sets: back-sell what just played, forward-sell the set that starts after the break ----
 # Live, not a template read every time: each break picks one shape (stable per break), from saying nothing
 # to naming the last song.
-BACK_SELLS = ["Вы слушали {names}.", "Это были {names}.", "Только что звучали {names}."]
+# A set is named as a set: "Вы слушали X и Y" sounded like one song by both artists.
+BACK_SELLS = ["Это был музыкальный блок: {names}.", "Вы слушали подборку: {names}.", "В этом блоке звучали песни {names}."]
 LAST_SONG = ["Вы слушали {artist} — «{title}».", "Это был трек «{title}», исполнитель — {artist}.",
              "Прозвучала песня «{title}» в исполнении {artist}."]  # no verb that agrees with the artist's gender
 SET_OPENERS = [
@@ -141,11 +142,6 @@ def _title(title: str) -> str:
     return re.sub(r"\s*[(\[](feat|ft|prod|official|lyric|audio|video)[^)\]]*[)\]]", "", title, flags=re.I).strip()
 
 
-def _names(names: list[str]) -> str:
-    names = [_quoted(n) for n in names]
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " и " + names[-1]
-
-
 def _shape(seed: str, role: str, weights: list[int]) -> int:
     return random.Random(f"{role}|{seed}").choices(range(len(weights)), weights)[0]
 
@@ -164,10 +160,11 @@ def back_sell(songs: list[tuple[str, str]], recent: dict, seed: str) -> str | No
             seen.insert(0, a)
         if len(seen) == 3:
             break
-    if not seen:
-        return None
-    names = _names(seen) + (f" с песней «{_title(songs[-1][1])}»" if shape == 2 and songs[-1][0] == seen[-1] else "")
-    return _rotate(BACK_SELLS, "host_back", recent, seed).format(names=names)
+    if len(seen) < 2:  # one artist all set long: name the last song, not "a block of X"
+        a, t = songs[-1]
+        return _rotate(LAST_SONG, "host_last", recent, seed).format(artist=_quoted(a), title=_title(t))
+    text = _rotate(BACK_SELLS, "host_back", recent, seed).format(names=", ".join(_quoted(n) for n in seen))
+    return text + (f" Последней прозвучала «{_title(songs[-1][1])}»." if shape == 2 else "")
 
 
 def set_opener(minutes: int, first: tuple[str, str] | None, recent: dict, seed: str, novelty: bool = False) -> str:
