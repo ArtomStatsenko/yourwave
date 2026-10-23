@@ -859,9 +859,14 @@ class Service:
             out = config.DATA_DIR / "cache/packages" / (hashlib.sha256(p["id"].encode()).hexdigest()[:16] + ".wav")
             jingles = self._jingles_for(p["id"])
             self.pkg_jingles[p["id"]] = jingles
-            talkover = audio.render_package(voices, out, separators=sounds[1:], jingles=jingles,
-                                            bed_gain_db=self.cfg["broadcast"]["voice_bed_gain_db"],
-                                            talkover=self._talkover(p["id"]))
+            if p["id"].startswith("system:music-link:"):
+                # Said over the end of the song that just played; its jingle only once the host has finished
+                audio.render_link(voices, out, jingles["stinger_out"], jingles["stinger_out_max_sec"])
+                talkover = 0.0
+            else:
+                talkover = audio.render_package(voices, out, separators=sounds[1:], jingles=jingles,
+                                                bed_gain_db=self.cfg["broadcast"]["voice_bed_gain_db"],
+                                                talkover=self._talkover(p["id"]))
         except Exception as e:
             attempts = p["attempts"] + 1
             self.db.execute("UPDATE packages SET attempts=?, error=?, status=? WHERE id=?",

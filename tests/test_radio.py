@@ -1163,6 +1163,18 @@ class SchedulingTests(unittest.TestCase):
             svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
 
+    def test_host_line_between_songs_is_voice_first_then_jingle(self):
+        from radio import audio
+        voice = TMP / "link-voice.wav"
+        MockTTS().synthesize("Вы слушали трек. А мы продолжаем, оставайтесь с нами.", voice)
+        jingle = config.ASSETS_DIR / "stinger_out.wav"
+        out = TMP / "link.wav"
+        audio.render_link([voice], out, jingle, 4.0)
+        a, b = audio.speech_span(voice)
+        self.assertLess(audio.active_span(out)[0], 0.2)  # no jingle or bed before the voice: it starts at once
+        # the jingle follows the last word: the file is the speech plus the (trimmed) jingle
+        self.assertAlmostEqual(audio.duration(out), (b - a) + audio.JINGLE_AFTER_SEC + min(4.0, audio.duration(jingle)), delta=1.2)
+
     def test_retry_seed_goes_with_the_request_not_onto_the_shared_voice(self):
         from radio import tts as tts_mod
         seen = []

@@ -229,6 +229,37 @@ def render_notice(voice: Path, chime: Path, out_wav: Path) -> None:
     os.replace(tmp, out_wav)
 
 
+JINGLE_AFTER_SEC = 0.15  # a host line between songs: the jingle comes in just after the last word
+
+
+def render_link(voices: list[Path], out_wav: Path, jingle: Path, jingle_max_sec: float = 4.0) -> None:
+    """A host line between songs (a back-sell, a music fact): the voice first, with no jingle or bed before it, so it
+    starts right over the song's ending (radio.liq talks up into a spoken insert); the jingle only after the last
+    word. Normalized like a package. Written to a temp file and renamed only after validation."""
+    spans = [speech_span(v) for v in voices]
+    durs = [b - a for a, b in spans]
+    starts = [sum(durs[:i]) + PAUSE_SEC * i for i in range(len(voices))]
+    t_jingle = starts[-1] + durs[-1] + JINGLE_AFTER_SEC
+    gain = lambda p: f"volume={-16 - (lufs(p) or -16) + _by_ear(p):.2f}dB"
+    ja, jb = active_span(jingle)
+    j_chain, _, j_len = _prepared(len(voices), jingle, min(jingle_max_sec, jb - ja + 1.0))
+    chain = "".join(f"[{i}]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(v)},adelay={int(starts[i] * 1000)}:all=1[v{i}];"
+                    for i, (v, (a, b)) in enumerate(zip(voices, spans)))
+    n = len(voices)
+    graph = (chain + f"{j_chain},{gain(jingle)},adelay={int(t_jingle * 1000)}:all=1[j];"
+             + "".join(f"[v{i}]" for i in range(n)) + f"[j]amix=inputs={n + 1}:duration=longest:normalize=0,"
+             f"loudnorm=I=-16:TP=-1.5:LRA=11,{FMT}[out]")
+    tmp = out_wav.with_suffix(".tmp.wav")
+    try:
+        _ffmpeg("-y", *[a for v in voices + [jingle] for a in ("-i", str(v))], "-filter_complex", graph,
+                "-map", "[out]", "-c:a", "pcm_s16le", str(tmp))
+        if err := validate(tmp, min_sec=sum(durs), max_sec=t_jingle + j_len + 1):
+            raise RuntimeError(f"rendered host line invalid: {err}")
+        os.replace(tmp, out_wav)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def render_package(voices: list[Path], out_wav: Path, bed_gain_db: float, jingles: dict | None = None,
                    separators: list[bool] | None = None, sep_pad: tuple[float, float] = SEP_PAD,
                    talkover: bool = False, lead: Path | None = None, talkover_max: float | None = None) -> float:
