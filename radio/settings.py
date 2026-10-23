@@ -3,6 +3,7 @@ per hour...), set from the UI. Like plugins.json: the values live in DATA_DIR/se
 the defaults, and the daemon picks a change up live, without a restart."""
 import json
 import os
+import urllib.request
 
 from . import chatgpt, config, editor, openrouter
 
@@ -13,6 +14,8 @@ SETTINGS = {
     "cohost_name": ("broadcast", "cohost_name", "Co-host's name", "The second voice (Two hosts)", 1, 30, None, ""),
     "station_name": ("broadcast", "station_name", "Station name",
                      "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
+    "voice_engine": ("voice", "engine", "Voice engine", "Who speaks for the host. New phrases use it at once; "
+                     "phrases already voiced stay as they are", 1, 20, None, ""),
     "llm_provider": ("editor", "provider", "Provider", "Where the host's words come from", 1, 20, None, ""),
     # one model row per provider; the page shows the selected provider's
     "ollama_model": ("editor", "model", "Model", "A local Ollama model", 1, 200, None, ""),
@@ -39,7 +42,8 @@ SETTINGS = {
 }
 
 
-CHOICES = {"llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai")}
+CHOICES = {"llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai"), "voice_engine": ("qwen3", "voicestudio")}
+VOICE_LABELS = {"qwen3": "Qwen3-TTS (local, clone of the host)", "voicestudio": "VoiceStudio · OmniVoice"}
 MODEL_ROWS = {"ollama": "ollama_model", "openai": "openai_model", "openrouter": "openrouter_model",
               "deepseek": "deepseek_model", "xai": "xai_model"}  # a text setting that is one of these: a drop-down on the page
 
@@ -123,6 +127,10 @@ def listing(cfg: dict) -> list[dict]:
                "options": CHOICES.get(k), "value": value[k], "default": d[k]}
         if k == MODEL_ROWS[provider]:
             row["options"] = c["ids"] or None  # None: a text field (a ChatGPT sign-in lists no models)
+        if k == "voice_engine":
+            row["labels"] = VOICE_LABELS
+            row["voice_state"] = _voice_state(live)
+            row["action"] = {"label": "Play a sample", "cmd": "voice_sample"}
         if k == "llm_provider":
             row["connection"] = {"state": c["state"], "detail": c["detail"], "models": len(c["ids"])}
             row["active"] = {"provider_title": editor.TITLES[provider], "model": value[MODEL_ROWS[provider]]}
@@ -137,3 +145,19 @@ def listing(cfg: dict) -> list[dict]:
                                  else {"label": "Sign in with ChatGPT", "cmd": "chatgpt_login"})
         rows.append(row)
     return rows
+
+
+def _voice_state(live: dict) -> dict:
+    """Is the selected voice server answering? The radio starts it (and stops the other one)."""
+    from . import tts
+    v = live["voice"]
+    title = VOICE_LABELS[v["engine"]]
+    url = v["mlx_audio_url"] if v["engine"] == "qwen3" else v["base_url"]
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + ("/" if v["engine"] == "qwen3" else "/health"), timeout=1):
+            return {"state": "ready", "engine_title": title,
+                    "detail": "Ready" + (" · the first phrase after a start takes about a minute" if v["engine"] == "qwen3" else "")}
+    except OSError:
+        port = int(url.rsplit(":", 1)[-1])
+        return {"state": "starting" if tts.port_open(port) else "down", "engine_title": title,
+                "detail": "Starting…" if tts.port_open(port) else "Not running: the radio starts it when it plays"}

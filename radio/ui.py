@@ -12,11 +12,12 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import chatgpt, config, editor, openrouter, plugins, settings, ytmusic
+from . import chatgpt, config, editor, openrouter, plugins, settings, tts, ytmusic
 from .timeline import timeline
 
 PAGE = Path(__file__).with_name("ui.html")
 CALLBACK = Path(__file__).with_name("callback.html")  # the page the browser lands on after OpenRouter sign-in
+VOICE_SAMPLE = "Добрый вечер! Вы слушаете Персональное радио. Сейчас — коротко о новостях, а потом снова музыка."
 COMMANDS = {"pause", "resume", "next", "skip-news", "stop"}
 
 
@@ -122,6 +123,17 @@ def serve(port: int) -> None:
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+            elif self.path.split("?")[0] == "/voice-sample.wav":
+                f = config.RUN_DIR / "voice-sample.wav"
+                if not f.exists():
+                    return self._json({"error": "not found"}, 404)
+                body = f.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             elif self.path.split("?")[0] == "/stream":
                 self._stream()
             elif self.path == "/api/status":
@@ -184,6 +196,19 @@ def serve(port: int) -> None:
                 resp = {"ok": True, "url": openrouter.login_url(f"http://127.0.0.1:{port}/openrouter/callback")}
             elif cmd == "chatgpt_login":  # OpenAI accepts only a 127.0.0.1 callback; the port may vary
                 resp = {"ok": True, "url": chatgpt.login_url(f"http://127.0.0.1:{port}/auth/callback")}
+            elif cmd == "voice_sample":  # one host line in the selected voice, played by the page
+                live = config.load()
+                settings.apply(live, settings.base(live))
+                try:
+                    voice = tts.make_voice(live)
+                    if not voice.health():
+                        raise OSError
+                    voice.synthesize(VOICE_SAMPLE, config.RUN_DIR / "voice-sample.wav")
+                except OSError:
+                    return self._json({"ok": False, "error": "The voice server is not running yet. Press Play; the radio starts it."}, 400)
+                except (ValueError, RuntimeError) as e:
+                    return self._json({"ok": False, "error": f"Could not voice the sample: {e}"}, 400)
+                resp = {"ok": True, "url": f"/voice-sample.wav?{time.time_ns()}"}
             elif cmd == "llm_key":  # the key is stored, never echoed back
                 try:
                     editor.set_key(str(body.get("provider", "")), str(body.get("key", "")))

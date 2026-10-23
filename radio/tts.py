@@ -52,23 +52,80 @@ class VoiceStudio:
         os.replace(tmp, out)
 
     def transcribe(self, path: Path) -> str:
-        # Reuse VoiceStudio's installed Whisper and cached weights; never download models for a weather check.
-        python = Path(config.load()["voice"]["server_dir"]).expanduser() / ".venv/bin/python"
-        script = ("import json,sys,mlx_whisper; "
-                  "r=mlx_whisper.transcribe(sys.argv[1],path_or_hf_repo='mlx-community/whisper-large-v3-turbo',"
-                  "language=sys.argv[2],condition_on_previous_text=False); print(json.dumps(r['text']))")
-        result = subprocess.run([str(python), "-c", script, str(path), self.language],
-                                env=dict(os.environ, HF_HUB_OFFLINE="1"), capture_output=True, text=True, timeout=180)
-        if result.returncode:
-            raise RuntimeError("Local speech verification unavailable; weather withheld")
-        text = json.loads(result.stdout.strip().splitlines()[-1])
-        if not isinstance(text, str):
-            raise ValueError("Invalid speech transcription")
-        return text
+        return transcribe(path, self.language)
 
     def cache_key(self, text: str) -> str:
         key = f"voicestudio|{self.voice_id}|{self.language}|{self.speed}|{self.instruct}|{self.seed}|{text}"
         return hashlib.sha256(key.encode()).hexdigest()[:32]
+
+
+class MlxClone:
+    """Qwen3-TTS (or another mlx-audio model) cloning a reference clip, through a local mlx_audio.server.
+    The voice is the reference: ref + ".wav" and its transcript ref + ".txt" (picked by A/B test, docs/tts-ab-test.md).
+    The server takes no seed: a retry differs by sampling."""
+    seed = None
+
+    def __init__(self, base_url: str, model: str, ref: Path, speed: float = 1.0, language: str = "ru"):
+        self.base_url, self.model, self.speed, self.language = base_url.rstrip("/"), model, speed, language
+        self.ref_audio, self.ref_text = str(ref.with_suffix(".wav")), ref.with_suffix(".txt").read_text(encoding="utf-8").strip()
+        self._ref_id = hashlib.sha256(Path(self.ref_audio).read_bytes()).hexdigest()[:12]
+
+    def health(self) -> bool:
+        try:
+            with urllib.request.urlopen(self.base_url + "/", timeout=3) as r:
+                return r.status == 200
+        except OSError:
+            return False
+
+    def synthesize(self, text: str, out: Path, seed: int | None = None) -> None:
+        if len(text) > MAX_CHARS:
+            raise ValueError("text too long for one TTS request")
+        body = json.dumps({"model": self.model, "input": text, "ref_audio": self.ref_audio, "ref_text": self.ref_text,
+                           "lang_code": "russian", "speed": self.speed, "response_format": "wav"}).encode()
+        req = urllib.request.Request(self.base_url + "/v1/audio/speech", body, {"Content-Type": "application/json"})
+        raw = out.with_suffix(".raw.wav")
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r, open(raw, "wb") as f:
+                shutil.copyfileobj(r, f)
+            # mlx-audio leaves silence at the edges; the noise check reads a long quiet tail as noise (A/B test)
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(raw), "-af",
+                            "silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB"
+                            ":stop_duration=0.2", str(out)], check=True, capture_output=True)
+        finally:
+            raw.unlink(missing_ok=True)
+
+    def transcribe(self, path: Path) -> str:
+        return transcribe(path, self.language)
+
+    def cache_key(self, text: str) -> str:
+        key = f"mlx|{self.model}|{self._ref_id}|{self.ref_text}|{self.speed}|{text}"
+        return hashlib.sha256(key.encode()).hexdigest()[:32]
+
+
+def make_voice(cfg: dict, role: str = "host"):
+    """The voice for a role ("host", "cohost") with the configured engine: VoiceStudio (OmniVoice, a voice by
+    description) or "qwen3" (Qwen3-TTS cloning the role's reference clip in DATA_DIR/voices)."""
+    v = cfg["voice"]
+    if v["engine"] == "qwen3":
+        return MlxClone(v["mlx_audio_url"], v["qwen_model"], config.DATA_DIR / "voices" / role, v["speed"])
+    instruct, seed = (v["cohost_instruct"], v["cohost_seed"]) if role == "cohost" else (v["instruct"], v["seed"])
+    return VoiceStudio(v["base_url"], v["voice_id"], v["language"], v["speed"], instruct, seed)
+
+
+def transcribe(path: Path, language: str = "ru") -> str:
+    # Reuse VoiceStudio's installed Whisper and cached weights; never download models for a weather check.
+    python = Path(config.load()["voice"]["server_dir"]).expanduser() / ".venv/bin/python"
+    script = ("import json,sys,mlx_whisper; "
+              "r=mlx_whisper.transcribe(sys.argv[1],path_or_hf_repo='mlx-community/whisper-large-v3-turbo',"
+              "language=sys.argv[2],condition_on_previous_text=False); print(json.dumps(r['text']))")
+    result = subprocess.run([str(python), "-c", script, str(path), language],
+                            env=dict(os.environ, HF_HUB_OFFLINE="1"), capture_output=True, text=True, timeout=180)
+    if result.returncode:
+        raise RuntimeError("Local speech verification unavailable; weather withheld")
+    text = json.loads(result.stdout.strip().splitlines()[-1])
+    if not isinstance(text, str):
+        raise ValueError("Invalid speech transcription")
+    return text
 
 
 def start_backend(project: str, port: int, log) -> subprocess.Popen:
@@ -87,6 +144,17 @@ def start_backend(project: str, port: int, log) -> subprocess.Popen:
     return subprocess.Popen([str(python), "-m", "uvicorn", "main:app", "--app-dir", str(root / "backend"),
                              "--host", "127.0.0.1", "--port", str(port)], cwd="/", env=env, stdout=log,
                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+
+
+def start_mlx_server(folder: str, port: int, log) -> subprocess.Popen:
+    """mlx-audio's OpenAI-compatible server from its own venv (folder/.venv), for the "qwen3" voice engine."""
+    server = Path(folder).expanduser() / ".venv/bin/mlx_audio.server"
+    if not server.exists():
+        raise FileNotFoundError(f"no mlx-audio server in {folder} (uv pip install 'mlx-audio[server]')")
+    # cwd: the server writes its logs/ next to where it runs (the root of the disk is read-only)
+    return subprocess.Popen([str(server), "--host", "127.0.0.1", "--port", str(port)], cwd=str(server.parents[2]),
+                            env=dict(os.environ, PYTHONUNBUFFERED="1"), stdout=log, stderr=subprocess.STDOUT,
+                            stdin=subprocess.DEVNULL, start_new_session=True)
 
 
 def port_open(port: int) -> bool:

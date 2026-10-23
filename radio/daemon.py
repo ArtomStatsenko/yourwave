@@ -17,7 +17,7 @@ from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
 from . import tts as tts_mod
-from .tts import VoiceStudio, cached_synthesize
+from .tts import cached_synthesize
 
 READY_AHEAD = 2
 # shortcut: fixed lead times; use measured runtimes if preparation regularly exceeds this reserve.
@@ -49,11 +49,10 @@ class Service:
     def __init__(self, cfg: dict, tts=None, output: str = "device"):
         self.cfg, self.output = cfg, output
         self.defaults = None  # the config.toml values, taken at the first decision; settings.json (the UI) overrides them
-        v = cfg["voice"]
-        self.tts = tts or VoiceStudio(v["base_url"], v["voice_id"], v["language"], v["speed"], v["instruct"], v["seed"])
-        # plugin "Two hosts": the same server, a second designed voice (a mock in tests: the same mock)
-        self.tts2 = self.tts if tts else VoiceStudio(v["base_url"], v["voice_id"], v["language"], v["speed"],
-                                                     v["cohost_instruct"], v["cohost_seed"])
+        self.mock_voice = tts is not None
+        self.voice_engine = cfg["voice"]["engine"]
+        self.tts = tts or tts_mod.make_voice(cfg)
+        self.tts2 = tts or tts_mod.make_voice(cfg, "cohost")  # plugin "Two hosts" (a mock in tests: the same mock)
         self.db = store.connect()
         self.session = uuid.uuid4().hex[:12]
         self.state = "STARTING"
@@ -83,6 +82,7 @@ class Service:
         self.ytmusic_active = False
         self.voice_proc = None         # the VoiceStudio server this daemon started (and so stops)
         self.voice_started = 0.0
+        self.voice_proc_engine = ""
         self.cal_events: list = []                 # calendar events (read every poll_minutes)
         self.todoist_tasks: list = []
         self.next_read = {"calendar": 0.0, "todoist": 0.0}
@@ -163,7 +163,7 @@ class Service:
         asyncio.create_task(self.horizon_loop())
         asyncio.create_task(self.reminders_loop())
         asyncio.create_task(self.gap_loop())
-        if isinstance(self.tts, VoiceStudio):
+        if not self.mock_voice:
             asyncio.create_task(self.voice_loop())
         if self.output == "device" and self.cfg["output"]["mode"] == "browser":
             asyncio.create_task(self.listeners_loop())
@@ -694,6 +694,12 @@ class Service:
         if self.defaults is None:
             self.defaults = settings.base(self.cfg)
         settings.apply(self.cfg, self.defaults)
+        if not self.mock_voice and self.cfg["voice"]["engine"] != self.voice_engine:
+            # The voice engine switched on the Settings tab: new phrases use it; voice_loop starts its server
+            self.voice_engine = self.cfg["voice"]["engine"]
+            self.tts, self.tts2 = tts_mod.make_voice(self.cfg), tts_mod.make_voice(self.cfg, "cohost")
+            self.voice_started = 0.0
+            log("voice engine:", self.voice_engine)
 
     def _waiting_break(self, remaining):
         pkgs = self._pick_break()
@@ -907,17 +913,24 @@ class Service:
             await asyncio.sleep(20)
 
     async def _voice_tick(self) -> None:
-        v = self.cfg["voice"]
+        self._live_settings()
+        v, engine = self.cfg["voice"], self.voice_engine
+        if self.voice_proc and self.voice_proc_engine != engine:
+            await self._stop_voice()  # the other engine's server: free the GPU memory for this one
         if await asyncio.to_thread(self.tts.health):
             return
-        port = int(v["base_url"].rsplit(":", 1)[-1])
+        port = int((v["mlx_audio_url"] if engine == "qwen3" else v["base_url"]).rsplit(":", 1)[-1])
         if (self.voice_proc and self.voice_proc.poll() is None) or await asyncio.to_thread(tts_mod.port_open, port) \
                 or time.time() - self.voice_started < 60:
             return  # still loading, or somebody else is starting it
         self.voice_started = time.time()
-        log_file = open(config.DATA_DIR / "logs/voicestudio.log", "a")
-        self.voice_proc = await asyncio.to_thread(tts_mod.start_backend, v["server_dir"], port, log_file)
-        log("VoiceStudio is not answering: started its server (pid", self.voice_proc.pid, ")")
+        log_file = open(config.DATA_DIR / ("logs/mlx-audio.log" if engine == "qwen3" else "logs/voicestudio.log"), "a")
+        if engine == "qwen3":
+            self.voice_proc = await asyncio.to_thread(tts_mod.start_mlx_server, v["mlx_audio_dir"], port, log_file)
+        else:
+            self.voice_proc = await asyncio.to_thread(tts_mod.start_backend, v["server_dir"], port, log_file)
+        self.voice_proc_engine = engine
+        log(f"voice server for {engine} is not answering: started it (pid", self.voice_proc.pid, ")")
 
     async def _stop_voice(self) -> None:
         proc, self.voice_proc = self.voice_proc, None

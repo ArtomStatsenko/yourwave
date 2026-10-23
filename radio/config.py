@@ -115,6 +115,11 @@ language = "ru"
 speed = 1.1                 # 0.25..4.0
 instruct = "male, young adult, moderate pitch"
 seed = 42                   # fixed seed keeps the designed voice the same in every clip
+engine = "voicestudio"     # "voicestudio" (OmniVoice, a voice by description) or "qwen3" (Qwen3-TTS cloning
+                            # voices/host.wav + .txt in the data folder, via mlx-audio); switched on the Settings tab
+mlx_audio_dir = "~/tts-lab" # a venv with mlx-audio[server] (.venv/bin/mlx_audio.server); the radio starts it
+mlx_audio_url = "http://127.0.0.1:3901"
+qwen_model = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
 cohost_instruct = "female, young adult, moderate pitch"  # plugin "Two hosts": the second designed voice
 cohost_seed = 7            # picked by ear from 7 / 21 / 99
 chars_per_sec = 14.0        # speech-length estimate, measured on this voice
@@ -170,6 +175,8 @@ def load(*, audio_preset: str | None = None) -> dict:
     # The spec's 300 s is the default; the settings page may raise it (settings.py) when breaks are made longer.
     if not 0 < b["max_spoken_seconds_per_rolling_hour"] <= 900:
         raise ValueError("max_spoken_seconds_per_rolling_hour must be in 1..900")
+    if cfg["voice"]["engine"] not in ("voicestudio", "qwen3"):
+        raise ValueError("voice.engine must be voicestudio or qwen3")
     if cfg["editor"]["provider"] not in ("ollama", "openai", "openrouter", "deepseek", "xai"):
         raise ValueError("editor.provider must be ollama, openai, openrouter, deepseek or xai")  # else a blank page
     if not 0 < cfg["sources"]["max_age_hours"] <= 24:
