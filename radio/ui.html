@@ -18,7 +18,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);p
 #direction-list .tx::before{content:none}
 #direction-list .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #direction-list .skipped .tx{color:var(--muted)}
-#direction-list{--plan-pad:8px;--plan-time:84px;--plan-gap:10px;--plan-title-x:calc(var(--plan-pad) + var(--plan-time) + var(--plan-gap))}
+#direction-list{--plan-pad:8px;--plan-time:84px;--plan-gap:10px;--plan-title-x:calc(var(--plan-pad) + var(--plan-time) + var(--plan-gap) + 22px)}  /* + the .tx gutter: folds and actions start where titles do */
 #direction-list .tg{display:grid;grid-template-columns:var(--plan-time) minmax(0,1fr) auto;align-items:center;gap:var(--plan-gap)}
 #direction-list .plan-time{width:var(--plan-time)}
 #direction-list button.plan-time{border:0;border-bottom:1px dashed var(--line);padding:0;color:var(--muted);font:inherit;font-size:16px;text-align:left}
@@ -182,7 +182,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #direction-controls:not(.editing) .plan-bar{display:none}
 #direction-controls.editing,#tl{grid-column:1 / -1;min-width:0}
 #upcoming{grid-column:1 / -1;grid-row:1;min-width:0;color:var(--muted);align-self:center}
-#upcoming .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#upcoming .tx.up-err{white-space:normal;font-size:16px;color:var(--warn)}
+#upcoming .tx{white-space:normal;overflow-wrap:anywhere}  /* the next title wraps like every other title */#upcoming .tx.up-err{white-space:normal;font-size:16px;color:var(--warn)}
 #upcoming .tg{align-items:center;padding-left:8px}
 </style>
 </head>
@@ -561,7 +561,8 @@ function directionView(){
     var nextMusic=r.kind==='music'&&i===rows.findIndex(function(n){return n.kind==='music'});
     if(r.kind==='music'&&st.next_reroll)detail=nextMusic?st.next_reroll.title:'';
     if(r.kind==='music'&&!detail)return '<div class="music-spacer" aria-hidden="true"></div>';
-    if(detail&&detail!==title&&detail!==r.kind)title+=' · '+entryTitle(r.kind,detail).replace(/^Weather · /,'');
+    var shown=detail&&entryTitle(r.kind,detail).replace(/^Weather · /,'');
+    if(shown&&detail!==r.kind&&shown.toLowerCase()!==title.toLowerCase())title+=' · '+shown;  // never "Reminder · Reminder"
     if(r.kind==='music')title=entryTitle('music',detail);
     var latest=((st.broadcast_plan||{}).rows||[]).find(function(n){return n.id===r.id})||r;
     var readiness=planReadiness(Object.assign({},latest,{skipped:r.skipped}));
