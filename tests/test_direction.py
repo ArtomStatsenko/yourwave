@@ -1053,7 +1053,8 @@ class DirectionTests(unittest.TestCase):
         self.svc.db.execute("UPDATE packages SET status='QUEUED' WHERE id=?", (pid,))
         self.svc.replays['repeat'] = {'kind': 'music', 'ref': '/tmp/Artist - Repeat.mp3', 'rid': '42'}
         self.svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value='/tmp/Artist - Next.mp3'),
-                               upcoming_music=AsyncMock(return_value=['/tmp/Artist - Next.mp3', '/tmp/Artist - Later.mp3']))
+                               upcoming_music=AsyncMock(return_value=['/tmp/Artist - Next.mp3', '/tmp/Artist - Later.mp3']),
+                               command=AsyncMock(return_value='42'))  # news.pending: the replay is still queued
         status = asyncio.run(self.svc.dispatch('status'))['status']
         self.assertEqual([t['ref'] for t in status['upcoming_tracks']], ['/tmp/Artist - Next.mp3', '/tmp/Artist - Later.mp3'])
         self.assertEqual([r['title'] for r in status['upcoming'] if r['stage'] == 'queued'], ['Artist - Repeat', 'queued bulletin'])
