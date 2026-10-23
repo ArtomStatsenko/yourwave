@@ -128,6 +128,29 @@ def transcribe(path: Path, language: str = "ru") -> str:
     return text
 
 
+VOCAL_SCRIPT = """import json, sys, mlx_whisper
+BAD = ("продолжение следует", "субтитры", "thank you for watching", "спасибо за просмотр", "amara.org")
+r = mlx_whisper.transcribe(sys.argv[1], path_or_hf_repo="mlx-community/whisper-large-v3-turbo",
+                           condition_on_previous_text=False, word_timestamps=True)
+segs = [s for s in r["segments"] if s.get("no_speech_prob", 1) < 0.5 and s.get("avg_logprob", -9) > -1.0
+        and s.get("compression_ratio", 9) < 2.4 and not any(b in s["text"].lower() for b in BAD)]
+words = [w for s in segs for w in s.get("words", []) if w.get("probability", 0) > 0.3]
+print(json.dumps([words[0]["start"], words[-1]["end"]] if len(segs) >= 3 and words else None))
+"""
+
+
+def vocal_span(path: Path) -> tuple[float, float] | None:
+    """First and last sung word of a song (seconds), by the local Whisper with word times; None if it heard none.
+    Runs at background priority (taskpolicy -b, nice 20): about 30 s a song, the radio and the Mac stay responsive."""
+    python = Path(config.load()["voice"]["server_dir"]).expanduser() / ".venv/bin/python"
+    result = subprocess.run(["taskpolicy", "-b", "nice", "-n", "20", str(python), "-c", VOCAL_SCRIPT, str(path)],
+                            env=dict(os.environ, HF_HUB_OFFLINE="1"), capture_output=True, text=True, timeout=600)
+    if result.returncode:
+        raise RuntimeError("Local Whisper unavailable")
+    span = json.loads(result.stdout.strip().splitlines()[-1])
+    return tuple(span) if span else None
+
+
 def start_backend(project: str, port: int, log) -> subprocess.Popen:
     """Starts the VoiceStudio voice server by itself, as the app would, but without the app: no window, no Dock
     icon. Same server, same voice: a clip made this way is identical to one made through the app (measured:

@@ -1163,6 +1163,25 @@ class SchedulingTests(unittest.TestCase):
             svc.db.execute("DELETE FROM reminders WHERE key LIKE 'weather:%'")
             (config.DATA_DIR / "plugins.json").unlink(missing_ok=True)
 
+    def test_whisper_timing_for_songs_lrclib_does_not_know(self):
+        from unittest.mock import patch
+        from radio import tts as tts_mod
+        db, svc = self.svc.db, self.svc
+        song = TMP / "heard-song.wav"
+        MockTTS().synthesize("Песня " * 40, song)  # ~17 s
+        db.execute("INSERT OR REPLACE INTO tracks(path, sig, ok, lyrics, tail_sec) VALUES(?,?,1,'none',0.5)", (str(song), music._sig(song)))
+        self.assertEqual(music.to_hear(db, [song]), song)
+        with patch.object(tts_mod, "vocal_span", return_value=(6.0, 12.0)):
+            music.hear(db, song)
+        row = db.execute("SELECT * FROM tracks WHERE path=?", (str(song),)).fetchone()
+        self.assertEqual((row["lyrics"], row["vocal_sec"]), ("heard", 6.0))
+        self.assertIsNone(music.to_hear(db, [song]))                       # done: not heard twice
+        self.assertAlmostEqual(music.intro_room(row), 6.0 - music.HEARD_VOCAL_MARGIN_SEC)  # wider margin than LRCLIB
+        db.execute("UPDATE tracks SET lyrics='none' WHERE path=?", (str(song),))
+        with patch.object(tts_mod, "vocal_span", return_value=None):
+            music.hear(db, song)
+        self.assertEqual(db.execute("SELECT lyrics FROM tracks WHERE path=?", (str(song),)).fetchone()[0], "unheard")
+
     def test_host_line_between_songs_is_voice_first_then_jingle(self):
         from radio import audio
         voice = TMP / "link-voice.wav"

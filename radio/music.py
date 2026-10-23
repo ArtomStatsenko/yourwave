@@ -12,14 +12,19 @@ VOCAL_MARGIN_SEC = 2.5  # the host is done this long before the first sung line
 MAX_INTRO_TALK_SEC = 12.0  # longest set opener over an intro (an instrumental track has no vocal limit)
 OUTRO_MARGIN_SEC = 1.5  # the host starts this long after the last sung line has ended
 MAX_OUTRO_TALK_SEC = 10.0  # ...and at most this long before the end of the file
+# Songs LRCLIB does not know are heard by the local Whisper (lyrics="heard"). Its word times are off by up to ~4 s
+# on music (checked against LRCLIB on 5 songs), so the host keeps a wider distance from the singing.
+HEARD_VOCAL_MARGIN_SEC = 4.0
+HEARD_OUTRO_MARGIN_SEC = 2.5
 
 
 def intro_room(row) -> float | None:
     """Seconds of a song's intro the host may talk over: up to VOCAL_MARGIN_SEC before its first sung line;
     None if unknown. Also the song's start window in the playlist, so the overlap really happens."""
-    if row is None or row["lyrics"] not in ("synced", "instrumental"):
+    if row is None or row["lyrics"] not in ("synced", "heard", "instrumental"):
         return None
-    room = MAX_INTRO_TALK_SEC if row["lyrics"] == "instrumental" else min(MAX_INTRO_TALK_SEC, row["vocal_sec"] - VOCAL_MARGIN_SEC)
+    margin = HEARD_VOCAL_MARGIN_SEC if row["lyrics"] == "heard" else VOCAL_MARGIN_SEC
+    room = MAX_INTRO_TALK_SEC if row["lyrics"] == "instrumental" else min(MAX_INTRO_TALK_SEC, row["vocal_sec"] - margin)
     return room if room >= 2.0 else None
 
 
@@ -43,8 +48,9 @@ def song_tags(row, xfade: float, outro_talk: bool) -> tuple[str, float | None]:
     tags = ""
     if row["tail_sec"] is not None:
         back = min(row["tail_sec"], MAX_TAIL_SEC) + TALK_UP_SEC  # the break starts this long before the file end
-        if outro_talk and row["lyrics"] == "synced" and row["outro_sec"] is not None:
-            over = min(row["outro_sec"] - OUTRO_MARGIN_SEC, MAX_OUTRO_TALK_SEC)
+        if outro_talk and row["lyrics"] in ("synced", "heard") and row["outro_sec"] is not None:
+            margin = HEARD_OUTRO_MARGIN_SEC if row["lyrics"] == "heard" else OUTRO_MARGIN_SEC
+            over = min(row["outro_sec"] - margin, MAX_OUTRO_TALK_SEC)
             back = over if over >= back + 2.0 else back
         window = max(xfade + 1, back)
         tags = (f',liq_cross_end_duration="{window:.2f}"' if window > xfade + 1 else "") + \
@@ -159,3 +165,24 @@ def find_vocals(db, files: list[Path], stop) -> None:
         outro = max(0.0, dur - end) if end is not None and end <= dur + 2 else None
         db.execute("UPDATE tracks SET lyrics=?, vocal_sec=?, outro_sec=? WHERE path=?", (status, vocal, outro, str(f)))
         time.sleep(0.5)  # polite to a free service
+
+
+def to_hear(db, files: list[Path]) -> Path | None:
+    """The next song for the local Whisper: one LRCLIB did not know, the newest file first (new tracks get their
+    timing soonest)."""
+    unknown = {r[0] for r in db.execute("SELECT path FROM tracks WHERE ok=1 AND lyrics='none'")}
+    todo = [f for f in files if str(f) in unknown]
+    return max(todo, key=lambda f: getattr(f.stat(), "st_birthtime", f.stat().st_mtime)) if todo else None
+
+
+def hear(db, f: Path) -> None:
+    """Where the vocals of one song start and end, by the local Whisper; "unheard" when it found no reliable words."""
+    from . import tts
+    span = tts.vocal_span(f)
+    dur = audio.duration(f)
+    if span and 0 <= span[0] < span[1] <= dur + 1:
+        db.execute("UPDATE tracks SET lyrics='heard', vocal_sec=?, outro_sec=? WHERE path=?",
+                   (span[0], max(0.0, dur - span[1]), str(f)))
+    else:
+        db.execute("UPDATE tracks SET lyrics='unheard' WHERE path=?", (str(f),))
+

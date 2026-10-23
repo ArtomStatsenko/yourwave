@@ -41,6 +41,9 @@ NUMBER_WORD = re.compile(r"(ноль|один|одна|одно|одну|одн�
                          r"\w+дцать|сорок|\w+десят|девяносто|двести|триста|\w+сот|тысяч\w*|миллион\w*)$")
 
 
+HEAR_EVERY_SEC = 180  # one song every 3 minutes: the library (~270 songs) is done in about a day, never at once
+
+
 def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
 
@@ -167,6 +170,8 @@ class Service:
         asyncio.create_task(self.reminders_loop())
         asyncio.create_task(self.gap_loop())
         if not self.mock_voice:
+            asyncio.create_task(self.hearing_loop())
+        if not self.mock_voice:
             asyncio.create_task(self.voice_loop())
         if self.output == "device" and self.cfg["output"]["mode"] == "browser":
             asyncio.create_task(self.listeners_loop())
@@ -256,6 +261,23 @@ class Service:
                 await self._pause()
                 self.auto_paused = True
                 log("no listeners: paused")
+
+    async def hearing_loop(self) -> None:
+        """Vocal timing for songs LRCLIB does not know, by the local Whisper: one song every HEAR_EVERY_SEC, only when
+        the radio is not voicing or assembling, at background priority. Spread over the day, never a batch; new
+        tracks first. Found timings apply from the next start (the playlist is written then)."""
+        while not self.stopping:
+            await asyncio.sleep(HEAR_EVERY_SEC)
+            if self.stopping or self.rendering or self.assembling:
+                continue
+            f = music.to_hear(self.db, self.files)
+            if not f:
+                continue
+            try:
+                await asyncio.to_thread(music.hear, self.db, f)
+                log("vocals heard:", f.name)
+            except Exception as e:
+                log("vocal timing:", type(e).__name__)
 
     async def gap_loop(self) -> None:
         while not self.stopping:
