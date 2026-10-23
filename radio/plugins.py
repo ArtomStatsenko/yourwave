@@ -7,49 +7,39 @@ from . import config
 
 # name -> (title, what it does, default from the config)
 PLUGINS = {
-    "ytmusic": ("YouTube Music", "Use the connected playlist from the next radio start; local music is the fallback",
+    "ytmusic": ("YouTube Music", 'Play the connected playlist from the next radio start, with local music as a fallback.',
                 lambda c: False),
-    "github_trending": ("GitHub: trending", "Trend of the day and small projects from GitHub Trending",
+    "github_trending": ("GitHub: trending", 'Pick top trending repositories and smaller projects from GitHub Trending.',
                         lambda c: c["sources"]["github_trending"]["enabled"]),
-    "github_new": ("GitHub: new this week", "New projects of the week from GitHub search",
+    "github_new": ("GitHub: new this week", 'Pick popular repositories created in the past week.',
                    lambda c: c["sources"]["github_new"]["enabled"]),
-    "horizon": ("Horizon", "News picked by Horizon (Hacker News, RSS)",
+    "horizon": ("Horizon", 'Select technology news from Hacker News and RSS feeds. Requires a configured Horizon installation.',
                 lambda c: c["sources"]["horizon"]["enabled"]),
-    "air_direction": ("Air direction", "Plan future blocks: insert, skip, reorder or postpone. Changes stay local",
+    "reddit": ("Reddit news", 'Read headlines from selected public communities. Set sources.reddit.communities in config.toml, then restart. Reddit plans to end RSS on November 13, 2026.', lambda c: False),
+    "telegram": ("Telegram news", 'Read posts from selected public channels. Set sources.telegram.channels in config.toml, then restart. Only channels with a public web preview are available.', lambda c: False),
+    "air_direction": ("Air direction", 'Insert, skip, reorder or postpone upcoming broadcast blocks.',
                       lambda c: False),
-    "gap_filler": ("Host covers loading gaps", "When YouTube Music has not loaded the next song by the end of the "
-                   "current one, a ready host edition airs now; with nothing ready, the host says so in one line "
-                   "(at most every 10 minutes, within the speech limit) before a song from the local library",
+    "gap_filler": ("Host covers loading gaps", 'Play a ready host edition while YouTube Music loads; otherwise, introduce a local track with a short message.',
                    lambda c: False),
-    "duo_hosts": ("Two hosts", "Two voices share a news break: stories alternate and the hosts hand over to each other "
-                  "by name. The co-host's lines are voiced when the break is assembled, so it takes a little longer",
+    "duo_hosts": ("Two hosts", 'Alternate stories between two voices in each host edition. Preparing the second voice may take longer.',
                   lambda c: False),
-    "reroll_next": ("Reroll next track", "Choose a different random next track from Next or the air editor; the current song keeps playing. Applies immediately", lambda c: False),
-    "music_facts": ("Music stories", "Light music links when no news is waiting. MusicBrainz and Wikidata facts, "
-                    "cached locally, without LLM calls. Uses the normal music-set interval", lambda c: False),
-    "station_ids": ("Station IDs", "A station call sign between songs",
+    "reroll_next": ("Reroll next track", 'Choose another next track from the timeline or air editor while the current song keeps playing.', lambda c: False),
+    "music_facts": ("Music stories", 'Add short music stories between sets when no news is waiting.', lambda c: False),
+    "station_ids": ("Station IDs", 'Play the station call sign between songs.',
                     lambda c: c["broadcast"]["station_id_every_songs"] > 0),
-    "host_links": ("Host links", "The host says the time before a news break and names the songs around it",
+    "host_links": ("Host links", 'Announce the time before host editions and name the songs around them.',
                    lambda c: c["broadcast"]["host_links"]),
-    "new_tracks": ("New tracks", "Every few sets, a set of songs added to the library recently that have not "
-                   "aired yet", lambda c: c["broadcast"]["new_every_sets"] > 0),
-    "reminders_calendar": ("Reminders: calendar", "A short reminder 15 minutes before a calendar event, at the next "
-                           "song boundary. All-day events become host mentions, up to three a day, four hours apart; "
-                           "a short story uses the calendar description when the local editor is enabled. "
-                           "Needs Host links and the secret iCal link in config.toml (reminders.calendar_url) "
-                           "for all-day mentions",
+    "new_tracks": ("New tracks", 'Occasionally play a set of recently added songs that have not aired yet.', lambda c: c["broadcast"]["new_every_sets"] > 0),
+    "reminders_calendar": ("Reminders: calendar", 'Remind you before timed events and mention all-day events. Set reminders.calendar_url in config.toml; all-day mentions also need Host links.',
                            lambda c: bool(c["reminders"]["calendar_url"])),
-    "reminders_todoist": ("Reminders: Todoist", "The same for Todoist tasks that have a time. Needs the token in "
-                          "config.toml (reminders.todoist_token)", lambda c: bool(c["reminders"]["todoist_token"])),
-    "weather": ("Weather", "A short local report at 00:00, 03:00, ... station time; plays between songs. "
-                "City, temperature and current conditions from Open-Meteo (open-meteo.com). "
-                "Set weather.city in config.toml; needs Host links", lambda c: bool(c["weather"]["city"])),
+    "reminders_todoist": ("Reminders: Todoist", 'Remind you before tasks with a due time. Set reminders.todoist_token in config.toml.', lambda c: bool(c["reminders"]["todoist_token"])),
+    "weather": ("Weather", 'Report local weather every three hours. Set weather.city in config.toml and enable Host links.', lambda c: bool(c["weather"]["city"])),
 
 }
-SOURCE_PLUGIN = {"weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
-INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction"}
+SOURCE_PLUGIN = {"reddit": "reddit", "telegram": "telegram", "weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
+INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction", "reddit", "telegram"}
 
-EXPERIMENTS = {"air_direction", "reroll_next", "gap_filler", "duo_hosts"}
+EXPERIMENTS = {"reddit", "telegram", "air_direction", "reroll_next", "gap_filler", "duo_hosts"}
 
 
 def _path():

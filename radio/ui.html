@@ -238,20 +238,20 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
     <div class="st">
       <label for="audio-preset">Audio preset</label>
       <select id="audio-preset"><option value="base">Base</option><option value="personal" disabled>Personal</option></select>
-      <div class="l" id="audio-preset-hint" role="status">Applies after stop / play. Personal sounds stay on this Mac.</div>
+      <div class="l" id="audio-preset-hint" role="status">Stop and start the station to apply. Personal audio stays on this Mac.</div>
     </div>
     <form id="yt-form" class="st" hidden>
       <label for="yt-playlist">YouTube Music playlist</label>
       <input id="yt-playlist" type="url" value="https://music.youtube.com/playlist?list=LM" required>
-      <div class="row"><button id="yt-chrome" type="button">connect from Chrome</button><span id="yt-state" class="l" role="status" aria-live="polite"></span></div>
-      <div class="l">Uses the YouTube sign-in of your Chrome; macOS asks once to allow access to Chrome's key. Only YouTube cookies are kept, on this Mac.</div>
-      <details><summary class="l">or paste a Cookie header</summary>
+      <div class="row"><button id="yt-chrome" type="button">Connect from Chrome</button><span id="yt-state" class="l" role="status" aria-live="polite"></span></div>
+      <div class="l">Connect with your Chrome sign-in. macOS may ask for access to Chrome's key. Only YouTube cookies are saved on this Mac.</div>
+      <details><summary class="l">Or paste a Cookie header</summary>
       <label for="yt-cookie">YouTube Music Cookie header</label>
       <input id="yt-cookie" type="password" autocomplete="off" spellcheck="false" maxlength="60000" aria-describedby="yt-help">
-      <div id="yt-help" class="l">Copy only the Cookie header from a signed-in music.youtube.com request in browser developer tools. Stored only on this Mac; leave blank to refresh an existing connection.</div>
-      <div class="row"><button id="yt-connect" type="submit">connect / refresh</button></div>
+      <div id="yt-help" class="l">In browser developer tools, copy only the Cookie header from a signed-in music.youtube.com request. Leave blank to refresh a saved connection; cookies stay on this Mac.</div>
+      <div class="row"><button id="yt-connect" type="submit">Connect or refresh</button></div>
       </details>
-      <div class="l">Applies after stop / play. First 500 songs; unavailable songs are skipped. Local music plays if YouTube is unreachable or all songs fail.</div>
+      <div class="l">Stop and start the station to apply. Imports up to 500 songs; unavailable songs are skipped. Local music plays if the playlist cannot play.</div>
     </form>
     <details class="st" id="playback-status"><summary>Playback status</summary>
   <div class="l row player-status"><span>speech <span id="sp"></span>/<span id="splim"></span> min this hour</span><div class="lim"><i id="spb"></i></div>
@@ -413,9 +413,9 @@ function player(){
   $('er').textContent=st.last_error||'';
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
-var TODO={no_key:{key:'paste one below',sign:'sign in below'},bad_key:'paste a new one',unreachable:'check the connection',no_model:'pick another model below'};
+var TODO={no_key:{key:'add your API key below',sign:'sign in below'},bad_key:'replace the API key',unreachable:'check the connection',no_model:'choose another model below'};
 function saveKey(provider,key){
-  if(key!==''&&!key.trim()){keyFb={cls:'bad',text:'Paste the key first.',invalid:true};settingsView(true);$('llm-key').focus();return}
+  if(key!==''&&!key.trim()){keyFb={cls:'bad',text:'Enter an API key.',invalid:true};settingsView(true);$('llm-key').focus();return}
   keyBusy=true;settingsView(true);
   api('/api/cmd',{cmd:'llm_key',provider:provider,key:key}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;
     keyFb=key?{cls:'ok',text:'Key saved. Checking it now…',checking:true}:{cls:'',text:'Key removed.'};$('llm-key').value=''})
@@ -423,7 +423,7 @@ function saveKey(provider,key){
     var f=$('llm-key');if(f&&keyFb.invalid&&key){f.value=key;f.focus();f.select()}})}  // a failed key stays, selected: a paste replaces it
 function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model (design system: AiSettings)
   var c=p.connection,st=c.state,known=st==='ok'||st==='no_model',parts=c.detail.split(' · ');
-  if(keyFb.checking&&st!=='checking')keyFb=st==='bad_key'?{cls:'bad',text:'The provider rejected this key. Paste the key again, exactly as the provider shows it.',invalid:true}:{cls:'ok',text:'Key saved.'};
+  if(keyFb.checking&&st!=='checking')keyFb=st==='bad_key'?{cls:'bad',text:'The provider rejected the API key. Copy it again from your account.',invalid:true}:{cls:'ok',text:'Key saved.'};
   var todo=TODO[st];if(st==='no_key')todo=p.key_field?todo.key:todo.sign;
   var g=st==='ok'?['ok','●']:st==='checking'?['wait','○']:['bad','▲'];
   var h='<section class="ai" aria-label="AI"><div class="ai-h">AI</div>'
@@ -431,22 +431,22 @@ function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model
     +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(parts[0])+(st==='ok'&&parts[1]?' <span class="d">· '+esc(parts[1])+'</span>':todo?' <span class="d">· '+esc(todo)+'</span>':'')+'</span></div></div>'
     +'<div class="st"><label for="st-llm_provider">'+esc(p.title)+'</label><select id="st-llm_provider" data-st="llm_provider">'
     +p.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===p.value?' selected':'')+'>'+esc(p.labels[o]||o)+'</option>'}).join('')+'</select>'
-    +'<div class="l">'+esc(p.hint)+' · default '+esc(p.labels[p.default]||p.default)+(p.value!==p.default?' <button class="rs" data-rs="llm_provider">reset</button>':'')+'</div>'
+    +'<div class="l">'+esc(p.hint)+(p.value!==p.default?' · Default: '+esc(p.labels[p.default]||p.default)+' <button class="rs" data-rs="llm_provider">Reset</button>':'')+'</div>'
     +(p.action?'<div class="row"><button type="button" class="ab" data-act="'+esc(p.action.cmd)+'">'+esc(p.action.label)+'</button></div>':'')+'</div>';
   if(p.key_field)h+='<div class="st"><label for="llm-key">API key</label><div class="keyrow">'
-    +'<input type="password" id="llm-key" autocomplete="off" spellcheck="false" maxlength="300" aria-describedby="llm-key-fb" aria-invalid="'+!!keyFb.invalid+'" placeholder="'+(p.key_field.saved?'saved · paste a new one to replace':'paste the key')+'">'
-    +'<button type="button" class="ab" data-key="'+esc(p.key_field.provider)+'"'+(keyBusy?' disabled':'')+'>'+(keyBusy?'saving…':'save key')+'</button>'
-    +(p.key_field.saved?'<button type="button" class="rs" data-key-rm="'+esc(p.key_field.provider)+'">remove</button>':'')+'</div>'
+    +'<input type="password" id="llm-key" autocomplete="off" spellcheck="false" maxlength="300" aria-describedby="llm-key-fb" aria-invalid="'+!!keyFb.invalid+'" placeholder="'+(p.key_field.saved?'Key saved; paste a replacement':'Paste your API key')+'">'
+    +'<button type="button" class="ab" data-key="'+esc(p.key_field.provider)+'"'+(keyBusy?' disabled':'')+'>'+(keyBusy?'Saving…':'Save key')+'</button>'
+    +(p.key_field.saved?'<button type="button" class="rs" data-key-rm="'+esc(p.key_field.provider)+'">Remove key</button>':'')+'</div>'
     +'<div class="fb '+keyFb.cls+'" id="llm-key-fb" role="status" aria-live="polite">'+esc(keyFb.text)+'</div></div>';
   if(m)h+='<div class="st"><label for="st-'+m.key+'">Model</label>'
-    +(m.options?'<select id="st-'+m.key+'" data-st="'+m.key+'">'+(st==='no_model'?'<option value="" selected disabled>choose a model</option>':'')+m.options.map(function(o){return '<option'+(o===m.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>'
+    +(m.options?'<select id="st-'+m.key+'" data-st="'+m.key+'">'+(st==='no_model'?'<option value="" selected disabled>Choose a model</option>':'')+m.options.map(function(o){return '<option'+(o===m.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>'
       :'<input type="text" id="st-'+m.key+'" data-st="'+m.key+'" minlength="'+m.min+'" maxlength="'+m.max+'" value="'+esc(m.value)+'">')
-    +(st==='no_model'?'<div class="l pick-hint">'+esc(c.detail)+'. Pick another model.</div>':'<div class="l">Models offered by the provider</div>')+'</div>';
+    +(st==='no_model'?'<div class="l pick-hint">'+esc(c.detail)+'. Choose another model.</div>':(m.hint?'<div class="l">'+esc(m.hint)+'</div>':''))+'</div>';
   return h+'</section>'}
 var sample={st:'idle',err:'',t0:0},sampleTick=null,sampleAudio=null,voicePending=null;  // VoiceSettings: idle|busy|playing|error
 function sampleFb(){  // the feedback line under the sample button (never the player's #er)
   if(sample.st==='busy'){var s=Math.floor((Date.now()-sample.t0)/1000),vs=stg.find(function(x){return x.voice_state});
-    return ['wait','Rendering a sample · '+s+' s'+(s>20||(vs&&vs.voice_state.state!=='ready')?' (the first start takes about a minute)':'')]}
+    return ['wait','Preparing sample · '+s+' s'+(s>20||(vs&&vs.voice_state.state!=='ready')?' (startup can take about a minute)':'')]}
   if(sample.st==='playing')return ['ok','Playing the sample…'];
   if(sample.st==='error')return ['bad','Could not make a sample: '+sample.err+'. Try again in a minute.'];
   return ['',''] }
@@ -459,9 +459,9 @@ function voiceView(s){  // design system: VoiceSettings
     +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(parts[0])+(parts[1]?' <span class="d">· '+esc(parts[1])+'</span>':'')+'</span></div></div>'
     +'<div class="st"><label for="st-voice_engine">'+esc(s.title)+'</label><select id="st-voice_engine" data-st="voice_engine">'
     +s.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===s.value?' selected':'')+'>'+esc(label(o))+'</option>'}).join('')+'</select>'
-    +'<div class="l">'+esc(s.hint)+' · default '+esc(label(s.default))+'</div></div>'
-    +'<div class="st"><label for="voice-sample">Sample</label><div class="act"><button type="button" class="ab" id="voice-sample"'+(sample.st==='busy'?' disabled aria-busy="true"':'')+'>'
-    +(sample.st==='busy'?'Rendering…':sample.st==='playing'?'■ Stop':'Play a sample')+'</button></div>'
+    +'<div class="l">'+esc(s.hint)+(s.value!==s.default?' · Default: '+esc(label(s.default)):'')+'</div></div>'
+    +'<div class="st"><div class="act"><button type="button" class="ab" id="voice-sample"'+(sample.st==='busy'?' disabled aria-busy="true"':'')+'>'
+    +(sample.st==='busy'?'Preparing…':sample.st==='playing'?'■ Stop':'Play a sample')+'</button></div>'
     +'<div class="fb '+fb[0]+'" id="voice-fb" role="status" aria-live="polite">'+esc(fb[1])+'</div></div></section>'}
 function sampleState(st,err){sample.st=st;sample.err=err||'';clearInterval(sampleTick);
   if(st==='busy'){sample.t0=Date.now();sampleTick=setInterval(function(){var f=$('voice-fb'),t=sampleFb();if(f){f.textContent=t[1]}},1000)}
@@ -484,13 +484,13 @@ function settingsView(force){  // force: after this page saved a value; the poll
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
-    +'<div class="l">'+esc(s.hint)+' · default '+esc(u(s,s.default))+(s.value!==s.default?' <button class="rs" data-rs="'+s.key+'">reset</button>':'')+'</div></div>'}).join('');
+    +'<div class="l">'+esc(s.hint)+(s.value!==s.default?' · Default: '+esc(u(s,s.default))+' <button class="rs" data-rs="'+s.key+'">Reset</button>':'')+'</div></div>'}).join('');
   if(force&&f&&f.id&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
-    $('audio-preset-hint').textContent=d.ok===false?d.error:'Applies after stop / play. Personal sounds stay on this Mac.';
+    $('audio-preset-hint').textContent=d.ok===false?d.error:'Stop and start the station to apply. Personal audio stays on this Mac.';
     refresh();
-  }).catch(function(){$('audio-preset-hint').textContent='could not save audio preset'})
+  }).catch(function(){$('audio-preset-hint').textContent='Could not save the audio preset. Try again.'})
 };
 $('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st});if(s.step!==null)$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};

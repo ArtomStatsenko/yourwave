@@ -13,6 +13,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from . import broadcast_clock, audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
+from . import public_news, reddit, telegram
 from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
@@ -100,6 +101,7 @@ class Service:
         self.cal_events: list = []                 # calendar events (read every poll_minutes)
         self.todoist_tasks: list = []
         self.next_read = {"calendar": 0.0, "todoist": 0.0}
+        self.public_news_due = {}
         self.next_weather_read = 0.0
         self.reminders_due: dict[str, dict] = {}   # key -> reminder waiting for a song boundary
         self.reminder_text: dict[str, str] = {}    # key -> what the host says, for the timeline
@@ -181,6 +183,7 @@ class Service:
         asyncio.create_task(self.watch_engine())
         asyncio.create_task(self.trending_loop())
         asyncio.create_task(self.horizon_loop())
+        asyncio.create_task(self.public_news_loop())
         asyncio.create_task(self.reminders_loop())
         asyncio.create_task(self.gap_loop())
         if not self.mock_voice:
@@ -625,6 +628,41 @@ class Service:
                 await asyncio.wait_for(self.done.wait(), 60)
             except asyncio.TimeoutError:
                 pass
+
+    async def public_news_loop(self) -> None:
+        while not self.stopping:
+            await self.public_news_tick()
+            try:
+                await asyncio.wait_for(self.done.wait(), 15)
+            except asyncio.TimeoutError:
+                pass
+
+    async def public_news_tick(self) -> None:
+        for source, key, adapter in (("reddit", "communities", reddit), ("telegram", "channels", telegram)):
+            if not plugins.on(self.cfg, source):
+                self.sources[source] = "off"
+                self.public_news_due.pop(source, None)
+                continue
+            if time.time() < self.public_news_due.get(source, 0) or not self._news_preparation_due(TEXT_LEAD_SEC):
+                continue
+            # Fixed gentle cadence, including on errors; no rapid retries or fallback scraping.
+            self.public_news_due[source] = time.time() + 1800
+            added, errors = [], []
+            for name in public_news.names(self.cfg["sources"][source][key], source):
+                if self.stopping or not plugins.on(self.cfg, source):
+                    break
+                try:
+                    items = await asyncio.to_thread(adapter.fetch, name)
+                    if self.stopping or not plugins.on(self.cfg, source):
+                        break
+                    ids = public_news.take(self.db, self.cfg, items)
+                    for iid in ids:
+                        store.log_event(self.db, self.session, "ITEM_COLLECTED", iid)
+                    added.extend(ids)
+                except Exception as e:
+                    errors.append(f"{name}: {type(e).__name__}: {str(e)[:100]}")
+            self.sources[source] = f"{len(added)} new" + ("; error: " + "; ".join(errors) if errors else "")
+            self.wake.set()
 
     def _take_horizon(self, items: list[dict]) -> str:
         """Best-ranked new items of a Horizon briefing, each its own bulletin, retold in Russian by the local model;
@@ -2129,7 +2167,7 @@ class Service:
         return {'version': version, 'rows': result, 'starts_at': iso(boundary)}
 
     def _edition_details(self, rows, packages):
-        labels = {'horizon': 'Tech news', 'github_trending': 'GitHub trends', 'github_new': 'New GitHub projects',
+        labels = {'reddit': 'Reddit news', 'telegram': 'Telegram news', 'horizon': 'Tech news', 'github_trending': 'GitHub trends', 'github_new': 'New GitHub projects',
                   'weather': 'Weather', 'calendar': 'Today', 'music_facts': 'Music stories', 'inbox': 'News', 'direction': 'Announcement'}
         for row in rows:
             if row['kind'] not in ('news', 'weather'):
@@ -2145,7 +2183,7 @@ class Service:
                 seg['items'].append(timeline.topic_name(p['title']))
                 seg['voice_ready'] = seg['voice_ready'] and p['status'] in ('READY', 'QUEUED')
             if not segments:
-                sources = ['weather'] if row['kind'] == 'weather' else [name for name in ('horizon', 'github_trending', 'github_new') if plugins.on(self.cfg, name)]
+                sources = ['weather'] if row['kind'] == 'weather' else [name for name in ('horizon', 'github_trending', 'github_new', 'reddit', 'telegram') if plugins.on(self.cfg, name)]
                 segments = {name: {'title': labels[name], 'items': [], 'text_ready': bool(row.get('text_ready')) if name == 'weather' else False, 'voice_ready': False} for name in sources}
                 if row['kind'] != 'weather' and plugins.on(self.cfg, 'music_facts'):
                     segments['music_facts'] = {'title': labels['music_facts'], 'items': [], 'optional': True, 'text_ready': False, 'voice_ready': False}

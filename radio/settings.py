@@ -9,41 +9,38 @@ from . import chatgpt, config, editor, openrouter
 
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
-    "host_name": ("broadcast", "host_name", "Host's name", "The main voice, as the co-host calls him (Two hosts)",
+    "host_name": ("broadcast", "host_name", "Host name", "How the co-host addresses the main host when Two hosts is enabled.",
                   1, 30, None, ""),
-    "cohost_name": ("broadcast", "cohost_name", "Co-host's name", "The second voice (Two hosts)", 1, 30, None, ""),
+    "cohost_name": ("broadcast", "cohost_name", "Co-host name", "How the main host addresses the co-host when Two hosts is enabled.", 1, 30, None, ""),
     "station_name": ("broadcast", "station_name", "Station name",
-                     "What the host calls the station in the set openers. A Latin name is read as English", 1, 40, None, ""),
-    "voice_engine": ("voice", "engine", "Voice engine", "Switching takes effect for new phrases; already voiced ones stay",
+                     "Used in spoken introductions. Names in Latin letters are pronounced in English.", 1, 40, None, ""),
+    "voice_engine": ("voice", "engine", "Voice engine", "Applies to new speech. Prepared audio keeps its current voice.",
                      1, 20, None, ""),
-    "llm_provider": ("editor", "provider", "Provider", "Where the host's words come from", 1, 20, None, ""),
+    "llm_provider": ("editor", "provider", "Script provider", "Writes scripts for the host.", 1, 20, None, ""),
     # one model row per provider; the page shows the selected provider's
-    "ollama_model": ("editor", "model", "Model", "A local Ollama model", 1, 200, None, ""),
-    "openai_model": ("editor", "openai_model", "Model", "An OpenAI model", 1, 200, None, ""),
-    "deepseek_model": ("editor", "deepseek_model", "Model", "A DeepSeek model", 1, 200, None, ""),
-    "xai_model": ("editor", "xai_model", "Model", "A Grok model from xAI", 1, 200, None, ""),
-    "openrouter_model": ("editor", "openrouter_model", "Model", "Any model on OpenRouter, billed to your OpenRouter "
-                         "credits", 1, 200, None, ""),
+    "ollama_model": ("editor", "model", "Model", "", 1, 200, None, ""),
+    "openai_model": ("editor", "openai_model", "Model", "", 1, 200, None, ""),
+    "deepseek_model": ("editor", "deepseek_model", "Model", "", 1, 200, None, ""),
+    "xai_model": ("editor", "xai_model", "Model", "", 1, 200, None, ""),
+    "openrouter_model": ("editor", "openrouter_model", "Model", "Usage is charged to your OpenRouter balance.", 1, 200, None, ""),
     "music_set_minutes": ("broadcast", "music_set_minutes", "New music set length",
                           "Length of a new-tracks selection. Host editions follow the clock at :00 and :30.",
                           5, 90, 5, "min"),
-    "max_break_speech_sec": ("broadcast", "max_break_speech_sec", "News break length",
-                             "How much speech one break holds while there are enough ready stories. More — a longer "
-                             "break", 30, 600, 10, "s"),
-    "max_spoken_seconds_per_rolling_hour": ("broadcast", "max_spoken_seconds_per_rolling_hour", "Speech limit per hour",
-                                            "How many seconds the host speaks in a rolling hour, in total. Breaks "
-                                            "wait when it is used up", 60, 900, 30, "s"),
-    "new_every_sets": ("broadcast", "new_every_sets", "New tracks: every Nth set",
-                       "Every Nth set is made of new songs. 0 — never", 0, 10, 1, ""),
+    "max_break_speech_sec": ("broadcast", "max_break_speech_sec", "Speech per edition",
+                             "Maximum speech length when enough prepared stories are available.", 30, 600, 10, "s"),
+    "max_spoken_seconds_per_rolling_hour": ("broadcast", "max_spoken_seconds_per_rolling_hour", "Speech per hour",
+                                            "Total speech allowed in any 60-minute window. Further speech waits when the limit is reached.", 60, 900, 30, "s"),
+    "new_every_sets": ("broadcast", "new_every_sets", "New tracks: every N sets",
+                       "Play recently added songs at this interval. Set to 0 to disable.", 0, 10, 1, ""),
     "station_id_every_songs": ("broadcast", "station_id_every_songs", "Station ID opportunities",
                                "0 disables; positive values allow a clock ID after 30 minutes without branding.", 0, 10, 1, ""),
-    "lead_min": ("reminders", "lead_min", "Reminders: minutes ahead",
-                 "How many minutes before a calendar event or a Todoist task to remind", 1, 60, 1, "min"),
+    "lead_min": ("reminders", "lead_min", "Reminder lead time",
+                 "How far ahead to announce timed calendar events and Todoist tasks.", 1, 60, 1, "min"),
 }
 
 
 CHOICES = {"llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai"), "voice_engine": ("qwen3", "voicestudio")}
-VOICE_LABELS = {"qwen3": "Qwen3-TTS (local, clone of the host)", "voicestudio": "VoiceStudio · OmniVoice"}
+VOICE_LABELS = {"qwen3": "Qwen3-TTS · cloned voice", "voicestudio": "VoiceStudio · OmniVoice"}
 MODEL_ROWS = {"ollama": "ollama_model", "openai": "openai_model", "openrouter": "openrouter_model",
               "deepseek": "deepseek_model", "xai": "xai_model"}  # a text setting that is one of these: a drop-down on the page
 
@@ -156,9 +153,9 @@ def _voice_state(live: dict) -> dict:
     try:
         with urllib.request.urlopen(url.rstrip("/") + ("/" if v["engine"] == "qwen3" else "/health"), timeout=1):
             return {"state": "ready", "engine_title": title,
-                    "detail": "Ready" + (" · the first phrase after a start takes about a minute" if v["engine"] == "qwen3" else "")}
+                    "detail": "Ready" + (" · first speech can take about a minute" if v["engine"] == "qwen3" else "")}
     except OSError:
         port = int(url.rsplit(":", 1)[-1])
         return {"state": "starting" if tts.port_open(port) else "down", "engine_title": title,
                 "detail": "Starting…" if tts.port_open(port)
-                else "Not running · the radio starts it when it plays"}
+                else "Not running · starts with the station"}

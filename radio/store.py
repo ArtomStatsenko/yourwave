@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS packages(
   status TEXT, attempts INTEGER DEFAULT 0, error TEXT, played_at TEXT);
 CREATE TABLE IF NOT EXISTS events(
   id INTEGER PRIMARY KEY, session_id TEXT, at TEXT, type TEXT, ref TEXT, detail TEXT);
+CREATE TABLE IF NOT EXISTS public_news_seen(key TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS tracks(path TEXT PRIMARY KEY, sig TEXT, lufs REAL, ok INTEGER);
 CREATE TABLE IF NOT EXISTS reminders(key TEXT PRIMARY KEY, fired_at TEXT);
 CREATE TABLE IF NOT EXISTS air_plan(
