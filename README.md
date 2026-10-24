@@ -1,21 +1,15 @@
-<p align="center">
-  <img src="docs/images/cover.jpg" alt="A quiet radio wave crossing a tuning scale" width="960">
-</p>
+# Yourwave
 
-<h1 align="center">Yourwave</h1>
-<p align="center"><strong>Your music, short news breaks, and a station of your own.</strong></p>
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/code-MIT-17170f?style=flat-square" alt="Code license: MIT"></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Python-3.11%2B-17170f?style=flat-square" alt="Python 3.11 or newer"></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/platform-macOS-17170f?style=flat-square" alt="Platform: macOS"></a>
-  <a href="https://github.com/ArtomStatsenko/yourwave/releases/tag/base-audio-v1.0.0"><img src="https://img.shields.io/github/v/release/ArtomStatsenko/yourwave?label=base%20audio&amp;style=flat-square&amp;color=c2410c" alt="Base audio release"></a>
-</p>
-<p align="center">
-  <a href="#quick-start">Get started</a> ·
-  <a href="docs/guide.md">Usage guide</a> ·
-  <a href="assets/RIGHTS.md">Audio credits</a> ·
-  <a href="CONTRIBUTING.md">Contribute</a>
-</p>
+```text
+                  v
+--|----|----|----|----|----|----|----|--
+              YOURWAVE
+        your music. your station.
+```
+
+`macOS` / `Python 3.11+` / [code: MIT](LICENSE) / [base audio: v1.0.0](https://github.com/ArtomStatsenko/yourwave/releases/tag/base-audio-v1.0.0)
+
+[Quick start](#quick-start) / [Usage guide](docs/guide.md) / [Audio credits](assets/RIGHTS.md) / [Contribute](CONTRIBUTING.md)
 
 Yourwave turns your music library into a local radio station, with a Russian-speaking host, short briefings, and useful reminders. Listen in your browser, see what just played, and shape the next edition without leaving the music.
 

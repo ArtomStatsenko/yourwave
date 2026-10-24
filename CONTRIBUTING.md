@@ -14,6 +14,10 @@ RADIO_DATA_DIR="$HOME/.yourwave-dev" ./bin/radio ui --port 8766
 
 Use the same `RADIO_DATA_DIR` for that station's CLI commands. If another station is running, configure a separate `output.stream_port` before starting playback.
 
+## Repository style
+
+Keep public presentation terminal-first: plain Markdown, compact ASCII art, monospace labels, and real interface screenshots. Follow the [repository style guide](docs/style.md).
+
 ## Issues and pull requests
 
 - Describe reproduction steps, expected and actual behavior, the commit, macOS/Python/audio-tool versions, and the affected source or integration.
