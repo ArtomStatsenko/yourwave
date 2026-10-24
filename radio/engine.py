@@ -167,8 +167,8 @@ class Liquidsoap:
                           queue: str = "news") -> str:
         """A song into a request queue (news: next song boundary, before everything; fresh: after the news
         queue). tags: more annotations starting with a comma. Returns the request id, for remove()."""
-        safe_ref = ref.replace('"', "")
-        uri = (f'annotate:kind="{kind}",ref="{safe_ref}",replay_id="{replay_id}",liq_amplify="{gain_db:+.2f} dB",'
+        safe_ref = json.dumps(ref, ensure_ascii=False)
+        uri = (f'annotate:kind="{kind}",ref={safe_ref},replay_id="{replay_id}",liq_amplify="{gain_db:+.2f} dB",'
                f'liq_fade_in="0.1"{tags}:{wav}')
         return (await self.command(f"{queue}.push {uri}")).strip()
 
@@ -187,9 +187,13 @@ class Liquidsoap:
                 continue
             choices = {}
             for line in path.read_text().splitlines():
-                match = re.search(r'ref="([^"\r\n]*)"', line)
+                match = re.search(r'(?:^annotate:|,)ref=("(?:[^"\\\r\n]|\\.)*")', line)
                 if match:
-                    choices[match.group(1)] = line
+                    try:
+                        ref = json.loads(match.group(1))
+                    except json.JSONDecodeError:
+                        continue
+                    choices[ref] = line
             if expected in choices:
                 return choices
         return {}

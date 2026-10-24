@@ -304,7 +304,7 @@ class Service:
             if self.stopping or self.rendering or self.assembling:
                 continue
             try:  # an error here must not end the loop for the rest of the session
-                if not (f := await asyncio.to_thread(music.to_hear, self.db, self.files)):
+                if not (f := await asyncio.to_thread(music.to_hear, self.db, self._local_files())):
                     continue
                 await asyncio.to_thread(music.hear, self.db, f)
                 log("vocals heard:", f.name)
@@ -1395,11 +1395,15 @@ class Service:
         b = self.cfg["broadcast"]
         return not self.ytmusic_active and plugins.on(self.cfg, "new_tracks") and 0 < b["new_every_sets"] <= self.sets_since_fresh
 
+    def _local_files(self) -> list[Path]:
+        self.files = [f for f in self.files if f.is_file()]
+        return self.files
+
     def _pick_new(self) -> list[Path]:
         """Songs for a new-tracks set: unaired songs added in the last new_days days, newest first, enough for
         a normal set (music_set_minutes); none if there are fewer than new_min_tracks."""
         b = self.cfg["broadcast"]
-        found = [f for f in music.unaired_new(self.db, self.files, b["new_days"]) if str(f) in self.intro_rooms]
+        found = [f for f in music.unaired_new(self.db, self._local_files(), b["new_days"]) if str(f) in self.intro_rooms]
         if len(found) < b["new_min_tracks"]:
             return []
         picked, total = [], 0.0

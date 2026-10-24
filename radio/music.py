@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import time
@@ -31,8 +32,7 @@ def intro_room(row) -> float | None:
 def scan(root: Path) -> list[Path]:
     files = []
     for d, _, names in os.walk(root, followlinks=True):
-        # a quote breaks the playlist line's ref="..." (the song then has no length for the daemon): left out
-        audio_names = [n for n in names if Path(n).suffix.lower() in EXTS and not n.startswith(".") and '"' not in n]
+        audio_names = [n for n in names if Path(n).suffix.lower() in EXTS and not n.startswith(".")]
         stems = {Path(n).stem for n in audio_names}
         # "Song.enhanced-....wav" is a copy of "Song.mp3": keep only the original.
         files += [Path(d) / n for n in audio_names if not (".enhanced" in n and n.split(".enhanced")[0] in stems)]
@@ -69,7 +69,10 @@ def unaired_new(db, files: list[Path], days: float) -> list[Path]:
     found = []
     for f in files:
         if str(f) not in aired:
-            st = f.stat()
+            try:
+                st = f.stat()
+            except FileNotFoundError:
+                continue  # deleted after the library was refreshed
             added = getattr(st, "st_birthtime", st.st_mtime)
             if added >= since:
                 found.append((added, f))
@@ -91,14 +94,18 @@ def write_m3u(db, files: list[Path], out: Path, target_lufs: float, max_boost_db
     lines, written = [], {}
     for f in files:
         row = known.get(str(f))
-        fresh = row is not None and row["sig"] == _sig(f)
+        try:
+            sig = _sig(f)
+        except FileNotFoundError:
+            continue
+        fresh = row is not None and row["sig"] == sig
         if fresh and not row["ok"]:
             continue
         gain = min(max_boost_db, target_lufs - row["lufs"]) if fresh and row["lufs"] is not None else 0.0
-        path = str(f).replace('"', "")
+        path = json.dumps(str(f), ensure_ascii=False)
         cross, room = song_tags(row, xfade, outro_talk) if fresh else ("", None)
         written[str(f)] = room
-        lines.append(f'annotate:kind="music",ref="{path}",liq_amplify="{gain:+.2f} dB"{cross}:{f}')
+        lines.append(f'annotate:kind="music",ref={path},liq_amplify="{gain:+.2f} dB"{cross}:{f}')
     out.write_text("#EXTM3U\n" + "\n".join(lines) + "\n", encoding="utf-8")
     return written
 
@@ -112,7 +119,11 @@ def measure_missing(db, files: list[Path], stop) -> None:
         if stop.is_set():
             return
         row = known.get(str(f))
-        fresh = row is not None and row["sig"] == _sig(f)
+        try:
+            sig = _sig(f)
+        except FileNotFoundError:
+            continue
+        fresh = row is not None and row["sig"] == sig
         if fresh and (row["tail_sec"] is not None or not row["ok"]) and row["artist"] is not None:
             continue
         try:
