@@ -49,6 +49,8 @@ def _path():
 def _saved() -> dict:
     try:
         data = json.loads(_path().read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
         return {k: bool(v) for k, v in data.items() if k in PLUGINS}
     except (FileNotFoundError, ValueError):
         return {}

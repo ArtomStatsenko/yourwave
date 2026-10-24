@@ -64,8 +64,10 @@ def _clamp(key: str, value) -> int | str:
 def _saved() -> dict:
     try:
         data = json.loads(_path().read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
         return {k: _clamp(k, v) for k, v in data.items() if k in SETTINGS}
-    except (FileNotFoundError, ValueError, TypeError):
+    except (FileNotFoundError, ValueError, TypeError, OverflowError):
         return {}
 
 
@@ -79,7 +81,7 @@ def set_setting(key: str, value) -> None:
         raise ValueError(f"unknown setting {key}")
     try:
         number = _clamp(key, value)
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError, OverflowError) as e:
         raise ValueError(str(e) if SETTINGS[key][6] is None else f"{key}: a number is expected")
     saved = _saved()
     saved[key] = number
@@ -156,6 +158,7 @@ def _voice_state(live: dict) -> dict:
                     "detail": "Ready" + (" · first speech can take about a minute" if v["engine"] == "qwen3" else "")}
     except OSError:
         port = int(url.rsplit(":", 1)[-1])
-        return {"state": "starting" if tts.port_open(port) else "down", "engine_title": title,
-                "detail": "Starting…" if tts.port_open(port)
+        starting = tts.port_open(port)
+        return {"state": "starting" if starting else "down", "engine_title": title,
+                "detail": "Starting…" if starting
                 else "Not running · starts with the station"}
