@@ -3,10 +3,10 @@
 Yourwave uses a terminal-first, ASCII-led presentation. The radio scale is the repository's static cover:
 
 ```text
-                  v
+                   \/
 --|----|----|----|----|----|----|----|--
-              YOURWAVE
-        your music. your station.
+                YOURWAVE
+        your music, your station
 ```
 
 - Use plain Markdown and monospace text for labels, commands, and small diagrams. Keep decorative art within 40 ASCII columns so it stays legible on narrow screens.

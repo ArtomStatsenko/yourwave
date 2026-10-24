@@ -1,10 +1,10 @@
 # Yourwave
 
 ```text
-                  v
+                   \/
 --|----|----|----|----|----|----|----|--
-              YOURWAVE
-        your music. your station.
+                YOURWAVE
+        your music, your station
 ```
 
 `macOS` / `Python 3.11+` / [code: MIT](LICENSE) / [base audio: v1.0.0](https://github.com/ArtomStatsenko/yourwave/releases/tag/base-audio-v1.0.0)
