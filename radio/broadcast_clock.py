@@ -29,5 +29,6 @@ def rows(db, at, hours=6, timezone_name='Asia/Ho_Chi_Minh'):
                        'at': store.iso(when), 'not_before': store.iso(when), 'ends': store.iso(when + WINDOW),
                        'duration': 45 if light else 120, 'light': light, 'status': edit.get('status', 'PENDING'),
                        'skipped': bool(edit.get('skipped')), 'locked': edit.get('status') == 'QUEUED',
-                       'members': [key], 'placeholder': True, 'estimated': False, 'rid': edit.get('rid')})
+                       'members': [key], 'placeholder': True, 'estimated': False, 'clock': True,
+                       'edited': bool(edit), 'rid': edit.get('rid')})
     return sorted(result, key=lambda r: r['at'])

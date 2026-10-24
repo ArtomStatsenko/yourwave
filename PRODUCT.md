@@ -36,7 +36,11 @@ The timeline presents host appearances as Host edition rows, with source segment
 ### Listening and editing
 
 - The normal Timeline shows one subdued next entry with only the next track or block name, alongside the current broadcast and history.
-- Editing opens the existing upcoming schedule in the same timeline language, with simplified entries. Preserve Edit, Save and Cancel and the ability to move sections by dragging or arrows.
+- Editing expands the future above the current row in one continuous timeline with one scrollbar, compacts the player, and subdues readable history. Keep the `now` label and icon on the current row, subdued like history while editing; no separate editor/history heading or divider. History accepts no dragged blocks.
+- Add a block from the gap where it belongs: reveal the control on hover or keyboard focus, keep it visible on touch devices, and open the insertion form inline with its time prefilled.
+- Time moves upward: later blocks above nearer blocks. Initially show three hours grouped by hour, with the nearest hour open; reset disclosures on reopening. Music is a generic block, without track listings.
+- Apply each change immediately with one-step Undo; Done exits editing. Move editions by dragging, arrows or clicking the time. Show scheduled and expected times when they differ.
+- Show five recent history entries initially, with Show earlier for the rest.
 - Use the existing planner's known information and approximate times; do not build a separate predictive scheduler merely to display the editor.
 - Text preparation precedes voice preparation. Show one current stage: `text pending` → `voice pending` → `ready`; queuing is a later operational state.
 - Account for collection, text generation, synthesis and retries. Scheduling a block for now does not guarantee immediate speech; ready audio must still join the broadcast at a suitable boundary.

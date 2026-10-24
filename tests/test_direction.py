@@ -1176,3 +1176,51 @@ class DirectionTests(unittest.TestCase):
         store.log_event(self.svc.db, self.svc.session, 'WEATHER', 'manual-one', '')
         row = next(r for r in timeline._build(self.svc.db, 12, 20) if r['kind'] == 'weather')
         self.assertEqual(row['title'], 'Da Lat · 17° · fog')
+
+    def test_immediate_edit_undo_restores_time_and_skip_without_replaying(self):
+        for skip in (False, True):
+            snap = self.svc._broadcast_plan()
+            row = next(r for r in snap['rows'] if r['kind'] == 'news')
+            saved = self.command(action='save', version=snap['version'], remember_undo=True,
+                                 changes=[{'id': row['id'], 'at': store.iso(self.AT + timedelta(minutes=10)), 'skipped': skip}])
+            restored = self.command(action='undo', token=saved['undo_token'])['broadcast_plan']
+            same = next(r for r in restored['rows'] if r['id'] == row['id'])
+            self.assertEqual(same['at'], row['at'])
+            self.assertFalse(same['skipped'])
+            with self.assertRaisesRegex(ValueError, 'no longer'):
+                self.command(action='undo', token=saved['undo_token'])
+
+    def test_undo_rejects_external_edits_queued_audio_and_expired_original_time(self):
+        snap = self.svc._broadcast_plan()
+        row = next(r for r in snap['rows'] if r['kind'] == 'news')
+        saved = self.command(action='save', version=snap['version'], remember_undo=True,
+                             changes=[{'id': row['id'], 'at': store.iso(self.AT + timedelta(minutes=10))}])
+        token = saved['undo_token']
+        with self.assertRaisesRegex(ValueError, 'no longer'):
+            self.command(action='undo', token='wrong')
+        self.svc.db.execute("UPDATE air_plan SET status='QUEUED' WHERE id=?", (row['id'],))
+        with self.assertRaisesRegex(ValueError, 'queued'):
+            self.command(action='undo', token=token)
+        self.svc.db.execute("UPDATE air_plan SET status='PENDING',rank=99 WHERE id=?", (row['id'],))
+        with self.assertRaisesRegex(ValueError, 'changed again'):
+            self.command(action='undo', token=token)
+        self.svc.db.execute("UPDATE air_plan SET rank=0 WHERE id=?", (row['id'],))
+        self.clock.return_value = self.AT + timedelta(minutes=6)
+        with self.assertRaisesRegex(ValueError, 'window has expired'):
+            self.command(action='undo', token=token)
+
+    def test_undo_new_announcement_removes_it_from_playout(self):
+        snap = self.svc._broadcast_plan()
+        saved = self.command(action='save', version=snap['version'], remember_undo=True,
+                             changes=[{'id': 'new:one', 'kind': 'text', 'text': 'Hello station',
+                                       'at': store.iso(self.AT + timedelta(minutes=10))}])
+        self.command(action='undo', token=saved['undo_token'])
+        self.assertFalse(any(r['id'].startswith('system:direction:') and not r['skipped'] for r in self.svc._broadcast_plan()['rows']))
+        self.assertEqual(self.svc.db.execute("SELECT skipped FROM air_plan WHERE id LIKE 'system:direction:%'").fetchone()[0], 1)
+
+    def test_expected_time_keeps_scheduled_time_and_uses_current_song_boundary(self):
+        self.svc.current = {'kind': 'music', 'ref': 'song', 'started': 1000, 'duration': 180}
+        with patch('radio.daemon.time.time', return_value=1000):
+            row = next(r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'news')
+        self.assertEqual(row['at'], store.iso(self.AT))
+        self.assertEqual(row['expected_at'], store.iso(self.AT + timedelta(minutes=3)))

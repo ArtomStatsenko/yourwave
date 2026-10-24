@@ -9,7 +9,7 @@ import random
 import threading
 import time
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import broadcast_clock, audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
@@ -83,6 +83,7 @@ class Service:
         self.assembling = self.rerolling = False
         self.schedule_lock = asyncio.Lock()
         self.handoff_lock = asyncio.Lock()
+        self.plan_undo = None
         self.schedule_generation = 0
         self.tts_retry_at, self.tts_backoff = 0.0, 60.0
         self.stop_measure = threading.Event()
@@ -1852,6 +1853,8 @@ class Service:
         if not plugins.on(self.cfg, 'air_direction'):
             return {'ok': False, 'error': 'Enable Air direction in Experiments first'}
         action = req.get('action')
+        if action == 'undo':
+            return await self._undo_broadcast_plan(req.get('token'))
         if action == 'save':
             return await self._save_broadcast_plan(req)
         if action not in ('catalog', 'insert', 'up', 'down', 'skip', 'time', 'reset'):
@@ -2155,6 +2158,9 @@ class Service:
             if row:
                 cursor = max(cursor, content.parse_time(row['at']) + timedelta(seconds=row['duration']))
                 previous = row['id']
+        for row in result:
+            if not row['skipped'] and content.parse_time(row['at']) < first and (not row.get('ends') or first < content.parse_time(row['ends'])):
+                row['expected_at'] = iso(first)
         result += music_sections
         packages = {r['id']: r for r in plan if r['kind'] == 'news' and r.get('script_path')}
         for row in result:
@@ -2201,6 +2207,39 @@ class Service:
             for segment in row['segments']:
                 segment['preparation_started'] = row['preparation_started']
 
+    async def _undo_broadcast_plan(self, token):
+        undo = self.plan_undo
+        if not undo or token != undo['token']:
+            raise ValueError('This change can no longer be undone')
+        fields = ('kind', 'ref', 'text', 'not_before', 'rank', 'skipped')
+        for key, (before, after) in undo['rows'].items():
+            current = self.db.execute('SELECT * FROM air_plan WHERE id=?', (key,)).fetchone()
+            values = tuple(current[f] for f in fields) if current else None
+            if values != (tuple(after[f] for f in fields) if after else None):
+                raise ValueError('The program changed again; this action cannot be undone')
+            if current and current['status'] in ('QUEUED', 'PREPARING', 'PLAYED', 'EXPIRED', 'INTERRUPTED'):
+                raise ValueError('This block is already preparing, queued, aired or expired')
+            if key.startswith(broadcast_clock.PREFIX):
+                original = content.parse_time(before['not_before']) if before and before['not_before'] else datetime.fromtimestamp(int(key.removeprefix(broadcast_clock.PREFIX)), timezone.utc)
+                if now() >= original + broadcast_clock.WINDOW:
+                    raise ValueError('The original broadcast window has expired')
+            refs = {key, (current['ref'] if current else ''), (before['ref'] if before else '')}
+            if self.current and self.current['kind'] != 'music' and refs.intersection(self.current['ref'].split(BREAK_SEP)):
+                raise ValueError('This block is already on air')
+        with self.db:
+            for key, (before, after) in undo['rows'].items():
+                if before:
+                    self.db.execute("INSERT INTO air_plan(id,kind,ref,text,not_before,rank,skipped) VALUES(?,?,?,?,?,?,?) "
+                                    "ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,ref=excluded.ref,text=excluded.text,not_before=excluded.not_before,rank=excluded.rank,skipped=excluded.skipped",
+                                    (key, *(before[f] for f in fields)))
+                elif key.startswith(('direction:', 'system:direction:')):
+                    self.db.execute("UPDATE air_plan SET skipped=1,status='PENDING',rid=NULL WHERE id=?", (key,))
+                else:
+                    self.db.execute('DELETE FROM air_plan WHERE id=?', (key,))
+        self.plan_undo = None
+        self.wake.set()
+        return {'ok': True, 'broadcast_plan': self._broadcast_plan()}
+
     async def _save_broadcast_plan(self, req):
         snapshot = self._broadcast_plan()
         changes = req.get('changes')
@@ -2209,7 +2248,7 @@ class Service:
         if not changes:
             return {'ok': True, 'broadcast_plan': snapshot}
         if req.get('version') != snapshot['version']:
-            raise ValueError('The schedule changed while editing. Cancel and reopen Edit to use the latest plan.')
+            raise ValueError('The schedule changed. Try the edit again.')
         current = {r['id']: r for r in snapshot['rows']}
         validated, seen = [], set()
         available = {b['kind'] for b in self._direction_catalog()}
@@ -2232,7 +2271,7 @@ class Service:
             if row and row['kind'] == 'music':
                 raise ValueError('Music fills the gaps automatically; edit a host section instead')
             if not row or row.get('locked') and not (row['kind'] in ('news', 'weather', 'reminder') and change.get('skip_only') is True and change.get('skipped') is True):
-                raise ValueError('A block is already selected or preparing. Cancel and reopen Edit.')
+                raise ValueError('This block is already selected or preparing. Try another block.')
             if row['kind'] == 'reminder' and change.get('skipped') and not row.get('skipped') and change.get('skip_confirmed') is not True:
                 raise ValueError('Confirm skipping this reminder')
             due = content.parse_time(row['at']) if change.get('skipped') is not None and change.get('at') == row['at'] else direction.requested_time(change.get('at'), now())
@@ -2253,6 +2292,7 @@ class Service:
                 else:
                     await self._cancel_direction_job(row)
                 self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE id=?", (row['id'],))
+        before = {r['id']: dict(r) for r in self.db.execute('SELECT * FROM air_plan')} if req.get('remember_undo') else None
         with self.db:
             for row, change, due, rank in validated:
                 skipped = int(bool(change.get('skipped')))
@@ -2295,7 +2335,16 @@ class Service:
                                     "ON CONFLICT(id) DO UPDATE SET not_before=excluded.not_before,rank=excluded.rank,skipped=excluded.skipped,error=NULL,status=CASE WHEN air_plan.status='ERROR' THEN 'PENDING' ELSE air_plan.status END",
                                     (key, 'news' if key.startswith(broadcast_clock.PREFIX) else row['kind'], '' if row.get('placeholder') else row.get('ref') or key, iso(due), rank, skipped))
         self.wake.set()
-        return {'ok': True, 'broadcast_plan': self._broadcast_plan()}
+        result = {'ok': True, 'broadcast_plan': self._broadcast_plan()}
+        if before is not None:
+            after = {r['id']: dict(r) for r in self.db.execute('SELECT * FROM air_plan')}
+            fields = ('kind', 'ref', 'text', 'not_before', 'rank', 'skipped')
+            values = lambda r: tuple(r[f] for f in fields) if r else None
+            rows = {key: (before.get(key), after.get(key)) for key in before.keys() | after.keys()
+                    if values(before.get(key)) != values(after.get(key))}
+            self.plan_undo = {'token': uuid.uuid4().hex, 'rows': rows} if rows else None
+            result['undo_token'] = self.plan_undo['token'] if self.plan_undo else None
+        return result
 
     def _upcoming(self, plan):
         result = []

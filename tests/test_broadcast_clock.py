@@ -162,3 +162,13 @@ class ClockPlayoutTests(unittest.TestCase):
             asyncio.run(self.svc.schedule())
         self.svc.engine.remove.assert_awaited_once_with('42')
         self.assertIsNone(self.svc.queued_break)
+
+    def test_clock_rows_distinguish_routine_slots_from_manual_edits(self):
+        row = self.svc._clock_rows()[0]
+        self.assertTrue(row['clock'])
+        self.assertFalse(row['edited'])
+        self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before) VALUES(?,'news',?)",
+                            (row['id'], store.iso(self.at + timedelta(minutes=10))))
+        edited = next(r for r in self.svc._clock_rows() if r['id'] == row['id'])
+        self.assertTrue(edited['clock'])
+        self.assertTrue(edited['edited'])
