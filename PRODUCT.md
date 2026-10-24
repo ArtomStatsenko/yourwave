@@ -37,6 +37,7 @@ The timeline presents host appearances as Host edition rows, with source segment
 
 - The normal Timeline shows one subdued next entry with only the next track or block name, alongside the current broadcast and history.
 - Editing expands the future above the current row in one continuous timeline with one scrollbar, compacts the player, and subdues readable history. Keep the `now` label and icon on the current row, subdued like history while editing; no separate editor/history heading or divider. History accepts no dragged blocks.
+- Match schedule row spacing to broadcast history; insertion controls overlay the row boundary without reserving blank space. Use an English `Insert` tab in a reserved right gutter, connected to the insertion line.
 - Add a block from the gap where it belongs: reveal the control on hover or keyboard focus, keep it visible on touch devices, and open the insertion form inline with its time prefilled.
 - Time moves upward: later blocks above nearer blocks. Initially show three hours grouped by hour, with the nearest hour open; reset disclosures on reopening. Music is a generic block, without track listings.
 - Apply each change immediately with one-step Undo; Done exits editing. Move editions by dragging, arrows or clicking the time. Show scheduled and expected times when they differ.

@@ -19,7 +19,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);p
 #direction-list .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #direction-list .skipped .tx{color:var(--muted)}
 #direction-list{--plan-pad:8px;--plan-time:56px;--plan-gap:10px;--plan-title-x:calc(var(--plan-pad) + var(--plan-time) + var(--plan-gap) + 22px)}  /* + the .tx gutter: folds and actions start where titles do */
-#direction-list .tg{display:grid;grid-template-columns:var(--plan-time) minmax(0,1fr) auto;align-items:center;gap:var(--plan-gap)}
+#direction-list .tg{display:grid;grid-template-columns:var(--plan-time) minmax(0,1fr) auto;align-items:center;column-gap:var(--plan-gap);row-gap:0}
 #direction-list .plan-time{width:var(--plan-time)}
 #direction-list button.plan-time{border:0;border-bottom:1px dashed var(--line);padding:0;color:var(--muted);font:inherit;font-size:16px;text-align:left}
 #direction-list .plan-actions{display:flex;flex-wrap:wrap;gap:8px;padding:4px 8px 12px var(--plan-title-x)}
@@ -38,7 +38,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);p
 @media(pointer:coarse){#direction-list .plan-inline button{width:44px;height:44px}#direction-list .edition-toggle,#direction-list .plan-actions button{min-height:44px}}
 @media(max-width:640px){
   #direction-list{--plan-pad:0px;--plan-time:56px;--plan-gap:8px}
-  #direction-list .tg{grid-template-columns:var(--plan-time) minmax(0,1fr);gap:4px var(--plan-gap);padding-inline:0}
+  #direction-list .tg{grid-template-columns:var(--plan-time) minmax(0,1fr);gap:0 var(--plan-gap);padding-inline:0}
   #direction-list .edition-toggle{white-space:normal;overflow-wrap:anywhere;line-height:24px}
   #direction-list .plan-readiness,#direction-list .skipped-label{grid-column:2;font-size:16px;line-height:24px;white-space:normal}
   #direction-list .plan-actions,#direction-list .edition-segments{margin-left:0;padding-left:var(--plan-title-x)}
@@ -187,19 +187,23 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .program-editing main>section:last-child{display:flex;flex-direction:column;min-height:0}
 .program-editing .tabbar{flex:none}
 .program-editing #tl-panel:not([hidden]){display:flex;flex-direction:column;min-height:0;flex:1}
-.program-editing #broadcast-timeline{flex:1;max-height:none;min-height:0}
+.program-editing #broadcast-timeline{flex:1;max-height:none;min-height:0;padding-right:92px}
 #direction-list{overflow:visible}
 #direction-list .plan-hour{margin:4px 0}
 #direction-list .plan-hour>summary{padding:4px 8px;color:var(--muted);list-style-position:inside}
-#direction-list .plan-detail{grid-column:2 / -1;white-space:normal;line-height:22px;padding:0 0 4px 22px}
+#direction-list .plan-detail{grid-column:2 / -1;white-space:normal;line-height:22px;padding:0 0 0 22px}
 #plan-later,#history-more{font-size:16px;padding:6px 10px;margin:8px 0}
 #direction-list .edition-toggle{white-space:normal;text-align:left}
 @media(max-width:640px){#direction-list{--plan-time:56px}#direction-list .hd{align-items:flex-start}#direction-list .plan-detail{grid-column:2}#direction-list .plan-inline{flex-wrap:wrap;width:44px}#direction-list .plan-inline button{width:44px;height:44px}}
 
-.plan-gap{min-height:24px}
-.plan-gap>button{display:block;width:100%;min-height:24px;padding:0 8px 0 var(--plan-title-x);border:0;text-align:left;color:var(--muted);font-size:14px;opacity:0}
-.plan-gap:hover>button,.plan-gap:focus-within>button{opacity:1}
+.plan-gap{position:relative;z-index:1;height:0}
+.plan-gap::before{content:"";position:absolute;inset:-5px -72px auto 0;height:10px}
+.plan-gap::after{content:"";position:absolute;top:0;left:var(--plan-title-x);right:-8px;height:1px;background:var(--accent);opacity:0;pointer-events:none}
+.plan-gap>button{position:absolute;z-index:1;top:-13px;right:-72px;width:64px;height:26px;min-height:26px;padding:0 6px;border:1px solid var(--accent);border-radius:2px;background:var(--bg);color:var(--accent);font-size:12px;line-height:24px;opacity:0}
+.plan-gap>button::before{content:"";position:absolute;top:8px;left:-5px;width:7px;height:7px;background:var(--bg);border-left:1px solid var(--accent);border-bottom:1px solid var(--accent);transform:rotate(45deg)}
+.plan-gap:hover>button,.plan-gap:focus-within>button,.plan-gap:hover::after,.plan-gap:focus-within::after{opacity:1}
 .plan-gap>button:hover{color:var(--accent);background:var(--surface)}
+.plan-gap:has(#plan-add:not([hidden])){height:auto;padding-top:12px}
 #plan-add{padding:8px 8px 16px var(--plan-title-x)}
 #plan-add .st{margin:0;max-width:640px}
 #plan-add label{font-size:16px;color:var(--muted)}
@@ -207,8 +211,8 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #plan-add [hidden]{display:none}
 .it.cur .tm{color:var(--accent)}
 #history-more{width:100%}
-@media(hover:none){.plan-gap>button{opacity:1;min-height:44px}}
-@media(max-width:640px){.program-editing main{height:calc(100dvh - 40px)}#plan-add{padding-left:0}.plan-gap>button{padding-left:var(--plan-title-x)}}
+@media(hover:none){.plan-gap>button{opacity:1}}
+@media(max-width:640px){.program-editing main{height:calc(100dvh - 40px)}#plan-add{padding-left:0}}
 @media(max-width:480px){#direction-list{--plan-time:48px}}
 </style>
 </head>
@@ -602,7 +606,7 @@ function directionView(){
   var ordered=groups.flatMap(function(g){return g.entries});
   function gap(index){var at=planGapTime(ordered.map(function(e){return e.row}),index);if(!at)return '';
     var key=index<ordered.length?ordered[index].row.id:'now';
-    return '<div class="plan-gap" data-plan-gap="'+esc(key)+'"><button type="button" data-plan-add="'+esc(at)+'" aria-label="Add block at '+esc(clock(at))+'">+ Add block · '+esc(clock(at))+'</button></div>';
+    return '<div class="plan-gap" data-plan-gap="'+esc(key)+'"><button type="button" data-plan-add="'+esc(at)+'" aria-label="Insert block at '+esc(clock(at))+'" title="Insert block at '+esc(clock(at))+'">Insert</button></div>';
   }
   var add=$('plan-add');if(box.contains(add))$('tl-panel').appendChild(add);
 
