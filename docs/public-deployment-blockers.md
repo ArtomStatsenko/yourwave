@@ -4,7 +4,7 @@ Yourwave is a local macOS station. The target first-run scenario is: clone, inst
 
 ## Repository and audio
 
-Yourwave has moved to a new independent private repository, preserving the cleaned development history. No audio binaries belong in Git. The four Base WAVs are edited excerpts from Tech Live by Kevin MacLeod under CC BY 4.0, distributed as a separate Release archive with credits and the license. Code and documentation remain MIT.
+Yourwave is published in a new independent repository, preserving the cleaned development history. No audio binaries belong in Git. The four Base WAVs are edited excerpts from Tech Live by Kevin MacLeod under CC BY 4.0, distributed as a separate Release archive with credits and the license. Code and documentation remain MIT.
 
 The former PersonalRadio repository remains private. Its server still returned a former unverified WAV by direct authenticated SHA after history rewriting; that was a limitation of the old repository, even though its fresh clone was clean. The new repository is not a fork. Its fresh GitHub clone has none of the 72 old audio blobs, and the former unverified WAV SHA returns HTTP 404 through the new repository API. This was verified on October 24, 2026. Do not push old unfiltered branches or tags.
 
