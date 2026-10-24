@@ -1,116 +1,125 @@
-# Personal Radio
+# Yourwave
 
-**Своя радиостанция: любимая музыка, короткие новости и ведущий на русском языке.**
+**Your music, short news breaks, and a station of your own.**
 
-Personal Radio собирает эфир из музыкальных сетов, джинглов, новостей и подводок. Ведущий объявляет песни, называет время и напоминает о событиях. Вы слушаете и управляете станцией через браузер; озвучка и языковая модель работают локально.
+Yourwave builds a local radio broadcast from music sets, news, reminders, and a Russian-speaking host. Listen and manage the station in your browser; speech and the default language model run locally.
 
 **macOS · Python 3.11+ · Liquidsoap · FFmpeg**
 
-[Запуск](#быстрый-старт) · [Интеграции](#интеграции) · [Настройки](#настройки) · [Команды](#команды) · [Разработка](#разработка) · [MIT](LICENSE)
+[Quick start](#quick-start) · [Integrations](#integrations) · [Settings](#settings) · [Commands](#commands) · [Development](#development) · [MIT](LICENSE)
 
-Проект рассчитан на локальный запуск на macOS; готового установщика в репозитории нет. Базовый набор устанавливается отдельно из Releases и включает четыре служебных WAV из «Tech Live» Kevin MacLeod под CC BY 4.0; остальная музыка и джинглы остаются локальными. Для запуска нужны своя музыкальная библиотека и отдельно установленный голосовой backend. [Аудиокаталог](docs/audio.md) · [Блокеры публичного развёртывания](docs/public-deployment-blockers.md).
+This is a local macOS project, with no bundled application installer. You need your own music library and a separately installed voice backend. The four Base sounds are distributed as a versioned Release asset, outside Git, under CC BY 4.0. A complete first run on a new machine has not yet been verified; see [deployment status](docs/public-deployment-blockers.md).
 
-## Как звучит эфир
+## Quick start
 
-- **Музыка сетами.** Локальная библиотека или подключённый плейлист YouTube Music, переходы между песнями и позывные станции.
-- **Короткие выпуски ведущего.** Один выпуск объединяет материалы разных рубрик: новости технологий, GitHub, погоду, информацию о дне или истории о музыке. Основной выпуск запланирован на начало часа, короткий — на половину часа в часовом поясе станции; выход ждёт естественного окончания песни не более пяти минут.
-- **Ведущий между треками.** Названия песен, время, анонс следующего сета, напоминания и погода. Продолжительность выпусков и общий бюджет речи регулируются.
-- **Контроль в браузере.** Прослушивание, лента эфира, настройки и переключатели функций, интеграций и экспериментов. Вкладка Experiments остаётся доступной и без активных экспериментов.
-
-В режиме прослушивания через браузер станция автоматически приостанавливает звук, если слушателей нет 30 секунд, и возобновляет его при подключении. Расписание при этом продолжает идти по часам: просроченные выпуски не накапливаются. Next переключает музыку и отменяет ожидающую автоматическую вставку; отдельные позывные допускаются на часовых границах после 30 минут без идентификации станции, а не после заданного количества песен.
-
-## Быстрый старт
-
-### 1. Установите инструменты
+### 1. Install the tools and Base sounds
 
 ```sh
 brew install python liquidsoap ffmpeg
-git clone https://github.com/ArtomStatsenko/PersonalRadio.git
-cd PersonalRadio
+git clone https://github.com/ArtomStatsenko/yourwave.git
+cd yourwave
 python3 tools/install_base_audio.py
 mkdir -p ~/Music/Radio
 ```
 
-Положите песни в `~/Music/Radio`. Поддерживаются MP3, M4A, FLAC и WAV. Python-часть использует стандартную библиотеку; отдельный `pip install` для неё не нужен. Отдельный базовый аудиопак содержит вступление, подложку, концовку и разделитель; последний используется и для напоминаний. Отдельные позывные выключены по умолчанию, названия рубрик произносит ведущий.
+Add your music to `~/Music/Radio`. MP3, M4A, FLAC, and WAV are supported. The Python application uses the standard library; no `pip install` is needed.
 
-Установщик проверяет закреплённый SHA-256 архива и не заменяет изменённые локальные звуки. Для приватного репозитория или установки без сети сначала скачайте ZIP через `gh release download`, затем передайте его установщику: [команды и лицензия](assets/RIGHTS.md#установка). Само аудио не хранится в Git.
+The audio installer verifies a pinned SHA-256 and refuses to replace customized local sounds. While the repository is private, download the archive with an authenticated GitHub CLI first; the same archive also works offline:
 
-### 2. Подготовьте голос и модель
+```sh
+gh release download base-audio-v1.0.0 --repo ArtomStatsenko/yourwave --pattern yourwave-base-audio-v1.0.0.zip --dir /tmp/yourwave-base-audio
+python3 tools/install_base_audio.py /tmp/yourwave-base-audio/yourwave-base-audio-v1.0.0.zip
+```
 
-| Компонент | Для чего нужен | Настройка по умолчанию |
+Base provides an intro, a speech bed, an outro, and a separator also used for reminders. Standalone station IDs are disabled by default; section names are spoken. [Audio credits and rebuild instructions](assets/RIGHTS.md).
+
+### 2. Set up speech and the language model
+
+| Component | Purpose | Default |
 | --- | --- | --- |
-| VoiceStudio | Озвучка выпусков и ведущего | Сервер на `http://127.0.0.1:3900`, голос `default` |
-| Ollama | Пересказ описаний GitHub и генерация подводок | `http://127.0.0.1:11434`, модель `qwen3.5:4b` |
+| VoiceStudio | Host speech and bulletins | `http://127.0.0.1:3900`, voice `default` |
+| Ollama | GitHub summaries and host links | `http://127.0.0.1:11434`, model `qwen3.5:4b` |
 
-VoiceStudio устанавливается отдельно. Радио автоматически запускает его backend из каталога `voice.server_dir`; путь должен соответствовать вашей установке. Это штатное поведение без переключателя интеграции. Уже работающий сервер радио не останавливает.
+Install VoiceStudio separately. Yourwave starts its backend from `voice.server_dir`; set this path to your installation. It does not stop a server that was already running.
 
-Для установленной Ollama загрузите модель:
+With Ollama installed, download the model and make sure its server is running:
 
 ```sh
 ollama pull qwen3.5:4b
 ```
 
-Перед запуском убедитесь, что Ollama работает. Модель и адреса обоих серверов можно изменить в конфигурации. Готовые сводки читаются без пересказа языковой моделью.
+Model names and server addresses are configurable. Imported bulletins are read without an LLM rewrite.
 
-### 3. Откройте станцию
+### 3. Open the station
 
 ```sh
 ./bin/radio ui
 ```
 
-При первом запуске создаётся конфигурация с путями к четырём установленным WAV. Если голосовой backend установлен в другом месте, поправьте `voice.server_dir`. После успешного запуска откроется [интерфейс на localhost:8765](http://127.0.0.1:8765/); запустите эфир и включите прослушивание в браузере. При замене аудиопака настройте секцию `jingles` по [инструкции](docs/audio.md#роли-и-локальная-установка-аудиопака).
+On first launch, Yourwave creates a configuration pointing to the installed Base WAVs. Adjust `voice.server_dir` if needed, then start the station and enable browser listening at [localhost:8765](http://127.0.0.1:8765/).
 
-Для диагностики:
+To check the audio tools, music directory, and voice backend, including synthesis of a test phrase:
 
 ```sh
 ./bin/radio doctor
 ```
 
-Команда проверяет аудиоинструменты, музыкальную папку и VoiceStudio, затем синтезирует тестовую фразу.
+## How the broadcast works
 
-## Интеграции
+- **Music sets:** local files or a connected YouTube Music playlist, with transitions and station identification.
+- **Short host editions:** technology news, GitHub projects, weather, day notes, and music stories. Main editions are scheduled on the hour and shorter editions at half past, in the station timezone. They wait for a song boundary for up to five minutes.
+- **Host links:** song announcements, time checks, reminders, and introductions between tracks. Speech length and hourly budgets are configurable.
+- **Browser control:** listening, a broadcast timeline, settings, integrations, and experiments.
 
-| Интеграция | Что появляется в эфире | Как подключить |
+Browser output pauses after 30 seconds without listeners and resumes when one connects. The schedule continues to follow wall time; expired editions do not accumulate. Next switches music and cancels a pending automatic insert. Station IDs are eligible at hourly boundaries after 30 minutes without identification.
+
+## Integrations
+
+| Integration | Content | Setup |
 | --- | --- | --- |
-| GitHub Trending | Тренд дня и небольшие популярные проекты | Включено по умолчанию; параметры в `sources.github_trending` |
-| Новые репозитории GitHub | Новые проекты за последнюю неделю | Включено по умолчанию; параметры в `sources.github_new` |
-| Horizon | Новости из подготовленных брифингов Horizon | Установить Horizon отдельно, настроить `sources.horizon` и включить интеграцию |
-| Календарь iCal | Напоминания перед событиями; ненавязчивые упоминания событий на весь день | Указать `reminders.calendar_url`; для событий на весь день включить Host links |
-| Todoist | Напоминания о задачах с назначенным временем | Указать `reminders.todoist_token` |
-| Open-Meteo | Короткий прогноз не чаще одного раза в три часа | Указать `weather.city`, например `Da Lat`, и включить Host links |
-| YouTube Music | Музыка из подключённого плейлиста | Установить `yt-dlp`, подключить плейлист и cookies в интерфейсе, включить интеграцию и перезапустить эфир |
+| GitHub Trending | Popular projects | Enabled by default; `sources.github_trending` |
+| New GitHub repositories | Projects from the last week | Enabled by default; `sources.github_new` |
+| Horizon | Prepared news briefings | Install separately, configure `sources.horizon`, enable the integration |
+| iCal | Timed reminders and all-day mentions | Set `reminders.calendar_url`; enable Host links for all-day events |
+| Todoist | Tasks with a due date and time | Set `reminders.todoist_token` |
+| Open-Meteo | A short weather update at most every three hours | Set `weather.city`, enable Host links |
+| YouTube Music | A connected playlist | Install `yt-dlp`, connect the playlist and cookies, enable the integration, restart playback |
 
-Для напоминаний Todoist у задачи должны быть дата и время. В раскрытии записи ленты сохраняется исходное описание задачи со ссылками. Ведущий произносит только напоминание и название; адреса ссылок удаляются перед синтезом любой речи. Напоминания готовятся заранее и выходят на границе песен; после паузы отсчёт минут пересчитывается, просроченные записи снимаются с очереди.
-
-Для YouTube Music (флаг в **Integrations**, форма подключения в **Settings** видна при включённом флаге):
+For YouTube Music:
 
 ```sh
 brew install yt-dlp
 ```
 
-При недоступности источника предусмотрен возврат к локальной музыке. Cookies могут потребовать обновления; они хранятся в локальном каталоге данных.
+The station can fall back to local music when this source is unavailable. Cookies stay in the local data directory and may need renewal.
 
-**Ведущий поверх музыки.** Станция использует синхронизированные тексты LRCLIB, чтобы выбрать участки до начала и после окончания вокала. Если текста нет, часть выпусков завершается поверх начала следующей песни. Работает автоматически.
+Todoist reminders require both a date and a time. Original descriptions and links remain in timeline details, while URLs are removed from spoken text. Reminders play at song boundaries; expired items are removed and time estimates are recalculated after a pause.
 
-## Настройки
+LRCLIB lyrics help choose speech windows around vocals. Optional Music stories use exact matches from MusicBrainz and Wikidata, with cached results and template-based host links. Enabling them sends artist and track names to those services.
 
-Основной файл создаётся автоматически:
+Experimental public Reddit and Telegram news adapters are documented separately in [public-news.md](docs/public-news.md) (Russian).
+
+## Settings
+
+The existing data-directory name is retained for compatibility:
 
 ```text
 ~/Library/Application Support/PersonalRadioClaude/config.toml
 ```
 
-В **Settings → Audio preset** доступны `Base` (отдельно установленный стандартный набор с настройками из `config.toml`) и `Personal` (локальные переопределения из `presets/personal.toml` в каталоге данных). Личный пресет и выбранный вариант сохраняются вне Git; токены и общие настройки остаются в `config.toml`. Переключение применяется после остановки и нового запуска радио. Если личный файл ещё не создан, вариант `Personal` недоступен.
+Yourwave keeps the `radio` package and CLI names so existing commands continue to work. Existing station names and user settings are preserved; new configurations default to `Yourwave`.
 
-Имя каталога сохранено для совместимости. В файле задаются музыкальная папка, название станции, источники, голос и модель. Название станции можно изменить через **Settings → Station name**; оно применяется к новым подводкам. Пример значений для соответствующих разделов существующего файла:
+In **Settings → Audio preset**, Base uses the separately installed sounds and `config.toml`; Personal overlays `presets/personal.toml` in the data directory. Personal stays unavailable until that file exists. Stop and restart playback after switching presets. Tokens and general configuration remain in `config.toml`.
+
+Example values for the corresponding sections of an existing configuration:
 
 ```toml
 [music]
 path = "~/Music/Radio"
 
 [broadcast]
-station_name = "Personal Radio"
-music_set_minutes = 20  # длина подборки новых треков; не меняет часовую сетку
+station_name = "Yourwave"
+music_set_minutes = 20
 max_break_speech_sec = 120
 max_spoken_seconds_per_rolling_hour = 300
 
@@ -118,116 +127,83 @@ max_spoken_seconds_per_rolling_hour = 300
 city = "Da Lat"
 ```
 
-Числовые настройки эфира и переключатели сохраняются из интерфейса отдельно от `config.toml`. Большинство применяется без перезапуска; описание функции указывает, когда нужен новый запуск.
+The station name can also be changed in Settings. Numeric broadcast settings and feature switches are saved separately from `config.toml`; most apply immediately, and feature descriptions identify restart requirements.
 
-Другой каталог данных можно выбрать при запуске:
+Use an isolated station directory for development, and use the same value for its UI and CLI commands:
 
 ```sh
-RADIO_DATA_DIR="$HOME/.personal-radio" ./bin/radio ui
+RADIO_DATA_DIR="$HOME/.yourwave-dev" ./bin/radio ui --port 8766
 ```
 
-Используйте одно и то же значение `RADIO_DATA_DIR` для интерфейса и CLI-команд этой станции.
+### Timeline and experiments
 
-### Погода
+**Air direction** enables Edit for future host editions and reminders. Music fills the gaps automatically. Edit works on a draft: drag, move, skip, reschedule, or add blocks, then Save together or Cancel. Preparation and queue changes can require reopening the latest plan. Skipping a reminder requires a second confirmation.
 
-Погода: короткая реплика с городом, температурой и текущими условиями (Open-Meteo), без ветра и почасового прогноза. Перед эфиром погодная речь сверяется с текстом через установленный в окружении VoiceStudio `mlx-whisper` и кеш модели `mlx-community/whisper-large-v3-turbo`, без загрузок и LLM. Если проверка недоступна или речь не совпала, вставка не выходит в эфир.
+The normal timeline shows one muted next row above history. Future planning is visible inside Edit. A `~` time is an estimate; a scheduled time is a lower bound, since text and audio must be ready and playback waits for a track boundary. Saved edits survive restarts.
 
-### Эксперимент: режиссура эфира
+**Reroll next track** replaces the next track without interrupting the current one. **Host covers loading gaps** can fill YouTube Music loading pauses. Both are controlled through Experiments.
 
-Состояние голоса и счётчик речи находятся в **Settings → Playback status**. Плеер показывает текущий музыкальный источник и состояние YouTube Music.
+News text is prepared 15 minutes before a section and speech five minutes before it. During a pause, new preparation stops while existing material is retained. If preparation runs late, music continues. Next keeps the browser stream open; manual transitions take 100 ms and automatic transitions retain configured timing.
 
-Флаг **Experiments → Air direction** добавляет кнопку **Edit** в **Timeline**. Редактор управляет выпусками **Host edition** и напоминаниями. Погодный выпуск подписан **Host edition · Weather**. **Music stories · optional** в будущем плане обозначает возможную рубрику; выбранная история показывается без этой пометки, со своей стадией подготовки. Клик по названию выпуска раскрывает рубрики и уже известные материалы; неподготовленные рубрики показаны названиями. Выпуск с погодой остаётся привязан к трёхчасовой отметке, а срочное напоминание может выйти отдельно. Перенос и пропуск выпуска относятся ко всему выступлению ведущего. Музыка автоматически заполняет промежутки: её приглушённые строки нельзя перемещать или пропускать. Пропущенная секция остаётся на своём времени с отметкой **skipped**. `~` перед временем означает оценку, заданное время — «не раньше»: текст и звук должны подготовиться, а воспроизведение ждёт границы трека. **Edit** открывает черновик: строки можно перетаскивать, двигать стрелками, пропускать, переносить по времени и добавлять блок по типу. **Save** применяет изменения вместе; **Cancel** ничего не меняет в эфире. Перенос готовящихся и уже поставленных в очередь вставок заблокирован; Skip может отменить вставку до её начала. Для пропуска напоминания нужен второй клик подтверждения. Если состав секций или стадия подготовки изменились во время редактирования, сохранение просит открыть актуальный план.
+Weather follows `weather.timezone`, every three hours starting at midnight. Manual inserts do not shift that schedule; old missed windows are not replayed. Weather speech is checked against its text with the installed VoiceStudio Whisper environment and cached model; unavailable or mismatched checks suppress the insert.
 
-**Experiments → Reroll next track** включает случайную замену следующего трека кнопкой в **next** и редакторе эфира. Замена применяется сразу; текущая песня продолжает играть. По умолчанию эксперимент выключен.
+### Data and external services
 
-Источники собирают новости и готовят текст за 15 минут до ближайшей секции News; синтез голоса начинается за 5 минут. Перенос и пропуск секции учитываются и при подготовке. Во время паузы новые новости и голос не готовятся; уже подготовленные материалы сохраняются. Если подготовка затянется, эфир продолжит музыку до готовности вставки. Строка **next** учитывает готовый выпуск, который ждёт конца текущего трека. Кнопка **»** запускает его из готового аудио, без ожидания новых подводок; если готового выпуска нет, переходит к следующей песне. Команда Next сразу показывает выполнение; текущая музыка продолжает играть до готовности следующего аудио. Браузерный поток при переключении сохраняется. Ручной переход занимает 100 мс; автоматические сохраняют настроенную плавность. Скорость печати названия следует длительности перехода, а общее начало старого и нового названия сохраняется.
+Configuration, credentials, cookies, audio caches, and broadcast history stay outside Git. Keep secret iCal links and cookies private. The UI binds to `127.0.0.1`. Enabled integrations make network requests; the default Ollama and VoiceStudio backends process text and speech locally.
 
-В **Timeline** над историей показана одна приглушённая строка **next** с названием непосредственно следующего трека или уже поставленного в очередь блока. Если следующий элемент пока неизвестен, строка скрыта. При включённом Air direction будущий план появляется только после **Edit**; вне редактора остаётся одна строка **next**. Просмотр работает и без Air direction; обычные новости показаны без выдуманного точного времени.
+## Commands
 
-План и правки хранятся локально и переживают перезапуск. **Restore** возвращает пропущенную секцию. Отключение эксперимента возвращает автоматический порядок, сохраняя правки для следующего включения.
-
-Автоматическая погода привязана к `weather.timezone` (по умолчанию `Asia/Ho_Chi_Minh`): 00:00, 03:00, 06:00 и так далее. Ручные вставки не сдвигают график. При выключенной станции эфир невозможен; пропущенные окна старше 30 минут не догоняются, следующие остаются на своих часах.
-
-### Музыкальные подводки
-
-В Integrations включите **Music stories**: если новостей нет в очереди, ведущий коротко расскажет об исполнителе или просто продолжит музыкальный эфир, без сообщения «новостей нет». Материал готовится к ближайшему выпуску по часам; новости имеют приоритет.
-
-[MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API) связывает название трека с исполнителем и даёт год основания группы; [Wikidata](https://www.wikidata.org/wiki/Special:EntityData) — короткое русское описание по связанной записи. Только точные совпадения, без догадок. API не требуют ключей; данные кешируются на неделю, ошибки — на 15 минут. Подводки собираются шаблонами: **0 LLM-токенов**. Текст и ссылки на источники остаются в раскрываемой записи ленты. При включении наружу отправляются имя исполнителя и название трека.
-
-### Данные и внешние сервисы
-
-Конфигурация, токены, cookies, кэш аудио и история эфира находятся в каталоге данных вне репозитория. Секретная iCal-ссылка даёт доступ к календарю; храните её и cookies только локально.
-
-Интерфейс слушает только `127.0.0.1`. Источники новостей, погода, календарь, Todoist, YouTube Music и LRCLIB используют сетевые запросы; локальные Ollama и VoiceStudio обрабатывают текст и голос на вашей машине при стандартной конфигурации.
-
-## Команды
-
-| Команда | Действие |
+| Command | Action |
 | --- | --- |
-| `./bin/radio ui` | Открыть управление и прослушивание |
-| `./bin/radio play` | Запустить эфир |
-| `./bin/radio pause` / `./bin/radio resume` | Приостановить / продолжить |
-| `./bin/radio next` | Перейти к следующему треку |
-| `./bin/radio skip-news` | Пропустить новости |
-| `./bin/radio stop` | Остановить станцию |
-| `./bin/radio status` | Показать состояние |
-| `./bin/radio history --last 20` | Показать последние выпуски |
-| `./bin/radio source list` | Показать источники |
-| `./bin/radio doctor` | Проверить окружение и голос |
+| `./bin/radio ui` | Open control and browser listening |
+| `./bin/radio play` | Start playback |
+| `./bin/radio pause` / `./bin/radio resume` | Pause / resume |
+| `./bin/radio next` | Play the next item |
+| `./bin/radio skip-news` | Skip news |
+| `./bin/radio stop` | Stop the station |
+| `./bin/radio status` | Show status |
+| `./bin/radio history --last 20` | Show recent bulletins |
+| `./bin/radio source list` | List sources |
+| `./bin/radio doctor` | Check tools and synthesize a voice sample |
 
-Записать эфир при новом запуске:
+Record a new playback session:
 
 ```sh
-./bin/radio play --record /tmp/personal-radio.wav
+./bin/radio play --record /tmp/yourwave.wav
 ```
 
-### Своя сводка
+### Import a briefing
 
-Импортируйте Markdown или JSON либо передайте текст из буфера обмена macOS:
+Import Markdown or JSON, or use the macOS clipboard:
 
 ```sh
 ./bin/radio import examples/test-digest.md --published-at "$(date +%Y-%m-%dT%H:%M:%S%z)"
-./bin/radio paste --topic "Моя сводка" --published-at "$(date +%Y-%m-%dT%H:%M:%S%z)"
+./bin/radio paste --topic "My briefing" --published-at "$(date +%Y-%m-%dT%H:%M:%S%z)"
 ```
 
-Дата выпуска должна содержать часовой пояс; сводки старше 24 часов не попадают в эфир. В примере текущая дата назначается проверочному тексту; для настоящих новостей указывайте фактическое время публикации. При импорте дата также может находиться в метаданных файла.
+Publication timestamps need a timezone. Briefings older than 24 hours are excluded. These examples assign the current time to test text; use the actual publication time for real news. File metadata can also supply the timestamp.
 
-Радио удаляет разметку и ссылки из произносимого текста и делит длинную сводку на части, сохраняя её слова. Формат входящих файлов описан в [`radio/content.py`](radio/content.py).
+Yourwave removes markup and links from spoken text and splits long bulletins without rewriting their words. Input formats are defined in [`radio/content.py`](radio/content.py).
 
-## Как это устроено
+## Development
 
-```mermaid
-flowchart LR
-    M[Музыкальная папка / YouTube Music] --> S[Планировщик эфира]
-    N[Новости / сводки / напоминания / погода] --> V[Подготовка текста и озвучка]
-    V --> S
-    S --> L[Liquidsoap + FFmpeg]
-    L --> B[Браузер / колонки]
-    U[Веб-интерфейс / CLI] --> S
-```
-
-| Каталог | Содержимое |
-| --- | --- |
-| [`radio/`](radio/) | Планировщик, интеграции, аудиотракт, CLI и веб-интерфейс |
-| [`assets/`](assets/) | Аудиокаталог, настройки громкости и словарь произношения; сам аудиопак локальный |
-| [`examples/`](examples/) | Пример сводки; локальные аудиопредпросмотры исключены из Git |
-| [`tests/`](tests/) | Проверки логики и фикстуры |
-| [`launcher/`](launcher/) | AppleScript для запуска на macOS |
-
-## Разработка
+Install Base first, then run:
 
 ```sh
 python3 -m unittest discover -s tests
+git diff --check
 ```
 
-Перед тестами установите Base командой выше: часть тестов использует установленные аудиоинструменты и четыре служебных WAV базового набора; сами тесты ничего не скачивают. Полноценная проверка эфира дополнительно требует работающего голосового backend и прослушивания результата.
+Tests do not download audio or require VoiceStudio or an LLM, but some use FFmpeg, Liquidsoap, and the four installed WAVs. Automated checks do not prove live broadcast quality. See [CONTRIBUTING.md](CONTRIBUTING.md) and [TODO.md](TODO.md).
 
-Текущие отложенные задачи — в [`TODO.md`](TODO.md): назначение собственных джинглов через интерфейс. Заполнение пауз при загрузке YouTube Music уже доступно через **Experiments → Host covers loading gaps**.
+| Directory | Contents |
+| --- | --- |
+| [`radio/`](radio/) | Scheduler, integrations, audio, CLI, and browser UI |
+| [`assets/`](assets/) | Audio manifest, licenses, pronunciation and gain settings; audio stays local |
+| [`examples/`](examples/) | Example briefing; local audio previews are ignored |
+| [`tests/`](tests/) | Checks and fixtures |
+| [`launcher/`](launcher/) | Optional macOS AppleScript launcher |
 
-Правила работы с issues и PR, проверки и отдельное окружение для разработки — в [CONTRIBUTING.md](CONTRIBUTING.md).
+## License
 
-## Лицензия
-
-Исходный код и документация — [MIT](LICENSE). Четыре базовых WAV — фрагменты «Tech Live» Kevin MacLeod под CC BY 4.0: сохраняйте автора, источник, лицензию и описание изменений; [атрибуция и повторная сборка](assets/RIGHTS.md). Аудио исключено из Git-истории; базовый набор раздаётся отдельным версионированным архивом в Releases. Остальное аудио исключено из поставки: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Источники и решение по каждому файлу записаны в [аудиокаталоге](docs/audio.md).
-
-Экспериментальные новости из Reddit и публичных Telegram-каналов: [настройка и ограничения](docs/public-news.md).
+Code and documentation are [MIT](LICENSE). The four Base WAVs are edited excerpts from **Tech Live by Kevin MacLeod**, under **CC BY 4.0**; retain attribution, source, license, and descriptions of changes. They are distributed only through Releases. See [audio rights](assets/RIGHTS.md) and [third-party notices](THIRD_PARTY_NOTICES.md). Historical audio-audit and research documents under `docs/` may be in Russian.

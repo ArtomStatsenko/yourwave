@@ -1,33 +1,33 @@
-# Сторонние материалы
+# Third-party notices
 
-[MIT](LICENSE) распространяется на исходный код и документацию Personal Radio. Она не применяется к музыке, джинглам, озвучке и другим сторонним материалам.
+[MIT](LICENSE) covers Yourwave source code and documentation. It does not relicense music, jingles, speech recordings, or other third-party materials.
 
-## Аудиопак
+## Base audio
 
-Текущий базовый набор состоит из четырёх фрагментов **Tech Live** — **Kevin MacLeod (incompetech.com)**, распространяемых под **Creative Commons Attribution 4.0 International (CC BY 4.0)**. Лицензия разрешает редактирование и распространение с исходниками при сохранении атрибуции и указании изменений; музыка не перелицензируется в MIT.
+The separately distributed Base pack contains four edited excerpts from **Tech Live by Kevin MacLeod (incompetech.com)** under **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
 
 > "Tech Live" Kevin MacLeod (incompetech.com)
 > Licensed under Creative Commons: By Attribution 4.0 License
 > https://creativecommons.org/licenses/by/4.0/
 
-[Источник](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700030) · [Полный текст лицензии](assets/LICENSE-CC-BY-4.0.txt) · [Файлы, хеши и обработка](assets/RIGHTS.md).
+[Author's source page](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700030) · [Full license](assets/LICENSE-CC-BY-4.0.txt) · [Files, hashes, and processing](assets/RIGHTS.md).
 
-Обработка: нарезка по долям при 124 BPM, нормализация и ограничение пиков, плавные края, PCM stereo 44.1 kHz. Имя автора и ссылка на лицензию также доступны в Settings → Audio preset. При распространении модификаций сохраняйте эти сведения и отмечайте свои изменения; не представляйте автора как участника или сторонника проекта.
+Changes: beat-aligned excerpts at 124 BPM, normalization, peak limiting, fades, PCM S16LE stereo at 44.1 kHz. Keep attribution and describe further modifications. Do not imply the author's endorsement. Credits are also displayed in Settings → Audio preset.
 
-## Исключённый локальный набор и история
+## Excluded local recordings
 
-Исторический аудит от 21 октября 2026 охватил 52 записи. Четыре прежних резервных WAV заменены; остальные 48 записей остаются только локальными. Их исходные сведения сохранены в [аудиокаталоге](docs/audio.md) и [манифесте](assets/audio-manifest.json).
+The historical audit of October 21, 2026 covered 52 recordings. Four unverified fallback WAVs have been replaced; the other 48 recordings remain local. Their provenance is retained as metadata in the [audio manifest](assets/audio-manifest.json) and [historical audit](docs/audio.md) (Russian).
 
-- **32 записи Pixabay:** локальные метаданные подтверждают URL загрузки; [условия, раздел 5](https://pixabay.com/service/terms/) ограничивают отдельное распространение исходных записей. В публичный исходный код они не включаются.
-- **Один эффект Mixkit:** [Sound Effects Free License](https://mixkit.co/license/modal/sfxFree/) допускает использование в составном продукте, но запрещает передачу эффекта с исходниками или в инструменте/шаблоне. Файл не включается.
-- **Шесть собственных генераций Suno:** владелец подтвердил платный тариф и получение текущих копий через сторонний загрузчик. До публикации нужны штатные загрузки из Suno и выбор отдельной лицензии для аудио. [Условия Suno](https://suno.com/terms).
-- **Четыре прежних резервных WAV:** заменены 24 октября 2026; происхождение старых копий не подтверждено, распространять их нельзя.
-- **Девять готовых примеров:** права на все компоненты микса не подтверждены; в поставку не включены.
+- **32 Pixabay recordings:** excluded because standalone stock redistribution is restricted by [section 5 of the terms](https://pixabay.com/service/terms/).
+- **One Mixkit effect:** excluded because its [Sound Effects Free License](https://mixkit.co/license/modal/sfxFree/) restricts distribution with source files, tools, and templates.
+- **Six Suno generations:** excluded pending original downloads and a separate audio-license decision; the owner reported a paid subscription and copies obtained through a third-party downloader. [Suno terms](https://suno.com/terms).
+- **Four former fallback WAVs:** replaced on October 24, 2026; provenance was unverified.
+- **Nine mixed audio examples:** excluded because rights for all components have not been established.
 
-Эти выводы касаются распространения файлов с исходниками. Права на публичный эфир, сторонние сэмплы и каждый компонент готового микса отдельно не подтверждены.
+These are distribution decisions for this project, not a blanket clearance for public broadcasting or for every component of a mixed recording.
 
-**Аудиофайлы удалены из публикуемой Git-истории.** Base устанавливается из версионированного архива Releases с проверкой SHA-256; лицензия и атрибуция включены в архив. Прежняя история сохранена в приватной локальной резервной копии; не возвращайте её ветки или теги на сервер.
+Audio has been removed from the published Git history. Base is installed from a versioned Release archive with a pinned SHA-256, license, and credits. Do not push branches or tags from the old unfiltered history. The former repository and local backups remain private.
 
-## Инструменты и внешние источники
+## Tools and external services
 
-Проект использует отдельно установленные Python, Liquidsoap, FFmpeg, VoiceStudio, Ollama и, для YouTube Music, `yt-dlp`. Интеграции обращаются к GitHub, Horizon, iCal-источникам, Todoist, Open-Meteo, YouTube Music, LRCLIB, MusicBrainz и Wikidata в зависимости от конфигурации. У этих инструментов, сервисов и получаемого контента собственные лицензии и условия использования.
+Yourwave uses separately installed Python, Liquidsoap, FFmpeg, VoiceStudio, Ollama, and optionally yt-dlp. Enabled integrations may contact GitHub, Horizon, iCal sources, Todoist, Open-Meteo, YouTube Music, LRCLIB, MusicBrainz, and Wikidata. Their software, services, and retrieved content retain their own licenses and terms.

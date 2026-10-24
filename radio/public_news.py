@@ -26,7 +26,7 @@ def check_url(url):
 
 def fetch(url):
     check_url(url)
-    req = urllib.request.Request(url, headers={"User-Agent": "PersonalRadio/0.1 (public news experiment)",
+    req = urllib.request.Request(url, headers={"User-Agent": "Yourwave/0.1 (public news experiment)",
                                                "Accept": "application/atom+xml,text/html"})
     with urllib.request.build_opener(_Redirect()).open(req, timeout=15) as response:
         data = response.read(LIMIT + 1)

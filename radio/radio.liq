@@ -1,4 +1,4 @@
-# Personal Radio audio engine. Started by radio/engine.py; all paths come from env.
+# Yourwave audio engine. Started by radio/engine.py; all paths come from env.
 settings.log.stdout := false
 settings.log.file := true
 settings.log.file.path := environment.get("RADIO_LIQ_LOG")

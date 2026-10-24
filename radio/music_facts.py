@@ -16,7 +16,7 @@ from . import config
 
 _mb_lock = threading.Lock()
 _last_mb = 0.0
-USER_AGENT = "PersonalRadio/0.1 (https://github.com/ArtomStatsenko/PersonalRadio)"
+USER_AGENT = "Yourwave/0.1 (https://github.com/ArtomStatsenko/yourwave)"
 
 
 def _get(url: str, **params) -> dict:

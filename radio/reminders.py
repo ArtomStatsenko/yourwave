@@ -12,7 +12,7 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-USER_AGENT = "PersonalRadio/0.1 (personal reminders, read only)"
+USER_AGENT = "Yourwave/0.1 (personal reminders, read only)"
 TODOIST_URL = "https://api.todoist.com/api/v1/tasks"
 WEEKDAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 MAX_OCCURRENCES = 20000

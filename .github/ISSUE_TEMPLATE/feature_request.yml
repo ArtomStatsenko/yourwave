@@ -1,22 +1,22 @@
-name: Предложение
-description: Улучшение радио или новый сценарий использования
+name: Feature request
+description: Suggest an improvement or a new use case
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Какую задачу нужно решить?
-      description: Опишите конкретный сценарий и то, чего сейчас не хватает.
+      label: Problem to solve
+      description: Describe a concrete use case and what is missing.
     validations:
       required: true
   - type: textarea
     id: outcome
     attributes:
-      label: Ожидаемое поведение
-      description: Что изменится для слушателя или владельца станции?
+      label: Expected behavior
+      description: What would change for the listener or station owner?
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Альтернативы и контекст
-      description: Что уже пробовали? Если есть подходящий пример, добавьте ссылку.
+      label: Alternatives and context
+      description: What have you tried? Include a relevant example if available.

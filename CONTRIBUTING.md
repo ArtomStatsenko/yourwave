@@ -1,50 +1,44 @@
-# Участие в Personal Radio
+# Contributing to Yourwave
 
-Перед новой задачей проверьте существующие issues и [TODO.md](TODO.md). Крупное изменение лучше сначала обсудить в issue, указав сценарий использования и ожидаемое поведение.
+Check existing issues and [TODO.md](TODO.md) before starting work. Discuss substantial changes in an issue with a concrete use case and expected behavior.
 
-## Подготовка
+## Setup
 
-Установка инструментов и настройка голосового backend описаны в [README](README.md#быстрый-старт). Python-части нужен Python 3.11+; для аудиопроверок выполните `python3 tools/install_base_audio.py`; нужны FFmpeg, Liquidsoap и локальный [аудиопак](docs/audio.md#роли-и-локальная-установка-аудиопака).
+Follow the [quick start](README.md#quick-start), including the separate Base audio installation. Python 3.11+, FFmpeg, and Liquidsoap are required for audio checks.
 
-Для экспериментов используйте отдельный каталог данных, чтобы не менять конфигурацию и историю своей станции:
+Use a separate data directory so experiments do not alter your station:
 
 ```sh
-RADIO_DATA_DIR="$HOME/.personal-radio-dev" ./bin/radio ui --port 8766
+RADIO_DATA_DIR="$HOME/.yourwave-dev" ./bin/radio ui --port 8766
 ```
 
-Используйте то же значение `RADIO_DATA_DIR` для CLI-команд. Если одновременно работает основная станция, задайте отдельный `output.stream_port` в конфигурации тестовой станции до запуска эфира.
+Use the same `RADIO_DATA_DIR` for that station's CLI commands. If another station is running, configure a separate `output.stream_port` before starting playback.
 
-## Сообщить об ошибке
+## Issues and pull requests
 
-Укажите шаги воспроизведения, ожидаемый и фактический результат, версию macOS, Python и задействованных аудиоинструментов, а также коммит проекта. Для проблем с голосом или источником укажите соответствующую интеграцию.
+- Describe reproduction steps, expected and actual behavior, the commit, macOS/Python/audio-tool versions, and the affected source or integration.
+- Keep each PR focused on one problem. Reuse the existing structure; explain any new dependency.
+- Add meaningful checks for new logic and update affected instructions.
+- Report commands and results, including anything not checked. Include a screenshot for UI changes or a short non-private listening example for audio changes.
+- Remove tokens, cookies, secret calendar links, personal events, and private paths from evidence. Do not attach your full configuration, database, or data directory.
 
-Перед публикацией логов удалите токены, cookies, секретные ссылки iCal, личные события и пути к файлам. Не прикладывайте целиком `config.toml`, базу данных или каталог данных станции.
-
-## Предложить изменение
-
-- Один PR — одна задача; опишите проблему и получившееся поведение.
-- Сохраняйте существующую структуру; новую зависимость добавляйте только с объяснением необходимости.
-- Для новой логики добавьте проверку наблюдаемого поведения; обновите затронутые инструкции и примеры.
-- В описании PR перечислите выполненные проверки и их результаты; отдельно отметьте то, что не проверяли.
-- Для интерфейса приложите скриншот, для звукового изменения — небольшой пример или описание прослушанного сценария без личного контента.
-
-## Проверки
+## Checks
 
 ```sh
 python3 -m unittest discover -s tests
 git diff --check
 ```
 
-Для запуска тестов модель и VoiceStudio не нужны; часть тестов запускает аудиоинструменты. Если проверка зависла или окружение не позволило её выполнить, укажите это в PR. Успешные модульные тесты сами по себе не подтверждают звучание реального эфира.
+Tests do not need a model or VoiceStudio, but some launch audio tools and need the installed Base WAVs. State any environmental limitation in the PR. Passing tests alone does not establish live audio quality.
 
-Диагностика настроенного окружения:
+For an explicitly configured voice check:
 
 ```sh
-RADIO_DATA_DIR="$HOME/.personal-radio-dev" ./bin/radio doctor
+RADIO_DATA_DIR="$HOME/.yourwave-dev" ./bin/radio doctor
 ```
 
-`doctor` обращается к VoiceStudio и создаёт тестовую озвучку. Изменения звукового тракта дополнительно проверяйте прослушиванием.
+`doctor` contacts VoiceStudio and synthesizes a sample. Listen to changes in the audio path.
 
-## Лицензия и материалы
+## License and materials
 
-Исходный код и документация распространяются под [MIT](LICENSE). Для аудио и сторонних материалов действуют отдельные условия: см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). При добавлении таких материалов укажите автора, первоисточник и разрешение на распространение.
+Code and documentation are [MIT](LICENSE). Audio and third-party materials have separate terms in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Provide the author, original source, and redistribution permission when adding such materials.

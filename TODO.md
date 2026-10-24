@@ -1,5 +1,5 @@
-# Отложенные задачи
+# Deferred work
 
-- [ ] Назначение собственных джинглов через UI.
-  - В Settings выбирать свои файлы или папки для каждой роли: вступление, концовка, подложка, разделитель, позывные, напоминания и заставки рубрик.
-  - Сохранять назначения в локальном пресете Personal, сохраняя базовый набор репозитория.
+- [ ] Assign custom jingles through Settings.
+  - Select files or folders for intros, outros, beds, separators, station IDs, reminders, and section sounds.
+  - Save assignments in the local Personal preset while retaining Base.

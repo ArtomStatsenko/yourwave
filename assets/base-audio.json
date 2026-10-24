@@ -1,8 +1,8 @@
 {
   "version": "base-audio-v1.0.0",
-  "url": "https://github.com/ArtomStatsenko/PersonalRadio/releases/download/base-audio-v1.0.0/personalradio-base-audio-v1.0.0.zip",
-  "sha256": "9860a1c7bf3fe36c1c70753f8d22ba2af9a689ddd0805efb01ff9535f5c29f78",
-  "bytes": 3312815,
+  "url": "https://github.com/ArtomStatsenko/yourwave/releases/download/base-audio-v1.0.0/yourwave-base-audio-v1.0.0.zip",
+  "sha256": "73d98b01e486295de81b5da00c2e2e8122f05e3286f136b14ec0f79143904e4d",
+  "bytes": 3312428,
   "files": {
     "bed.wav": {
       "sha256": "46eb91eaba6132d8059b73cf67577c4ea09ad3396e423e3efe5a4ffd57c2d27d",

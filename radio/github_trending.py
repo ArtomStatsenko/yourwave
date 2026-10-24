@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 
 URL = "https://github.com/trending?since=daily"
-USER_AGENT = "PersonalRadio/0.1 (personal use; one request per hour)"
+USER_AGENT = "Yourwave/0.1 (personal use; one request per hour)"
 
 
 class ParseError(Exception):

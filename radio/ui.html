@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Personal Radio</title>
+<title>Yourwave</title>
 <style>
 /* Listening and editing share one bottom-to-top broadcast timeline. */
 :root{--bg:#f2f2ee;--surface:#e7e7e1;--ink:#17170f;--muted:#5f5f55;--line:#cfcfc5;--accent:#c2410c;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
@@ -355,8 +355,8 @@ function media(ds){
   if(!('mediaSession' in navigator))return;
   var t=running()?(ds.current_title||''):'';if(t===mtitle)return;mtitle=t;
   var p=t.split(' - '),music=ds.current_kind==='music'&&p.length>1;
-  navigator.mediaSession.metadata=new MediaMetadata({title:music?p.slice(1).join(' - '):t||'Personal Radio',
-    artist:music?p[0]:KIND[ds.current_kind]||'',album:'Personal Radio'})}
+  navigator.mediaSession.metadata=new MediaMetadata({title:music?p.slice(1).join(' - '):t||'Yourwave',
+    artist:music?p[0]:KIND[ds.current_kind]||'',album:'Yourwave'})}
 if('mediaSession' in navigator){var ms=navigator.mediaSession;
   ms.setActionHandler('play',function(){if(!listening)listen()});ms.setActionHandler('pause',function(){if(listening)unlisten()});
   try{ms.setActionHandler('stop',function(){if(listening)unlisten()});ms.setActionHandler('nexttrack',function(){cmd('next')})}catch(e){}}

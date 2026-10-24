@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 
 URL = "https://lrclib.net/api/search"
-USER_AGENT = "PersonalRadio/0.1 (personal use; one lookup per track)"
+USER_AGENT = "Yourwave/0.1 (personal use; one lookup per track)"
 LAST_LINE_SEC = 4.0  # guess for a last line without an end mark
 MAX_DURATION_DIFF = 3.0  # a found version must be this close in length, or its timings are someone else's
 

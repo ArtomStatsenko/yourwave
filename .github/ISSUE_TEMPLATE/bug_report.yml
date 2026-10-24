@@ -1,31 +1,31 @@
-name: Ошибка
-description: Проблема с эфиром, интерфейсом или интеграцией
+name: Bug report
+description: Report a problem with playback, the interface, or an integration
 body:
   - type: markdown
     attributes:
-      value: Не прикладывайте cookies, токены, секретные ссылки календаря, личные события или полный конфиг.
+      value: Do not attach cookies, tokens, secret calendar links, personal events, or your full configuration.
   - type: textarea
     id: reproduction
     attributes:
-      label: Шаги воспроизведения
-      description: Что нужно сделать, чтобы получить ошибку?
+      label: Steps to reproduce
+      description: How can someone reproduce the problem?
     validations:
       required: true
   - type: textarea
     id: behavior
     attributes:
-      label: Ожидаемый и фактический результат
+      label: Expected and actual behavior
     validations:
       required: true
   - type: textarea
     id: environment
     attributes:
-      label: Окружение
-      description: Коммит проекта, версия macOS, Python, FFmpeg и Liquidsoap; источник музыки и затронутая интеграция.
+      label: Environment
+      description: Project commit, macOS, Python, FFmpeg and Liquidsoap versions, music source, and affected integration.
     validations:
       required: true
   - type: textarea
     id: evidence
     attributes:
-      label: Логи и примеры
-      description: При необходимости приложите очищенный фрагмент лога, скриншот или короткий аудиопример без личных данных.
+      label: Logs and examples
+      description: If useful, attach a redacted log excerpt, screenshot, or short audio example without private content.

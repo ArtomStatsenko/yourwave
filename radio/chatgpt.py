@@ -60,7 +60,7 @@ def login_url(redirect_uri: str) -> str:
     _pending[state] = (verifier, redirect_uri)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     return AUTHORIZE_URL + "?" + urllib.parse.urlencode({
-        "client_id": "dynamic_agent_client", "agent_name_hint": "Personal Radio", "ext_agent_host_id": data["host_id"],
+        "client_id": "dynamic_agent_client", "agent_name_hint": "Yourwave", "ext_agent_host_id": data["host_id"],
         "response_type": "code", "redirect_uri": redirect_uri, "resource": RESOURCE, "scope": SCOPE,
         "state": state, "code_challenge": challenge, "code_challenge_method": "S256",
         "nonce": secrets.token_urlsafe(32)})

@@ -1,4 +1,4 @@
-# PersonalRadio
+# Yourwave
 
 <!-- impeccable:product-schema 1 -->
 
@@ -58,7 +58,7 @@ The timeline presents host appearances as Host edition rows, with source segment
 
 ## Brand Commitments
 
-Keep the PersonalRadio identity and the existing compact interface. The host speaks Russian; timeline block labels and configuration UI use the established English vocabulary. Russian source descriptions are valid. Do not rewrite original user content merely to normalize the interface.
+Keep the Yourwave identity and the existing compact interface. The host speaks Russian; timeline block labels and configuration UI use the established English vocabulary. Russian source descriptions are valid. Do not rewrite original user content merely to normalize the interface.
 
 ## Evidence on Hand
 

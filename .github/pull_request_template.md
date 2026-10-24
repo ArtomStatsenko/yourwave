@@ -1,15 +1,15 @@
-## Изменение
+## Change
 
-<!-- Какую проблему решает PR и как теперь работает затронутый сценарий? -->
+<!-- What problem does this solve, and how does the affected scenario work now? -->
 
-## Проверки
+## Validation
 
-<!-- Команды и результаты; для UI — скриншот, для аудио — прослушанный сценарий. Явно укажите, что не проверено. -->
+<!-- Commands and results; screenshots for UI changes, listening evidence for audio. State what was not checked. -->
 
-## Связанные задачи
+## Related work
 
-<!-- Ссылки на issues, если они есть. -->
+<!-- Link relevant issues, if any. -->
 
-## Совместимость
+## Compatibility
 
-<!-- Нужны ли перезапуск, изменение конфигурации или миграция данных? Если нет — укажите это. -->
+<!-- Does this require a restart, configuration change, or data migration? State if none is needed. -->

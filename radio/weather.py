@@ -39,7 +39,7 @@ def slot(at: datetime, zone: str) -> datetime:
 
 def _get(url: str, **params):
     req = urllib.request.Request(url + "?" + urllib.parse.urlencode(params),
-                                 headers={"User-Agent": "PersonalRadio/0.1 (local weather)"})
+                                 headers={"User-Agent": "Yourwave/0.1 (local weather)"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.load(r)
 

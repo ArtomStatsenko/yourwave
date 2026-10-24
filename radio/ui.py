@@ -68,7 +68,7 @@ class Stream:
 def serve(port: int) -> None:
     server = make_server(port)
     url = f"http://127.0.0.1:{server.server_port}/"
-    print(f"Personal Radio UI: {url}  (Ctrl+C — закрыть интерфейс; радио продолжит играть)")
+    print(f"Yourwave UI: {url}  (Ctrl+C — закрыть интерфейс; радио продолжит играть)")
     webbrowser.open(url)
     try:
         server.serve_forever()

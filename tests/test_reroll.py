@@ -491,7 +491,7 @@ class RerollTests(unittest.TestCase):
              patch('radio.audio.render_notice', side_effect=render):
             self.svc._prepare_opener()
         line = self.svc._opener_line()
-        self.assertTrue(line.startswith('annotate:kind="gap",ref="В эфире «Personal Radio».'), line)
+        self.assertTrue(line.startswith('annotate:kind="gap",ref="В эфире «Yourwave».'), line)
         self.assertTrue(line.endswith(str(self.svc._opener_file())))
 
     def test_engine_resumes_a_song_at_its_position_before_the_shuffle(self):
