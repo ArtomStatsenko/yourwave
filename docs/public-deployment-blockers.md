@@ -4,9 +4,9 @@ Yourwave is a local macOS station. The target first-run scenario is: clone, inst
 
 ## Repository and audio
 
-Yourwave is being moved to a new independent private repository, preserving the cleaned development history. No audio binaries belong in Git. The four Base WAVs are edited excerpts from Tech Live by Kevin MacLeod under CC BY 4.0, distributed as a separate Release archive with credits and the license. Code and documentation remain MIT.
+Yourwave has moved to a new independent private repository, preserving the cleaned development history. No audio binaries belong in Git. The four Base WAVs are edited excerpts from Tech Live by Kevin MacLeod under CC BY 4.0, distributed as a separate Release archive with credits and the license. Code and documentation remain MIT.
 
-The former PersonalRadio repository remains private. Its server still returned a former unverified WAV by direct authenticated SHA after history rewriting; that was a limitation of the old repository, even though its fresh clone was clean. Before completing the Yourwave transfer, verify that the new repository is not a fork, that its fresh clone has none of the 72 old audio blobs, and that the old WAV SHA is unavailable through its API. Do not push old unfiltered branches or tags.
+The former PersonalRadio repository remains private. Its server still returned a former unverified WAV by direct authenticated SHA after history rewriting; that was a limitation of the old repository, even though its fresh clone was clean. The new repository is not a fork. Its fresh GitHub clone has none of the 72 old audio blobs, and the former unverified WAV SHA returns HTTP 404 through the new repository API. This was verified on October 24, 2026. Do not push old unfiltered branches or tags.
 
 The pinned installer checks archive size, SHA-256, exact contents, WAV hashes and format. It preserves matching Base files, refuses customized sounds and symlinks, leaves Personal presets alone, and rolls back newly written files on a write failure. [Installation and provenance](../assets/RIGHTS.md).
 
@@ -20,6 +20,6 @@ The pinned installer checks archive size, SHA-256, exact contents, WAV hashes an
 
 ## Verification scope
 
-Before renaming, the cleaned code plus the separate-audio installer passed 251 tests on this Mac. A fresh GitHub clone passed 14 additional checks after a verified archive round trip. The base WAVs were rebuilt byte-for-byte with FFmpeg 9.0.2; duration, format, loudness, and peaks were checked.
+The renamed Yourwave code, including the latest compact-timeline-tabs commit, passed all 251 tests on this Mac. A fresh GitHub clone passed 22 additional checks after installing the archive downloaded back from its new Release; the pinned SHA-256 matched. Primary documentation, issue/PR templates, repository description and Release notes are in English. The base WAVs were rebuilt byte-for-byte with FFmpeg 9.0.2; duration, format, loudness, and peaks were checked.
 
 These checks do not prove a new-machine VoiceStudio setup, human listening quality, or complete secret/licensing clearance for optional user content. Existing historical research and audio audits under `docs/` may be in Russian. [Third-party notices](../THIRD_PARTY_NOTICES.md).
