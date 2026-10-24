@@ -1,0 +1,24 @@
+{
+  "version": "base-audio-v1.0.0",
+  "url": "https://github.com/ArtomStatsenko/PersonalRadio/releases/download/base-audio-v1.0.0/personalradio-base-audio-v1.0.0.zip",
+  "sha256": "9860a1c7bf3fe36c1c70753f8d22ba2af9a689ddd0805efb01ff9535f5c29f78",
+  "bytes": 3312815,
+  "files": {
+    "bed.wav": {
+      "sha256": "46eb91eaba6132d8059b73cf67577c4ea09ad3396e423e3efe5a4ffd57c2d27d",
+      "bytes": 2731702
+    },
+    "separator.wav": {
+      "sha256": "cb9c37833e1116096d0d3fd4e67ceec082daee39e024b5eb9fd3202ea7ca6711",
+      "bytes": 171060
+    },
+    "stinger_in.wav": {
+      "sha256": "23adedf570f72066e7da5c4b098c5742d6a53a1599ce95ae6f089e3e5f9c2e70",
+      "bytes": 341774
+    },
+    "stinger_out.wav": {
+      "sha256": "c10271d6d6c6c1f1938db0c554f5954f6be1d8c7f06edef59a6b9b0a1d1906c7",
+      "bytes": 341774
+    }
+  }
+}

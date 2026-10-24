@@ -175,7 +175,7 @@ def load(*, audio_preset: str | None = None) -> dict:
         p = PKG_DIR.parent / Path(cfg["jingles"][k]).expanduser()
         files = sorted(f for f in p.iterdir() if f.suffix.lower() in AUDIO_EXTS) if p.is_dir() else [p]
         if not files or not files[0].exists():
-            raise ValueError(f"no audio for jingles.{k}: {p}")
+            raise ValueError(f"no audio for jingles.{k}: {p}; install Base with python3 tools/install_base_audio.py or configure your own files")
         cfg["jingles"][k] = files
     b = cfg["broadcast"]
     # The spec's 300 s is the default; the settings page may raise it (settings.py) when breaks are made longer.

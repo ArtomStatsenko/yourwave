@@ -1,6 +1,6 @@
 {
   "checked_on": "2026-10-24",
-  "scope": "Current base: four edited Tech Live excerpts (Kevin MacLeod), CC BY 4.0. Other entries retain the local excluded-audio audit of 2026-10-21. Previous base hashes remain historical only; old Git objects still require a clean public snapshot.",
+  "scope": "Base: four edited Tech Live excerpts (Kevin MacLeod), CC BY 4.0, distributed only as a versioned Release asset. No audio in Git history. Other entries and replaced_base retain historical local-only audit metadata.",
   "entries": [
     {
       "path": "assets/bed.wav",
@@ -23,12 +23,13 @@
       "license": "CC-BY-4.0",
       "license_url": "https://creativecommons.org/licenses/by/4.0/",
       "review_status": "redistribution-with-attribution",
-      "include_in_git": true,
+      "include_in_git": false,
       "evidence": "Official author track page and FAQ; CC BY 4.0 legal text in assets/LICENSE-CC-BY-4.0.txt",
       "processing": "Beat-aligned excerpt at 124 BPM, gain normalization to -16 LUFS, -3 dB sample-peak limiter, edge fades; PCM S16LE stereo 44.1 kHz",
       "rebuild": "python3 tools/build_base_audio.py /path/to/Tech Live.mp3",
       "fade_in_seconds": 0.005,
-      "fade_out_seconds": 0.005
+      "fade_out_seconds": 0.005,
+      "distribution": "base-audio-v1.0.0 release asset"
     },
     {
       "path": "assets/jingles/bed/calm-ether-loop.mp3",
@@ -710,12 +711,13 @@
       "license": "CC-BY-4.0",
       "license_url": "https://creativecommons.org/licenses/by/4.0/",
       "review_status": "redistribution-with-attribution",
-      "include_in_git": true,
+      "include_in_git": false,
       "evidence": "Official author track page and FAQ; CC BY 4.0 legal text in assets/LICENSE-CC-BY-4.0.txt",
       "processing": "Beat-aligned excerpt at 124 BPM, gain normalization to -16 LUFS, -3 dB sample-peak limiter, edge fades; PCM S16LE stereo 44.1 kHz",
       "rebuild": "python3 tools/build_base_audio.py /path/to/Tech Live.mp3",
       "fade_in_seconds": 0.005,
-      "fade_out_seconds": 0.08
+      "fade_out_seconds": 0.08,
+      "distribution": "base-audio-v1.0.0 release asset"
     },
     {
       "path": "assets/stinger_in.wav",
@@ -738,12 +740,13 @@
       "license": "CC-BY-4.0",
       "license_url": "https://creativecommons.org/licenses/by/4.0/",
       "review_status": "redistribution-with-attribution",
-      "include_in_git": true,
+      "include_in_git": false,
       "evidence": "Official author track page and FAQ; CC BY 4.0 legal text in assets/LICENSE-CC-BY-4.0.txt",
       "processing": "Beat-aligned excerpt at 124 BPM, gain normalization to -16 LUFS, -3 dB sample-peak limiter, edge fades; PCM S16LE stereo 44.1 kHz",
       "rebuild": "python3 tools/build_base_audio.py /path/to/Tech Live.mp3",
       "fade_in_seconds": 0.005,
-      "fade_out_seconds": 0.08
+      "fade_out_seconds": 0.08,
+      "distribution": "base-audio-v1.0.0 release asset"
     },
     {
       "path": "assets/stinger_out.wav",
@@ -766,12 +769,13 @@
       "license": "CC-BY-4.0",
       "license_url": "https://creativecommons.org/licenses/by/4.0/",
       "review_status": "redistribution-with-attribution",
-      "include_in_git": true,
+      "include_in_git": false,
       "evidence": "Official author track page and FAQ; CC BY 4.0 legal text in assets/LICENSE-CC-BY-4.0.txt",
       "processing": "Beat-aligned excerpt at 124 BPM, gain normalization to -16 LUFS, -3 dB sample-peak limiter, edge fades; PCM S16LE stereo 44.1 kHz",
       "rebuild": "python3 tools/build_base_audio.py /path/to/Tech Live.mp3",
       "fade_in_seconds": 0.005,
-      "fade_out_seconds": 0.35
+      "fade_out_seconds": 0.35,
+      "distribution": "base-audio-v1.0.0 release asset"
     },
     {
       "path": "examples/fm/A-bez-obrabotki.mp3",

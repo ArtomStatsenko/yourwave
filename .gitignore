@@ -1,7 +1,5 @@
 spike/
 __pycache__/
-examples/**/*.wav
-examples/*.mp3
 recordings/
 .DS_Store
 .env
@@ -15,16 +13,14 @@ cookies.txt
 *.db
 .github-writing/
 
-# Local audio pack: stock, previews and unverified exports are not redistributed.
-assets/**/*.mp3
-assets/**/*.wav
-examples/**/*.mp3
-
-# Minimal audio pack for the private repository; public redistribution is unverified.
-!assets/stinger_in.wav
-!assets/bed.wav
-!assets/stinger_out.wav
-!assets/separator.wav
+# Audio stays local; the licensed Base pack is distributed via Releases.
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.aiff
+*.aac
 
 .impeccable/config.local.json
 .impeccable/hook.cache.json
