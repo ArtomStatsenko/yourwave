@@ -57,9 +57,22 @@ def replace_music(get_queue, set_queue, arg) =
         "STALE"
       else
         old = list.hd(found)
-        set_queue(list.map(fun (r) -> if request.id(r) == request.id(old) then replacement else r end, q))
-        request.destroy(old)
-        "#{request.id(replacement)}"
+        # playlist.set_queue destroys old requests; resolve copies before clearing so prefetch cannot jump ahead.
+        # shortcut: reroll downloads prefetched remote tracks again; reuse their files if this becomes too slow.
+        prepared = list.map(fun (r) -> if request.id(r) == request.id(old) then replacement
+          elsif params.rid < 0 then request.create(request.uri(r)) else r end, q)
+        resolved = if params.rid < 0 then list.for_all(fun (r) -> request.resolve(timeout=25., r), prepared) else true end
+        unchanged = list.map(request.id, q) == list.map(request.id, get_queue())
+        if not resolved or not unchanged then
+          list.iter(fun (r) -> begin
+            if params.rid < 0 or request.id(r) == request.id(replacement) then request.destroy(r) end
+          end, prepared)
+          if resolved then "STALE" else "UNAVAILABLE" end
+        else
+          set_queue(prepared)
+          request.destroy(old)
+          "#{request.id(replacement)}"
+        end
       end
     end
   end

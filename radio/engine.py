@@ -203,7 +203,7 @@ class Liquidsoap:
         if queue not in ('music', 'local_music', 'news', 'fresh'):
             raise ValueError('Invalid music queue')
         result = await self.command(queue + '.replace ' + json.dumps({
-            'expected': expected, 'uri': uri, 'rid': int(rid) if rid else -1, 'head': not rid}), timeout=35)
+            'expected': expected, 'uri': uri, 'rid': int(rid) if rid else -1, 'head': not rid}), timeout=85)
         if not result.isdigit():
             raise ValueError('The next track changed. Try again.' if result == 'STALE' else 'Could not load another track. Try again.')
         return result

@@ -625,7 +625,7 @@ class RerollTests(unittest.TestCase):
         with wave.open(str(tone), 'wb') as out:
             out.setparams((2, 2, 44100, 0, 'NONE', 'not compressed'))
             out.writeframes(b'\1\0\1\0' * 44100 * 20)
-        m3u = config.RUN_DIR / 'tail.m3u'
+        m3u = config.RUN_DIR / 'ytmusic.m3u'
         uris = {f'track-{i}': f'annotate:kind="music",ref="track-{i}":{tone}' for i in range(8)}
         m3u.write_text('\n'.join(uris.values()) + '\n')
         async def scenario(engine, queue):
@@ -638,11 +638,19 @@ class RerollTests(unittest.TestCase):
                 self.assertTrue(events)
                 await engine.command('pause')
                 before = await engine.upcoming_music()
-                self.assertGreaterEqual(len(before), 5)
+                while len(before) < len(uris) - 1 and time.monotonic() < deadline:
+                    await asyncio.sleep(.05)
+                    before = await engine.upcoming_music()
+                self.assertEqual(len(before), len(uris) - 1)
                 current = events[-1]['ref']
                 replacement = next(ref for ref in uris if ref not in (current, before[0]))
                 await engine.replace_music(before[0], uris[replacement], queue)
                 after = await engine.upcoming_music()
+                # Prefetch briefly sits outside both queue() and remaining_files() while resolving.
+                deadline = time.monotonic() + 2
+                while after != [replacement, *before[1:]] and time.monotonic() < deadline:
+                    await asyncio.sleep(.05)
+                    after = await engine.upcoming_music()
                 self.assertEqual(after, [replacement, *before[1:]])
                 self.assertEqual(events[-1]['ref'], current)
             finally:
