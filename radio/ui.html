@@ -83,15 +83,18 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #playback-status[open]{gap:12px}
 @media(max-width:640px){
   body{padding-block:20px;font-size:18px;line-height:28px}
-  .player-controls{grid-template-columns:auto auto minmax(48px,1fr) auto;gap:8px}
-  .player-controls button{font-size:16px;padding:8px 12px}
-  .player-controls #vol{width:100%;max-width:112px}
-  .player-controls .bar{grid-column:1 / 4;grid-row:2}
-  .player-controls #time{grid-column:4;grid-row:2;font-size:16px}
-  .player-controls #vzb{grid-column:4;grid-row:1;min-width:0;font-size:16px;padding-inline:0}
   .player-status{gap:4px 12px;font-size:16px}
   .player-status .lim{max-width:none;min-width:40px}
   .voice-state{flex-basis:100%;margin-left:0}
+}
+@media(max-width:800px){
+  .player-controls{grid-template-columns:auto auto minmax(0,1fr);gap:8px}
+  .player-controls button{font-size:16px;padding:8px 12px;white-space:nowrap}
+  .player-controls #vol{width:100%;max-width:112px;min-width:0}
+  .player-controls .bar{grid-column:1 / -1;grid-row:2}
+  .player-controls #time{grid-column:1;grid-row:3;font-size:16px}
+  .player-controls #viz-controls{grid-column:2 / -1;grid-row:3;justify-self:end}
+  .player-controls #viz-controls button{min-width:44px;min-height:44px;padding:8px 4px}
 }
 .bar{flex:1;min-width:140px;height:4px;background:var(--line)}.bar i{display:block;height:4px;background:var(--accent);width:0}
 button{font:inherit;color:var(--ink);background:none;border:1px solid var(--line);border-radius:2px;padding:10px 20px;cursor:pointer}
@@ -143,7 +146,13 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .strip pre{margin:0;font:inherit;font-size:18px;line-height:18px;height:36px;letter-spacing:0;white-space:pre;color:var(--accent);transition:color .6s}
 .strip pre.idle{color:var(--muted)}
 #ruler{position:absolute;visibility:hidden;font-size:18px;white-space:pre;font-family:var(--mono)}
-#vzb{border:0;padding:8px 4px;font-size:16px;color:var(--muted);min-width:9ch;text-align:left}#vzb:hover{border:0;color:var(--accent)}
+#viz-controls{display:flex;align-items:center;color:var(--muted);font-size:16px;white-space:nowrap}
+#viz-controls #vzb{min-width:6ch;text-align:center}
+#vzb[aria-pressed="false"]{text-decoration:line-through}
+#viz-controls button{display:flex;align-items:center;justify-content:center;border:0;padding:8px 4px;min-width:32px;min-height:40px;color:inherit}
+#viz-controls button:hover{color:var(--accent);background:var(--surface)}
+#viz-controls button:active{background:var(--line)}
+@media(pointer:coarse){#viz-controls button{min-width:44px;min-height:44px}}
 .tabbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 12px;border-bottom:1px solid var(--line)}
 .tabs{display:flex;flex-wrap:wrap;gap:0 24px;flex:1;min-width:0}   /* tabs wrap onto a second line, never scroll or hide */
 #plan-edit{flex:none;margin-left:auto;border:0;background:none;min-height:36px;padding:8px 12px 10px;font-size:16px;color:var(--muted)}#plan-edit:hover{border:0;color:var(--accent)}#plan-edit[hidden],#plan-edit[data-off]{display:none}
@@ -244,7 +253,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
   <div class="strip"><pre id="viz" aria-hidden="true"></pre></div><span id="ruler" aria-hidden="true">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</span>
   <div class="row player-controls"><button id="pp" aria-label="Listen" disabled>▶ listen</button><button id="nx" aria-label="Next">▶▶</button>
     <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
-    <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span><button id="vzb" title="change visual" aria-label="change visual"></button></div>
+    <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span><div id="viz-controls" role="group" aria-label="Visualizer"><button id="vzprev" aria-label="Previous visual" title="Previous visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m8 2-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button><button id="vzb" aria-label="Enable visualizer" aria-pressed="true"></button><button id="vznext" aria-label="Next visual" title="Next visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
   <div class="l" id="music-source" role="status" aria-live="polite"></div>
   <div class="row" id="station-controls" role="group" aria-label="Station" hidden><button id="so" aria-label="Start radio">Start radio</button></div>
   <div class="row"><button id="sk" aria-label="Skip bulletin">skip bulletin</button>
@@ -964,13 +973,14 @@ $('so').onclick=function(){if(LOCAL_CONTROL&&!busy&&st.state!=='STOPPING')cmd(ru
 setInterval(refresh,2000);
 setInterval(player,250);
 refresh();
-/* ---- visualizer: a braille strip under the title. pulse = spectrum mirrored around a centre line, scope = waveform.
+/* ---- visualizer: audio-driven braille patterns under the title.
    Feed: radioViz.set(32 spectrum values 0..1, dw() waveform values 0..1). No feed (no sound): it settles into a flat
    muted line and the loop stops. ---- */
 var radioViz=(function(){
   var CELLS=64,DW=128,ROWS=2,DH=8,N=32,spec=new Array(N).fill(0),wave=new Array(DW).fill(.5),mode='pulse',fed=0,run=false,
-    el=$('viz'),BIT=[[1,2,4,64],[8,16,32,128]],MODES=['pulse','scope','off'],still=matchMedia('(prefers-reduced-motion:reduce)').matches;
-  try{mode=localStorage.getItem('viz2')||'pulse'}catch(e){}
+    el=$('viz'),BIT=[[1,2,4,64],[8,16,32,128]],MODES=['pulse','scope','bars','peaks','fall','vu','ribbon'],enabled=true,peaks=new Array(N).fill(0),history=[],
+    motion=matchMedia('(prefers-reduced-motion:reduce)'),still=motion.matches;
+  try{mode=localStorage.getItem('viz2')||'pulse';enabled=localStorage.getItem('vizEnabled')!=='false'&&mode!=='off'}catch(e){}
   if(MODES.indexOf(mode)<0)mode='pulse';
   // cells follow the box width (measured braille glyph), so the line never wraps or scrolls sideways
   function layout(){var cw=$('ruler').getBoundingClientRect().width/20||9.6,w=el.parentNode.clientWidth,
@@ -980,19 +990,54 @@ var radioViz=(function(){
   function band(x){var p=x/(DW-1)*(N-1),a=Math.floor(p),b=Math.min(N-1,a+1),f=p-a;return spec[a]*(1-f)+spec[b]*f}
   function pulse(){var g=grid();for(var x=0;x<DW;x++){var h=Math.ceil(band(x)*DH/2);for(var y=0;y<DH;y++){var d=y<DH/2?DH/2-1-y:y-DH/2;if(d===0||d<h)g[y][x]=true}}return braille(g)}
   function scope(){var g=grid(),py=null;for(var x=0;x<DW;x++){var y=Math.max(0,Math.min(DH-1,Math.round((1-wave[x])*(DH-1))));g[y][x]=true;if(py!==null){for(var k=Math.min(py,y);k<=Math.max(py,y);k++)g[k][x]=true}py=y}return braille(g)}
+  function bars(withPeaks){var g=grid();for(var x=0;x<DW;x++){
+    var i=Math.min(N-1,Math.floor(x/DW*N));if(x%4===3)continue;
+    var h=Math.round(spec[i]*DH);for(var y=DH-h;y<DH;y++)g[y][x]=true;
+    if(withPeaks&&peaks[i]>.02)g[Math.max(0,DH-Math.ceil(peaks[i]*DH))][x]=true
+  }return braille(g)}
+  function fall(){var g=grid();for(var y=0;y<history.length;y++)for(var x=0;x<DW;x++){
+    var v=history[y][Math.min(N-1,Math.floor(x/DW*N))];
+    g[y][x]=v>.02&&v>((x%2)*2+y%2+1)/5
+  }return braille(g)}
+  function vu(){var g=grid();for(var side=0;side<2;side++){
+    var start=side*Math.floor(DW/2),end=side?DW:Math.floor(DW/2),sum=0;
+    for(var x=start;x<end;x++)sum+=Math.pow((wave[x]-.5)*2,2);
+    var level=Math.min(1,Math.sqrt(sum/(end-start))*2.5);
+    for(var x=start;x<start+Math.round(level*(end-start));x++)if((x-start)%4!==3)
+      for(var y=side*4+1;y<side*4+3;y++)g[y][x]=true
+  }return braille(g)}
+  function ribbon(){var g=grid();for(var x=0;x<DW;x++){
+    var h=Math.min(DH/2-1,Math.round(Math.abs(wave[x]-.5)*(DH-2)));
+    g[DH/2-1-h][x]=true;g[DH/2+h][x]=true
+  }return braille(g)}
   function quiet(){return spec.every(function(v){return v<.02})}
-  function draw(){el.className=quiet()?'idle':'';el.textContent=mode==='off'?'':mode==='pulse'?pulse():scope()}
-  function mark(){$('vzb').textContent=mode+' ▸'}
-  $('vzb').onclick=function(){mode=MODES[(MODES.indexOf(mode)+1)%3];try{localStorage.setItem('viz2',mode)}catch(x){}mark();draw()};
-  // runs only while there is sound or the line is still settling; stops once it is flat
-  function tick(now){var live=fed&&now-fed<=500;
+  function draw(){el.className=quiet()?'idle':'';el.textContent=!enabled?'':
+    mode==='pulse'?pulse():mode==='scope'?scope():mode==='bars'?bars(false):
+    mode==='peaks'?bars(true):mode==='fall'?fall():mode==='vu'?vu():ribbon()}
+  function mark(){var b=$('vzb');b.textContent=mode;b.setAttribute('aria-pressed',String(enabled));
+    b.setAttribute('aria-label',(enabled?'Disable':'Enable')+' visualizer: '+mode);b.title=enabled?'Disable visualizer':'Enable visualizer'}
+  function reset(){spec.fill(0);wave.fill(.5);peaks.fill(0);history=[];fed=0}
+  function change(step){mode=MODES[(MODES.indexOf(mode)+step+MODES.length)%MODES.length];
+    try{localStorage.setItem('viz2',mode)}catch(x){}mark();draw()}
+  $('vzb').onclick=function(){enabled=!enabled;
+    try{localStorage.setItem('vizEnabled',String(enabled));localStorage.setItem('viz2',mode)}catch(x){}
+    if(!enabled)reset();mark();draw()};
+  $('vzprev').onclick=function(){change(-1)};
+  $('vznext').onclick=function(){change(1)};
+  // History and peak decay advance at 20 fps, independent of the audio feed rate.
+  function tick(now){if(still||document.hidden||!enabled){reset();draw();run=false;return}
+    var live=fed&&now-fed<=500;
     if(!live){for(var i=0;i<N;i++)spec[i]*=.8;for(var j=0;j<DW;j++)wave[j]+=(.5-wave[j])*.2}
-    if(!live&&quiet()&&wave.every(function(v){return Math.abs(v-.5)<.01})){spec.fill(0);wave.fill(.5);draw();run=false;return}
+    for(var i=0;i<N;i++)peaks[i]=Math.max(spec[i],peaks[i]-.035);
+    history.unshift(spec.slice());history.length=Math.min(DH,history.length);
+    if(!live&&quiet()&&wave.every(function(v){return Math.abs(v-.5)<.01})&&peaks.every(function(v){return v<.02})){
+      reset();draw();run=false;return}
     draw();setTimeout(function(){requestAnimationFrame(tick)},50)}
+  motion.addEventListener('change',function(e){still=e.matches;if(still){reset();draw()}});
   window.addEventListener('resize',layout);
   mark();layout();draw();
   return{dw:function(){return DW},
-    set:function(a,w){if(still)return;fed=performance.now();for(var i=0;i<N;i++)spec[i]=a[i]||0;for(var j=0;j<DW;j++)wave[j]=w[j]==null?.5:w[j];
+    set:function(a,w){if(still||document.hidden||!enabled)return;fed=performance.now();for(var i=0;i<N;i++)spec[i]=a[i]||0;for(var j=0;j<DW;j++)wave[j]=w[j]==null?.5:w[j];
       if(!run){run=true;requestAnimationFrame(tick)}}}})();
 </script>
 </body>
