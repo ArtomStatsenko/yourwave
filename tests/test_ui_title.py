@@ -78,6 +78,8 @@ const at=Date.parse('2026-10-24T06:00:00Z');Date.now=()=>at;
 var planDraft=Array.from({length:10},(_,i)=>({id:'clock:'+i,kind:'news',title:'Host edition',edition:true,segments:[{title:'Weather',items:[]}],at:new Date(at+i*1800e3).toISOString()}));
 var pls=[{name:'air_direction',on:true}],st={broadcast_plan:{rows:structuredClone(planDraft),version:'v1'},direction_timezone:'UTC'},
  dirLoaded=true,dirBusy=false,planDrag=null,planTimeId=null,planConfirm=null,planOpen={},planHours={},planHorizon=3,planUndo=null,planInsertKey=null,planVersion='v1';
+planDraft.splice(1,0,{id:'music-between',kind:'music',at:new Date(at+900e3).toISOString(),duration:300});
+st.broadcast_plan.rows=structuredClone(planDraft);
 var document={activeElement:null,body:{classList:{toggle(){}}}};
 var nodes={};function $(id){return nodes[id]||(nodes[id]={innerHTML:'',hidden:false,classList:{toggle(){}},contains:()=>false,querySelectorAll:()=>[]})}
 var esc=s=>String(s),planReadiness=()=>'',localInput=s=>s;
@@ -85,15 +87,24 @@ var requests=[],response;function api(path,body){requests.push(body);return Prom
 (async()=>{
  const groups=planGroups(planDraft);assert.equal(groups.length,3);assert.equal(groups[0].entries[0].row.id,'clock:5');
  directionView();var html=$('direction-list').innerHTML;
+ assert.ok(!html.includes('data-plan-key="music-between"'),'Music filler is hidden from the program');
+ assert.ok(html.includes('data-plan-index="2" data-plan-key="clock:1"'),'Visible rows retain their original edit indices');
  assert.equal((html.match(/ open>/g)||[]).length,1);assert.ok(html.indexOf('clock:5')<html.indexOf('clock:0'));
  assert.ok(html.indexOf('data-plan-add=')<html.indexOf('<details'),'Collapsed hours must still expose their insertion gaps');
  assert.ok(html.includes('Weather'));assert.ok(html.includes('data-plan-action="segments"'));
+ assert.ok(html.includes('This hour'),'The current hour must not look like a past block');
  planHours[groups[0].key]=true;directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,2);
  planHours={};directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,1);
  planDraft[0].dirty=true;planDraft[0].skipped=true;response={ok:false,error:'Changed elsewhere'};
  await planSave();assert.equal(requests[0].remember_undo,true);assert.equal(planDraft[0].skipped,undefined);assert.equal(dirBusy,false);assert.equal($('direction-message').textContent,'Changed elsewhere');
  planDraft[0].dirty=true;response={ok:true,broadcast_plan:st.broadcast_plan,undo_token:'undo-one'};
  await planSave();assert.equal(planUndo,'undo-one');assert.equal(planDraft[0].dirty,undefined);
+ planDraft=[{id:'music-only',kind:'music',at:new Date(at+60000).toISOString(),duration:60},{id:'later-music',kind:'music',at:new Date(at+5*3600e3).toISOString(),duration:60}];
+ st.broadcast_plan.rows=structuredClone(planDraft);directionView();
+ assert.ok(!$('direction-list').innerHTML.includes('class="it music'));
+ assert.ok(!$('direction-list').innerHTML.includes('This hour'));assert.ok(!$('direction-list').innerHTML.includes('0 blocks'));
+ assert.ok($('direction-list').innerHTML.includes('data-plan-add='),'Insertion remains available in a music-only program');
+ assert.equal($('plan-later').hidden,true,'Hidden music must not create empty future pages');
 })().catch(e=>{console.error(e);process.exitCode=1});
 """], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -107,7 +118,7 @@ var prevented=0,e={preventDefault(){prevented++},dataTransfer:{}};
 $('tl').ondragover(e);assert.equal(e.dataTransfer.dropEffect,'none');$('tl').ondrop(e);assert.equal(planDrag,null);assert.equal(prevented,2);
 """], check=True, capture_output=True, text=True)
         self.assertIn("button.dataset.planAction==='up'?1:-1", source)
-        self.assertIn('items.slice(0,5)', source)
+        self.assertIn('aired.slice(0,5)', source)
 
     def test_gap_times_stay_between_future_neighbors(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()

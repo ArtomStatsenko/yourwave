@@ -2382,7 +2382,10 @@ class Service:
                 raise ValueError('This block is already selected or preparing. Try another block.')
             if row['kind'] == 'reminder' and change.get('skipped') and not row.get('skipped') and change.get('skip_confirmed') is not True:
                 raise ValueError('Confirm skipping this reminder')
-            due = content.parse_time(row['at']) if change.get('skipped') is not None and change.get('at') == row['at'] else direction.requested_time(change.get('at'), now())
+            if not row.get('new') and change.get('skipped') is not None and change.get('at') == row['at']:
+                due = content.parse_time(row['at'])
+            else:
+                due = direction.requested_time(change.get('at'), now())
             if row['kind'] == 'reminder' and row.get('ends') and due >= content.parse_time(row['ends']):
                 raise ValueError('The event is over by then; move the reminder earlier or skip it')
             validated.append((row, change, due, rank))

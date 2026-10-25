@@ -107,13 +107,12 @@ button:disabled{opacity:.4;cursor:default}button:disabled:hover{border-color:var
 @media(pointer:coarse){.reroll-track{width:44px;height:44px}}
 .edition-toggle{padding:0;border:0;text-align:left;min-width:0}.edition-toggle:hover{border:0;color:var(--accent)}
 .edition-segments{padding-bottom:12px}.edition-segment{padding:6px 0}.edition-segment>span+span{margin-left:16px}.edition-segment p{overflow-wrap:anywhere}
-.it.session{margin-bottom:18px;border-bottom:1px solid var(--line)}.it.session .tx{font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .it.cur .tx{font-weight:600}.it.cur .tx::before{content:"▶";position:absolute;left:0;color:var(--accent)}
 .it.news .tx::before{content:"";font-size:16px;font-weight:400;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .it.host .tx::before{content:"";font-size:16px;font-weight:400;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .it.reminder .tx::before{content:"◆";position:absolute;left:0;color:var(--warn)}
 .it.weather .tx::before{content:"weather  ";color:var(--muted);font-size:16px;text-transform:uppercase;letter-spacing:.06em}
-.it.id .tx{text-transform:uppercase;letter-spacing:.08em;font-size:16px;color:var(--muted)}  /* like BROADCAST STARTED: system rows look alike */
+.it.id .tx{text-transform:uppercase;letter-spacing:.08em;font-size:16px;color:var(--muted)}
 .hd{display:flex;align-items:baseline}
 .tg{display:flex;gap:10px;flex:1;min-width:0;padding:5px 8px;text-align:left;border:0;background:none;color:inherit;font:inherit;align-items:baseline}
 button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
@@ -149,6 +148,13 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .tabs{display:flex;flex-wrap:wrap;gap:0 24px;flex:1;min-width:0}   /* tabs wrap onto a second line, never scroll or hide */
 #plan-edit{flex:none;margin-left:auto;border:0;background:none;min-height:36px;padding:8px 12px 10px;font-size:16px;color:var(--muted)}#plan-edit:hover{border:0;color:var(--accent)}#plan-edit[hidden],#plan-edit[data-off]{display:none}
 .tabs button{flex:none}
+#activity{position:relative;flex:none;color:var(--muted);font-size:16px}
+#activity summary{cursor:pointer;list-style:none;padding:8px 0 10px;text-decoration:underline;text-underline-offset:4px}
+#activity summary::-webkit-details-marker{display:none}
+#activity-log{position:absolute;z-index:5;top:100%;right:0;width:min(340px,calc(100vw - 32px));max-height:280px;overflow:auto;padding:12px;background:var(--bg);border:1px solid var(--line)}
+#activity-log .tx{font-size:16px;padding-left:0}
+@media(max-width:640px){#activity{order:-1}#activity-log{left:0;right:auto}}
+@media(pointer:coarse){#activity summary{min-height:44px}}
 [role="tabpanel"]{padding-top:16px}
 
 #yt-form[hidden]{display:none}
@@ -250,7 +256,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
     <button role="tab" id="tab-in" aria-controls="integrations" aria-selected="false" tabindex="-1" data-tab="in">integrations</button>
     <button role="tab" id="tab-ex" aria-controls="experiments" aria-selected="false" tabindex="-1" data-tab="ex">experiments</button>
     <button role="tab" id="tab-st" aria-controls="stg" aria-selected="false" tabindex="-1" data-tab="st">settings</button>
-  </div><button id="plan-edit">Edit</button><button id="plan-undo" hidden>Undo</button><button id="plan-done" hidden>Done</button></div>
+  </div><details id="activity" hidden><summary>Activity</summary><div id="activity-log" aria-label="Radio activity"></div></details><button id="plan-edit">Edit</button><button id="plan-undo" hidden>Undo</button><button id="plan-done" hidden>Done</button></div>
   <div id="tl-panel" role="tabpanel" aria-labelledby="tab-tl">
     <p id="direction-message" class="l" role="status" aria-live="polite"></p>
     <div id="broadcast-timeline">
@@ -635,9 +641,10 @@ function planReadiness(r){
 }
 function planGroups(rows){
   var first=Date.now(),end=first+planHorizon*3600e3,groups={};
-  rows.forEach(function(r,i){if(Date.parse(r.at)>=end)return;var hour=new Intl.DateTimeFormat('en-CA',{timeZone:st.direction_timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).format(new Date(r.at));
+  var format=new Intl.DateTimeFormat('en-CA',{timeZone:st.direction_timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}),current=format.format(new Date(first));
+  rows.forEach(function(r,i){if(r.kind==='music'||Date.parse(r.at)>=end)return;var hour=format.format(new Date(r.at));
     (groups[hour]||(groups[hour]=[])).push({row:r,index:i})});
-  return Object.keys(groups).map(function(k){return {key:k,entries:groups[k].sort(function(a,b){return Date.parse(b.row.at)-Date.parse(a.row.at)})}}).sort(function(a,b){return Date.parse(b.entries[0].row.at)-Date.parse(a.entries[0].row.at)});
+  return Object.keys(groups).map(function(k){return {key:k,current:k===current,entries:groups[k].sort(function(a,b){return Date.parse(b.row.at)-Date.parse(a.row.at)})}}).sort(function(a,b){return Date.parse(b.entries[0].row.at)-Date.parse(a.entries[0].row.at)});
 }
 function directionView(force){
   var enabled=pls.some(function(p){return p.name==='air_direction'&&p.on});if(!enabled)planDraft=null;
@@ -674,14 +681,14 @@ function directionView(force){
   }
   var add=$('plan-add');if(box.contains(add))$('tl-panel').appendChild(add);
 
-  box.innerHTML=groups.map(function(g){var expanded=Object.prototype.hasOwnProperty.call(planHours,g.key)?planHours[g.key]:g.key===nearest;
-    return gap(ordered.indexOf(g.entries[0]))+'<details class="plan-hour" data-hour="'+esc(g.key)+'"'+(expanded?' open':'')+'><summary data-plan-first="'+g.entries[0].index+'">'+esc(clock(g.entries[g.entries.length-1].row.at).slice(0,2)+':00')+' <span class="l">· '+g.entries.filter(function(e){return e.row.kind!=='music'}).length+(g.entries.filter(function(e){return e.row.kind!=='music'}).length===1?' block':' blocks')+'</span></summary>'+g.entries.map(function(entry,index){return (index?gap(ordered.indexOf(entry)):'')+render(entry)}).join('')+'</details>'}).join('')||'<p class="l">No blocks scheduled in the next '+planHorizon+' hours.</p>';
+  box.innerHTML=groups.map(function(g){var expanded=Object.prototype.hasOwnProperty.call(planHours,g.key)?planHours[g.key]:g.key===nearest,count=g.entries.filter(function(e){return e.row.kind!=='music'}).length;
+    return gap(ordered.indexOf(g.entries[0]))+'<details class="plan-hour" data-hour="'+esc(g.key)+'"'+(expanded?' open':'')+'><summary data-plan-first="'+g.entries[0].index+'">'+esc(g.current?'This hour':clock(g.entries[g.entries.length-1].row.at).slice(0,2)+':00')+(count?' <span class="l">· '+count+(count===1?' block':' blocks')+'</span>':'')+'</summary>'+g.entries.map(function(entry,index){return (index?gap(ordered.indexOf(entry)):'')+render(entry)}).join('')+'</details>'}).join('')||'<p class="l">No blocks scheduled in the next '+planHorizon+' hours.</p>';
   box.innerHTML+=gap(ordered.length);
   add.hidden=planInsertKey===null;
   if(planInsertKey!==null){var slot=findPlanGap(planInsertKey);if(slot)slot.appendChild(add);else{planInsertKey=null;add.hidden=true}}
   box.querySelectorAll('details[data-hour]').forEach(function(el){el.ontoggle=function(){planHours[el.dataset.hour]=el.open}});
   box.querySelectorAll('button,input').forEach(function(el){el.disabled=dirBusy});$('direction-add').disabled=dirBusy;
-  $('plan-later').hidden=!planDraft.some(function(r){return Date.parse(r.at)>=Date.now()+planHorizon*3600e3});
+  $('plan-later').hidden=!planDraft.some(function(r){return r.kind!=='music'&&Date.parse(r.at)>=Date.now()+planHorizon*3600e3});
   if(focusGap){var gapButton=findPlanGap(focusGap);if(gapButton)gapButton.querySelector('button').focus({preventScroll:true})}
   if(focusHour){var hour=Array.from(box.querySelectorAll('[data-hour]')).find(function(el){return el.dataset.hour===focusHour});if(hour)hour.querySelector('summary').focus({preventScroll:true})}
   if(focusId&&focusAction){var i=planDraft.findIndex(function(r){return r.id===focusId}),el=box.querySelector('[data-plan-index="'+i+'"] [data-plan-action="'+focusAction+'"]');if(el)el.focus({preventScroll:true})}
@@ -835,7 +842,7 @@ $('direction-cancel').onclick=closePlanInsert;
 $('direction-at').value=localInput();
 $('direction-form').onsubmit=function(e){e.preventDefault();if(!planDraft||dirBusy)return;var b=dirBlocks[+$('direction-block').value];if(!b)return;
   planDraft=JSON.parse(JSON.stringify(st.broadcast_plan.rows));planVersion=st.broadcast_plan.version;
-  planDraft.push({id:'new:'+Date.now(),kind:b.kind,title:b.title,text:b.kind==='text'?$('direction-text').value:'',at:new Date($('direction-at').value).toISOString(),duration:30,status:'PENDING',dirty:true,skipped:false});planDraft.sort(function(a,b){return Date.parse(a.at)-Date.parse(b.at)});planSave().then(function(saved){if(saved){closePlanInsert();$('direction-text').value=''}})
+  planDraft.push({id:'new:'+Date.now(),kind:b.kind,title:b.title,text:b.kind==='text'?$('direction-text').value:'',at:new Date($('direction-at').value).toISOString(),duration:30,status:'PENDING',dirty:true});planDraft.sort(function(a,b){return Date.parse(a.at)-Date.parse(b.at)});planSave().then(function(saved){if(saved){closePlanInsert();$('direction-text').value=''}})
 };
 $('direction-list').onclick=function(e){if(planSuppressClick){planSuppressClick=false;return}var add=e.target.closest('[data-plan-add]');if(add&&!dirBusy){openPlanInsert(add);return}if(e.target.closest('[data-reroll]')){rerollNext();return}var button=e.target.closest('[data-plan-action]');if(!button||!planDraft||dirBusy)return;var i=+button.closest('[data-plan-index]').dataset.planIndex,r=planDraft[i];
   if(button.dataset.planAction==='segments'){planOpen[r.id]=!planOpen[r.id];directionView()}else if(button.dataset.planAction==='time'){planTimeId=planTimeId===r.id?null:r.id;directionView()}else if(button.dataset.planAction==='skip'){if(r.kind==='reminder'&&!r.skipped&&planConfirm!==r.id){planConfirm=r.id;directionView();return}r.skipConfirmed=r.kind==='reminder'&&planConfirm===r.id;planConfirm=null;r.skipped=!r.skipped;r.dirty=true;planSave()}else planMove(i,i+(button.dataset.planAction==='up'?1:-1));
@@ -892,12 +899,16 @@ function timeline(){var a=document.activeElement&&document.activeElement.dataset
   $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':'')+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
-  $('history-more').hidden=items.length<=5;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
-  $('tl').innerHTML=items.length?(historyExpanded?items:items.slice(0,5)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
+  var aired=items.filter(function(x){return x.kind!=='session'}),activity=items.filter(function(x){return x.kind==='session'});
+  $('activity').hidden=!activity.length;
+  $('activity-log').innerHTML=activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(x.time)+'</span><span class="tx">Radio started</span></div>'}).join('');
+  $('history-more').hidden=aired.length<=5;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
+  $('tl').innerHTML=aired.length?(historyExpanded?aired:aired.slice(0,5)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
   $('tl').scrollTop=sc;
   if(a){var e=$('tl').querySelector('[data-id="'+a+'"]');if(e)e.focus({preventScroll:true})}}
 
 $('history-more').onclick=function(){historyExpanded=!historyExpanded;timeline()};
+$('activity').onkeydown=function(e){if(e.key==='Escape'){this.open=false;this.querySelector('summary').focus()}};
 $('tl').ondragover=function(e){if(planDrag!==null){e.preventDefault();e.dataTransfer.dropEffect='none'}};
 $('tl').ondrop=function(e){e.preventDefault();planDrag=null};
 function cmd(name,extra){

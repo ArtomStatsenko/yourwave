@@ -42,9 +42,9 @@ Enabled blocks and news sources do not require another block or source to succee
 - Editing expands the future above the current row in one continuous timeline with one scrollbar, compacts the player, and subdues readable history. Keep the `now` label and icon on the current row, subdued like history while editing; no separate editor/history heading or divider. History accepts no dragged blocks.
 - Match schedule row spacing to broadcast history; insertion controls overlay the row boundary without reserving blank space. Use an English `Insert` tab in a reserved right gutter, connected to the insertion line.
 - Add a block from the gap where it belongs: reveal the control on hover or keyboard focus, keep it visible on touch devices, and open the insertion form inline with its time prefilled.
-- Time moves upward: later blocks above nearer blocks. Initially show three hours grouped by hour, with the nearest hour open; reset disclosures on reopening. Music is a generic block, without track listings.
+- Time moves upward: later blocks above nearer blocks. Initially show three hours grouped by hour, with the nearest hour open; reset disclosures on reopening. Music plays between scheduled blocks and is omitted from the future program; insertion remains available in those gaps.
 - Apply each change immediately with one-step Undo; Done exits editing. Move editions by dragging, arrows or clicking the time. Show scheduled and expected times when they differ.
-- Show five recent history entries initially, with Show earlier for the rest.
+- Show five recent aired history entries initially, with Show earlier for the rest. Keep radio startup events in the collapsed Activity log; they never take up an aired history row.
 - Use the existing planner's known information and approximate times; do not build a separate predictive scheduler merely to display the editor.
 - Text preparation precedes voice preparation. Show one current stage: `text pending` → `voice pending` → `ready`; queuing is a later operational state.
 - Account for collection, text generation, synthesis and retries. Scheduling a block for now does not guarantee immediate speech; ready audio must still join the broadcast at a suitable boundary.
