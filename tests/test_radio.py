@@ -1264,6 +1264,33 @@ class SchedulingTests(unittest.TestCase):
             svc._render_weather(text)
         self.assertEqual(path.read_bytes(), b"noise")  # no failed retake replaces the cache
 
+    def test_weather_assembly_checks_host_time_as_host_speech(self):
+        from unittest.mock import Mock, patch
+        svc = self.svc
+        text = "Далат: плюс 25 градусов, пасмурно, без дождя."
+        spoken = {}
+        def synthesize(text, path):
+            spoken[path] = text
+            path.write_bytes(b"speech")
+        svc.tts.synthesize = Mock(side_effect=synthesize)
+        svc.tts.transcribe = Mock(side_effect=lambda path: spoken[path].replace("Двенадцать ноль три", "12:03"))
+        self.addCleanup(delattr, svc.tts, "transcribe")
+        with patch.object(svc, "_speech_check", return_value=None), \
+                patch.object(svc, "_render_weather", wraps=svc._render_weather) as forecast, \
+                patch("radio.daemon.audio.duration", return_value=3), \
+                patch("radio.daemon.audio.render_package", return_value=0) as render, \
+                patch("radio.daemon.host.back_sell", return_value=""), \
+                patch("radio.daemon.host.opener", return_value="Двенадцать ноль три. Вы слушаете «Yourwave»."), \
+                patch("radio.daemon.host.set_opener", return_value="Возвращаемся к музыке."), \
+                patch.object(svc, "_jingles_for", return_value={}):
+            svc._store_host_segment("weather:slot:test", {"kind": "weather", "summary": "Da Lat · 25°"},
+                                    text, Path("weather.wav"))
+            package = dict(svc.db.execute("SELECT * FROM packages WHERE item_id='system:weather:slot:test'").fetchone())
+            result = svc._assemble_break([package], self.clock(), True, None)
+        self.assertIsNotNone(result, svc.last_error)
+        render.assert_called_once()
+        forecast.assert_called_once_with(text)
+
     def test_weather_outage_retries_without_announcing(self):
         from radio import weather
         from unittest.mock import patch

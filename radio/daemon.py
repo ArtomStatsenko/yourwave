@@ -1517,7 +1517,9 @@ class Service:
             speakers = [None] * len(segs)
             if plugins.on(self.cfg, "duo_hosts") and len(pkgs) > 1:
                 segs, owners, speakers = self._duo(segs, owners, pkgs, seed)
-            voices = [self._segment_voice(owner, text, voice) for (text, _), owner, voice in zip(segs, owners, speakers)]
+            # Host links share the first bulletin's budget, but need the host's number-tolerant speech check.
+            voices = [self._say(text, voice) if links and k in (0, len(segs) - 1) else self._segment_voice(owner, text, voice)
+                      for k, ((text, _), owner, voice) in enumerate(zip(segs, owners, speakers))]
             jingles = self.pkg_jingles.get(seed) or self._jingles_for(seed)
             key = hashlib.sha256(BREAK_SEP.join(p["id"] for p in pkgs).encode()).hexdigest()[:16]
             out = config.DATA_DIR / "cache/packages" / f"break-{key}.wav"
