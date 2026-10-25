@@ -72,6 +72,7 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #air{color:var(--accent)}
 #air.off{color:var(--muted)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#station-controls[hidden]{display:none}
 .player-controls{display:grid;grid-template-columns:auto auto 112px minmax(100px,1fr) auto auto;gap:12px}
 .player-controls .bar{min-width:0}
 #nx{width:3.25em;padding-inline:0}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
@@ -235,11 +236,12 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
   <div class="title"><span id="ttl" aria-hidden="true"></span><span id="caret" class="caret" aria-hidden="true" hidden></span></div>
   <span id="ttl-sr" class="sr" aria-live="polite"></span>
   <div class="strip"><pre id="viz" aria-hidden="true"></pre></div><span id="ruler" aria-hidden="true">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</span>
-  <div class="row player-controls"><button id="pp" aria-label="Listen">▶ listen</button><button id="nx" aria-label="Next">▶▶</button>
+  <div class="row player-controls"><button id="pp" aria-label="Listen" disabled>▶ listen</button><button id="nx" aria-label="Next">▶▶</button>
     <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
     <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span><button id="vzb" title="change visual" aria-label="change visual"></button></div>
   <div class="l" id="music-source" role="status" aria-live="polite"></div>
-  <div class="row"><button id="sk" aria-label="Skip bulletin">skip bulletin</button><button id="so" aria-label="Stop">■ stop</button>
+  <div class="row" id="station-controls" role="group" aria-label="Station" hidden><button id="so" aria-label="Start radio">Start radio</button></div>
+  <div class="row"><button id="sk" aria-label="Skip bulletin">skip bulletin</button>
     <span class="l err" id="er"></span></div>
 </section>
 <section>
@@ -314,6 +316,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 // Data comes from the radio daemon via /api/status (status + 12 h timeline). Rendering is always from state,
 // so a row expanded by its id stays expanded across the 2-second refresh.
 var TOKEN="__TOKEN__";
+var LOCAL_CONTROL="__LOCAL_CONTROL__"==="true";
 var planOpen={},planHours={},planHorizon=3,planUndo=null,planInsertKey=null,historyExpanded=false,rerollBusy=false,rerollError='';
 var KIND={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
 var dirBlocks=[],dirLoaded=false,dirBusy=false,planDraft=null,planVersion=null,planDrag=null,planTimeId=null,planConfirm=null;
@@ -343,6 +346,7 @@ function catchUp(){
   if(end-au.currentTime>.5){try{au.currentTime=end-.25}catch(e){}}
 }
 function listen(){
+  if(!running())return;
   var was=listening;listening=true;
   if(!au){au=new Audio();ac=new (window.AudioContext||window.webkitAudioContext)();
     var src=ac.createMediaElementSource(au);an=ac.createAnalyser();an.fftSize=2048;an.smoothingTimeConstant=.6;an.maxDecibels=-10;
@@ -350,7 +354,7 @@ function listen(){
     vol()}
   if(!was)requestAnimationFrame(feed);
   ac.resume();
-  if(!running())cmd('play').then(connect);else connect();
+  connect();
   player()}
 function unlisten(){listening=false;au.pause();au.removeAttribute('src');au.load();player()}
 // a stream that stopped moving (station restarted, network hiccup) is reopened: it rejoins the live air
@@ -445,7 +449,7 @@ function player(){
   $('air').className=on?'':'off';$('air').textContent=on?'●':st.state==='PAUSED'?'❚❚':'○';
   $('airtxt').textContent=st.auto_paused?'waiting for a listener':on?(br&&!listening?'on air · not listening':'on air'):st.state==='PAUSED'?'paused':st.state==='STOPPING'?'stopping':'off air';
   var isTrack=run&&!!ds.current_title;   // only a track-to-track change is typed; messages and the first title appear at once
-  setTitle(run?(ds.current_title||'…'):'Radio is off — press '+(br?'▶ listen':'▶'),!(isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=isTrack;
+  setTitle(run?(ds.current_title||'…'):st.state==='STOPPING'?'Stopping radio…':LOCAL_CONTROL?'Radio is off':'Start on your Mac',!(isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=isTrack;
   var len=ds.duration_sec||0,pos=(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-lg*1000-d.t)/1000:0);
   if(len)pos=Math.min(pos,len);
   media(ds);
@@ -464,12 +468,17 @@ function player(){
   var vok=st.voicestudio==='ok';
   $('vd').style.background=!run?'var(--line)':!vok||near?'var(--warn)':'var(--ok)';
   $('vs').textContent=!run?'voice: off':!vok?'voice: unavailable':near?'voice: limit near':'voice: ready';
-  if(br){$('pp').textContent=listening?'❚❚':'▶ listen';$('pp').setAttribute('aria-label',listening?'Pause':'Listen')}
+  if(br){$('pp').textContent=listening?'❚❚ pause':'▶ listen';$('pp').setAttribute('aria-label',listening?'Pause listening':'Listen')}
   else{$('pp').textContent=on?'❚❚':'▶';$('pp').setAttribute('aria-label',on?'Pause':'Play')}
   $('vol').hidden=!br;
-  $('nx').disabled=!run||busy;$('so').disabled=!run;
+  $('pp').disabled=!run||(!br&&busy);
+  $('station-controls').hidden=!LOCAL_CONTROL;
+  $('so').textContent=st.state==='STOPPING'?'Stopping…':run?'Stop radio':'Start radio';
+  $('so').setAttribute('aria-label',$('so').textContent);
+  $('so').disabled=busy||st.state==='STOPPING';
+  $('nx').disabled=!on||busy;
   $('nx').textContent=nextBusy?'…':'▶▶';$('nx').setAttribute('aria-busy',String(nextBusy));
-  $('nx').setAttribute('aria-label',nextBusy?'Switching track':'Next');$('nx').title=nextBusy?'Preparing the next track; playback continues':'Next';
+  $('nx').setAttribute('aria-label',nextBusy?'Switching track':'Next');$('nx').title=nextBusy?'Preparing the next track; playback continues':st.state==='PAUSED'?'Resume the radio to skip tracks':'Next';
   $('sk').hidden=st.current_kind!=='news';
   $('er').textContent=st.last_error||'';
 }
@@ -905,6 +914,7 @@ function unqueue(id){
   var x=items.find(function(i){return String(i.id)===id});if(x)cmd('unqueue',{kind:rk(x),ref:x.ref})}
 function refresh(){
   return api('/api/status').then(function(d){st=d.status||{state:'STOPPED'};
+    if(!running()&&listening)unlisten();
     if(d.audio_preset&&document.activeElement!==$('audio-preset')){
       $('audio-preset').value=d.audio_preset.selected;
       $('audio-preset').options[1].disabled=!d.audio_preset.personal_available;
@@ -931,13 +941,14 @@ $('tl').onclick=function(e){var q=e.target.closest('[data-q]');if(q){replay(q.da
   var dq=e.target.closest('[data-dq]');if(dq){unqueue(dq.dataset.dq);return}
   var h=e.target.closest('[data-id]');if(h){open[h.dataset.id]=!open[h.dataset.id];timeline()}};
 $('pp').onclick=function(){
-  if(!browser())return cmd(st.state==='PLAYING'?'pause':st.state==='PAUSED'?'resume':'play');
+  if(!running()||(!browser()&&busy))return;
+  if(!browser())return cmd(st.state==='PLAYING'?'pause':'resume');
   listening?unlisten():listen()};
 $('upcoming').onclick=function(e){if(e.target.closest('[data-reroll]'))rerollNext()};
 $('music-source-select').onchange=function(){musicChoice=this.value;cmd('setting',{key:'music_source',value:this.value})};
 $('nx').onclick=function(){cmd('next')};
 $('sk').onclick=function(){cmd('skip-news')};
-$('so').onclick=function(){cmd('stop')};
+$('so').onclick=function(){if(LOCAL_CONTROL&&!busy&&st.state!=='STOPPING')cmd(running()?'stop':'play')};
 // 2-second refresh: re-renders from state, so expanded rows (open) stay open
 setInterval(refresh,2000);
 setInterval(player,250);

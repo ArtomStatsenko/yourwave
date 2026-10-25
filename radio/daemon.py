@@ -2060,6 +2060,8 @@ class Service:
         elif cmd == "resume" and self.state == "PAUSED":
             await self._resume()
         elif cmd == "next":
+            if self.state == 'PAUSED':
+                return {'ok': False, 'error': 'The radio is paused. Resume playback before skipping a track.'}
             current = self.current
             self.manual_switch = True
             try:

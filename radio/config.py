@@ -21,6 +21,8 @@ max_boost_db = 4.0          # cap for quiet tracks
 [output]
 mode = "browser"            # speakers | browser | both. browser = the page plays the live stream (radio ui)
 stream_port = 8767          # local UDP port: the audio sink sends the mp3 stream to the UI server on it
+listen_port = 0             # optional loopback HTTP port for phone control via Tailscale; 0 disables it
+control_host = ""          # exact Tailscale HTTPS hostname allowed on the phone port
 stream_bitrate = "192k"
 idle_pause_sec = 30         # browser only: with no listener for this long the station pauses (no news, no speech
                             # budget spent) and resumes when a page starts listening

@@ -1,5 +1,5 @@
-"""`radio ui`: a small local web page to control the radio. Listens on 127.0.0.1 only; every API call needs
-a per-run token and a local Host header, so another site open in the browser cannot drive the radio."""
+"""Radio control UI on loopback, optionally shared through private Tailscale Serve.
+Every API call needs a per-run token and a trusted Host header."""
 import html
 import json
 import queue
@@ -64,6 +64,25 @@ class Stream:
             self.clients.discard(q)
         self.beat()
 
+    def serve(self, handler):
+        # Live MP3 has no length or ranges; a listener may join between frames.
+        q = self.add()
+        try:
+            handler.send_response(200)
+            handler.send_header("Content-Type", "audio/mpeg")
+            handler.send_header("Cache-Control", "no-store")
+            handler.end_headers()
+            while True:
+                try:
+                    handler.wfile.write(q.get(timeout=1))
+                except queue.Empty:
+                    if q not in self.clients:
+                        return
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            self.remove(q)
+
 
 def serve(port: int) -> None:
     server = make_server(port)
@@ -100,17 +119,21 @@ def make_server(port: int) -> ThreadingHTTPServer:
         def _authorized(self) -> bool:
             return secrets.compare_digest(self.headers.get("X-Radio-Token", ""), token)
 
-        def _local_host(self) -> bool:
-            # Blocks DNS rebinding: a foreign hostname resolving to 127.0.0.1 must not get the page or the API.
-            return self.headers.get("Host", "") in (f"127.0.0.1:{port}", f"localhost:{port}")
+        def _trusted_host(self) -> bool:
+            # Only the phone port accepts the exact configured Tailscale hostname.
+            host = self.headers.get("Host", "")
+            remote = getattr(self.server, "control_host", "")
+            return host in (f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}") or bool(remote and host == remote)
 
         def do_GET(self):
-            if not self._local_host():
+            if not self._trusted_host():
                 return self._json({"error": "forbidden"}, 403)
             if self.path in ("/", "/index.html"):
-                body = PAGE.read_text(encoding="utf-8").replace("__TOKEN__", token).encode()
+                body = (PAGE.read_text(encoding="utf-8").replace("__TOKEN__", token)
+                        .replace("__LOCAL_CONTROL__", str(self.server is server).lower()).encode())
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -133,6 +156,8 @@ def make_server(port: int) -> ThreadingHTTPServer:
                         .replace("__NOTE__", html.escape(note)).replace("__DETAIL__", html.escape(detail))).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Referrer-Policy", "no-referrer")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -161,27 +186,11 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 self._json({"error": "not found"}, 404)
 
         def _stream(self):
-            # Live: no length, no ranges. Same origin as the page, so Web Audio may read it (the spectrum).
-            q = stream.add()
-            try:
-                self.send_response(200)
-                self.send_header("Content-Type", "audio/mpeg")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                while True:
-                    try:
-                        self.wfile.write(q.get(timeout=1))
-                    except queue.Empty:
-                        if q not in stream.clients:
-                            return
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            finally:
-                stream.remove(q)
+            stream.serve(self)
 
         def do_POST(self):
             nonlocal cfg
-            if self.path != "/api/cmd" or not self._local_host() or not self._authorized():
+            if self.path != "/api/cmd" or not self._trusted_host() or not self._authorized():
                 return self._json({"error": "forbidden"}, 403)
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -193,6 +202,8 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 cmd = body.get("cmd")
             except ValueError:
                 return self._json({"error": "bad request"}, 400)
+            if cmd in ("play", "stop") and self.server is not server:
+                return self._json({"ok": False, "error": "Start or stop the station on your Mac."}, 403)
             if cmd == "ytmusic_connect":
                 try:
                     with ytmusic_lock:
@@ -310,4 +321,12 @@ def make_server(port: int) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     port = server.server_port  # 0 in tests: the Host check must use the port that was really taken
     server.token = token
+    if cfg["output"].get("listen_port", 0):
+        try:
+            server.listener = ThreadingHTTPServer(("127.0.0.1", cfg["output"]["listen_port"]), Handler)
+        except OSError:
+            server.server_close()
+            raise
+        server.listener.control_host = cfg["output"].get("control_host", "")
+        threading.Thread(target=server.listener.serve_forever, daemon=True).start()
     return server

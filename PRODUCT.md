@@ -37,6 +37,7 @@ Enabled blocks and news sources do not require another block or source to succee
 
 ### Listening and editing
 
+- Start and stop the station only from the local Mac UI, separately from playback. Listen/Pause connects or disconnects this device without starting the station; the phone has no station-power controls, and its API rejects station startup and shutdown.
 - The normal Timeline shows one subdued next entry with only the next track or block name, alongside the current broadcast and history.
 - Editing expands the future above the current row in one continuous timeline with one scrollbar, compacts the player, and subdues readable history. Keep the `now` label and icon on the current row, subdued like history while editing; no separate editor/history heading or divider. History accepts no dragged blocks.
 - Match schedule row spacing to broadcast history; insertion controls overlay the row boundary without reserving blank space. Use an English `Insert` tab in a reserved right gutter, connected to the insertion line.
