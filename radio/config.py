@@ -71,9 +71,11 @@ created_within_days = 7
 
 [sources.reddit]            # experiment: public RSS, scheduled to end November 13, 2026
 communities = []            # bare names, e.g. ["python", "technology"]; up to 20
+posts = []                  # public Reddit thread/post links
 
 [sources.telegram]          # experiment: public t.me/s web previews only
 channels = []               # bare usernames, e.g. ["telegram"]; up to 20
+posts = []                  # public Telegram post links
 
 [reminders]                 # plugins "calendar" and "Todoist": a short insert at the next song boundary shortly before
 lead_min = 15               # an event or a task with a time starts. Read only; the links and tokens stay in this file
@@ -188,9 +190,12 @@ def load(*, audio_preset: str | None = None) -> dict:
         raise ValueError("editor.provider must be ollama, openai, openrouter, deepseek or xai")  # else a blank page
     if not 0 < cfg["sources"]["max_age_hours"] <= 24:
         raise ValueError("max_age_hours must be in 1..24")
-    from .public_news import names
+    from .public_news import names, references
     for source, key in (("reddit", "communities"), ("telegram", "channels")):
+        cfg["sources"][source].setdefault(key, [])
+        cfg["sources"][source].setdefault("posts", [])
         names(cfg["sources"][source][key], source)
+        references(cfg["sources"][source].get("posts", []), source, "posts")
     for d in ("inbox", "cache/tts", "cache/packages", "cache/scripts", "cache/edits", "logs", "run", "db"):
         (DATA_DIR / d).mkdir(parents=True, exist_ok=True)
     return cfg

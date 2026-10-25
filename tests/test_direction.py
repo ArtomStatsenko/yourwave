@@ -127,7 +127,12 @@ class DirectionTests(unittest.TestCase):
                      patch('radio.daemon.horizon.parse', return_value=[]), \
                      patch.object(self.svc, '_take_horizon', return_value='nothing new'):
                     asyncio.run(loop())
-                self.assertEqual(github.call_count if loop == self.svc.trending_loop else horizon_run.call_count, expected)
+                if loop == self.svc.trending_loop:
+                    self.assertEqual(github.call_count, expected * 2)
+                    if expected:
+                        self.assertEqual([call.args for call in github.call_args_list], [(True, False), (False, True)])
+                else:
+                    self.assertEqual(horizon_run.call_count, expected)
 
     def joined_break(self):
         """A ready edition due at the end of the current song, and the 21:00 weather slot it joins, not rendered."""

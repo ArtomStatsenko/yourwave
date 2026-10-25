@@ -841,7 +841,7 @@ class SchedulingTests(unittest.TestCase):
             with patch.object(daemon, "now", return_value=at):
                 plugins.set_plugin("host_links", False)
                 asyncio.run(svc._reminders_tick())
-                self.assertFalse(svc.reminders_due)
+                self.assertTrue(svc.reminders_due)
                 plugins.set_plugin("host_links", True)
                 asyncio.run(svc._reminders_tick())
                 self.assertTrue(svc.reminders_due)
@@ -1328,8 +1328,6 @@ class SchedulingTests(unittest.TestCase):
         facts = {"text": "Коллектив появился в 2009 году.", "urls": ["https://musicbrainz.org/artist/test"]}
         with patch.object(music_facts, "fetch", return_value=facts) as fetch:
             asyncio.run(svc._maybe_music_link())
-            fetch.assert_not_called()  # wait for the news sources
-            svc.all_sources_checked = True
             asyncio.run(svc._maybe_music_link())
             asyncio.run(svc._maybe_music_link())
             fetch.assert_called_once_with("Band", "Song")
@@ -1341,7 +1339,8 @@ class SchedulingTests(unittest.TestCase):
             self.assertNotIn("https://", text)
             db.execute("UPDATE packages SET status='READY', speech_sec=10")
             self.add("real-news", "inbox", 0)
-            self.assertEqual([p["item_id"] for p in svc._pick_break()], ["real-news"])
+            self.assertEqual([p["item_id"] for p in svc._pick_break()], [pk['item_id']])
+            self.assertEqual(db.execute("SELECT status FROM packages WHERE item_id='real-news'").fetchone()[0], 'READY')
             db.execute("UPDATE packages SET status='PLAYED'")
             db.execute("UPDATE items SET state='PLAYED'")
             store.log_event(db, svc.session, "PACKAGE_STARTED", pk["id"])
@@ -1362,20 +1361,20 @@ class SchedulingTests(unittest.TestCase):
             db.execute("UPDATE packages SET status='READY', speech_sec=10 WHERE status='PENDING'")
             self.assertEqual(svc._pick_break(), [])
 
-    def test_no_music_link_when_news_waiting(self):
+    def test_music_link_is_independent_of_waiting_news(self):
         from radio import music_facts, plugins
         from unittest.mock import patch
         plugins.set_plugin("music_facts", True)
         self.addCleanup((config.DATA_DIR / "plugins.json").unlink, missing_ok=True)
         self.add("d", "chatgpt", 1)
-        self.svc.all_sources_checked = True
         self.svc.state = "PLAYING"
         self.svc.current = {"kind": "music", "ref": "/m/track.mp3"}
         self.svc.set_started = time.time()
-        with patch.object(music_facts, "fetch") as fetch:
+        self.svc.set_songs = [('Band', 'Song')]
+        with patch.object(music_facts, "fetch", return_value=None) as fetch:
             asyncio.run(self.svc._maybe_music_link())
-            fetch.assert_not_called()
-        self.assertFalse(self.svc.db.execute("SELECT 1 FROM items WHERE source='music_facts'").fetchone())
+            fetch.assert_called_once()
+        self.assertTrue(self.svc.db.execute("SELECT 1 FROM items WHERE source='music_facts'").fetchone())
 
 
 class JingleRotationTests(unittest.TestCase):
@@ -1398,6 +1397,39 @@ class LlmProviderTests(unittest.TestCase):
         p.start()
         self.addCleanup(p.stop)
 
+    def test_deepseek_retries_old_empty_cache_without_thinking(self):
+        from unittest.mock import patch
+        from radio import editor
+        cfg = config.load()
+        cfg['editor']['provider'] = 'deepseek'
+        ed = editor.Editor(cfg)
+        cached = ed._cache('prompt', editor.target(cfg))
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_text('')
+        answer = {'choices': [{'finish_reason': 'stop', 'message': {'content': 'Проект помогает быстро писать код.'}}]}
+        with patch.object(ed, '_post', return_value=answer) as post:
+            self.assertEqual(ed._ask('prompt'), 'Проект помогает быстро писать код.')
+            self.assertEqual(post.call_args.args[2]['thinking'], {'type': 'disabled'})
+            self.assertEqual(ed._ask('prompt'), 'Проект помогает быстро писать код.')
+            self.assertEqual(post.call_count, 1)
+
+    def test_empty_or_truncated_reply_is_not_cached_but_skip_is(self):
+        from unittest.mock import patch
+        from radio import editor
+        cfg = config.load()
+        ed = editor.Editor(cfg)
+        for reason, raw in [('length', 'Проект помогает быстро писать код.'), ('stop', '')]:
+            with self.subTest(reason=reason), patch.object(ed, '_post', return_value={
+                    'choices': [{'finish_reason': reason, 'message': {'content': raw}}]}):
+                with self.assertRaisesRegex(ValueError, 'empty or truncated'):
+                    ed._ask('prompt')
+                self.assertFalse(ed._cache('prompt', editor.target(cfg)).exists())
+        with patch.object(ed, '_post', return_value={
+                'choices': [{'finish_reason': 'stop', 'message': {'content': 'SKIP'}}]}) as post:
+            self.assertIsNone(ed._ask('prompt'))
+            self.assertIsNone(ed._ask('prompt'))
+            self.assertEqual(post.call_count, 1)
+
     def test_llm_limit_is_per_hour_not_per_session(self):
         import io
         import urllib.request
@@ -1410,7 +1442,8 @@ class LlmProviderTests(unittest.TestCase):
         with patch.object(urllib.request, "urlopen", lambda req, timeout: io.BytesIO(json.dumps(answer).encode())), \
              patch("radio.editor.time.time", lambda: clock[0]):
             self.assertTrue(ed._ask("one") and ed._ask("two"))
-            self.assertIsNone(ed._ask("three"))           # the limit within the hour
+            with self.assertRaisesRegex(ValueError, 'hourly request limit'):
+                ed._ask("three")                         # the limit within the hour
             clock[0] += 3601
             self.assertTrue(ed._ask("three"))             # an hour later the radio retells again
 

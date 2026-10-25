@@ -49,6 +49,147 @@ class PageServerTests(unittest.TestCase):
                                       data=b'{"cmd":"stop"}')[0], 403)
             self.assertEqual(self.get("/api/cmd", {"X-Radio-Token": "wrong"}, data=b'{"cmd":"stop"}')[0], 403)
 
+    def test_news_sources_save_through_the_ui_api(self):
+        from radio import plugins, settings
+        plugins.set_plugin('reddit', True)
+        headers = {'X-Radio-Token': self.server.token, 'Content-Type': 'application/json'}
+        with patch('radio.editor.connection', return_value={'state': 'no_key', 'detail': 'No key', 'ids': []}), patch.object(settings, '_voice_state', return_value={}), patch('radio.public_news.fetch', return_value='<feed xmlns="http://www.w3.org/2005/Atom"/>'):
+            status, body = self.get('/api/cmd', headers, json.dumps({
+                'cmd': 'setting', 'key': 'reddit_posts',
+                'value': 'https://www.reddit.com/r/python/comments/abc123/title/'}).encode())
+            self.assertEqual(status, 200)
+            rows = {r['key']: r for r in json.loads(body)['settings']}
+            self.assertNotIn('reddit_posts', rows)
+            self.assertEqual(settings._saved()['reddit_posts'], ['https://www.reddit.com/comments/abc123/'])
+            before = (config.DATA_DIR / 'settings.json').read_bytes()
+            status, body = self.get('/api/cmd', headers, json.dumps({
+                'cmd': 'setting', 'key': 'reddit_posts', 'value': 'https://evil.test/comments/abc123'}).encode())
+            self.assertEqual(status, 400)
+            self.assertFalse(json.loads(body)['ok'])
+            self.assertEqual((config.DATA_DIR / 'settings.json').read_bytes(), before)
+
+    def test_music_source_choice_is_independent_of_the_integration_switch(self):
+        from radio import plugins, settings
+        headers = {'X-Radio-Token': self.server.token, 'Content-Type': 'application/json'}
+        def command(body):
+            status, raw = self.get('/api/cmd', headers, json.dumps(body).encode())
+            return status, json.loads(raw)
+        def choose(source):
+            return command({'cmd': 'setting', 'key': 'music_source', 'value': source})
+        with patch('radio.editor.connection', return_value={'state': 'no_key', 'detail': 'No key', 'ids': []}), patch.object(settings, '_voice_state', return_value={}):
+            plugins.set_plugin('ytmusic', False)
+            self.assertEqual(choose('ytmusic')[0], 400)
+            self.assertEqual(command({'cmd': 'plugin', 'name': 'ytmusic', 'on': True})[0], 200)
+            self.assertEqual(settings.music_source(config.load()), 'local')
+            self.assertEqual(choose('ytmusic')[0], 200)
+            self.assertTrue(plugins.on(config.load(), 'ytmusic'))
+            self.assertEqual(settings.music_source(config.load()), 'ytmusic')
+            self.assertEqual(choose('local')[0], 200)
+            self.assertTrue(plugins.on(config.load(), 'ytmusic'))
+            self.assertEqual(choose('ytmusic')[0], 200)
+            self.assertEqual(command({'cmd': 'plugin', 'name': 'ytmusic', 'on': False})[0], 200)
+            self.assertEqual(settings.music_source(config.load()), 'local')
+            self.assertEqual(command({'cmd': 'plugin', 'name': 'ytmusic', 'on': True})[0], 200)
+            status, raw = self.get('/api/status', headers)
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(raw)['music_source_choice'], 'local')
+            self.assertEqual(choose('invalid')[0], 400)
+
+    def test_connecting_youtube_does_not_enable_the_integration(self):
+        from radio import plugins
+        plugins.set_plugin('ytmusic', False)
+        with patch('radio.ytmusic.connect', return_value={'connected': True, 'tracks': 1}):
+            status, _ = self.get('/api/cmd', {'X-Radio-Token': self.server.token},
+                                 json.dumps({'cmd': 'ytmusic_connect', 'cookie': 'test'}).encode())
+        self.assertEqual(status, 200)
+        self.assertFalse(plugins.on(config.load(), 'ytmusic'))
+
+    def test_subreddits_are_added_and_removed_individually(self):
+        from radio import plugins, settings
+        plugins.set_plugin('reddit', True)
+        settings.set_setting('reddit_communities', 'python')
+        headers = {'X-Radio-Token': self.server.token, 'Content-Type': 'application/json'}
+        def change(value, action='add'):
+            status, raw = self.get('/api/cmd', headers, json.dumps({
+                'cmd': 'reddit_community', 'action': action, 'value': value}).encode())
+            return status, json.loads(raw)
+        with patch('radio.editor.connection', return_value={'state': 'no_key', 'detail': 'No key', 'ids': []}), patch.object(settings, '_voice_state', return_value={}):
+            with patch('radio.public_news.fetch', return_value='<feed xmlns="http://www.w3.org/2005/Atom"/>') as fetch:
+                self.assertEqual(change('r/technology')[0], 200)
+                fetch.assert_called_once_with('https://www.reddit.com/r/technology/new/.rss?limit=25')
+                self.assertEqual(settings._saved()['reddit_communities'], ['python', 'technology'])
+                fetch.reset_mock()
+                self.assertEqual(change('technology')[0], 200)
+                self.assertEqual(change('python', 'remove')[0], 200)
+                fetch.assert_not_called()
+                self.assertEqual(settings._saved()['reddit_communities'], ['technology'])
+            before = (config.DATA_DIR / 'settings.json').read_bytes()
+            with patch('radio.public_news.fetch', side_effect=OSError('network')):
+                self.assertEqual(change('bestgithubrepos')[0], 400)
+                self.assertEqual((config.DATA_DIR / 'settings.json').read_bytes(), before)
+                self.assertEqual(change('technology', 'remove')[0], 200)
+                self.assertEqual(settings._saved()['reddit_communities'], [])
+            with patch('radio.public_news.fetch') as fetch:
+                self.assertEqual(change('python,technology')[0], 400)
+                settings.set_setting('reddit_communities', ['sub'+str(n) for n in range(20)])
+                self.assertEqual(change('another')[0], 400)
+                fetch.assert_not_called()
+
+    def test_telegram_channels_are_added_individually_with_public_preview_check(self):
+        from radio import plugins, settings
+        plugins.set_plugin('telegram', True)
+        settings.set_setting('telegram_channels', ['telegram'])
+        headers = {'X-Radio-Token': self.server.token, 'Content-Type': 'application/json'}
+        def change(value, action='add'):
+            status, raw = self.get('/api/cmd', headers, json.dumps({
+                'cmd': 'telegram_channel', 'action': action, 'value': value}).encode())
+            return status, json.loads(raw)
+        with patch('radio.editor.connection', return_value={'state': 'no_key', 'detail': 'No key', 'ids': []}), patch.object(settings, '_voice_state', return_value={}):
+            with patch('radio.telegram.fetch', return_value=[]) as fetch:
+                self.assertEqual(change('https://t.me/example')[0], 200)
+                fetch.assert_called_once_with('example')
+                self.assertEqual(settings._saved()['telegram_channels'], ['telegram', 'example'])
+                fetch.reset_mock()
+                self.assertEqual(change('@Example')[0], 200)
+                self.assertEqual(change('telegram', 'remove')[0], 200)
+                fetch.assert_not_called()
+            before = (config.DATA_DIR / 'settings.json').read_bytes()
+            with patch('radio.public_news.fetch', return_value='<html>unavailable</html>'):
+                self.assertEqual(change('@unavailable')[0], 400)
+                self.assertEqual((config.DATA_DIR / 'settings.json').read_bytes(), before)
+            with patch('radio.telegram.fetch', side_effect=OSError('network')) as fetch:
+                self.assertEqual(change('@another')[0], 400)
+                fetch.reset_mock()
+                self.assertEqual(change('https://t.me/c/123/456')[0], 400)
+                self.assertEqual(change('@onechan,@twochan')[0], 400)
+                self.assertEqual(change('example', 'remove')[0], 200)
+                fetch.assert_not_called()
+                self.assertEqual(settings._saved()['telegram_channels'], [])
+
+    def test_reddit_rss_check_preserves_saved_lists_on_error(self):
+        from radio import plugins, settings
+        plugins.set_plugin('reddit', True)
+        settings.set_setting('reddit_communities', 'python')
+        headers = {'X-Radio-Token': self.server.token, 'Content-Type': 'application/json'}
+        def save(value):
+            status, raw = self.get('/api/cmd', headers, json.dumps({
+                'cmd': 'setting', 'key': 'reddit_communities', 'value': value}).encode())
+            return status, json.loads(raw)
+        with patch('radio.editor.connection', return_value={'state': 'no_key', 'detail': 'No key', 'ids': []}), patch.object(settings, '_voice_state', return_value={}):
+            before = (config.DATA_DIR / 'settings.json').read_bytes()
+            for failure in (OSError('network'), ValueError('not a feed')):
+                with patch('radio.public_news.fetch', side_effect=failure):
+                    status, result = save('junk')
+                self.assertEqual(status, 400)
+                self.assertIn('junk', result['error'])
+                self.assertEqual((config.DATA_DIR / 'settings.json').read_bytes(), before)
+            with patch('radio.public_news.fetch', return_value='<feed xmlns="http://www.w3.org/2005/Atom"/>') as fetch:
+                self.assertEqual(save('technology')[0], 200)
+                fetch.assert_called_once_with('https://www.reddit.com/r/technology/new/.rss?limit=25')
+                fetch.reset_mock()
+                self.assertEqual(save('')[0], 200)
+                fetch.assert_not_called()
+
 
 class QwenTrimTests(unittest.TestCase):
     def test_only_the_edges_are_trimmed(self):

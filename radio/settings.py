@@ -4,12 +4,21 @@ the defaults, and the daemon picks a change up live, without a restart."""
 import json
 import os
 import urllib.request
+from copy import deepcopy
 
-from . import chatgpt, config, editor, openrouter, plugins
+from . import chatgpt, config, editor, openrouter, plugins, public_news
 
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
     "music_source": ("music", "source", "Music source", "", 1, 20, None, ""),
+    "reddit_communities": ("sources.reddit", "communities", "Reddit · Subreddits",
+                           "Add one name or link at a time. Only the new subreddit is checked; up to 20 total.", 0, 4000, None, ""),
+    "reddit_posts": ("sources.reddit", "posts", "Reddit · Threads and posts",
+                    "Public post links, one per line. RSS is checked before saving; reads headlines and available comments.", 0, 4000, None, ""),
+    "telegram_channels": ("sources.telegram", "channels", "Telegram · Channels",
+                          "Add one public channel name or link at a time. Only the new channel is checked; up to 20 total.", 0, 4000, None, ""),
+    "telegram_posts": ("sources.telegram", "posts", "Telegram · Posts",
+                       "Public post links, one per line. Private posts and forum-topic links are unavailable.", 0, 4000, None, ""),
     "host_name": ("broadcast", "host_name", "Host name", "How the co-host addresses the main host when Two hosts is enabled.",
                   1, 30, None, ""),
     "cohost_name": ("broadcast", "cohost_name", "Co-host name", "How the main host addresses the co-host when Two hosts is enabled.", 1, 30, None, ""),
@@ -39,6 +48,13 @@ SETTINGS = {
                  "How far ahead to announce timed calendar events and Todoist tasks.", 1, 60, 1, "min"),
 }
 
+SOURCE_LISTS = {
+    "reddit_communities": ("reddit", "names", "python\nr/technology"),
+    "reddit_posts": ("reddit", "posts", "https://www.reddit.com/r/python/comments/abc123/title/"),
+    "telegram_channels": ("telegram", "names", "@telegram\nhttps://t.me/bbcrussian"),
+    "telegram_posts": ("telegram", "posts", "https://t.me/telegram/83"),
+}
+
 
 CHOICES = {"music_source": ("local", "ytmusic"), "llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai"), "voice_engine": ("qwen3", "voicestudio")}
 VOICE_LABELS = {"qwen3": "Qwen3-TTS · cloned voice", "voicestudio": "VoiceStudio · OmniVoice"}
@@ -50,7 +66,10 @@ def _path():
     return config.DATA_DIR / "settings.json"
 
 
-def _clamp(key: str, value) -> int | str:
+def _clamp(key: str, value) -> int | str | list[str]:
+    if key in SOURCE_LISTS:
+        source, kind, _ = SOURCE_LISTS[key]
+        return public_news.references(value, source, kind)
     lo, hi, step = SETTINGS[key][4], SETTINGS[key][5], SETTINGS[key][6]
     if step is None:
         text = " ".join(str(value).split())[:hi]  # one line: the host reads it aloud
@@ -74,7 +93,13 @@ def _saved() -> dict:
 
 def base(cfg: dict) -> dict:
     """The config.toml values (the defaults)."""
-    return {k: cfg[s[0]][s[1]] for k, s in SETTINGS.items()}
+    return {k: _section(cfg, s[0])[s[1]] for k, s in SETTINGS.items()}
+
+
+def _section(cfg, path):
+    for part in path.split("."):
+        cfg = cfg[part]
+    return cfg
 
 
 def set_setting(key: str, value) -> None:
@@ -109,26 +134,30 @@ def apply(cfg: dict, defaults: dict) -> None:
     """Puts the saved values (else the defaults) into a loaded config. The daemon calls it before it decides."""
     saved = _saved()
     for k, s in SETTINGS.items():
-        cfg[s[0]][s[1]] = saved.get(k, defaults[k])
+        _section(cfg, s[0])[s[1]] = saved.get(k, defaults[k])
 
 
 def listing(cfg: dict) -> list[dict]:
     """For the page. cfg is a freshly loaded config (the defaults)."""
     saved, d = _saved(), base(cfg)
     value = {k: saved.get(k, d[k]) for k in SETTINGS}
-    live = {s[0]: dict(cfg[s[0]]) for s in SETTINGS.values()}
+    live = deepcopy(cfg)
     for k, s in SETTINGS.items():
-        live[s[0]][s[1]] = value[k]
+        _section(live, s[0])[s[1]] = value[k]
     provider = value["llm_provider"]
     c = editor.connection(live)
     rows = []
     for k, s in SETTINGS.items():
-        if k == "music_source":
+        if k in ("music_source", "reddit_posts", "telegram_posts"):
+            continue
+        if k in SOURCE_LISTS and not plugins.on(cfg, SOURCE_LISTS[k][0]):
             continue
         if k in MODEL_ROWS.values() and (k != MODEL_ROWS[provider] or c["state"] not in ("ok", "no_model")):
             continue  # a model is picked only once the provider answers, from what it offers
         row = {"key": k, "title": s[2], "hint": s[3], "min": s[4], "max": s[5], "step": s[6], "unit": s[7],
                "options": CHOICES.get(k), "value": value[k], "default": d[k]}
+        if k in SOURCE_LISTS:
+            row.update(multiline=True, placeholder=SOURCE_LISTS[k][2])
         if k == MODEL_ROWS[provider]:
             row["options"] = c["ids"] or None  # None: a text field (a ChatGPT sign-in lists no models)
         if k == "voice_engine":

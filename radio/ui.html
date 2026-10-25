@@ -171,7 +171,10 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .pick-hint{color:var(--warn)}
 .act{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.act .ab{min-width:17ch}.fb.wait{color:var(--muted)}
 .ab:disabled{opacity:.5;cursor:default}.ab:disabled:hover{border-color:var(--line)}
-.st input[type=url],.st input[type=password],.st input[type=text],.st select{box-sizing:border-box;width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
+.st input[type=url],.st input[type=password],.st input[type=text],.st select,.st textarea{box-sizing:border-box;width:100%;max-width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
+.st textarea{resize:vertical;min-height:96px}.st textarea[aria-invalid="true"]{border-color:var(--warn)}
+.community-list{list-style:none;margin:0;padding:0}.community-list:empty{display:none}
+.st input.source-name-input{flex:1;min-width:min(100%,220px);width:auto}.st input.source-name-input[aria-invalid="true"]{border-color:var(--warn)}
 .st .rs{border:0;padding:0 4px;font-size:16px;color:var(--accent);text-decoration:underline}.st .rs:hover{border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .tabs button:hover{border:0;border-bottom:2px solid var(--muted)}
@@ -532,13 +535,33 @@ function playSample(){
     sampleAudio=new Audio(d.url);sampleAudio.onended=function(){sampleState('idle')};
     return sampleAudio.play().then(function(){sampleState('playing')})})
   .catch(function(e){sampleState('error',(e&&e.message)||'the voice engine did not answer')})}
+var sourceDrafts={},sourceFeedback={};
+function sourceSettingView(s){
+  var reddit=s.key==='reddit_communities',fb=sourceFeedback[s.key]||{},disabled=fb.state==='saving'?' disabled':'',prefix=reddit?'r/':'@',base=reddit?'https://www.reddit.com/r/':'https://t.me/',label=reddit?'Add subreddit':'Add channel';
+  return '<div class="st"><div class="hd2">'+esc(s.title)+'</div>'
+    +'<ul class="community-list" aria-label="'+(reddit?'Added subreddits':'Added public channels')+'">'+s.value.map(function(name){return '<li class="row"><a href="'+base+esc(name)+'" target="_blank" rel="noopener noreferrer">'+prefix+esc(name)+'</a><button type="button" class="rs" data-source-remove="'+s.key+'" data-name="'+esc(name)+'" aria-label="Remove '+prefix+esc(name)+'"'+disabled+'>Remove</button></li>'}).join('')+'</ul>'
+    +'<div class="row"><input type="text" class="source-name-input" id="source-'+s.key+'" data-source-input="'+s.key+'" aria-label="'+label+'" maxlength="512" placeholder="'+(reddit?'r/python':'@telegram')+'" value="'+esc(sourceDrafts[s.key]||'')+'" aria-describedby="sh-'+s.key+' sf-'+s.key+'" aria-invalid="'+(fb.state==='error')+'"'+disabled+'><button type="button" data-source-add="'+s.key+'"'+disabled+'>'+(disabled?'Checking…':label)+'</button></div>'
+    +'<div class="l" id="sh-'+s.key+'">'+esc(s.hint)+'</div><div class="l" id="sf-'+s.key+'" role="status" aria-live="polite">'+esc(fb.text||'')+'</div></div>';
+}
+function editSourceName(key,remove){
+  var field=$('source-'+key);
+  if(sourceFeedback[key]&&sourceFeedback[key].state==='saving')return;
+  if(!remove&&(!field||!field.value.trim()||!field.reportValidity()))return;
+  var value=remove||field.value;sourceDrafts[key]=field?field.value:'';
+  sourceFeedback[key]={state:'saving',text:remove?'Removing…':'Checking public source…'};settingsView(true);
+  api('/api/cmd',{cmd:key==='reddit_communities'?'reddit_community':'telegram_channel',action:remove?'remove':'add',value:value}).then(function(d){
+    if(!d||!d.ok)throw Error(d&&d.error||'Could not update sources. Try again.');
+    stg=d.settings;if(!remove)delete sourceDrafts[key];sourceFeedback[key]={state:'saved',text:remove?'Removed':'Added'};
+  }).catch(function(e){sourceFeedback[key]={state:'error',text:e.message}}).finally(function(){settingsView(true);var f=$('source-'+key);if(f)f.focus()});
+}
 function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
   var box=$('settings'),f=document.activeElement;
-  if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // the poll must not redraw a sample in progress
-  if(!force&&(box.contains(f)&&['range','text','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
+  if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // preserve a sample in progress
+  if(!force&&(box.contains(f)&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
   var u=function(s,v){return v+(s.unit?' '+s.unit:'')},prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
   var voice=stg.find(function(s){return s.voice_state});
-  box.innerHTML=stg.map(function(s){if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
+  var sources=stg.filter(function(s){return s.key==='reddit_communities'||s.key==='telegram_channels'});
+  box.innerHTML=(sources.length?'<section class="ai" aria-label="News sources"><div class="ai-h">News sources</div><div class="l">Changes apply to the next source check; no restart needed.</div>'+sources.map(sourceSettingView).join('')+'</section>':'')+stg.map(function(s){if(s.multiline)return '';if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
@@ -550,22 +573,24 @@ $('audio-preset').onchange=function(){
     refresh();
   }).catch(function(){$('audio-preset-hint').textContent='Could not save the audio preset. Try again.'})
 };
-$('stg').oninput=function(e){var r=e.target.closest('[data-st]');if(!r)return;
-  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.step!==null)$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
+$('stg').oninput=function(e){if(e.target.dataset.sourceInput){var key=e.target.dataset.sourceInput;sourceDrafts[key]=e.target.value;sourceFeedback[key]={};e.target.setAttribute('aria-invalid','false');return}var r=e.target.closest('[data-st]');if(!r)return;
+  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline){sourceDrafts[s.key]=r.value;sourceFeedback[s.key]={};r.setAttribute('aria-invalid','false');return}if(s.step!==null)$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
-  var s=stg.find(function(x){return x.key===r.dataset.st}),value=s.step===null?r.value:+r.value;s.value=value;
+  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline)return;var value=s.step===null?r.value:+r.value;s.value=value;
   if(s.key==='llm_provider')keyFb={cls:'',text:''};
   if(s.key==='voice_engine'){voicePending=value;setTimeout(function(){voicePending=null},6000)}
   api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save'})};
-$('stg').onkeydown=function(e){if(e.key==='Enter'&&e.target.id==='llm-key'){e.preventDefault();var b=document.querySelector('[data-key]');if(b)saveKey(b.dataset.key,e.target.value)}};
+$('stg').onkeydown=function(e){if(e.key==='Enter'&&e.target.dataset.sourceInput){e.preventDefault();editSourceName(e.target.dataset.sourceInput);return}if(e.key==='Enter'&&e.target.id==='llm-key'){e.preventDefault();var b=document.querySelector('[data-key]');if(b)saveKey(b.dataset.key,e.target.value)}};
 $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();return}
+  var source=e.target.closest('[data-source-add],[data-source-remove]');if(source){editSourceName(source.dataset.sourceAdd||source.dataset.sourceRemove,source.dataset.name);return}
   var k=e.target.closest('[data-key],[data-key-rm]');
   if(k){saveKey(k.dataset.key||k.dataset.keyRm,k.dataset.key?$('llm-key').value:'');return}
   var a=e.target.closest('[data-act]');
   if(a){api('/api/cmd',{cmd:a.dataset.act}).then(function(d){if(d.url){location.href=d.url;return}  // same tab: no popup to block; the callback page links back
       if(d.settings)stg=d.settings;settingsView(true)}).catch(function(){$('er').textContent='could not reach the radio'});return}
   var b=e.target.closest('[data-rs]');if(!b)return;
-  api('/api/cmd',{cmd:'settings_reset',key:b.dataset.rs}).then(function(d){if(d&&d.settings)stg=d.settings;settingsView(true)})};
+  var key=b.dataset.rs;
+  api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true)}).catch(function(e){sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
   var focused=document.activeElement&&document.activeElement.dataset.pl;

@@ -80,12 +80,14 @@ Browser output pauses after 30 seconds without listeners and resumes when one co
 | GitHub Trending | Popular projects | Enabled by default; `sources.github_trending` |
 | New GitHub repositories | Projects from the last week | Enabled by default; `sources.github_new` |
 | Horizon | Prepared news briefings | Install separately, configure `sources.horizon`, enable the integration |
-| iCal | Timed reminders and all-day mentions | Set `reminders.calendar_url`; enable Host links for all-day events |
+| iCal | Timed reminders and all-day mentions | Set `reminders.calendar_url` |
 | Todoist | Tasks with a due date and time | Set `reminders.todoist_token` |
-| Open-Meteo | A short weather update at most every three hours | Set `weather.city`, enable Host links |
-| YouTube Music | A connected playlist | Install `yt-dlp`, connect the playlist and cookies, enable the integration, restart playback |
+| Open-Meteo | A short weather update at most every three hours | Set `weather.city` |
+| YouTube Music | A connected playlist | Install `yt-dlp`, enable the integration, connect a playlist, then select YouTube Music in Settings → Music source |
 
 For YouTube Music:
+
+The Integrations switch only makes the feature available. It does not select a music source. **Settings → Music source** independently selects Local or YouTube Music; YouTube Music appears only while its integration is enabled. Disabling the integration resets the selection to Local. Re-enabling leaves Local selected. Source changes take effect at a track boundary.
 
 ```sh
 brew install yt-dlp
@@ -96,6 +98,8 @@ The station can fall back to local music when this source is unavailable. Cookie
 Todoist reminders require both a date and a time. Original descriptions and links remain in timeline details, while URLs are removed from spoken text. Reminders play at song boundaries; expired items are removed and time estimates are recalculated after a pause.
 
 LRCLIB lyrics help choose speech windows around vocals. Optional Music stories use exact matches from MusicBrainz and Wikidata, with cached results and template-based host links. Enabling them sends artist and track names to those services.
+
+Music stories prepare for the next clock edition independently of news availability. News sources keep separate statuses and retry intervals. **Unplayed tracks first** puts unheard songs from the active local or YouTube Music library ahead of repeats, without waiting for a clock slot or a minimum number of songs. Local tracks are ordered newest first; YouTube Music keeps the source playlist order. Once those tracks have aired, normal shuffle continues. The current song finishes, manual replays and timed inserts keep their priority, and switching sources removes pending priority tracks from the previous source. The legacy `new_every_sets` setting now means 0 = off, any positive value = on. This works without news or Host links, and a new edition does not discard the remaining priority songs. Weather and calendar dates also work independently of Host links. Pause, playback order, and speech limits remain shared station constraints.
 
 Experimental public Reddit and Telegram news adapters are documented separately in [public-news.md](public-news.md) (Russian).
 

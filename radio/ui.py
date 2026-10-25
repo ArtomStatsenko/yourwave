@@ -12,7 +12,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import chatgpt, config, editor, openrouter, plugins, settings, tts, ytmusic
+from . import chatgpt, config, editor, openrouter, plugins, public_news, reddit, settings, telegram, tts, ytmusic
 from .timeline import timeline
 
 PAGE = Path(__file__).with_name("ui.html")
@@ -83,6 +83,7 @@ def make_server(port: int) -> ThreadingHTTPServer:
     cfg = config.load()
     stream = Stream(cfg["output"]["stream_port"])
     ytmusic_lock = threading.Lock()
+    source_names_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):  # keep the terminal quiet
@@ -249,11 +250,47 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 except (ValueError, OSError) as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
                 resp = {"ok": True, "audio_preset": config.audio_presets()}
+            elif cmd in ("reddit_community", "telegram_channel"):
+                try:
+                    with source_names_lock:
+                        source, column, key, noun = (("reddit", "communities", "reddit_communities", "subreddit")
+                            if cmd == "reddit_community" else ("telegram", "channels", "telegram_channels", "public channel"))
+                        names = public_news.references(body.get("value"), source, "names")
+                        if len(names) != 1 or body.get("action") not in ("add", "remove"):
+                            raise ValueError(f"Add or remove one {noun} at a time.")
+                        name = names[0]
+                        live = config.load()
+                        settings.apply(live, settings.base(live))
+                        current = list(live["sources"][source][column])
+                        if body["action"] == "add" and name not in current:
+                            if len(current) >= 20:
+                                raise ValueError("Use up to 20 entries. Remove one before adding another.")
+                            if source == "reddit":
+                                reddit.validate([name], "names")
+                            else:
+                                try:
+                                    telegram.fetch(name)
+                                except OSError:
+                                    raise ValueError("Could not read Telegram's public preview. Nothing was added; try again later.") from None
+                            current.append(name)
+                        elif body["action"] == "remove" and name in current:
+                            current.remove(name)
+                        settings.set_setting(key, current)
+                except ValueError as e:
+                    return self._json({"ok": False, "error": str(e)}, 400)
+                resp = {"ok": True, "settings": settings.listing(cfg)}
             elif cmd in ("setting", "settings_reset"):  # a file too: the daemon reads it before every decision
                 try:
                     if cmd == "setting":
-                        settings.set_setting(str(body.get("key", "")), body.get("value"))
+                        key, value = str(body.get("key", "")), body.get("value")
+                        if key in ("reddit_communities", "reddit_posts"):
+                            value = reddit.validate(value, settings.SOURCE_LISTS[key][1])
+                        settings.set_setting(key, value)
                     else:
+                        defaults = settings.base(cfg)
+                        for key in ([str(body["key"])] if body.get("key") else ("reddit_communities", "reddit_posts")):
+                            if key in ("reddit_communities", "reddit_posts"):
+                                reddit.validate(defaults[key], settings.SOURCE_LISTS[key][1])
                         settings.reset(str(body["key"]) if body.get("key") else None)
                 except ValueError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)

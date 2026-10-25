@@ -42,6 +42,42 @@ def names(values, source):
     return list(dict.fromkeys(v.lower() for v in values))
 
 
+def references(values, source, kind):
+    """Normalize UI lists to public source names or canonical post URLs, never arbitrary fetch targets."""
+    if isinstance(values, str):
+        if len(values) > 4000:
+            raise ValueError("Use at most 4000 characters per list")
+        values = [v.strip() for v in re.split(r"[\n,]+", values) if v.strip()]
+    if not isinstance(values, list) or len(values) > 20:
+        raise ValueError("Use up to 20 entries, one per line")
+    result = []
+    for value in values:
+        if not isinstance(value, str) or len(value) > 512:
+            raise ValueError("Each entry must be a public name or link, up to 512 characters")
+        value = value.strip()
+        path = value
+        if "://" in value:
+            p = urllib.parse.urlsplit(value)
+            hosts = {"reddit.com", "www.reddit.com"} if source == "reddit" else {"t.me"}
+            if p.scheme != "https" or p.hostname not in hosts or p.netloc not in hosts:
+                raise ValueError(f"Use a public https:// link from {'reddit.com' if source == 'reddit' else 't.me'}")
+            path = p.path.strip("/")
+        if kind == "names":
+            path = path.removeprefix("r/") if source == "reddit" else path.removeprefix("@").removeprefix("s/")
+            result.extend(names([path], source))
+        elif source == "reddit":
+            match = re.fullmatch(r"(?:r/[A-Za-z0-9_]+/)?comments/([a-z0-9]+)(?:/[^/]+)?/?", path)
+            if not match:
+                raise ValueError("Use a public Reddit post link, such as https://www.reddit.com/r/python/comments/abc123/title/")
+            result.append(f"https://www.reddit.com/comments/{match[1]}/")
+        else:
+            match = re.fullmatch(r"(?:s/)?([A-Za-z][A-Za-z0-9_]{3,31})/([1-9][0-9]*)", path)
+            if not match:
+                raise ValueError("Use a public Telegram post link, such as https://t.me/telegram/83; private and forum-topic links are unavailable")
+            result.append(f"https://t.me/{match[1].lower()}/{match[2]}")
+    return list(dict.fromkeys(result))
+
+
 class PlainText(HTMLParser):
     def __init__(self):
         super().__init__()

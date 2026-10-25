@@ -107,6 +107,7 @@ class Service:
         self.todoist_tasks: list = []
         self.next_read = {"calendar": 0.0, "todoist": 0.0}
         self.public_news_due = {}
+        self.public_news_selection = {}
         self.next_weather_read = 0.0
         self.reminders_due: dict[str, dict] = {}   # key -> reminder waiting for a song boundary
         self.reminder_text: dict[str, str] = {}    # key -> what the host says, for the timeline
@@ -120,7 +121,6 @@ class Service:
         self.queued_clock = None
         self.manual_switch = False
         self.manual_skip_pending = False
-        self.all_sources_checked = False  # set only after a *successful* check of every enabled source
         self.resume_offset: dict[str, float] = {}  # ref -> seconds already played, for the song resumed at start
         self.weather_hold: dict[str, float] = {}   # weather slot -> start of the song its joining break first waited at
         self.gap_voice: list[tuple[str, Path]] = []  # gap filler lines, rendered ahead: a gap leaves seconds
@@ -559,17 +559,18 @@ class Service:
 
     async def trending_loop(self) -> None:
         """Check enabled sources near the next news section, respecting refresh and retry delays."""
-        next_fetch, was_on = 0.0, set()
+        next_fetch = {}
         while not self.stopping:
             on = {n for n in ("github_trending", "github_new") if plugins.on(self.cfg, n)}
+            prepare = self._news_preparation_due(TEXT_LEAD_SEC)
             for n in ("github_trending", "github_new"):
                 if n not in on:
                     self.sources[n] = "off"
-            if not on:
-                self.all_sources_checked = True
-            elif self._news_preparation_due(TEXT_LEAD_SEC) and (time.time() >= next_fetch or on - was_on):
-                next_fetch = time.time() + await self._fetch_github("github_trending" in on, "github_new" in on)
-            was_on = on
+            for name in ('github_trending', 'github_new'):
+                if name not in on:
+                    next_fetch.pop(name, None)
+                elif prepare and self.state == 'PLAYING' and time.time() >= next_fetch.get(name, 0):
+                    next_fetch[name] = time.time() + await self._fetch_github(name == 'github_trending', name == 'github_new')
             try:
                 await asyncio.wait_for(self.done.wait(), 60)
             except asyncio.TimeoutError:
@@ -599,10 +600,12 @@ class Service:
                     new_ok = False
                     self.sources["github_new"] = f"error: {e}"
             result = await asyncio.to_thread(self._take_github, main, langs, new)
-            # "No news" may only be said after every enabled source answered.
-            self.all_sources_checked = self.all_sources_checked or new_ok
-            self.sources[key] = f"ok {time.strftime('%H:%M')}: {result}"
-            store.log_event(self.db, self.session, "FETCH_SUCCEEDED", "github")
+            healthy = new_ok and not result.startswith('degraded')
+            if not new_ok:
+                result = f"degraded: new repositories fetch failed; {result}"
+            self.sources[key] = f"ok {time.strftime('%H:%M')}: {result}" if healthy else result
+            if healthy:
+                store.log_event(self.db, self.session, "FETCH_SUCCEEDED", "github")
         except github_trending.RateLimited as e:
             delay = max(delay, e.retry_after)
             self.sources[key] = f"rate limited, next try in {delay / 60:.0f} min"
@@ -630,7 +633,7 @@ class Service:
                 try:
                     briefing = await asyncio.to_thread(horizon.run, self.cfg)
                     result = await asyncio.to_thread(self._take_horizon, horizon.parse(briefing.read_text(encoding="utf-8")))
-                    self.sources["horizon"] = f"ok {time.strftime('%H:%M')}: {result}"
+                    self.sources["horizon"] = result if result.startswith('degraded') else f"ok {time.strftime('%H:%M')}: {result}"
                     next_run = time.time() + hz["refresh_minutes"] * 60
                 except Exception as e:
                     self.sources["horizon"] = f"error: {str(e)[:160]}"
@@ -652,22 +655,33 @@ class Service:
                 pass
 
     async def public_news_tick(self) -> None:
+        self._live_settings()
         for source, key, adapter in (("reddit", "communities", reddit), ("telegram", "channels", telegram)):
             if not plugins.on(self.cfg, source):
                 self.sources[source] = "off"
                 self.public_news_due.pop(source, None)
                 continue
+            selected = (tuple(self.cfg["sources"][source][key]), tuple(self.cfg["sources"][source]["posts"]))
+            if self.public_news_selection.get(source) != selected:
+                self.public_news_due.pop(source, None)
+                self.public_news_selection[source] = selected
             if time.time() < self.public_news_due.get(source, 0) or not self._news_preparation_due(TEXT_LEAD_SEC):
                 continue
             # Fixed gentle cadence, including on errors; no rapid retries or fallback scraping.
             self.public_news_due[source] = time.time() + 1800
             added, errors = [], []
-            for name in public_news.names(self.cfg["sources"][source][key], source):
+            targets = [(name, adapter.fetch) for name in public_news.names(list(selected[0]), source)]
+            targets += [(url, adapter.fetch_post) for url in public_news.references(list(selected[1]), source, "posts")]
+            for name, fetch in targets:
                 if self.stopping or not plugins.on(self.cfg, source):
                     break
                 try:
-                    items = await asyncio.to_thread(adapter.fetch, name)
+                    items = await asyncio.to_thread(fetch, name)
+                    self._live_settings()
                     if self.stopping or not plugins.on(self.cfg, source):
+                        break
+                    if selected != (tuple(self.cfg["sources"][source][key]), tuple(self.cfg["sources"][source]["posts"])):
+                        self.public_news_due.pop(source, None)
                         break
                     ids = public_news.take(self.db, self.cfg, items)
                     for iid in ids:
@@ -682,7 +696,7 @@ class Service:
         """Best-ranked new items of a Horizon briefing, each its own bulletin, retold in Russian by the local model;
         a failed retelling passes its slot to the next item."""
         hz = self.cfg["sources"]["horizon"]
-        added, tries = [], 0
+        added, tries, failures = [], 0, 0
         for it in items:
             if len(added) >= hz["picks"] or tries >= hz["picks"] + 3:
                 break
@@ -693,6 +707,7 @@ class Service:
             try:
                 text = self.editor.retell_news(it["title"], it["summary"])
             except Exception as e:  # one failed retelling (timeout, 429) must not lose the rest of the briefing
+                failures += 1
                 log("horizon retelling:", type(e).__name__)
                 continue
             if not text:
@@ -708,7 +723,8 @@ class Service:
             added.append(it["title"][:50])
         if added:
             log("horizon:", "; ".join(added))
-        return f"{len(added)} new" if added else "nothing new"
+        result = f"{len(added)} new" if added else "nothing new"
+        return f"degraded: {failures} retellings failed; {result}" if failures else result
 
     def _take_github(self, main: list[dict], langs: list[dict], new: list[dict]) -> str:
         """Hourly picks, each its own short bulletin: top trend(s), indie finds from trending pages, new of the week.
@@ -732,7 +748,7 @@ class Service:
                                                             blocked)]),
                  ("new", "github_new", gn["picks"],
                   [t for t in new if github_trending.repo_id(t) not in seen and github_trending.airable(t, blocked)])]
-        added, taken = [], set(seen)
+        added, taken, failures = [], set(seen), 0
         for role, source, quota, candidates in roles:
             got = tries = 0
             for t in candidates:
@@ -747,6 +763,7 @@ class Service:
                 try:
                     told = self.editor.retell(t["repo"], t["description"], readme)
                 except Exception as e:  # one failed retelling must not lose the other picks of this hour
+                    failures += 1
                     log("github retelling:", type(e).__name__)
                     continue
                 item = github_trending.to_item(t, told, role, gt["daily_min"], source)
@@ -762,15 +779,16 @@ class Service:
                 got += 1
         if added:
             log("github:", ", ".join(added))
-        return ", ".join(added) + " new" if added else "nothing new"
+        result = ", ".join(added) + " new" if added else "nothing new"
+        return f"degraded: {failures} retellings failed; {result}" if failures else result
 
     async def _maybe_music_link(self) -> None:
         self._live_settings()
-        if (not self.all_sources_checked or not plugins.on(self.cfg, "music_facts") or self.state != "PLAYING"
+        if (not plugins.on(self.cfg, "music_facts") or self.state != "PLAYING"
                 or not self.current or self.current["kind"] != "music" or not self._news_preparation_due(TEXT_LEAD_SEC)):
             return
         pending = ("SELECT i.source FROM packages p JOIN items i ON i.id=p.item_id "
-                   "WHERE p.status IN ('PENDING','READY','QUEUED','PLAYING') AND i.state='NEW'")
+                   "WHERE p.status IN ('PENDING','READY','QUEUED','PLAYING') AND i.state='NEW' AND i.source='music_facts'")
         off = self._sources_off()
         if any(r[0] not in off for r in self.db.execute(pending)):
             return
@@ -789,11 +807,20 @@ class Service:
         log("music link prepared")
 
     async def content_tick(self) -> None:
-        for item_id in content.scan_inbox(self.db, self.cfg):
-            store.log_event(self.db, self.session, "ITEM_COLLECTED", item_id)
-            log("new digest:", item_id)
+        try:
+            for item_id in content.scan_inbox(self.db, self.cfg):
+                store.log_event(self.db, self.session, "ITEM_COLLECTED", item_id)
+                log("new digest:", item_id)
+            self.sources.pop('inbox', None)
+        except Exception as e:
+            self.sources['inbox'] = f"error: {type(e).__name__}"
+            log('inbox:', type(e).__name__)
         content.expire_stale(self.db, self.cfg)
-        await self._maybe_music_link()
+        try:
+            await self._maybe_music_link()
+        except Exception as e:
+            self.sources['music_facts'] = f"error: {type(e).__name__}"
+            log('music stories:', type(e).__name__)
         await self.schedule()
         if self.rendering or time.time() < self.tts_retry_at:
             return
@@ -1193,15 +1220,14 @@ class Service:
         return [r for r in found if reminders.until(r) > at and r["key"] not in fired]
 
     def _day_due(self, at):
-        if not plugins.on(self.cfg, "reminders_calendar") or not self.cfg["reminders"]["calendar_url"] \
-                or not plugins.on(self.cfg, "host_links"):
+        if not plugins.on(self.cfg, "reminders_calendar") or not self.cfg["reminders"]["calendar_url"]:
             return None
         history = self.db.execute("SELECT key, fired_at FROM reminders WHERE key LIKE ?",
                                   (f"day:{at.date()}:%",)).fetchall()
         return reminders.day_due(self.cal_events, at, history)
 
     def _weather_enabled(self) -> bool:
-        return bool(self.cfg["weather"]["city"]) and plugins.on(self.cfg, "weather") and plugins.on(self.cfg, "host_links")
+        return bool(self.cfg["weather"]["city"]) and plugins.on(self.cfg, "weather")
 
     async def _weather_tick(self) -> str | None:
         if not self._weather_enabled():
@@ -1504,8 +1530,6 @@ class Service:
                   (notice['kind'] != 'day' or self._day_due(now().astimezone())) and
                   direction.allowed({'id': p['item_id'].removeprefix('system:')}, changes, now()))]
         ready.sort(key=lambda p: self._host_segment(p) != 'weather')
-        news = [p for p in ready if not p["id"].startswith("system:music-link:")]
-        ready = news or ready
         if ready and ready[0]["id"].startswith("system:") and not self._host_segment(ready[0]):
             return [ready[0]] if ready[0]["speech_sec"] <= budget + 12 else []  # announcements air alone
         picked, total = [], 0.0

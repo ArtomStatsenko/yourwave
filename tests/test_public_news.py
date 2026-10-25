@@ -6,12 +6,13 @@ import subprocess
 import tempfile
 import time
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
 # Set before importing radio modules, including when this file is run alone.
 os.environ.setdefault('RADIO_DATA_DIR', tempfile.mkdtemp(prefix='public-news-import-'))
-from radio import config, content, daemon, plugins, public_news, reddit, store, telegram, timeline
+from radio import config, content, daemon, plugins, public_news, reddit, settings, store, telegram, timeline
 from radio.tts import MockTTS
 
 
@@ -116,6 +117,95 @@ class PublicNewsTests(unittest.TestCase):
         script = Path(self.db.execute('SELECT script_path FROM packages').fetchone()[0]).read_text()
         self.assertIn('Исходный текст дайджеста.', script)
 
+    def test_rss_source_validation_without_login(self):
+        with patch.object(public_news, 'fetch', return_value=atom(self.date)) as fetch:
+            self.assertEqual(reddit.validate('r/Python', 'names'), ['python'])
+            fetch.assert_called_once_with('https://www.reddit.com/r/python/new/.rss?limit=25')
+        with patch.object(public_news, 'fetch') as fetch:
+            self.assertEqual(reddit.validate('', 'names'), [])
+            with self.assertRaises(ValueError):
+                reddit.validate('https://evil.test/r/python', 'names')
+            fetch.assert_not_called()
+        with patch.object(public_news, 'fetch', return_value='<html/>'), self.assertRaisesRegex(ValueError, 'Atom feed'):
+            reddit.validate('python', 'names')
+        with patch.object(public_news, 'fetch', return_value='<broken'), self.assertRaisesRegex(ValueError, 'readable RSS'):
+            reddit.validate('python', 'names')
+        for code, message in ((404, 'does not exist'), (403, 'denied'), (429, 'rate limit')):
+            error = urllib.error.HTTPError('https://www.reddit.com', code, 'unavailable', {}, None)
+            with patch.object(public_news, 'fetch', side_effect=error), self.assertRaisesRegex(ValueError, message):
+                reddit.validate('python', 'names')
+
+    def test_source_settings_validation_persistence_and_reset(self):
+        with patch('radio.editor.connection', return_value={'state': 'no_key', 'detail': 'No key', 'ids': []}), patch.object(settings, '_voice_state', return_value={}):
+            self.assertFalse(any(r.get('multiline') for r in settings.listing(self.cfg)))
+            plugins.set_plugin('reddit', True)
+            plugins.set_plugin('telegram', True)
+            rows = {r['key']: r for r in settings.listing(self.cfg)}
+        self.assertEqual({k for k, v in rows.items() if v.get('multiline')}, {'reddit_communities', 'telegram_channels'})
+        self.assertNotIn('telegram_posts', rows)
+        self.assertNotIn('reddit_posts', rows)
+        settings.set_setting('reddit_communities', 'r/Python\nhttps://www.reddit.com/r/python/\ntechnology')
+        settings.set_setting('reddit_posts', 'https://www.reddit.com/r/python/comments/abc123/title/?utm_source=test')
+        settings.set_setting('telegram_channels', '@Example, https://t.me/example')
+        settings.set_setting('telegram_posts', 'https://t.me/s/Example/42')
+        cfg = config.load()
+        defaults = settings.base(cfg)
+        settings.apply(cfg, defaults)
+        self.assertEqual(cfg['sources']['reddit']['communities'], ['python', 'technology'])
+        self.assertEqual(cfg['sources']['reddit']['posts'], ['https://www.reddit.com/comments/abc123/'])
+        self.assertEqual(cfg['sources']['telegram']['channels'], ['example'])
+        self.assertEqual(cfg['sources']['telegram']['posts'], ['https://t.me/example/42'])
+        before = (self.data / 'settings.json').read_bytes()
+        for key, bad in [('reddit_posts', 'https://evil.test/comments/abc123'),
+                         ('telegram_posts', 'https://t.me/c/123/456'),
+                         ('telegram_posts', 'https://t.me/example/4/42'),
+                         ('telegram_channels', 'https://t.me/+private'),
+                         ('reddit_communities', ['test'] * 21),
+                         ('telegram_posts', 'https://user@t.me/example/42')]:
+            with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
+                settings.set_setting(key, bad)
+            self.assertEqual((self.data / 'settings.json').read_bytes(), before)
+        settings.reset('reddit_posts')
+        settings.apply(cfg, defaults)
+        self.assertEqual(cfg['sources']['reddit']['posts'], [])
+        self.assertEqual(cfg['sources']['telegram']['posts'], ['https://t.me/example/42'])
+        (self.data / 'config.toml').write_text('[sources.reddit]\nposts = ["https://www.reddit.com/comments/abc123/"]\n')
+        legacy = config.load()
+        self.assertEqual(legacy['sources']['reddit']['communities'], [])
+        self.assertEqual(legacy['sources']['reddit']['posts'], ['https://www.reddit.com/comments/abc123/'])
+
+    def test_specific_posts_and_thread_comment_text(self):
+        xml = atom(self.date).replace('</feed>', f'''<entry><id>t1_reply</id><title>A reply</title>
+            <link href="https://www.reddit.com/r/python/comments/abc123/title/reply/"/>
+            <published>{self.date}</published><content type="html">&lt;div class="md"&gt;&lt;p&gt;Actual comment&lt;/p&gt;&lt;/div&gt;RSS navigation</content></entry></feed>''')
+        with patch.object(public_news, 'fetch', return_value=xml) as fetch:
+            rows = reddit.fetch_post('https://www.reddit.com/r/python/comments/abc123/title/')
+        self.assertEqual(fetch.call_args.args[0], 'https://www.reddit.com/comments/abc123/.rss?sort=new&limit=25')
+        self.assertIn('Actual comment', rows[1]['body'])
+        self.assertNotIn('RSS navigation', rows[1]['body'])
+        with patch.object(public_news, 'fetch', return_value=preview(self.date, number=42) + preview(self.date, number=43)) as fetch:
+            rows = telegram.fetch_post('https://t.me/example/42')
+            self.assertEqual([r['id'] for r in rows], ['telegram:example/42'])
+            self.assertEqual(fetch.call_args.args[0], 'https://t.me/s/example/42')
+            with self.assertRaisesRegex(ValueError, 'not available'):
+                telegram.fetch_post('https://t.me/example/44')
+
+    def test_changed_source_list_is_loaded_live_and_old_response_discarded(self):
+        plugins.set_plugin('reddit', True)
+        svc = daemon.Service(self.cfg, tts=MockTTS(), output='x')
+        self.addCleanup(svc.db.close)
+        svc._news_preparation_due = lambda lead: True
+        def first_fetch(name):
+            settings.set_setting('reddit_communities', 'technology')
+            return reddit.parse(atom(self.date), 'python')
+        with patch.object(reddit, 'fetch', side_effect=first_fetch):
+            asyncio.run(svc.public_news_tick())
+        self.assertIsNone(svc.db.execute('SELECT 1 FROM items').fetchone())
+        with patch.object(reddit, 'fetch', return_value=reddit.parse(atom(self.date), 'python')) as fetch:
+            asyncio.run(svc.public_news_tick())
+            fetch.assert_called_once_with('technology')
+        self.assertEqual(svc.sources['reddit'], '1 new')
+
     def test_sources_reach_actual_broadcast(self):
         music = self.data / 'music'
         music.mkdir()
@@ -128,6 +218,10 @@ class PublicNewsTests(unittest.TestCase):
         self.cfg['editor']['llm_enabled'] = False
         for source in ('reddit', 'telegram'):
             plugins.set_plugin(source, True)
+        settings.set_setting('reddit_communities', '')
+        settings.set_setting('reddit_posts', 'https://www.reddit.com/r/python/comments/abc123/title/')
+        settings.set_setting('telegram_channels', '')
+        settings.set_setting('telegram_posts', 'https://t.me/example/42')
         out = self.data / 'broadcast.wav'
         svc = daemon.Service(self.cfg, tts=MockTTS(), output=str(out))
         self.addCleanup(svc.db.close)

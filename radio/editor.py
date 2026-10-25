@@ -183,10 +183,12 @@ class Editor:
         t = target(self.cfg)
         cached = self._cache(prompt, t)
         if cached.exists():
-            return cached.read_text(encoding="utf-8") or None
+            text = cached.read_text(encoding="utf-8")
+            if text:
+                return None if text == 'SKIP' else text
         self.call_times = [t for t in self.call_times if time.time() - t < 3600]
         if len(self.call_times) >= self.max_calls:
-            return None
+            raise ValueError("editor hourly request limit reached")
         self.call_times.append(time.time())
         if t["provider"] == "openai":
             return self._finish(cached, name, output_text(self._post(t, "/v1/responses", {
@@ -196,8 +198,14 @@ class Editor:
             body.update(max_tokens=200, reasoning_effort="none")  # no "thinking": it eats the token budget
         else:
             body["max_tokens"] = 200
+        if t["provider"] == "deepseek":
+            body["thinking"] = {"type": "disabled"}  # reasoning otherwise consumes the short bulletin's budget
         answer = self._post(t, "/v1/chat/completions", body)
-        return self._finish(cached, name, answer["choices"][0]["message"].get("content") or "")
+        choice = answer["choices"][0]
+        raw = choice["message"].get("content") or ""
+        if choice.get("finish_reason") == "length" or not raw.strip():
+            raise ValueError("editor returned an empty or truncated reply")
+        return self._finish(cached, name, raw)
 
     @staticmethod
     def _post(t: dict, path: str, body: dict) -> dict:
@@ -210,9 +218,11 @@ class Editor:
 
     @staticmethod
     def _finish(cached, name: str, raw: str) -> str | None:
+        if not raw.strip():
+            raise ValueError("editor returned an empty or truncated reply")
         text = check(fix_name(raw, name) if name else raw)
         cached.parent.mkdir(parents=True, exist_ok=True)
-        cached.write_text(text or "", encoding="utf-8")  # an empty file caches a SKIP: no second call
+        cached.write_text(text or "SKIP", encoding="utf-8")
         return text
 
 

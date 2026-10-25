@@ -31,7 +31,9 @@ The existing browser entry is `./bin/radio ui`, normally served on port 8765. Th
 - The edition schedule can exist before its material is known. Unknown content is represented by the segment name, without generating speculative text or making extra model requests.
 - Moving or skipping a timeline edition acts on the entire edition. Its internal composition and order belong inside its expanded view.
 
-The timeline presents host appearances as Host edition rows, with source segments inside a disclosure. News, weather and all-day calendar material use the shared edition assembler. Clock-bound weather may anchor an edition; urgent timed reminders retain their own insertion path. Music stories remain the fallback when no suitable news is waiting.
+The timeline presents host appearances as Host edition rows, with source segments inside a disclosure. News, weather and all-day calendar material use the shared edition assembler. Clock-bound weather may anchor an edition; urgent timed reminders retain their own insertion path. Music stories prepare independently of news availability.
+
+Enabled blocks and news sources do not require another block or source to succeed. Each source keeps its own status and retry deadline. Unplayed tracks from the active local or YouTube Music library take priority over repeats, without a clock-slot wait or minimum batch size. News preparation does not cancel the remaining priority songs. Switching music sources clears only the previous source's pending priority songs. Host links add presentation, not permission to play weather, calendar material or new tracks. Pause, available material, playback order and speech limits remain shared station constraints.
 
 ### Listening and editing
 

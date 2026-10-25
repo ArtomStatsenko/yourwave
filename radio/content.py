@@ -186,22 +186,29 @@ def add_item(db, cfg, item: dict, kind: str, file: str | None = None) -> str:
         state = "EXPIRED"
     else:
         state = "NEW"
-    db.execute("INSERT INTO items(id, kind, source, topic, url, published_at, file, state, created_at, origin_json) "
-               "VALUES(?,?,?,?,?,?,?,?,?,?)",
-               (item["id"], kind, item["source"], item["topic"], item["url"],
-                iso(item["published_at"]) if item["published_at"] else None, file, state, iso(now()),
-                json.dumps(item["origin"], ensure_ascii=False) if item.get("origin") else None))
-    if state != "NEW":
+    db.execute("SAVEPOINT add_item")
+    try:
+        db.execute("INSERT INTO items(id, kind, source, topic, url, published_at, file, state, created_at, origin_json) "
+                   "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                   (item["id"], kind, item["source"], item["topic"], item["url"],
+                    iso(item["published_at"]) if item["published_at"] else None, file, state, iso(now()),
+                    json.dumps(item["origin"], ensure_ascii=False) if item.get("origin") else None))
+        if state != "NEW":
+            return state
+        scripts = scripts_for(item, max_chars, cfg["broadcast"]["separator_heavy_chars"])
+        for i, script in enumerate(scripts):
+            pid = f"{item['id']}#{i + 1}"
+            sp = config.DATA_DIR / "cache/scripts" / (hashlib.sha256(pid.encode()).hexdigest()[:16] + ".txt")
+            sp.write_text(script, encoding="utf-8")
+            db.execute("INSERT INTO packages(id, item_id, part, parts, script_path, est_speech_sec, status) "
+                       "VALUES(?,?,?,?,?,?,'PENDING')",
+                       (pid, item["id"], i + 1, len(scripts), str(sp), len(script) / cfg["voice"]["chars_per_sec"]))
         return state
-    scripts = scripts_for(item, max_chars, cfg["broadcast"]["separator_heavy_chars"])
-    for i, script in enumerate(scripts):
-        pid = f"{item['id']}#{i + 1}"
-        sp = config.DATA_DIR / "cache/scripts" / (hashlib.sha256(pid.encode()).hexdigest()[:16] + ".txt")
-        sp.write_text(script, encoding="utf-8")
-        db.execute("INSERT INTO packages(id, item_id, part, parts, script_path, est_speech_sec, status) "
-                   "VALUES(?,?,?,?,?,?,'PENDING')",
-                   (pid, item["id"], i + 1, len(scripts), str(sp), len(script) / cfg["voice"]["chars_per_sec"]))
-    return state
+    except Exception:
+        db.execute("ROLLBACK TO add_item")
+        raise
+    finally:
+        db.execute("RELEASE add_item")
 
 
 def expire_stale(db, cfg) -> int:

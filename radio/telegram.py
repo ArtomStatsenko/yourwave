@@ -63,3 +63,13 @@ def parse(text, channel):
 def fetch(channel):
     channel = public_news.names([channel], "telegram")[0]
     return parse(public_news.fetch(f"https://t.me/s/{channel}"), channel)
+
+
+def fetch_post(url):
+    url = public_news.references([url], "telegram", "posts")[0]
+    channel, number = url.removeprefix("https://t.me/").split("/")
+    items = parse(public_news.fetch(f"https://t.me/s/{channel}/{number}"), channel)
+    items = [it for it in items if it["id"] == f"telegram:{channel}/{number}"]
+    if not items:
+        raise ValueError("This post is not available in Telegram's public preview")
+    return items

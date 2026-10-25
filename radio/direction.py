@@ -56,7 +56,7 @@ def rows(db, cfg, at):
         script = Path(row['script_path']) if row['script_path'] else None
         preview = script.read_text(encoding='utf-8')[:240] if script and script.exists() else ''
         result.append({**row, 'kind': 'news', 'preview': preview})
-    if cfg['weather']['city'] and plugins.on(cfg, 'weather') and plugins.on(cfg, 'host_links'):
+    if cfg['weather']['city'] and plugins.on(cfg, 'weather'):
         result += weather_rows(db, cfg, at, changes)
     if plugins.on(cfg, 'air_direction'):
         result += [dict(r) for r in db.execute("SELECT *,text AS title FROM air_plan WHERE (id LIKE 'direction:%' OR id LIKE 'section:%') "
