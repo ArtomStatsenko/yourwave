@@ -96,6 +96,10 @@ class Service:
         self.intro_rooms: dict = {}  # path -> seconds of intro the host may talk over (from the playlist)
         self.files: list[Path] = []
         self.ytmusic_active = False
+        self.music_source_lock = asyncio.Lock()
+        self.music_source_error = ""
+        self.music_source_ready = False
+        self.source_overlap = None
         self.voice_proc = None         # the VoiceStudio server this daemon started (and so stops)
         self.voice_started = 0.0
         self.voice_proc_engine = ""
@@ -107,7 +111,7 @@ class Service:
         self.reminders_due: dict[str, dict] = {}   # key -> reminder waiting for a song boundary
         self.reminder_text: dict[str, str] = {}    # key -> what the host says, for the timeline
         self.queued_reminders: dict[str, tuple] = {}  # timed reminders can expire before the song ends
-        self.sets_since_fresh = 0     # news breaks since the last "new tracks" set
+        self.fresh_missing: set[str] = set()
         self.fresh_queued: dict[str, str] = {}  # path -> request id of new songs waiting in Liquidsoap's fresh queue
         self.pkg_jingles: dict = {}     # package id -> jingles chosen at render, reused at final assembly
         self.id_pending = False
@@ -141,26 +145,26 @@ class Service:
         m = self.cfg["music"]
         self.intro_rooms = music.write_m3u(self.db, files, m3u, m["target_lufs"], m["max_boost_db"], m["crossfade_sec"],
                                                   True) if files else {}
-        fallback_m3u = None
-        self.ytmusic_active = plugins.on(self.cfg, "ytmusic")
-        if self.ytmusic_active:
-            for stale in (ytmusic.directory() / "audio").glob("*.webm"):
-                stale.unlink(missing_ok=True)  # files left by an interrupted previous session
-            remote_m3u = config.RUN_DIR / "ytmusic.m3u"
-            try:
-                remote = ytmusic.write_m3u(self.db, remote_m3u)
-            except ValueError:
-                self.ytmusic_active = False
-                log("YouTube Music library unavailable; using local music")
-            else:
-                fallback_m3u = m3u if self.intro_rooms else None
-                m3u = remote_m3u
-                self.library.update(remote)
-                self.intro_rooms.update(remote)
-        if not self.intro_rooms:
+        if not files:
+            m3u.write_text("#EXTM3U\n")
+        remote_m3u = config.RUN_DIR / "ytmusic.m3u"
+        for stale in (ytmusic.directory() / "audio").glob("*.webm"):
+            stale.unlink(missing_ok=True)
+        try:
+            remote = ytmusic.write_m3u(self.db, remote_m3u) if settings.music_source(self.cfg) == "ytmusic" else {}
+        except ValueError:
+            remote = {}
+            remote_m3u.write_text("#EXTM3U\n")
+        self.library.update(remote)
+        self.intro_rooms.update(remote)
+        self.ytmusic_active = settings.music_source(self.cfg) == "ytmusic" and bool(remote)
+        if not self.ytmusic_active:
+            remote_m3u.write_text("#EXTM3U\n")
+        if not files and not self.ytmusic_active:
             raise SystemExit(f"NO_MUSIC: no playable files in {m['path']}")
-        self.engine = Liquidsoap(m3u, m["crossfade_sec"], self.output, os.environ.get("RADIO_RECORD", ""),
-                                 self.cfg["output"], fallback_m3u=fallback_m3u)
+        self.engine = Liquidsoap(remote_m3u, m["crossfade_sec"], self.output, os.environ.get("RADIO_RECORD", ""),
+                                 self.cfg["output"], fallback_m3u=m3u)
+        self.engine.music_source = 'ytmusic' if self.ytmusic_active else 'local'
         restored = self._restore_session()
         resumed = self._resume_line()
         # Answer on the socket while the engine starts: the page then sees a radio starting, not a stopped one it
@@ -315,6 +319,9 @@ class Service:
     async def gap_loop(self) -> None:
         while not self.stopping:
             try:
+                await self._sync_music_source()
+                self.music_source_ready = await self.engine.command("music.source_ready") == "true"
+                await self._forget_dropped_fresh()
                 await self._gap_tick()
             except Exception as e:
                 log("gap filler:", type(e).__name__)
@@ -470,6 +477,12 @@ class Service:
         self.current = {"kind": m.get("kind") or "music", "ref": m.get("ref") or m.get("filename", ""),
                         "started": time.time() - played, "transition_sec": self.next_transition_sec
                         if self.next_transition_sec is not None else self.cfg['music']['crossfade_sec']}
+        if prev and prev['kind'] == 'music' and self.current['kind'] == 'music':
+            old_source = 'ytmusic' if prev['ref'].startswith('ytmusic:') else 'local'
+            new_source = 'ytmusic' if self.current['ref'].startswith('ytmusic:') else 'local'
+            self.source_overlap = {'from': old_source, 'until': time.time() + self.current['transition_sec']} if old_source != new_source else None
+        else:
+            self.source_overlap = None
         self.next_transition_sec = None
         if self.current["kind"] == "news":
             if self.queued_clock:
@@ -880,14 +893,21 @@ class Service:
         if not immediate and self.reminders_due and await self._remind(remaining):
             return
         slot = self._clock_slot(now() + timedelta(seconds=max(0, remaining)))
+        current = self.current
+        if not immediate and not self.fresh_queued and self._new_set_due():
+            new = await asyncio.to_thread(self._pick_new)
+            async with self.handoff_lock:
+                if (generation != self.schedule_generation or self.current is not current
+                        or self.state != 'PLAYING' or self.manual_switch or self.manual_skip_pending):
+                    return
+                if new:
+                    await self._queue_fresh(new)
         pkgs = self._waiting_break(remaining)
         if not slot and not self._requested_edition():
             pkgs = []
-        current = self.current
         if immediate:
             remaining = 0.0
         if pkgs:
-            new = []
             air = now() + timedelta(seconds=max(0.0, remaining))
             links = plugins.on(self.cfg, "host_links") and (not pkgs[0]["id"].startswith("system:") or self._host_segment(pkgs[0]))
             wav, talkover = Path(pkgs[0]["audio_path"]), pkgs[0]["talkover_sec"] or 0
@@ -898,10 +918,7 @@ class Service:
             elif links or len(pkgs) > 1:
                 if remaining > LATE_ASSEMBLY_SEC:
                     return  # assembled later, so the time check and the next song are right when it airs
-                await self._clear_fresh()  # songs of the last new-tracks set that did not get to air
-                self.sets_since_fresh += 1
-                new = await asyncio.to_thread(self._pick_new) if links and self._new_set_due() else []
-                nxt = str(new[0]) if new else (await self.engine.next_music() or "") if links else ""
+                nxt = next(iter(self.fresh_queued), '') or (await self.engine.next_music() or "") if links else ""
                 first = music.song(self.db, nxt)
                 # shortcut: a replay pushed after this point would play first and its intro is not planned for;
                 # with replays already waiting the next song is not known, so no intro talk then.
@@ -910,13 +927,13 @@ class Service:
                 self.assembling = True
                 try:
                     done = await asyncio.to_thread(self._assemble_break, [dict(p) for p in pkgs], air, links, first, room,
-                                                   bool(new))
+                                                   bool(self.fresh_queued))
                 finally:
                     self.assembling = False
                 if done:
                     wav, talkover = done
                 else:
-                    pkgs, new = pkgs[:1], []  # fallback: the first bulletin, pre-rendered
+                    pkgs = pkgs[:1]  # fallback: the first bulletin, pre-rendered
             if generation != self.schedule_generation or self.current is not current:
                 return
             if self._news_skipped(now() + timedelta(seconds=max(0, remaining))) and any(not p['id'].startswith('system:') for p in pkgs):
@@ -954,8 +971,6 @@ class Service:
                 self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,ref=? WHERE id LIKE 'direction:%' AND kind='news' AND skipped=0 AND status='PENDING' AND not_before<=?", (rid, ids[0], iso(now())))
                 self.db.executemany("UPDATE packages SET status='QUEUED' WHERE id=?", [(i,) for i in ids])
                 log("break queued for next song boundary:", ", ".join(ids))
-                if new:
-                    await self._queue_fresh(new)
                 return
 
         if slot and remaining <= 10 and plugins.on(self.cfg, 'station_ids'):
@@ -1394,46 +1409,60 @@ class Service:
 
     def _new_set_due(self) -> bool:
         b = self.cfg["broadcast"]
-        return not self.ytmusic_active and plugins.on(self.cfg, "new_tracks") and 0 < b["new_every_sets"] <= self.sets_since_fresh
+        return plugins.on(self.cfg, "new_tracks") and b["new_every_sets"] > 0
 
     def _local_files(self) -> list[Path]:
         self.files = [f for f in self.files if f.is_file()]
         return self.files
 
-    def _pick_new(self) -> list[Path]:
-        """Songs for a new-tracks set: unaired songs added in the last new_days days, newest first, enough for
-        a normal set (music_set_minutes); none if there are fewer than new_min_tracks."""
+    def _pick_new(self) -> list[Path | str]:
+        """Unplayed tracks of the active source, ahead of the shuffle; local files are newest first."""
         b = self.cfg["broadcast"]
-        found = [f for f in music.unaired_new(self.db, self._local_files(), b["new_days"]) if str(f) in self.intro_rooms]
-        if len(found) < b["new_min_tracks"]:
-            return []
+        if self.ytmusic_active:
+            aired = {r[0] for r in self.db.execute("SELECT DISTINCT ref FROM events WHERE type='MUSIC_STARTED'")}
+            found = [f"ytmusic:{t['id']}" for t in ytmusic.library()['tracks'] if f"ytmusic:{t['id']}" not in aired]
+        else:
+            found = music.unaired_new(self.db, self._local_files())
+        excluded = {(self.current or {}).get('ref', '')}
+        excluded.update(r['ref'] for r in self.replays.values() if r['kind'] == 'music')
+        found = [f for f in found if str(f) in self.intro_rooms and str(f) not in excluded]
         picked, total = [], 0.0
         for f in found:
             picked.append(f)
-            total += audio.duration(f)
+            total += self._song_seconds(str(f))
             if total >= b["music_set_minutes"] * 60:
                 break
         return picked
 
-    async def _queue_fresh(self, files: list[Path]) -> None:
-        """The new songs go to Liquidsoap's fresh queue: after the break just queued, but before the shuffle,
-        and the next break or call sign still comes first at a song boundary."""
+    async def _queue_fresh(self, files: list[Path | str]) -> None:
+        """Unplayed songs precede shuffle; news and manual inserts still take the next song boundary first."""
         m = self.cfg["music"]
         for f in files:
             row = self.db.execute("SELECT * FROM tracks WHERE path=?", (str(f),)).fetchone()
-            gain = min(m["max_boost_db"], m["target_lufs"] - row["lufs"]) if row["lufs"] is not None else 0.0
-            tags, _ = music.song_tags(row, m["crossfade_sec"], True)
+            gain = min(m["max_boost_db"], m["target_lufs"] - row["lufs"]) if row is not None and row["lufs"] is not None else 0.0
+            tags, _ = music.song_tags(row, m["crossfade_sec"], True) if row is not None else ('', None)
             self.fresh_queued[str(f)] = await self.engine.push_replay(f, "music", str(f), gain, "", tags, "fresh")
-        self.sets_since_fresh = 0
+        store.log_event(self.db, self.session, 'NEW_TRACKS_QUEUED', detail=str(len(files)))
         log("new-tracks set queued:", len(files), "songs")
 
+    async def _forget_dropped_fresh(self) -> None:
+        if not self.fresh_queued:
+            self.fresh_missing.clear()
+            return
+        queued = dict(self.fresh_queued)
+        pending = await asyncio.wait_for(self.engine.pending('fresh'), .5)
+        missing = set(queued.values()) - set(pending)
+        # A request can briefly disappear while Liquidsoap hands it to the decoder.
+        for ref, rid in queued.items():
+            if rid in missing & self.fresh_missing and self.fresh_queued.get(ref) == rid:
+                del self.fresh_queued[ref]
+        self.fresh_missing = missing
+
     async def _clear_fresh(self) -> None:
-        for rid in self.fresh_queued.values():
-            try:
-                await self.engine.remove(rid, "fresh")
-            except Exception:
-                pass  # already on air or gone
+        for rid in list(self.fresh_queued.values()):
+            await self.engine.remove(rid, 'fresh')
         self.fresh_queued = {}
+        self.fresh_missing.clear()
 
     def _news_skipped(self, at=None):
         at = at or now()
@@ -1608,7 +1637,7 @@ class Service:
             return {'ref': ref, 'queue': 'fresh', 'rid': rid}
         ref = getattr(self, 'next_track', '')
         if ref:
-            queue = 'local_music' if self.ytmusic_active and not ref.startswith('ytmusic:') else 'music'
+            queue = 'local_music' if getattr(self.engine, 'fallback_m3u', None) and not ref.startswith('ytmusic:') else 'music'
             return {'ref': ref, 'queue': queue, 'rid': ''}
         return None
 
@@ -1888,6 +1917,60 @@ class Service:
         """Sources whose plugin is switched off: their ready bulletins wait instead of airing."""
         return [src for src, name in plugins.SOURCE_PLUGIN.items() if not plugins.on(self.cfg, name)]
 
+    async def _sync_music_source(self):
+        async with self.music_source_lock:
+            await self._set_music_source()
+
+    async def _set_music_source(self):
+        target = settings.music_source(self.cfg) == 'ytmusic'
+        if target == self.ytmusic_active:
+            self.music_source_error = "" if target or self.files else "No local music available"
+            return
+        if not target and not self.files and plugins.on(self.cfg, 'ytmusic'):
+            self.music_source_error = "No local music available; keeping the current source"
+            return
+        if target:
+            try:
+                refs = ytmusic.write_m3u(self.db, config.RUN_DIR / 'ytmusic.m3u')
+            except ValueError as e:
+                self.music_source_error = str(e)
+                return
+            self.library.update(refs)
+            self.intro_rooms.update(refs)
+            result = await self.engine.command('music.reload ' + str(config.RUN_DIR / 'ytmusic.m3u'))
+            if 'ERROR' in result or 'Unknown' in result:
+                self.music_source_error = 'Restart the radio once to enable live source switching'
+                return
+        result = await self.engine.command('music.source ' + ('ytmusic' if target else 'local'))
+        if result != 'OK':
+            self.music_source_error = 'Restart the radio once to enable live source switching'
+            return
+        await self._cancel_automatic()
+        await self._clear_fresh()
+        self.ytmusic_active = target
+        self.music_source_ready = False
+        self.music_source_error = "" if target or self.files else "No local music available"
+        self.next_track = ""
+        self.reroll_gen += 1
+        self.rerolling, self.reroll_pending = False, None
+
+    def _music_source_state(self):
+        target = settings.music_source(self.cfg)
+        current = self.current or {}
+        actual = ('ytmusic' if current['ref'].startswith('ytmusic:') else 'local') if current.get('kind') == 'music' else None
+        phase = 'idle'
+        if self.state in ('PLAYING', 'PAUSED'):
+            if self.music_source_error:
+                phase = 'error'
+            elif actual != target:
+                phase = 'waiting' if self.music_source_ready else 'loading'
+            elif self.source_overlap and time.time() < self.source_overlap['until']:
+                phase = 'crossfade'
+            else:
+                phase = 'playing'
+        return {'target': target, 'current': actual, 'phase': phase, 'error': self.music_source_error,
+                'from': self.source_overlap['from'] if phase == 'crossfade' else None}
+
     async def dispatch(self, cmd: str, req: dict | None = None) -> dict:
         if cmd == "plugins":
             return {"ok": True, "plugins": plugins.listing(self.cfg)}
@@ -1907,6 +1990,10 @@ class Service:
                     if key.startswith('weather:slot:'):
                         self.reminders_due.pop(key)
             plugins.set_plugin(name, enabled)
+            if name == 'new_tracks' and not enabled:
+                await self._clear_fresh()
+            if name == "ytmusic":
+                await self._sync_music_source()
             self.wake.set()
             return {"ok": True, "plugins": plugins.listing(self.cfg)}
         if cmd == "direction":
@@ -1920,15 +2007,22 @@ class Service:
         if cmd in ("status", "play"):
             if cmd == "play" and self.state == "PAUSED":
                 return await self.dispatch("resume")
+            if getattr(self, 'engine', None) and self.engine.proc and self.engine.proc.returncode is None:
+                try:
+                    await self._forget_dropped_fresh()
+                except (OSError, asyncio.TimeoutError, asyncio.IncompleteReadError):
+                    pass
             status = self.status()
             if getattr(self, 'engine', None) and self.engine.proc and self.engine.proc.returncode is None:
                 try:
                     ref = await asyncio.wait_for(self.engine.next_music(), .5)
+                    self.next_track = ref or ""
+                    status['next_reroll'] = self._reroll_state()
+                    self.music_source_ready = bool(ref) and ref.startswith('ytmusic:') == (settings.music_source(self.cfg) == 'ytmusic')
+                    status['music_source_state'] = self._music_source_state()
                     await self._forget_dropped_replays()
                     if ref:
-                        self.next_track = ref
                         status['upcoming'].append({'kind': 'music', 'ref': ref, 'title': music.label(self.db, ref), 'stage': 'music'})
-                        status['next_reroll'] = self._reroll_state()
                         later = await asyncio.wait_for(self.engine.upcoming_music(), .5)
                         # tentative: a reshuffle, a break or a reroll can change the order; only the next is certain
                         status['upcoming_tracks'] = [{'ref': r, 'title': music.label(self.db, r)} for r in later[:UPCOMING_SHOWN]]
@@ -2412,8 +2506,8 @@ class Service:
             "llm_calls": self.editor.calls, "sources": self.sources, "last_error": self.last_error,
             "output": self.cfg["output"]["mode"], "auto_paused": self.auto_paused,
             "ytmusic_active": self.ytmusic_active,
-            "music_source": 'ytmusic' if (self.current and self.current['kind'] == 'music' and self.current['ref'].startswith('ytmusic:') or
-                                           self.ytmusic_active and (not self.current or self.current['kind'] != 'music')) else 'local',
+            "music_source": self._music_source_state()['current'],
+            "music_source_state": self._music_source_state(),
             "broadcast_plan": self._broadcast_plan() if plugins.on(self.cfg, 'air_direction') else None,
             "direction": plan if plugins.on(self.cfg, 'air_direction') else [],
             "upcoming": self._upcoming(plan),

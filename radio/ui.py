@@ -155,7 +155,7 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 status = resp["status"] if resp and resp.get("ok") else {"state": "STOPPED"}
                 self._json({"status": status, "timeline": timeline(), "plugins": plugins.listing(cfg),
                             "settings": settings.listing(cfg), "ytmusic": ytmusic.status(),
-                            "audio_preset": config.audio_presets()})
+                            "audio_preset": config.audio_presets(), "music_source_choice": settings.music_source(cfg)})
             else:
                 self._json({"error": "not found"}, 404)
 
@@ -198,7 +198,6 @@ def make_server(port: int) -> ThreadingHTTPServer:
                         result = ytmusic.connect(str(body.get("cookie", "")),
                                                  str(body.get("playlist") or ytmusic.DEFAULT_PLAYLIST),
                                                  browser=str(body.get("browser", "")))
-                        plugins.set_plugin("ytmusic", True)
                 except ValueError as e:  # our own messages only: never yt-dlp output (cookies, account details)
                     return self._json({"ok": False, "error": str(e)}, 400)
                 except OSError:

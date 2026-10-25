@@ -164,7 +164,7 @@ class YouTubeMusicTests(unittest.TestCase):
         with patch("radio.audio.duration", side_effect=AssertionError("remote ref is not a file")):
             svc.on_event({"kind": "music", "ref": ref})
         self.assertEqual(svc.current["duration"], 213)
-        self.assertFalse(svc._new_set_due())
+        self.assertTrue(svc._new_set_due())
         entry = timeline._build(svc.db, 12, 20)[0]
         self.assertTrue(entry["replayable"])
         self.assertEqual(entry["title"], 'Artist - Song "one"')

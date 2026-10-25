@@ -7,7 +7,7 @@ from . import config
 
 # name -> (title, what it does, default from the config)
 PLUGINS = {
-    "ytmusic": ("YouTube Music", 'Play the connected playlist from the next radio start, with local music as a fallback.',
+    "ytmusic": ("YouTube Music", 'Make YouTube Music available as a music source. Select the active source in Settings.',
                 lambda c: False),
     "github_trending": ("GitHub: trending", 'Pick top trending repositories and smaller projects from GitHub Trending.',
                         lambda c: c["sources"]["github_trending"]["enabled"]),
@@ -29,7 +29,7 @@ PLUGINS = {
                     lambda c: c["broadcast"]["station_id_every_songs"] > 0),
     "host_links": ("Host links", 'Announce the time before host editions and name the songs around them.',
                    lambda c: c["broadcast"]["host_links"]),
-    "new_tracks": ("New tracks", 'Occasionally play a set of recently added songs that have not aired yet.', lambda c: c["broadcast"]["new_every_sets"] > 0),
+    "new_tracks": ("Unplayed tracks first", 'Prioritize unplayed tracks from the active local or YouTube Music library before repeats.', lambda c: c["broadcast"]["new_every_sets"] > 0),
     "reminders_calendar": ("Reminders: calendar", 'Remind you before timed events and mention all-day events. Set reminders.calendar_url in config.toml; all-day mentions also need Host links.',
                            lambda c: bool(c["reminders"]["calendar_url"])),
     "reminders_todoist": ("Reminders: Todoist", 'Remind you before tasks with a due time. Set reminders.todoist_token in config.toml.', lambda c: bool(c["reminders"]["todoist_token"])),
@@ -68,6 +68,9 @@ def on(cfg: dict, name: str) -> bool:
 def set_plugin(name: str, enabled: bool) -> None:
     if name not in PLUGINS:
         raise ValueError(f"unknown plugin {name}")
+    if name == "ytmusic" and not enabled:
+        from .settings import set_setting
+        set_setting("music_source", "local")
     saved = _saved()
     saved[name] = bool(enabled)
     tmp = _path().with_suffix(".tmp")

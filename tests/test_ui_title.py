@@ -55,10 +55,18 @@ const api=()=>Promise.resolve(result),refresh=()=>{},player=()=>{},setTimeout=()
         helper = source[source.index('function musicSourceLabel('):source.index('function player(')]
         subprocess.run(['node', '-e', helper + r"""
 const assert = require('node:assert/strict');
+assert.equal(musicSourceLabel({state:'STOPPED'},true,{connected:true},'local'), 'Local music');
+assert.ok(!musicSourceOptions(false).includes('ytmusic'));
+assert.ok(musicSourceOptions(true).includes('ytmusic'));
 assert.equal(musicSourceLabel({state:'PLAYING',music_source:'local'},false,{connected:true}), 'Local music · YouTube Music off');
 assert.equal(musicSourceLabel({state:'PLAYING',music_source:'ytmusic'},true,{}), 'YouTube Music');
 assert.equal(musicSourceLabel({state:'PLAYING',music_source:'local',ytmusic_active:true},true,{}), 'Local music · YouTube Music fallback');
-assert.equal(musicSourceLabel({state:'STOPPED'},true,{connected:true}), 'YouTube Music · configured');
+assert.equal(musicSourceLabel({state:'STOPPED'},true,{connected:true},'ytmusic'), 'YouTube Music · configured');
+assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:'local',target:'ytmusic',phase:'loading'}},true,{}), 'Local music · loading YouTube Music');
+assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:'local',target:'ytmusic',phase:'waiting'}},true,{}), 'Local music → YouTube Music · after this track');
+assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:'ytmusic',from:'local',phase:'crossfade'}},true,{}), 'Local music → YouTube Music · crossfading');
+assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:null,target:'local',phase:'waiting'}},false,{}), 'Host on air → Local music · after the host');
+
 """], check=True, capture_output=True, text=True)
 
     def test_editor_hour_groups_and_autosave_rollback(self):

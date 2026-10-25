@@ -95,18 +95,29 @@ local_playlist = environment.get(default="", "RADIO_FALLBACK_M3U")
 music = if local_playlist != "" then
   local_music = playlist(id="local_music", mode="randomize", local_playlist)
   server.register("local_music.replace", fun (arg) -> replace_music(local_music.queue, local_music.set_queue, arg))
-  server.register("music.peek", fun (_) -> queued_music_ref(if yt_offline() then local_music else primary_music end))
-  server.register("music.upcoming", fun (_) -> upcoming_music_refs(if yt_offline() then local_music else primary_music end))
-  # Local songs also cover a YouTube Music song that has not loaded by the boundary: never silence.
-  fallback(track_sensitive=true, [music, switch([({yt_offline() or not primary_music.is_ready()}, local_music)])])
+  selected = ref(environment.get(default="ytmusic", "RADIO_MUSIC_SOURCE"))
+  server.register("music.source", fun (arg) -> begin
+    if arg == "local" or arg == "ytmusic" then selected := arg; "OK" else "ERROR" end
+  end)
+  def selected_music() = if selected() == "local" or yt_offline() then local_music else primary_music end end
+  server.register("music.source_ready", fun (_) -> begin
+    ready = if selected() == "local" then local_music.is_ready() else primary_music.is_ready() end
+    "#{ready}"
+  end)
+  server.register("music.peek", fun (_) -> queued_music_ref(selected_music()))
+  server.register("music.upcoming", fun (_) -> upcoming_music_refs(selected_music()))
+  # Keep the current song until its boundary; local music covers remote loading without silence.
+  switch(track_sensitive=true, [({selected() == "local"}, local_music),
+    ({selected() == "ytmusic"}, fallback(track_sensitive=true, [primary_music,
+      switch([({yt_offline() or not primary_music.is_ready()}, local_music)])]))])
 else
   server.register("music.peek", fun (_) -> queued_music_ref(primary_music))
   server.register("music.upcoming", fun (_) -> upcoming_music_refs(primary_music))
   music
 end
 news = request.queue(id="news")
-# "New tracks" set: queued by the daemon after a news break. Below the news queue, so the next break (or a call
-# sign) still comes at the next song boundary, above the shuffle.
+# Unplayed songs of the active music source take priority over shuffle. News and manual replays still come
+# first at a song boundary; this queue does not depend on a news break.
 fresh = request.queue(id="fresh")
 server.register("news.replace", fun (arg) -> begin
   result = replace_music(news.queue, news.set_queue, arg)
@@ -120,11 +131,16 @@ server.register("fresh.replace", fun (arg) -> begin
 end)
 server.register("fresh.ready", fun (_) -> "#{fresh.is_ready()}")
 server.register("news.ready", fun (_) -> "#{news.is_ready()}")
-server.register("news.pending", fun (_) -> begin
-  current = news.current()
-  q = if null.defined(current) then [null.get(current), ...news.queue()] else news.queue() end
+def pending_requests(source) =
+  current = source.current()
+  q = if null.defined(current) then [null.get(current), ...source.queue()] else source.queue() end
+  # Resolving requests are temporarily outside their queue; keep their ids until loading finishes.
+  resolving = list.filter(fun (r) -> request.status(r) == "resolving", request.all())
+  q = list.append(q, resolving)
   string.concat(separator=" ", list.map(fun (r) -> "#{request.id(r)}", q))
-end)
+end
+server.register("news.pending", fun (_) -> pending_requests(news))
+server.register("fresh.pending", fun (_) -> pending_requests(fresh))
 
 # Events go to a file the daemon tails: stdout is block-buffered when piped.
 events_path = environment.get("RADIO_EVENTS")

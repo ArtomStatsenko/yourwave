@@ -62,10 +62,10 @@ def song_tags(row, xfade: float, outro_talk: bool) -> tuple[str, float | None]:
     return tags, room
 
 
-def unaired_new(db, files: list[Path], days: float) -> list[Path]:
-    """Songs added to the library in the last `days` days that have not been on air yet, newest first."""
+def unaired_new(db, files: list[Path], days: float | None = None) -> list[Path]:
+    """Unaired songs, newest first; an optional age limit is used only when requested."""
     aired = {r[0] for r in db.execute("SELECT DISTINCT ref FROM events WHERE type='MUSIC_STARTED'")}
-    since = time.time() - days * 86400
+    since = time.time() - days * 86400 if days is not None else float('-inf')
     found = []
     for f in files:
         if str(f) not in aired:

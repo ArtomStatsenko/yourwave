@@ -13,6 +13,7 @@ AUDIO_EXTS = {".mp3", ".m4a", ".flac", ".wav"}
 DEFAULT_CONFIG = """\
 [music]
 path = "~/Music/Radio"
+source = "local"           # selected independently of the YouTube Music integration switch
 crossfade_sec = 3.0
 target_lufs = -16.0
 max_boost_db = 4.0          # cap for quiet tracks
@@ -37,9 +38,7 @@ host_links = true           # news break: back-sell of the last songs, time chec
 talkover_share = 0.5        # without lyrics: share of bulletins that end with the host talking over the next song's start
 music_set_minutes = 20      # length of new-tracks selections; editions follow :00/:30 clock slots
 max_break_speech_sec = 120  # one break gathers the ready bulletins up to this much speech (rolling-hour limit applies)
-new_every_sets = 3          # plugin "new tracks": every Nth set is made of songs added to the library in the last
-new_days = 14               # new_days days that have not been on air yet; 0 = off. Needs at least new_min_tracks
-new_min_tracks = 3          # such songs, else the set is a normal one
+new_every_sets = 1          # legacy name: 0 disables unplayed-track priority, any positive value enables it
 station_id_every_songs = 0  # legacy key: 0 disables; positive enables clock ID opportunities (30 min cooldown)
 
 [sources]
@@ -168,6 +167,8 @@ def load(*, audio_preset: str | None = None) -> dict:
         for section, values in tomllib.loads(profile.read_text()).items():
             cfg.setdefault(section, {}).update(values)
     cfg["music"]["path"] = Path(cfg["music"]["path"]).expanduser()
+    if cfg["music"]["source"] not in ("local", "ytmusic"):
+        raise ValueError("music.source must be local or ytmusic")
     for k in ("stinger_in", "stinger_out", "bed", "separator", "station_id", "reminder", "github_intro", "horizon_intro"):
         if k.endswith("_intro") and not cfg["jingles"].get(k):
             cfg["jingles"][k] = []

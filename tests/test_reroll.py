@@ -231,9 +231,31 @@ class RerollTests(unittest.TestCase):
 
     def test_new_tracks_queue_is_replaced_in_place(self):
         plugins.set_plugin('reroll_next', True)
-        self.svc.fresh_queued = {'/tmp/next.wav': '10', '/tmp/later.wav': '11'}
+        tail = [(f'/tmp/later{i}.wav', str(11 + i)) for i in range(4)]
+        self.svc.fresh_queued = dict([('/tmp/next.wav', '10'), *tail])
+        current = dict(self.svc.current)
+        before = {table: [tuple(r) for r in self.svc.db.execute(f'SELECT * FROM {table}')]
+                  for table in ('air_plan', 'items', 'packages', 'events')}
         self.assertTrue(self.reroll()['ok'])
-        self.assertEqual(list(self.svc.fresh_queued.items()), [('/tmp/other.wav', '42'), ('/tmp/later.wav', '11')])
+        self.assertEqual(list(self.svc.fresh_queued.items()), [('/tmp/other.wav', '42'), *tail])
+        self.assertEqual(self.svc.current, current)
+        for table, rows in before.items():
+            self.assertEqual([tuple(r) for r in self.svc.db.execute(f'SELECT * FROM {table}')], rows)
+
+    def test_youtube_reroll_preserves_all_later_priority_tracks(self):
+        from radio import ytmusic
+        plugins.set_plugin('reroll_next', True)
+        refs = [f'ytmusic:{letter * 11}' for letter in 'abcde']
+        self.svc.current['ref'] = refs[0]
+        self.svc.library = set(refs)
+        self.svc.engine.music_choices.return_value = {ref: f'annotate:kind="music",ref="{ref}":{ref}' for ref in refs}
+        self.svc.fresh_queued = dict(zip((refs[1], refs[3], refs[4]), ('10', '11', '12')))
+        path = config.DATA_DIR / 'replacement.webm'
+        path.write_bytes(b'audio')
+        with patch.object(ytmusic, 'resolve', return_value=str(path)):
+            self.assertTrue(self.reroll(refs[1])['ok'])
+        self.assertEqual(list(self.svc.fresh_queued.items()), [(refs[2], '42'), (refs[3], '11'), (refs[4], '12')])
+        self.assertEqual(self.svc.current['ref'], refs[0])
 
     def test_no_alternative_keeps_the_original_track(self):
         plugins.set_plugin('reroll_next', True)
@@ -597,3 +619,44 @@ class RerollTests(unittest.TestCase):
                 await engine.stop()
         self.clock.stop()
         asyncio.run(scenario())
+
+    def test_engine_reroll_preserves_every_later_track_in_shuffle(self):
+        tone = config.DATA_DIR / 'tail-tone.wav'
+        with wave.open(str(tone), 'wb') as out:
+            out.setparams((2, 2, 44100, 0, 'NONE', 'not compressed'))
+            out.writeframes(b'\1\0\1\0' * 44100 * 20)
+        m3u = config.RUN_DIR / 'tail.m3u'
+        uris = {f'track-{i}': f'annotate:kind="music",ref="track-{i}":{tone}' for i in range(8)}
+        m3u.write_text('\n'.join(uris.values()) + '\n')
+        async def scenario(engine, queue):
+            events = []
+            try:
+                await engine.start(events.append)
+                deadline = time.monotonic() + 10
+                while (not events or not await engine.next_music()) and time.monotonic() < deadline:
+                    await asyncio.sleep(.1)
+                self.assertTrue(events)
+                await engine.command('pause')
+                before = await engine.upcoming_music()
+                self.assertGreaterEqual(len(before), 5)
+                current = events[-1]['ref']
+                replacement = next(ref for ref in uris if ref not in (current, before[0]))
+                await engine.replace_music(before[0], uris[replacement], queue)
+                after = await engine.upcoming_music()
+                self.assertEqual(after, [replacement, *before[1:]])
+                self.assertEqual(events[-1]['ref'], current)
+            finally:
+                await engine.stop()
+
+        self.clock.stop()
+        with patch.dict(os.environ, RADIO_FILE_SYNC='realtime'):
+            for prefetch, local in ((1, False), (3, False), (1, True)):
+                with self.subTest(prefetch=prefetch, local=local), \
+                     patch('radio.engine.ytmusic.library', return_value={'tracks': [{}] * (3 if prefetch == 3 else 0)}):
+                    primary = config.RUN_DIR / 'empty.m3u' if local else m3u
+                    if local:
+                        primary.write_text('#EXTM3U\n')
+                    engine = Liquidsoap(primary, .1, str(config.DATA_DIR / 'tail-output.wav'),
+                                        fallback_m3u=m3u if local else None)
+                    engine.music_source = 'local' if local else 'ytmusic'
+                    asyncio.run(scenario(engine, 'local_music' if local else 'music'))

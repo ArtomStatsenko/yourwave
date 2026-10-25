@@ -630,9 +630,10 @@ class SchedulingTests(unittest.TestCase):
         self.add("b", "chatgpt", 1)
         self.svc.on_event({"kind": "music", "ref": str(old)})
         self.svc.current["duration"], self.svc.current["started"] = 30.0, time.time() - 29
-        asyncio.run(self.svc.schedule())                                      # break 1: a normal set
-        self.assertEqual((said, [p[0] for p in pushed]), ([(("Next Artist", "Song"), False)], ["news"]))
-        self.svc.on_event({"kind": "news", "ref": pushed[0][1]})
+        asyncio.run(self.svc.schedule())                                      # unplayed songs already take priority
+        self.assertEqual(said, [(("New", "Three"), True)])
+        self.assertEqual([p[0] for p in pushed], ["fresh", "fresh", "news"])
+        self.svc.on_event({"kind": "news", "ref": next(ref for kind, ref, *_ in pushed if kind == 'news')})
         self.svc.on_event({"kind": "music", "ref": str(old)})
         self.add("c", "chatgpt", 1)
         self.clock.return_value += timedelta(minutes=30)

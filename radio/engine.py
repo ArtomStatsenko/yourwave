@@ -55,6 +55,7 @@ class Liquidsoap:
         env = dict(os.environ, RADIO_EVENTS=str(events), RADIO_M3U=str(self.m3u), RADIO_LIQ_SOCK=str(self.sock), RADIO_XFADE=str(self.xfade),
                    RADIO_LIQ_LOG=str(config.DATA_DIR / "logs/liquidsoap.log"), RADIO_OUTPUT=self.output,
                    RADIO_SINK_CMD=self.sink_command(), RADIO_DATA_DIR=str(config.DATA_DIR),
+                   RADIO_MUSIC_SOURCE=getattr(self, "music_source", "ytmusic"),
                    RADIO_FALLBACK_M3U=str(self.fallback_m3u or ""), RADIO_START_PAUSED="1" if paused else "",
                    RADIO_YTMUSIC_COUNT=str(len(ytmusic.library()["tracks"])) if self.m3u.name == "ytmusic.m3u" else "0",
                    RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]))
@@ -152,9 +153,9 @@ class Liquidsoap:
         uri = f'annotate:air_until="{expires:.3f}",kind="news",ref="{safe_id}",liq_amplify="{gain:+.1f} dB",{ending},liq_fade_in="0.1":{wav}'
         return (await self.command(f"news.push {uri}")).strip()
 
-    async def pending(self) -> list[str]:
-        """Request ids in the news queue, the one on air first. A request that could not load is simply not there."""
-        return (await self.command('news.pending')).split()
+    async def pending(self, queue: str = "news") -> list[str]:
+        """Request ids in the selected queue, the one on air first. A request that could not load is simply not there."""
+        return (await self.command(queue + '.pending')).split()
 
     async def push_station_id(self, wav: Path, gain_db: float, tail_sec: float = 0.0, expires: float = 0.0) -> str:
         # Goes through the same queue as news, so it too waits for the song boundary. The next song starts
@@ -163,7 +164,7 @@ class Liquidsoap:
                f'liq_cross_duration="{max(1.0, tail_sec + 0.3):.2f}",liq_fade_in="0.1":{wav}')
         return (await self.command(f"news.push {uri}")).strip()
 
-    async def push_replay(self, wav: Path, kind: str, ref: str, gain_db: float, replay_id: str, tags: str = "",
+    async def push_replay(self, wav: Path | str, kind: str, ref: str, gain_db: float, replay_id: str, tags: str = "",
                           queue: str = "news") -> str:
         """A song into a request queue (news: next song boundary, before everything; fresh: after the news
         queue). tags: more annotations starting with a comma. Returns the request id, for remove()."""

@@ -5,10 +5,11 @@ import json
 import os
 import urllib.request
 
-from . import chatgpt, config, editor, openrouter
+from . import chatgpt, config, editor, openrouter, plugins
 
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
+    "music_source": ("music", "source", "Music source", "", 1, 20, None, ""),
     "host_name": ("broadcast", "host_name", "Host name", "How the co-host addresses the main host when Two hosts is enabled.",
                   1, 30, None, ""),
     "cohost_name": ("broadcast", "cohost_name", "Co-host name", "How the main host addresses the co-host when Two hosts is enabled.", 1, 30, None, ""),
@@ -30,8 +31,8 @@ SETTINGS = {
                              "Maximum speech length when enough prepared stories are available.", 30, 600, 10, "s"),
     "max_spoken_seconds_per_rolling_hour": ("broadcast", "max_spoken_seconds_per_rolling_hour", "Speech per hour",
                                             "Total speech allowed in any 60-minute window. Further speech waits when the limit is reached.", 60, 900, 30, "s"),
-    "new_every_sets": ("broadcast", "new_every_sets", "New tracks: every N sets",
-                       "Play recently added songs at this interval. Set to 0 to disable.", 0, 10, 1, ""),
+    "new_every_sets": ("broadcast", "new_every_sets", "Unplayed tracks first",
+                       "1 prioritizes unplayed tracks from the active music source; 0 disables priority.", 0, 1, 1, ""),
     "station_id_every_songs": ("broadcast", "station_id_every_songs", "Station ID opportunities",
                                "0 disables; positive values allow a clock ID after 30 minutes without branding.", 0, 10, 1, ""),
     "lead_min": ("reminders", "lead_min", "Reminder lead time",
@@ -39,7 +40,7 @@ SETTINGS = {
 }
 
 
-CHOICES = {"llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai"), "voice_engine": ("qwen3", "voicestudio")}
+CHOICES = {"music_source": ("local", "ytmusic"), "llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai"), "voice_engine": ("qwen3", "voicestudio")}
 VOICE_LABELS = {"qwen3": "Qwen3-TTS · cloned voice", "voicestudio": "VoiceStudio · OmniVoice"}
 MODEL_ROWS = {"ollama": "ollama_model", "openai": "openai_model", "openrouter": "openrouter_model",
               "deepseek": "deepseek_model", "xai": "xai_model"}  # a text setting that is one of these: a drop-down on the page
@@ -83,6 +84,8 @@ def set_setting(key: str, value) -> None:
         number = _clamp(key, value)
     except (TypeError, ValueError, OverflowError) as e:
         raise ValueError(str(e) if SETTINGS[key][6] is None else f"{key}: a number is expected")
+    if key == "music_source" and number == "ytmusic" and not plugins.on(config.load(), "ytmusic"):
+        raise ValueError("Enable the YouTube Music integration before selecting it as a source.")
     saved = _saved()
     saved[key] = number
     _write(saved)
@@ -120,6 +123,8 @@ def listing(cfg: dict) -> list[dict]:
     c = editor.connection(live)
     rows = []
     for k, s in SETTINGS.items():
+        if k == "music_source":
+            continue
         if k in MODEL_ROWS.values() and (k != MODEL_ROWS[provider] or c["state"] not in ("ok", "no_model")):
             continue  # a model is picked only once the provider answers, from what it offers
         row = {"key": k, "title": s[2], "hint": s[3], "min": s[4], "max": s[5], "step": s[6], "unit": s[7],
@@ -144,6 +149,11 @@ def listing(cfg: dict) -> list[dict]:
                                  else {"label": "Sign in with ChatGPT", "cmd": "chatgpt_login"})
         rows.append(row)
     return rows
+
+
+def music_source(cfg: dict) -> str:
+    selected = _saved().get("music_source", cfg["music"].get("source", "local"))
+    return selected if plugins.on(cfg, "ytmusic") else "local"
 
 
 def _voice_state(live: dict) -> dict:
