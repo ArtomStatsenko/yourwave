@@ -1215,20 +1215,27 @@ class SchedulingTests(unittest.TestCase):
         self.assertEqual([s for s, _ in seen], [None, None, 44, 47])  # retries with neighbouring seeds
         self.assertEqual({shared for _, shared in seen}, {42})              # the shared voice never changed
 
-    def test_two_hosts_alternate_and_hand_over_by_name(self):
+    def test_two_hosts_enter_without_handoff_or_thanks(self):
         svc = self.svc
         svc.tts2 = object()  # the co-host's voice (only its identity matters here)
         svc.cfg["broadcast"].update(host_name="Артём", cohost_name="Маша")
         segs = [("Добрый вечер.", False), ("Новость один.", False), ("Новость два.", True), ("Новость три.", True),
                 ("Дальше музыка.", False)]
         owners = ["seed", "a", "b", "c", "seed"]
-        s, o, v = svc._duo(segs, owners, [{"id": "a"}, {"id": "b"}, {"id": "c"}], "seed")
-        texts = [t for t, _ in s]
-        self.assertEqual(v, [None, None, None, svc.tts2, svc.tts2, None, None])  # A, B, A; host lines stay with A
-        self.assertIn("Маша", texts[2])          # the host hands over to the co-host by name
-        self.assertTrue(texts[3].endswith("Новость два."))
-        self.assertIn("Артём", texts[4])         # and back
-        self.assertEqual(len(texts), 7)
+        s, o, v = svc._duo(segs, owners, [{"id": "a"}, {"id": "b"}, {"id": "c"}])
+        self.assertEqual(v, [None, None, svc.tts2, None, None])
+        self.assertEqual(s, segs)
+        self.assertEqual(o, owners)
+        from unittest.mock import patch
+        with patch("radio.daemon.plugins.on", return_value=True), \
+                patch.object(svc, "_body_segments", return_value=[("Новость.", True)]), \
+                patch.object(svc, "_segment_voice", return_value=Path("voice.wav")), \
+                patch.object(svc, "_jingles_for", return_value={}), \
+                patch("radio.daemon.audio.duration", return_value=1), \
+                patch("radio.daemon.audio.render_package", return_value=0) as render:
+            self.assertIsNotNone(svc._assemble_break(
+                [{"id": "a"}, {"id": "b"}, {"id": "c"}], self.clock(), False, None))
+            self.assertEqual(render.call_args.kwargs["speaker_changes"], [True, True])
         svc.tts2 = svc.tts
 
     def test_every_fresh_take_is_checked_by_transcript(self):

@@ -262,12 +262,14 @@ def render_link(voices: list[Path], out_wav: Path, jingle: Path, jingle_max_sec:
 
 def render_package(voices: list[Path], out_wav: Path, bed_gain_db: float, jingles: dict | None = None,
                    separators: list[bool] | None = None, sep_pad: tuple[float, float] = SEP_PAD,
-                   talkover: bool = False, lead: Path | None = None, talkover_max: float | None = None) -> float:
+                   talkover: bool = False, lead: Path | None = None, talkover_max: float | None = None,
+                   speaker_changes: list[bool] | None = None) -> float:
     """[lead] -> stinger_in -> bed with ducked voice on top -> stinger_out, normalized to -16 LUFS / -1.5 dBTP.
     lead: a dry phrase before the stinger, as a host back-sells the songs before the news sounder.
     talkover_max: how much of the last phrase the next song may start under (default TALKOVER_MAX_SEC); a set
     opener over the next song's intro may take the whole phrase.
     separators[i] says whether the gap before voices[i+1] gets the separator sound (default) or a plain pause.
+    speaker_changes[i]: the next voice enters immediately, without a pause, separator or fade.
     talkover: no outro; the file ends on the last word and the bed is gone by then, so the next song can start
     under the last phrase. Returns that overlap in seconds (0 without talkover).
     Written to a temp file and renamed only after validation."""
@@ -280,7 +282,12 @@ def render_package(voices: list[Path], out_wav: Path, bed_gain_db: float, jingle
     sep_chain, sep_len, _ = _prepared(3, sep, 2.5)
     n = len(voices)
     separators = [True] * (n - 1) if separators is None else separators
+    changes = [False] * (n - 1) if speaker_changes is None else speaker_changes
+    if len(changes) != n - 1 or len(separators) != n - 1:
+        raise ValueError("one transition is required between each pair of voices")
+    separators = [sound and not change for sound, change in zip(separators, changes)]
     gaps = [max(MIN_GAP, sep_pad[0] + sep_len + sep_pad[1]) if s else PAUSE_SEC for s in separators]
+    gaps = [0.0 if change else gap for gap, change in zip(gaps, changes)]
     spans = [speech_span(v) for v in voices]
     durs = [b - a for a, b in spans]
     vdur = sum(durs) + sum(gaps)

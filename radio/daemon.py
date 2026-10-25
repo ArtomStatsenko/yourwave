@@ -1516,7 +1516,7 @@ class Service:
                 owners.append(seed)
             speakers = [None] * len(segs)
             if plugins.on(self.cfg, "duo_hosts") and len(pkgs) > 1:
-                segs, owners, speakers = self._duo(segs, owners, pkgs, seed)
+                segs, owners, speakers = self._duo(segs, owners, pkgs)
             # Host links share the first bulletin's budget, but need the host's number-tolerant speech check.
             voices = [self._say(text, voice) if links and k in (0, len(segs) - 1) else self._segment_voice(owner, text, voice)
                       for k, ((text, _), owner, voice) in enumerate(zip(segs, owners, speakers))]
@@ -1527,7 +1527,8 @@ class Service:
             talkover = audio.render_package(voices, out, separators=[s for _, s in segs][1:], jingles=jingles,
                                             bed_gain_db=b["voice_bed_gain_db"], lead=lead,
                                             talkover=over_intro or self._talkover(seed),
-                                            talkover_max=intro_room if over_intro else None)
+                                            talkover_max=intro_room if over_intro else None,
+                                            speaker_changes=[a is not b for a, b in zip(speakers, speakers[1:])])
             for p in pkgs:  # host lines count on the first bulletin, so the rolling-hour budget sees all speech
                 speech = sum(audio.duration(v) for v, o in zip(voices, owners) if o == p["id"])
                 speech += audio.duration(lead) if lead and p["id"] == seed else 0
@@ -1541,25 +1542,10 @@ class Service:
             log(self.last_error, "- airing the first bulletin pre-rendered")
             return None
 
-    def _duo(self, segs, owners, pkgs, seed):
-        """Two hosts: bulletins alternate between the voices (host lines stay with the main one); when the voice
-        changes, the one finishing hands over by name and the next starts with a short thanks."""
-        b = self.cfg["broadcast"]
-        names = {None: b["host_name"], self.tts2: b["cohost_name"]}
+    def _duo(self, segs, owners, pkgs):
+        """Alternate bulletin voices without handoff or acknowledgement lines."""
         turn = {p["id"]: (self.tts2 if k % 2 else None) for k, p in enumerate(pkgs)}
-        out_s, out_o, out_v, cur = [], [], [], None
-        for (text, sound), owner in zip(segs, owners):
-            voice = turn.get(owner)  # host lines (owner = the break seed) are not bulletins: main voice
-            if voice is not cur and out_s:
-                out_s.append((host.handoff(names[voice], self.recent_jingles, seed + owner), False))
-                out_o.append(out_o[-1])
-                out_v.append(cur)
-                text = host.ack(names[cur], self.recent_jingles, seed + owner) + text
-            out_s.append((text, sound))
-            out_o.append(owner)
-            out_v.append(voice)
-            cur = voice
-        return out_s, out_o, out_v
+        return segs, owners, [turn.get(owner) for owner in owners]
 
     # ---- CLI ----
     async def handle_client(self, reader, writer) -> None:
