@@ -51,6 +51,21 @@ class NewsDetailTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'news_detail'):
             config.load()
 
+    def test_all_modes_request_broadcast_gist_and_only_discussion_adds_commentary(self):
+        source = 'Tomb Raider: ремастеры за 220 рублей, трилогия от 106 рублей. До 6 ноября. В ру-регионе набор включает только ремастеры.'
+        with patch.object(self.writer, '_ask', return_value='В Steam началась распродажа Tomb Raider.') as ask:
+            for level in range(3):
+                with self.subTest(level=level):
+                    self.cfg['editor']['news_detail'] = level
+                    self.writer.prepare(source, 'news', 'Распродажа')
+                    prompt = ask.call_args.args[0]
+                    self.assertIn(source, prompt)
+                    self.assertIn('без персонального обращения', prompt)
+                    self.assertIn('без каталога игр и цен', prompt)
+                    self.assertIn('Сохраняй важные оговорки, региональные ограничения', prompt)
+                    self.assertEqual('Мнение обозначь как мнение' in prompt, level == 2)
+                    self.assertNotIn('без домыслов и своих оценок', prompt)
+
     def test_slider_has_names_description_and_updates_accessible_value(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
         helper = source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
