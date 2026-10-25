@@ -35,6 +35,8 @@ The timeline presents host appearances as Host edition rows, with source segment
 
 Enabled blocks and news sources do not require another block or source to succeed. Each source keeps its own status and retry deadline. Unplayed tracks from the active local or YouTube Music library take priority over repeats, without a clock-slot wait or minimum batch size. News preparation does not cancel the remaining priority songs. Switching music sources clears only the previous source's pending priority songs. Host links add presentation, not permission to play weather, calendar material or new tracks. Pause, available material, playback order and speech limits remain shared station constraints.
 
+Every news source passes a shared Russian editorial policy before its material can air. Keep original source scripts separate from approved spoken text, and reuse approval during retries and edition assembly. News detail is a live three-position Settings slider (Brief, Standard, Discussion) for newly prepared stories; discussion must remain grounded in the source. Timed reminders, forecasts and authored notices retain their exact facts and wording.
+
 ### Listening and editing
 
 - Start and stop the station only from the local Mac UI, separately from playback. Listen/Pause connects or disconnects this device without starting the station; the phone has no station-power controls, and its API rejects station startup and shutdown.

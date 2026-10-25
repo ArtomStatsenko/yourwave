@@ -103,6 +103,14 @@ Music stories prepare for the next clock edition independently of news availabil
 
 Experimental public Reddit and Telegram news adapters are documented separately in [public-news.md](public-news.md) (Russian).
 
+Every news source, including Reddit, Telegram and imported briefings, passes through the same editorial policy before speech. The selected language model prepares a short Russian retelling; a successful GitHub or Horizon retelling is reused without a second rewrite. Original scripts remain available separately, while history, previews and replays use the approved spoken text. Existing unaired news returns to preparation once when this storage format is first loaded.
+
+Editorial model instructions live in `radio/editor.py`: `EDITOR_RULES` contains shared rules, `PROMPT`, `NEWS_PROMPT` and `DAY_PROMPT` define each task, and `NEWS_DETAIL` sets the three length profiles. Reminder/weather/announcement policies in `Editor.prepare` preserve their supplied text without a model rewrite.
+
+**Settings → News detail** is a three-position slider: **Brief** asks for one or two sentences (up to about 30 words), **Standard** for two or three (about 60 words), and **Discussion** for four to six (about 110 words). Discussion explains context and relationships supported by the source; sparse material stays shorter instead of gaining invented detail. The choice applies live to newly prepared stories across all news sources. Approved scripts and audio keep their existing length, and edition/hourly speech limits still apply. Reminders and weather are unaffected.
+
+Unprepared news waits if the editor is disabled, unavailable, or at its request limit; these conditions do not consume TTS retries. Rejected stories are skipped, and the original language is never used as a fallback. Previously approved retellings remain usable. The existing request limit and cached answers apply across all sources. Timed reminders, weather facts and authored announcements use the strict policy: their wording, names, dates, numbers and countdowns stay exactly as supplied by the station's templates or the author. Optional calendar stories still use only their supplied title and description.
+
 ## Settings
 
 The existing data-directory name is retained for compatibility:

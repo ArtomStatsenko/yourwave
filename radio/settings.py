@@ -11,6 +11,7 @@ from . import chatgpt, config, editor, openrouter, plugins, public_news
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
     "music_source": ("music", "source", "Music source", "", 1, 20, None, ""),
+    "news_detail": ("editor", "news_detail", "News detail", "Per story, for new retellings. Discussion uses source-backed context; reminders stay exact.", 0, 2, 1, ""),
     "reddit_communities": ("sources.reddit", "communities", "Reddit · Subreddits",
                            "Add one name or link at a time. Only the new subreddit is checked; up to 20 total.", 0, 4000, None, ""),
     "reddit_posts": ("sources.reddit", "posts", "Reddit · Threads and posts",
@@ -158,6 +159,8 @@ def listing(cfg: dict) -> list[dict]:
                "options": CHOICES.get(k), "value": value[k], "default": d[k]}
         if k in SOURCE_LISTS:
             row.update(multiline=True, placeholder=SOURCE_LISTS[k][2])
+        if k == 'news_detail':
+            row['value_labels'] = [level['label'] for level in editor.NEWS_DETAIL]
         if k == MODEL_ROWS[provider]:
             row["options"] = c["ids"] or None  # None: a text field (a ChatGPT sign-in lists no models)
         if k == "voice_engine":

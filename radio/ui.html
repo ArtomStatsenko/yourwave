@@ -170,6 +170,8 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .st{display:grid;gap:4px;padding:16px 0;border-bottom:1px solid var(--line)}
 .st .hd2{display:flex;justify-content:space-between;gap:16px}.st .v{font-variant-numeric:tabular-nums;color:var(--accent)}
 .st input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0}
+.st input.stepped-range[type=range]{min-height:44px;margin:0}
+.range-labels{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:16px;margin-bottom:8px}
 /* AI block of Settings (design system: AiSettings): summary, provider, key or sign-in, model; glyphs carry the state, not only colour */
 .ai{display:grid}
 .ai-h{font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px 0 4px}
@@ -578,18 +580,20 @@ function editSourceName(key,remove){
     stg=d.settings;if(!remove)delete sourceDrafts[key];sourceFeedback[key]={state:'saved',text:remove?'Removed':'Added'};
   }).catch(function(e){sourceFeedback[key]={state:'error',text:e.message}}).finally(function(){settingsView(true);var f=$('source-'+key);if(f)f.focus()});
 }
+function settingValue(s,value){return s.value_labels?s.value_labels[+value]:value+(s.unit?' '+s.unit:'')}
 function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
   var box=$('settings'),f=document.activeElement;
   if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // preserve a sample in progress
   if(!force&&(box.contains(f)&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
-  var u=function(s,v){return v+(s.unit?' '+s.unit:'')},prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
+  var u=settingValue,prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
   var voice=stg.find(function(s){return s.voice_state});
   var sources=stg.filter(function(s){return s.key==='reddit_communities'||s.key==='telegram_channels'});
   box.innerHTML=(sources.length?'<section class="ai" aria-label="News sources"><div class="ai-h">News sources</div><div class="l">Changes apply to the next source check; no restart needed.</div>'+sources.map(sourceSettingView).join('')+'</section>':'')+stg.map(function(s){if(s.multiline)return '';if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
-      :'<input type="range" id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'">')
-    +'<div class="l">'+esc(s.hint)+(s.value!==s.default?' · Default: '+esc(u(s,s.default))+' <button class="rs" data-rs="'+s.key+'">Reset</button>':'')+'</div></div>'}).join('');
+      :'<input type="range"'+(s.value_labels?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(u(s,s.value))+'" aria-describedby="hint-'+s.key+'">')
+    +(s.value_labels?'<div class="range-labels" aria-hidden="true">'+s.value_labels.map(function(label){return '<span>'+esc(label)+'</span>'}).join('')+'</div>':'')
+    +'<div class="l" id="hint-'+s.key+'">'+esc(s.hint)+(s.value!==s.default?' · Default: '+esc(u(s,s.default))+' <button class="rs" data-rs="'+s.key+'">Reset</button>':'')+'</div></div>'}).join('');
   if(force&&f&&f.id&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
@@ -598,7 +602,7 @@ $('audio-preset').onchange=function(){
   }).catch(function(){$('audio-preset-hint').textContent='Could not save the audio preset. Try again.'})
 };
 $('stg').oninput=function(e){if(e.target.dataset.sourceInput){var key=e.target.dataset.sourceInput;sourceDrafts[key]=e.target.value;sourceFeedback[key]={};e.target.setAttribute('aria-invalid','false');return}var r=e.target.closest('[data-st]');if(!r)return;
-  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline){sourceDrafts[s.key]=r.value;sourceFeedback[s.key]={};r.setAttribute('aria-invalid','false');return}if(s.step!==null)$('sv-'+s.key).textContent=r.value+(s.unit?' '+s.unit:'')};
+  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline){sourceDrafts[s.key]=r.value;sourceFeedback[s.key]={};r.setAttribute('aria-invalid','false');return}if(s.step!==null){$('sv-'+s.key).textContent=settingValue(s,r.value);r.setAttribute('aria-valuetext',settingValue(s,r.value))}};
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline)return;var value=s.step===null?r.value:+r.value;s.value=value;
   if(s.key==='llm_provider')keyFb={cls:'',text:''};
