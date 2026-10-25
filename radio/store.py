@@ -54,6 +54,11 @@ def connect() -> sqlite3.Connection:
         db.execute("ALTER TABLE tracks ADD COLUMN outro_sec REAL")  # file end minus the end of the last sung line
     if "talkover_sec" not in {r[1] for r in db.execute("PRAGMA table_info(packages)")}:
         db.execute("ALTER TABLE packages ADD COLUMN talkover_sec REAL DEFAULT 0")
+    if "prepared_text" not in {r[1] for r in db.execute("PRAGMA table_info(packages)")}:
+        db.execute("ALTER TABLE packages ADD COLUMN prepared_text TEXT")
+        # Unaired legacy news must pass the same editorial gate as newly collected stories.
+        db.execute("UPDATE packages SET status='PENDING' WHERE status='READY' AND item_id IN "
+                   "(SELECT id FROM items WHERE kind IN ('raw_post','ready_digest') AND state='NEW')")
     return db
 
 

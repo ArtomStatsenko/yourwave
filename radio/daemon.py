@@ -718,7 +718,7 @@ class Service:
             content.add_item(self.db, self.cfg, {
                 "id": iid, "topic": "Новости технологий", "source": "horizon", "url": it["url"],
                 "speak_topic": not self.cfg["jingles"]["horizon_intro"],  # the section intro names it
-                "published_at": now(), "body": text, "origin": origin}, kind="raw_post")
+                "published_at": now(), "body": text, "origin": origin, "text_prepared": True}, kind="raw_post")
             store.log_event(self.db, self.session, "ITEM_COLLECTED", iid)
             added.append(it["title"][:50])
         if added:
@@ -771,6 +771,7 @@ class Service:
                     continue
                 # Freshness = first time we saw it in today's ranking or this week's new list, not repo.created_at.
                 item["published_at"] = now()
+                item["text_prepared"] = True
                 item["speak_topic"] = not self.cfg["jingles"]["github_intro"]  # the section intro names it
                 content.add_item(self.db, self.cfg, item, kind="raw_post")
                 store.log_event(self.db, self.session, "ITEM_COLLECTED", item["id"])
@@ -1035,6 +1036,15 @@ class Service:
         self.tts_backoff = 60.0
         t0 = time.time()
         try:
+            p = self._prepare_package(p)
+        except Exception as e:
+            # Provider outages and the shared hourly limit must not spend the TTS retry budget.
+            self.db.execute("UPDATE packages SET error=? WHERE id=? AND status='PENDING'", (str(e)[:500], p['id']))
+            self.tts_retry_at = time.time() + 60
+            raise
+        if p is None:
+            return
+        try:
             voices, sounds = [], []
             for segment, sound in self._body_segments(p, None):
                 sounds.append(sound)
@@ -1071,10 +1081,34 @@ class Service:
                 jingles["stinger_in"] = audio.pick(self.cfg["jingles"][sec[0]], package_id)
         return jingles
 
+    def _prepare_package(self, p):
+        row = self.db.execute('SELECT p.prepared_text,i.kind,i.topic FROM packages p JOIN items i ON i.id=p.item_id '
+                              'WHERE p.id=?', (p['id'],)).fetchone()
+        if row is None:
+            raise ValueError('Unknown speech package')
+        text = row['prepared_text']
+        if text is None:
+            original = Path(p['script_path']).read_text(encoding='utf-8')
+            policy = 'news' if row['kind'] in ('raw_post', 'ready_digest') else 'announcement'
+            if policy == 'news' and not self.editor.enabled:
+                raise RuntimeError('News editor disabled; source withheld')
+            text = self.editor.prepare(original, policy, row['topic'] or '')
+            if not text:
+                self.db.execute("UPDATE packages SET status='SKIPPED',error='Editorial rejection' WHERE id=? AND status='PENDING'", (p['id'],))
+                content.finish_item_if_done(self.db, p['item_id'])
+                return None
+            self.db.execute("UPDATE packages SET prepared_text=?,est_speech_sec=?,error=NULL WHERE id=? AND status='PENDING'",
+                            (text, len(text) / self.cfg['voice']['chars_per_sec'], p['id']))
+        return {**dict(p), 'prepared_text': text}
+
     def _body_segments(self, p: dict, prev: str | None) -> list[tuple[str, bool]]:
         """Voice segments of a package. A section's name is not in its script but said here: by its intro jingle
         when it opens the break (prev is None), else as a short phrase when it follows another section."""
-        segs = content.voice_segments(Path(p["script_path"]).read_text(encoding="utf-8"))
+        prepared = self.db.execute('SELECT p.prepared_text,i.kind FROM packages p JOIN items i ON i.id=p.item_id WHERE p.id=?', (p['id'],)).fetchone()
+        if prepared and prepared['kind'] in ('raw_post', 'ready_digest') and prepared['prepared_text'] is None:
+            raise ValueError('News text has not passed editorial preparation')
+        script = prepared['prepared_text'] if prepared and prepared['prepared_text'] is not None else Path(p['script_path']).read_text(encoding='utf-8')
+        segs = content.voice_segments(script)
         cat = p["id"].split(":")[0]
         sec = host.SECTIONS.get(cat)
         if not sec or not self.cfg["jingles"][sec[0]]:
@@ -1379,6 +1413,7 @@ class Service:
     def _say(self, text: str, voice=None) -> Path:
         """Voice a text, checked twice: the spectrum (no noise) and, for a fresh take, a local Whisper transcript that
         must contain most of the text's words (no noise, no swallowed or garbled words)."""
+        text = self.editor.prepare(text, 'announcement')
         # 5-letter stems (endings may differ); number words left out: Whisper writes "пятнадцать" as "15"
         words = {w[:5] for w in re.findall(r"[а-яё]{4,}", text.casefold()) if not NUMBER_WORD.match(w)}
 
@@ -1398,6 +1433,7 @@ class Service:
         return cached_synthesize(voice or self.tts, text, check)
 
     def _render_weather(self, text: str) -> Path:
+        text = self.editor.prepare(text, 'weather')
         expected = set(re.findall(r"[а-яё]{4,}", text.casefold()))
 
         def check(path):
@@ -1425,6 +1461,7 @@ class Service:
             return short, self._say(short)
 
     def _render_notice(self, text: str, fallback: str = "") -> Path:
+        text = self.editor.prepare(text, 'reminder')
         try:
             voice = self._say(text)
         except RuntimeError:  # the voice cannot read this title in a longer phrase: the shortest form
@@ -1520,6 +1557,7 @@ class Service:
         if changes:
             candidates = direction.news(self.db)
             ready = direction.ordered([r for r in candidates if r['status'] == 'READY' and r['source'] not in self._sources_off()
+                     and (r['item_kind'] not in ('raw_post', 'ready_digest') or r['prepared_text'] is not None)
                      and changes.get(r['id'], {}).get('status') != 'EXPIRED' and direction.allowed(r, changes, now()) and not any(
                          p['item_id'] == r['item_id'] and p['part'] < r['part'] and not changes.get(p['id'], {}).get('skipped')
                          for p in candidates)], changes)
@@ -2277,7 +2315,7 @@ class Service:
             ids = [*row['members'], *row.get('content_members', []), row.get('ref')]
             parts = [packages[key] for key in dict.fromkeys(ids) if key in packages]
             notice = self.reminders_due.get(row.get('ref')) or self.reminders_due.get(row['id'])
-            row['text_ready'] = row['status'] == 'QUEUED' or bool(parts) and all(Path(p['script_path']).is_file() for p in parts) or bool(notice and (notice.get('title') or notice.get('text')))
+            row['text_ready'] = row['status'] == 'QUEUED' or bool(parts) and all(p.get('prepared_text') is not None or p['item_kind'] not in ('raw_post', 'ready_digest') and Path(p['script_path']).is_file() for p in parts) or bool(notice and (notice.get('title') or notice.get('text')))
             row['voice_ready'] = row['status'] == 'QUEUED' or bool(parts) and all(p['status'] in ('READY', 'QUEUED') for p in parts)
         self._edition_details(result, packages)
         result.sort(key=lambda r: (r['at'], not r['locked']))
@@ -2299,6 +2337,7 @@ class Service:
                 source = p['source']
                 seg = segments.setdefault(source, {'title': labels.get(source, source), 'items': [], 'text_ready': True, 'voice_ready': True})
                 seg['items'].append(timeline.topic_name(p['title']))
+                seg['text_ready'] = seg['text_ready'] and (p.get('prepared_text') is not None or p['item_kind'] not in ('raw_post', 'ready_digest') and Path(p['script_path']).is_file())
                 seg['voice_ready'] = seg['voice_ready'] and p['status'] in ('READY', 'QUEUED')
             if not segments:
                 sources = ['weather'] if row['kind'] == 'weather' else [name for name in ('horizon', 'github_trending', 'github_new', 'reddit', 'telegram') if plugins.on(self.cfg, name)]

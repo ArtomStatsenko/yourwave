@@ -215,7 +215,7 @@ class PublicNewsTests(unittest.TestCase):
         self.cfg['sources']['inbox_poll_sec'] = 1
         self.cfg['broadcast']['music_set_minutes'] = 5
         self.cfg['broadcast']['talkover_share'] = 0
-        self.cfg['editor']['llm_enabled'] = False
+        self.cfg['editor']['llm_enabled'] = True  # model requests are stubbed; the editorial gate stays enabled
         for source in ('reddit', 'telegram'):
             plugins.set_plugin(source, True)
         settings.set_setting('reddit_communities', '')
@@ -254,8 +254,9 @@ class PublicNewsTests(unittest.TestCase):
                 await svc.stop()
                 await task
         with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}), patch.object(public_news, 'fetch', side_effect=get), patch.object(
-                svc.editor, 'retell_news', side_effect=AssertionError('news must not call LLM')):
+                svc.editor, '_ask', return_value='Разработчики выпустили новый инструмент для работы.') as retell:
             asyncio.run(run())
+        self.assertEqual(retell.call_count, 2)
         rows = svc.db.execute('SELECT i.source,p.status FROM packages p JOIN items i ON i.id=p.item_id').fetchall()
         self.assertEqual({(r['source'], r['status']) for r in rows}, {('reddit', 'PLAYED'), ('telegram', 'PLAYED')})
         events = [r[0] for r in svc.db.execute('SELECT type FROM events ORDER BY id')]

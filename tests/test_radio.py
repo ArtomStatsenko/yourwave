@@ -1767,7 +1767,8 @@ class EndToEnd(unittest.TestCase):
             await task
 
         from unittest.mock import patch
-        with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}):
+        with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}), \
+                patch.object(svc.editor, '_ask', return_value='Разработчики выпустили новую версию компилятора.'):
             asyncio.run(scenario())
         db = svc.db
         states = dict(db.execute("SELECT file, state FROM items").fetchall())

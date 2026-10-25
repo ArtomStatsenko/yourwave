@@ -103,8 +103,9 @@ github_intro = ""           # no separate section recording: use the normal intr
 reminder = "assets/separator.wav"
 horizon_intro = ""
 
-[editor]                    # used only to retell GitHub descriptions in Russian; never for digests
+[editor]                    # shared Russian editorial preparation for all news sources, including imported digests
 llm_enabled = true
+news_detail = 1             # 0 = brief, 1 = standard, 2 = discussion; per newly prepared news story
 base_url = "http://127.0.0.1:11434"   # local Ollama
 model = "qwen3.5:4b"
 provider = "ollama"         # ollama (the base_url/model above), openai, openrouter, deepseek or xai; set on the Settings tab
@@ -173,6 +174,8 @@ def load(*, audio_preset: str | None = None) -> dict:
     cfg["music"]["path"] = Path(cfg["music"]["path"]).expanduser()
     if cfg["music"]["source"] not in ("local", "ytmusic"):
         raise ValueError("music.source must be local or ytmusic")
+    if type(cfg['editor']['news_detail']) is not int or not 0 <= cfg['editor']['news_detail'] <= 2:
+        raise ValueError('editor.news_detail must be 0, 1 or 2')
     for k in ("stinger_in", "stinger_out", "bed", "separator", "station_id", "reminder", "github_intro", "horizon_intro"):
         if k.endswith("_intro") and not cfg["jingles"].get(k):
             cfg["jingles"][k] = []

@@ -29,7 +29,7 @@ def ordered(rows, changes):
 
 def news(db):
     return [dict(r) for r in db.execute(f'''SELECT p.*,
-               i.topic AS title,i.source,i.published_at FROM packages p JOIN items i ON i.id=p.item_id
+               i.topic AS title,i.kind AS item_kind,i.source,i.published_at FROM packages p JOIN items i ON i.id=p.item_id
                WHERE p.status IN ('PENDING','READY','QUEUED') AND i.state='NEW' ORDER BY {content.ROTATION}''')]
 
 
@@ -54,7 +54,7 @@ def rows(db, cfg, at):
     off = {source for source, feature in plugins.SOURCE_PLUGIN.items() if not plugins.on(cfg, feature)}
     for row in ordered([r for r in news(db) if r['source'] not in off], changes):
         script = Path(row['script_path']) if row['script_path'] else None
-        preview = script.read_text(encoding='utf-8')[:240] if script and script.exists() else ''
+        preview = row['prepared_text'][:240] if row['prepared_text'] is not None else script.read_text(encoding='utf-8')[:240] if script and script.exists() else ''
         result.append({**row, 'kind': 'news', 'preview': preview})
     if cfg['weather']['city'] and plugins.on(cfg, 'weather'):
         result += weather_rows(db, cfg, at, changes)
@@ -114,17 +114,21 @@ def insert(db, cfg, kind, ref, text, at, due):
     key = 'direction:' + uuid.uuid4().hex
     if kind == 'text' or kind == 'news' and ref:
         published, title = at, 'Host announcement'
+        item_kind = 'scheduled'
         if kind == 'news':
-            original = db.execute('SELECT p.script_path,i.topic,i.published_at FROM packages p JOIN items i '
+            original = db.execute('SELECT p.script_path,p.prepared_text,i.kind,i.topic,i.published_at FROM packages p JOIN items i '
                                   'ON i.id=p.item_id WHERE p.id=?', (ref,)).fetchone()
             if not original or not original['script_path'] or not Path(original['script_path']).exists():
                 raise ValueError('Bulletin text is unavailable')
-            text, title = Path(original['script_path']).read_text(), 'Replay · ' + (original['topic'] or 'Bulletin')
+            text = original['prepared_text'] if original['prepared_text'] is not None else Path(original['script_path']).read_text()
+            title = 'Replay · ' + (original['topic'] or 'Bulletin')
+            if original['prepared_text'] is None and original['kind'] in ('raw_post', 'ready_digest'):
+                item_kind = original['kind']
         if not isinstance(text, str) or not text.strip() or len(text) > 4000:
             raise ValueError('Enter 1–4000 characters')
         item_id = 'system:' + key
         content.add_item(db, cfg, {'id': item_id, 'topic': title, 'speak_topic': False, 'source': 'direction',
-                                  'url': '', 'published_at': published, 'body': text}, kind='scheduled')
+                                  'url': '', 'published_at': published, 'body': text}, kind=item_kind)
         for p in db.execute('SELECT id FROM packages WHERE item_id=?', (item_id,)).fetchall():
             db.execute('INSERT INTO air_plan(id,kind,ref,not_before,rank) VALUES(?,?,?,?,?)',
                        (p['id'], 'news', p['id'], store.iso(when), -1))

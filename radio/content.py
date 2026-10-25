@@ -1,4 +1,4 @@
-"""Ready-digest inbox: parsing, verbatim segmentation and package bookkeeping (no LLM anywhere)."""
+"""Source inbox, verbatim source segmentation and package bookkeeping; editorial speech is stored separately."""
 import hashlib
 import json
 import re
@@ -200,9 +200,10 @@ def add_item(db, cfg, item: dict, kind: str, file: str | None = None) -> str:
             pid = f"{item['id']}#{i + 1}"
             sp = config.DATA_DIR / "cache/scripts" / (hashlib.sha256(pid.encode()).hexdigest()[:16] + ".txt")
             sp.write_text(script, encoding="utf-8")
-            db.execute("INSERT INTO packages(id, item_id, part, parts, script_path, est_speech_sec, status) "
-                       "VALUES(?,?,?,?,?,?,'PENDING')",
-                       (pid, item["id"], i + 1, len(scripts), str(sp), len(script) / cfg["voice"]["chars_per_sec"]))
+            prepared = script if item.get("text_prepared") or kind not in ("raw_post", "ready_digest") else None
+            db.execute("INSERT INTO packages(id, item_id, part, parts, script_path, est_speech_sec, status,prepared_text) "
+                       "VALUES(?,?,?,?,?,?,'PENDING',?)",
+                       (pid, item["id"], i + 1, len(scripts), str(sp), len(script) / cfg["voice"]["chars_per_sec"], prepared))
         return state
     except Exception:
         db.execute("ROLLBACK TO add_item")
@@ -245,6 +246,7 @@ def ready_to_air(db, sources_off: list[str] = ()) -> list:
     off = ",".join("?" * len(sources_off))
     return db.execute(f"""SELECT p.* FROM packages p JOIN items i ON i.id=p.item_id
                          WHERE p.status='READY' AND i.state='NEW' {f"AND i.source NOT IN ({off})" if off else ""}
+                         AND (i.kind NOT IN ('raw_post','ready_digest') OR p.prepared_text IS NOT NULL)
                          AND NOT EXISTS(
                            SELECT 1 FROM packages q WHERE q.item_id=p.item_id AND q.part<p.part
                            AND q.status IN ('PENDING','READY','QUEUED','PLAYING'))

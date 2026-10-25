@@ -29,7 +29,7 @@ Add your own MP3, M4A, FLAC, or WAV files to `~/Music/Radio`. The four Base soun
 
 ### 2. Connect speech and open the browser
 
-Install **VoiceStudio** separately and set `voice.server_dir` in the generated configuration to its backend directory. The default speech endpoint is `http://127.0.0.1:3900`. For host links and GitHub summaries, run **Ollama** and download the default model:
+Install **VoiceStudio** separately and set `voice.server_dir` in the generated configuration to its backend directory. The default speech endpoint is `http://127.0.0.1:3900`. For Russian news retellings from every source, run **Ollama** and download the default model:
 
 ```sh
 ollama pull qwen3.5:4b
