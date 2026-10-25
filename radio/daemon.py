@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import broadcast_clock, audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
-from . import public_news, reddit, telegram
+from . import editor, public_news, reddit, telegram
 from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
@@ -1109,6 +1109,15 @@ class Service:
             raise ValueError('News text has not passed editorial preparation')
         script = prepared['prepared_text'] if prepared and prepared['prepared_text'] is not None else Path(p['script_path']).read_text(encoding='utf-8')
         segs = content.voice_segments(script)
+        if prepared and prepared['kind'] in ('raw_post', 'ready_digest'):
+            allow_reaction = editor.reactions_enabled(self.cfg)
+            checked = []
+            for text, sound in segs:
+                text = editor.news_reaction(text, allow_reaction)
+                allow_reaction = allow_reaction and not text.startswith(('[surprise-ah]', '[laughter]'))
+                if text:
+                    checked.append((text, sound))
+            segs = checked
         cat = p["id"].split(":")[0]
         sec = host.SECTIONS.get(cat)
         if not sec or not self.cfg["jingles"][sec[0]]:

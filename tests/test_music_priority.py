@@ -24,6 +24,24 @@ class MusicPriorityTests(unittest.TestCase):
         self.svc = daemon.Service(config.load(), tts=MockTTS(), output='x')
         self.addCleanup(self.svc.db.close)
 
+    def test_single_priority_toggle_handles_legacy_zero_and_persists_both_states(self):
+        from radio import editor, plugins
+        cfg = self.svc.cfg
+        settings.set_setting('new_every_sets', 0)
+        self.assertFalse(plugins.on(cfg, 'new_tracks'))
+        for enabled in (True, False, True):
+            plugins.set_plugin('new_tracks', enabled)
+            loaded = config.load()
+            settings.apply(loaded, settings.base(loaded))
+            self.assertEqual(plugins.on(loaded, 'new_tracks'), enabled)
+            self.assertEqual(loaded['broadcast']['new_every_sets'], int(enabled))
+            self.svc.cfg = loaded
+            self.assertEqual(self.svc._new_set_due(), enabled)
+        with patch.object(editor, 'connection', return_value={'state': 'no_key', 'detail': '', 'ids': []}), \
+             patch.object(settings, '_voice_state', return_value={}):
+            self.assertNotIn('new_every_sets', [row['key'] for row in settings.listing(cfg)])
+        self.assertEqual(sum(row['title'] == 'Unplayed tracks first' for row in plugins.listing(cfg)), 1)
+
     def test_one_unplayed_local_track_has_priority_without_age_or_minimum_count(self):
         f = config.DATA_DIR / 'unplayed.wav'
         f.touch()

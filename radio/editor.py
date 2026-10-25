@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import chatgpt, config, openrouter
+from . import chatgpt, config, openrouter, plugins
 
 PROMPT_VERSION = 5
 NEWS_DETAIL = (
@@ -47,6 +47,23 @@ DAY_PROMPT = EDITOR_RULES + """Коротко расскажи о сегодня
 
 Название: <<<{title}>>>
 Описание: <<<{description}>>>"""
+
+REACTION_RULES = """ Обычно сохраняй нейтральную подачу без тегов. Если смысл исходника это оправдывает,
+добавь только в самое начало один тег: [surprise-ah] для необычного открытия или [laughter] только для явно
+юмористической доброй истории. Хорошая новость сама по себе не повод смеяться; передай лёгкую радость словами без оценок от себя.
+Трагедии, болезни, насилие, конфликты, потери, политика и неоднозначные новости — строго без реакций.
+Не добавляй другие теги. При сомнении не добавляй никакой тег."""
+
+
+def reactions_enabled(cfg: dict) -> bool:
+    return cfg['voice']['engine'] == 'voicestudio' and plugins.on(cfg, 'news_reactions')
+
+
+def news_reaction(text: str, enabled: bool) -> str:
+    """Only one supported reaction, at the start; never pass arbitrary model tags to speech."""
+    tag = re.match(r'\s*(\[(?:surprise-ah|laughter)\])', text)
+    plain = re.sub(r'\[[a-z][a-z _-]*\]', '', text).strip()
+    return (tag[1] + ' ' if enabled and tag else '') + plain
 
 
 KEYED = {"deepseek": ("https://api.deepseek.com", "DEEPSEEK_API_KEY"), "xai": ("https://api.x.ai", "XAI_API_KEY")}
@@ -178,18 +195,20 @@ class Editor:
         if kind in ("reminder", "weather", "announcement"):
             return text
         detail = NEWS_DETAIL[self.cfg['editor'].get('news_detail', 1)]
+        reactions = kind in ('project', 'news') and reactions_enabled(self.cfg)
+        length = detail['instruction'] + (REACTION_RULES if reactions else '')
         if kind == "project":
             return self._ask(PROMPT.format(name=title.replace(">>>", "")[:300],
-                description=text.replace(">>>", "")[:1000], readme=(context or "нет").replace(">>>", "")[:1500], length=detail['instruction']),
-                title, max_words=detail['words'], max_tokens=detail['tokens'])
+                description=text.replace(">>>", "")[:1000], readme=(context or "нет").replace(">>>", "")[:1500], length=length),
+                title, max_words=detail['words'], max_tokens=detail['tokens'], reactions=reactions)
         if kind == "news":
-            return self._ask(NEWS_PROMPT.format(title=title.replace(">>>", "")[:300], summary=text.replace(">>>", "")[:8000], length=detail['instruction']),
-                             max_words=detail['words'], max_tokens=detail['tokens'])
+            return self._ask(NEWS_PROMPT.format(title=title.replace(">>>", "")[:300], summary=text.replace(">>>", "")[:8000], length=length),
+                             max_words=detail['words'], max_tokens=detail['tokens'], reactions=reactions)
         if kind == "day":
             return self._ask(DAY_PROMPT.format(title=title.replace(">>>", "")[:300], description=text.replace(">>>", "")[:1500]))
         raise ValueError(f"Unknown editorial policy: {kind}")
 
-    def _ask(self, prompt: str, name: str = "", *, max_words=50, max_tokens=200) -> str | None:
+    def _ask(self, prompt: str, name: str = "", *, max_words=50, max_tokens=200, reactions=False) -> str | None:
         if not self.enabled:
             return None
         t = target(self.cfg)
@@ -204,7 +223,7 @@ class Editor:
         self.call_times.append(time.time())
         if t["provider"] == "openai":
             return self._finish(cached, name, output_text(self._post(t, "/v1/responses", {
-                "model": t["model"], "input": prompt, "max_output_tokens": max(300, max_tokens)})), max_words)
+                "model": t["model"], "input": prompt, "max_output_tokens": max(300, max_tokens)})), max_words, reactions)
         body = {"model": t["model"], "messages": [{"role": "user", "content": prompt}], "temperature": 0}
         if t["provider"] == "ollama":
             body.update(max_tokens=max_tokens, reasoning_effort="none")  # no "thinking": it eats the token budget
@@ -217,7 +236,7 @@ class Editor:
         raw = choice["message"].get("content") or ""
         if choice.get("finish_reason") == "length" or not raw.strip():
             raise ValueError("editor returned an empty or truncated reply")
-        return self._finish(cached, name, raw, max_words)
+        return self._finish(cached, name, raw, max_words, reactions)
 
     @staticmethod
     def _post(t: dict, path: str, body: dict) -> dict:
@@ -229,10 +248,14 @@ class Editor:
             return json.load(r)
 
     @staticmethod
-    def _finish(cached, name: str, raw: str, max_words=50) -> str | None:
+    def _finish(cached, name: str, raw: str, max_words=50, reactions=False) -> str | None:
         if not raw.strip():
             raise ValueError("editor returned an empty or truncated reply")
-        text = check(fix_name(raw, name) if name else raw, max_words)
+        raw = fix_name(raw, name) if name else raw
+        tagged = news_reaction(raw, True) if reactions else ''
+        text = check(news_reaction(raw, False) if reactions else raw, max_words)
+        if text and tagged.startswith(('[surprise-ah]', '[laughter]')):
+            text = tagged.split(' ', 1)[0] + ' ' + text
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(text or "SKIP", encoding="utf-8")
         return text

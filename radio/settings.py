@@ -149,7 +149,7 @@ def listing(cfg: dict) -> list[dict]:
     c = editor.connection(live)
     rows = []
     for k, s in SETTINGS.items():
-        if k in ("music_source", "reddit_posts", "telegram_posts"):
+        if k in ("music_source", "reddit_posts", "telegram_posts", "new_every_sets"):
             continue
         if k in SOURCE_LISTS and not plugins.on(cfg, SOURCE_LISTS[k][0]):
             continue

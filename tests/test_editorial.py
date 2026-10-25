@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from radio import config, content, daemon, editor, store, timeline
+from radio import config, content, daemon, editor, plugins, store, timeline
 from radio.tts import MockTTS
 
 
@@ -25,6 +25,67 @@ class EditorialTests(unittest.TestCase):
                 'published_at': store.now(), 'body': 'A company released a new editor.', **extra}
         content.add_item(self.svc.db, self.cfg, item, kind)
         return dict(self.svc.db.execute('SELECT * FROM packages WHERE item_id=?', (source,)).fetchone())
+
+    def test_reactions_are_an_opt_in_experiment_for_voicestudio(self):
+        entry = next(p for p in plugins.listing(self.cfg) if p['name'] == 'news_reactions')
+        self.assertEqual(entry['section'], 'experiments')
+        self.assertFalse(entry['on'])
+        with patch.object(self.svc.editor, '_ask', return_value='Компания открыла новый исследовательский центр.') as ask:
+            for engine, enabled in [('voicestudio', False), ('voicestudio', True), ('qwen3', True)]:
+                self.cfg['voice']['engine'] = engine
+                plugins.set_plugin('news_reactions', enabled)
+                for kind in ('news', 'project', 'day'):
+                    self.svc.editor.prepare('Исходный текст новости.', kind)
+                    active = engine == 'voicestudio' and enabled and kind != 'day'
+                    self.assertEqual(editor.REACTION_RULES in ask.call_args.args[0], active)
+                    self.assertEqual(ask.call_args.kwargs.get('reactions', False), active)
+
+    def test_reactions_use_one_editor_call_and_separate_cache_from_neutral(self):
+        self.cfg['editor']['llm_enabled'] = True
+        self.cfg['voice']['engine'] = 'voicestudio'
+        reply = {'choices': [{'message': {'content': '[surprise-ah] Учёные открыли новый способ хранения данных.'}}]}
+        target = {'provider': 'ollama', 'model': 'test', 'root': 'http://unused', 'key': ''}
+        with patch('radio.editor.target', return_value=target), patch.object(self.svc.editor, '_post', return_value=reply) as post:
+            plugins.set_plugin('news_reactions', True)
+            for _ in range(2):
+                self.assertTrue(self.svc.editor.retell_news('Открытие', 'Исходник').startswith('[surprise-ah]'))
+            self.assertEqual(post.call_count, 1)
+            plugins.set_plugin('news_reactions', False)
+            post.return_value = {'choices': [{'message': {'content': 'Учёные открыли новый способ хранения данных.'}}]}
+            self.assertFalse(self.svc.editor.retell_news('Открытие', 'Исходник').startswith('['))
+            self.assertEqual(post.call_count, 2)
+
+    def test_reaction_validation_keeps_only_one_supported_leading_tag(self):
+        cached = config.DATA_DIR / 'checked.txt'
+        cases = [('[laughter] [sigh] Это добрая история про музыку [surprise-ah].',
+                  '[laughter] Добрая история про музыку .'),
+                 ('[angry] Это добрая история про музыку.', 'Добрая история про музыку.'),
+                 ('Это добрая [laughter] история про музыку.', 'Добрая история про музыку.'),
+                 ('[surprise-ah] SKIP', None), ('[laughter] [sigh]', None)]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(editor.Editor._finish(cached, '', raw, reactions=True), expected)
+        self.assertEqual(editor.Editor._finish(cached, '', '[surprise-ah] Один два три.', 3, True),
+                         '[surprise-ah] Один два три.')
+        self.assertEqual(editor.news_reaction('Данные [2026] для [GPU].', False), 'Данные [2026] для [GPU].')
+
+    def test_switch_off_or_clone_strips_reaction_before_news_synthesis(self):
+        package = self.package('telegram', text_prepared=True,
+                               body='[surprise-ah] Учёные открыли новый способ хранения данных.')
+        self.cfg['voice']['engine'] = 'voicestudio'
+        plugins.set_plugin('news_reactions', True)
+        self.assertTrue(self.svc._body_segments(package, None)[-1][0].startswith('[surprise-ah]'))
+        original = self.svc.db.execute('SELECT prepared_text FROM packages WHERE id=?', (package['id'],)).fetchone()[0]
+        self.svc.db.execute('UPDATE packages SET prepared_text=? WHERE id=?',
+                            (original + '\n\n' + content.BREAK + '\n\n[laughter] Ещё одна добрая история.', package['id']))
+        self.assertEqual(sum(text.startswith('[') for text, _ in self.svc._body_segments(package, None)), 1)
+        plugins.set_plugin('news_reactions', False)
+        self.assertFalse(self.svc._body_segments(package, None)[-1][0].startswith('['))
+        plugins.set_plugin('news_reactions', True)
+        self.cfg['voice']['engine'] = 'qwen3'
+        self.assertFalse(self.svc._body_segments(package, None)[-1][0].startswith('['))
+        store.log_event(self.svc.db, self.svc.session, 'PACKAGE_STARTED', package['id'])
+        self.assertNotIn('[surprise-ah]', timeline._build(self.svc.db, 12, 20)[0]['parts'][0]['text'])
 
     def test_every_news_source_uses_russian_preparation_and_keeps_original(self):
         russian = 'Компания выпустила новый редактор кода.'

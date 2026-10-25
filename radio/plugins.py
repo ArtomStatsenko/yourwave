@@ -24,6 +24,7 @@ PLUGINS = {
     "duo_hosts": ("Two hosts", 'Alternate stories between two voices in each host edition. Preparing the second voice may take longer.',
                   lambda c: False),
     "reroll_next": ("Reroll next track", 'Choose another next track from the timeline or air editor while the current song keeps playing.', lambda c: False),
+    "news_reactions": ("News reactions", 'Let the editor choose one subtle reaction for new news text. VoiceStudio only. No extra AI requests; prepared audio stays unchanged. Restart after installing this experiment.', lambda c: False),
     "music_facts": ("Music stories", 'Add short music stories between sets independently of news availability.', lambda c: False),
     "station_ids": ("Station IDs", 'Play the station call sign between songs.',
                     lambda c: c["broadcast"]["station_id_every_songs"] > 0),
@@ -39,7 +40,7 @@ PLUGINS = {
 SOURCE_PLUGIN = {"reddit": "reddit", "telegram": "telegram", "weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
 INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction", "reddit", "telegram"}
 
-EXPERIMENTS = {"reddit", "telegram", "air_direction", "reroll_next", "gap_filler", "duo_hosts"}
+EXPERIMENTS = {"reddit", "telegram", "air_direction", "reroll_next", "gap_filler", "duo_hosts", "news_reactions"}
 
 
 def _path():
@@ -57,8 +58,11 @@ def _saved() -> dict:
 
 
 def state(cfg: dict) -> dict[str, bool]:
+    from . import settings
     saved = _saved()
-    return {name: saved.get(name, bool(default(cfg))) for name, (_, _, default) in PLUGINS.items()}
+    result = {name: saved.get(name, bool(default(cfg))) for name, (_, _, default) in PLUGINS.items()}
+    result['new_tracks'] = result['new_tracks'] and settings._saved().get('new_every_sets', cfg['broadcast']['new_every_sets']) > 0
+    return result
 
 
 def on(cfg: dict, name: str) -> bool:
@@ -71,6 +75,9 @@ def set_plugin(name: str, enabled: bool) -> None:
     if name == "ytmusic" and not enabled:
         from .settings import set_setting
         set_setting("music_source", "local")
+    if name == 'new_tracks':
+        from .settings import set_setting
+        set_setting('new_every_sets', int(enabled))
     saved = _saved()
     saved[name] = bool(enabled)
     tmp = _path().with_suffix(".tmp")
