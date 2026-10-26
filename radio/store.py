@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 from . import config
@@ -38,6 +39,18 @@ CREATE INDEX IF NOT EXISTS items_state ON items(state, published_at);
 
 def now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+@contextmanager
+def transaction(db):
+    db.execute('SAVEPOINT station_write')
+    try:
+        yield
+    except BaseException:
+        db.execute('ROLLBACK TO station_write')
+        raise
+    finally:
+        db.execute('RELEASE station_write')
 
 
 def iso(dt: datetime) -> str:

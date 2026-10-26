@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import json
 import os
@@ -8,6 +9,7 @@ import subprocess
 import tempfile
 import tomllib
 import urllib.request
+from functools import lru_cache
 from pathlib import Path
 
 from . import config
@@ -226,13 +228,37 @@ class MockTTS:
         return hashlib.sha256(f"mock|{text}".encode()).hexdigest()[:32]
 
 
-def pronounce(text: str) -> str:
+@lru_cache(maxsize=1)
+def _english_pronunciations() -> dict[str, str]:
+    # CMUdict, revision 74790861f652b15e4ac49015a90074ad62a27690; assets/cmudict.LICENSE.
+    path = config.ASSETS_DIR / 'cmudict.dict.gz'
+    if not path.exists():
+        return {}
+    words = {}
+    with gzip.open(path, 'rt', encoding='utf-8') as source:
+        for line in source:
+            word, sounds = line.rstrip().split(' ', 1)
+            if '(' not in word:
+                words[word] = sounds.split(' #', 1)[0]
+    return words
+
+
+def pronounce(text: str, *, phonemes=False) -> str:
     """Replaces Latin words the Russian voice reads letter by letter ("GitHub" -> "Гит хуб") with their spoken form.
     Longer entries first, so "Claude Code" wins over "Claude"."""
     f = config.ASSETS_DIR / "pronunciation.toml"
     words = tomllib.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
     for k in sorted(words, key=len, reverse=True):
         text = re.sub(rf"(?<![\w-]){re.escape(k)}(?![\w-])", words[k], text, flags=re.I)
+    if phonemes:
+        dictionary = _english_pronunciations()
+
+        def english(m):
+            word = m[0]
+            sounds = dictionary.get(word.lower().replace('’', "'"))
+            return f'[{sounds}]' if sounds and not word.startswith('[') else word
+
+        text = re.sub(r"\[[^\]]*\]|(?<![\w-])[A-Za-z]+(?:['’][A-Za-z]+)*(?![\w-])", english, text)
     return text
 
 
@@ -240,7 +266,7 @@ def cached_synthesize(tts, text: str, check=None) -> Path:
     """TTS with a cache keyed by the text. `check(path) -> error|None` rejects broken audio: with a fixed seed the
     engine is deterministic, so a text that came out as noise is retried with other punctuation (same words, same
     voice), then with neighbouring seeds. The first good take is cached under the original text."""
-    text = pronounce(re.sub(r"https?://\S+", "", text, flags=re.I)).strip()
+    text = pronounce(re.sub(r"https?://\S+", "", text, flags=re.I), phonemes=isinstance(tts, VoiceStudio)).strip()
     # The voice turns "Далат: плюс 16" into noise (measured: weather and reminders); a dash reads the same pause.
     text = re.sub(r"(?<=\w):\s+", " — ", text)
     if not text:

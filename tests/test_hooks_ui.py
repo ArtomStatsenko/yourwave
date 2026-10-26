@@ -29,6 +29,8 @@ class HookUiTests(unittest.TestCase):
         self.assertNotIn('source_path',json.dumps(response['hooks']))
         result=json.loads(self.get('/api/cmd',headers,json.dumps({'cmd':'hook_review','id':hook_id,'approved':True}).encode())[1])
         self.assertTrue(result['ok']);self.assertEqual(db.execute('SELECT review FROM track_hooks').fetchone()[0],'APPROVED')
+        self.assertEqual(result['hooks']['candidates'],[])
+        self.assertEqual(result['hooks']['counts'],{'APPROVED':1})
         db.execute('UPDATE track_hooks SET clip=?',(str(config.DATA_DIR/'outside.wav'),))
         (config.DATA_DIR/'outside.wav').write_bytes(b'private')
         self.assertEqual(self.get('/hook-preview.wav?id='+str(hook_id),headers)[0],404)

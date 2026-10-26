@@ -64,7 +64,7 @@ class Service:
         self.voice_engine = cfg["voice"]["engine"]
         self.tts = tts or tts_mod.make_voice(cfg)
         self.tts2 = tts or tts_mod.make_voice(cfg, "cohost")  # plugin "Two hosts" (a mock in tests: the same mock)
-        self.db = store.connect()
+        self._db_local = threading.local()
         self.session = uuid.uuid4().hex[:12]
         self.state = "STARTING"
         self.auto_paused, self.paused_at, self.heard_at = False, 0.0, time.time()
@@ -97,6 +97,7 @@ class Service:
         self.hook_proc = None
         self.hook_retry = {}
         self.hook_snapshot = []
+        self.next_cache_cleanup = 0.0
         self.tts_retry_at, self.tts_backoff = 0.0, 60.0
         self.stop_measure = threading.Event()
         self.sources: dict[str, str] = {}
@@ -140,6 +141,12 @@ class Service:
         self.opener_retry = self.gap_retry = 0.0     # next try to pre-render the startup opener, the gap lines
 
     # ---- lifecycle ----
+    @property
+    def db(self):
+        if not hasattr(self._db_local, 'connection'):
+            self._db_local.connection = store.connect()
+        return self._db_local.connection
+
     async def run(self) -> None:
         self._cleanup_cache()
         self._reset_inflight()
@@ -556,6 +563,13 @@ class Service:
             self.state = "PLAYING"
 
     def _reset_inflight(self) -> None:
+        self.queued_break = self.queued_clock = self.gap_rid = None
+        self.id_pending = False
+        self.fresh_queued.clear()
+        self.fresh_missing.clear()
+        self.replays.clear()
+        self.next_track = ''
+        self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE status IN ('QUEUED','PREPARING')")
         self.announced_tracks = []
         self.db.execute("UPDATE music_previews SET status='CANCELLED',rid=NULL WHERE status='QUEUED'")
         self.db.execute("UPDATE music_previews SET status='PLAYED',rid=NULL WHERE status='PLAYING'")
@@ -586,6 +600,7 @@ class Service:
             for f in (config.DATA_DIR / d).iterdir():
                 if f.stat().st_mtime < cutoff and str(f) not in protected:
                     f.unlink(missing_ok=True)
+        self.next_cache_cleanup = time.time() + 3600
 
     # ---- playback events from Liquidsoap ----
     def on_event(self, m: dict) -> None:
@@ -702,6 +717,8 @@ class Service:
     async def content_loop(self) -> None:
         while not self.stopping:
             try:
+                if time.time() >= self.next_cache_cleanup and not self.rendering and not self.assembling:
+                    await asyncio.to_thread(self._cleanup_cache)
                 await self.content_tick()
             except Exception as e:
                 self.last_error = f"content: {e}"
@@ -1389,6 +1406,7 @@ class Service:
                     else:
                         self.todoist_tasks = data
                         self.sources[name] = "ok"
+                    await self._sync_reminders('event' if name == 'calendar' else 'task')
                     self.next_read[name] = t + rc["poll_minutes"] * 60
                 except Exception as e:  # never log the link or the token
                     self.sources[name] = f"error: {type(e).__name__}"
@@ -1410,6 +1428,29 @@ class Service:
             self.reminders_due[day["key"]] = day
         if self.reminders_due:
             self.wake.set()
+
+    async def _sync_reminders(self, kind):
+        fresh = {r['key']: r for r in self._reminder_candidates(now(), timedelta(hours=PLAN_HOURS)) if r['kind'] == kind}
+        waiting = {**self.reminders_due, **{key: pair[1] for key, pair in self.queued_reminders.items()}}
+        for key, old in waiting.items():
+            if old['kind'] != kind:
+                continue
+            updated = fresh.get(key)
+            if updated and all(old.get(field) == updated.get(field) for field in ('title', 'start', 'end', 'description')):
+                continue
+            queued = self.queued_reminders.get(key)
+            if queued:
+                await self.engine.remove(queued[0])
+                if self.queued_reminders.get(key) is not queued:
+                    continue
+                self.queued_reminders.pop(key)
+                self.reminder_text.pop(key, None)
+                self.db.execute("UPDATE air_plan SET status=?,rid=NULL WHERE id=? AND status='QUEUED'",
+                                ('PENDING' if updated else 'EXPIRED', 'reminder:' + key))
+                self.id_pending = bool(self.queued_reminders or self.queued_clock or self.gap_rid or self.preview_job)
+            self.reminders_due.pop(key, None)
+            if updated:
+                self.reminders_due[key] = updated
 
     def _reminder_candidates(self, at, span):
         """Timed reminders from the last read of the calendar and Todoist: starting within `span` from `at`, or
@@ -1536,6 +1577,8 @@ class Service:
                 return False
             if plugins.on(self.cfg, 'air_direction') and not direction.allowed({'id': key if r['kind'] == 'weather' else 'reminder:' + key}, direction.edits(self.db), now()):
                 continue
+            if timed and self.reminders_due.get(key) is not r:
+                continue
             if timed and (self.current is not track or self.state != state or now() + timedelta(seconds=10) >= air):
                 return False  # the voice missed this boundary; recalculate for the next song
             if not timed:
@@ -1600,7 +1643,7 @@ class Service:
                 return None
             return None if len(words & heard) >= len(words) * 0.6 else "speech does not match the text"
 
-        return cached_synthesize(voice or self.tts, text, check)
+        return cached_synthesize(voice or self.tts, self.editor.speech(text), check)
 
     def _render_weather(self, text: str) -> Path:
         text = self.editor.prepare(text, 'weather')
@@ -1614,7 +1657,7 @@ class Service:
                 return "weather speech does not match forecast"
             return None
 
-        return cached_synthesize(self.tts, text, check)
+        return cached_synthesize(self.tts, self.editor.speech(text), check)
 
     def _render_day(self, r: dict, text: str):
         short = text
@@ -2163,7 +2206,7 @@ class Service:
         async with self.music_source_lock:
             await self._set_music_source()
 
-    def _music_plan_rows(self, rows, probe=True):
+    def _music_plan_rows(self, rows, probe=True, plan=()):
         current = self.current or {}
         now = time.time()
         at = self.paused_at if self.state == 'PAUSED' else now
@@ -2171,6 +2214,8 @@ class Service:
         cursor = at + offset if self.state in ('PLAYING','PAUSED') and current.get('duration') else None
         if not probe:
             self.plan_metadata_missing = False
+        blocks = sorted((r for r in plan if r['kind'] != 'music' and not r.get('skipped')
+                         and r['status'] != 'QUEUED'), key=lambda r: r.get('expected_at') or r['at'])
         result = []
         for row in rows:
             if self.stopping or offset >= PLAN_HOURS * 3600:
@@ -2184,6 +2229,13 @@ class Service:
             kind = row.get('kind') or ('music' if ref in self.library else '')
             seconds = row.get('duration',0)
             if kind == 'music' and ref:
+                while cursor is not None and blocks and content.parse_time(blocks[0].get('expected_at') or blocks[0]['at']).timestamp() <= cursor:
+                    block = blocks.pop(0)
+                    if block.get('ends') and cursor >= content.parse_time(block['ends']).timestamp():
+                        continue
+                    block['expected_at'] = iso(datetime.fromtimestamp(cursor, timezone.utc))
+                    cursor += block['duration']
+                    offset += block['duration']
                 if not seconds:
                     if ref.startswith('ytmusic:'):
                         seconds = ytmusic.duration(ref)
@@ -2329,7 +2381,8 @@ class Service:
                             status['broadcast_plan'] = self._broadcast_plan()
                     rows = await asyncio.wait_for(self.engine.music_plan(),.5)
                     if isinstance(rows,list):
-                        status['upcoming_tracks'] = self._music_plan_rows(rows,probe=False)
+                        status['upcoming_tracks'] = self._music_plan_rows(rows,probe=False,
+                            plan=(status.get('broadcast_plan') or {}).get('rows', []))
                         if not ref and status['upcoming_tracks']:
                             self.next_track = status['upcoming_tracks'][0]['ref']
                             status['upcoming'].append({'kind':'music','ref':self.next_track,
@@ -2620,7 +2673,7 @@ class Service:
             refs = {key, (current['ref'] if current else ''), (before['ref'] if before else '')}
             if self.current and self.current['kind'] != 'music' and refs.intersection(self.current['ref'].split(BREAK_SEP)):
                 raise ValueError('This block is already on air')
-        with self.db:
+        with store.transaction(self.db):
             for key, (before, after) in undo['rows'].items():
                 if before:
                     self.db.execute("INSERT INTO air_plan(id,kind,ref,text,not_before,rank,skipped) VALUES(?,?,?,?,?,?,?) "
@@ -2690,7 +2743,7 @@ class Service:
                     await self._cancel_direction_job(row)
                 self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE id=?", (row['id'],))
         before = {r['id']: dict(r) for r in self.db.execute('SELECT * FROM air_plan')} if req.get('remember_undo') else None
-        with self.db:
+        with store.transaction(self.db):
             for row, change, due, rank in validated:
                 skipped = int(bool(change.get('skipped')))
                 for key in row.get('edition_news_ids', []):

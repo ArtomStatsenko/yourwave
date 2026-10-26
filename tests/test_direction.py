@@ -1251,3 +1251,20 @@ class DirectionTests(unittest.TestCase):
             row = next(r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'news')
         self.assertEqual(row['at'], store.iso(self.AT))
         self.assertEqual(row['expected_at'], store.iso(self.AT + timedelta(minutes=3)))
+
+    def test_next_track_estimate_includes_the_pending_host_edition(self):
+        self.svc.current = {'kind': 'music', 'ref': 'current', 'started': self.AT.timestamp(), 'duration': 180}
+        self.svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value='next'),
+                               upcoming_music=AsyncMock(return_value=['next', 'later']),
+                               music_plan=AsyncMock(return_value=[
+                                   {'kind': 'music', 'ref': 'next', 'duration': 180},
+                                   {'kind': 'music', 'ref': 'later', 'duration': 180}]))
+        with patch('radio.daemon.time.time', return_value=self.AT.timestamp()):
+            status = asyncio.run(self.svc.dispatch('status'))['status']
+        edition = next(r for r in status['broadcast_plan']['rows'] if r['kind'] == 'news')
+        start = content.parse_time(edition['expected_at'])
+        self.assertEqual(content.parse_time(status['upcoming_tracks'][0]['at']),
+                         start + timedelta(seconds=edition['duration']))
+        self.assertEqual(edition['at'], store.iso(self.AT))
+        self.assertEqual(content.parse_time(status['upcoming_tracks'][1]['at']),
+                         start + timedelta(seconds=edition['duration'] + 180))

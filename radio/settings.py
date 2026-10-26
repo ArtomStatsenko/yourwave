@@ -2,7 +2,6 @@
 per hour...), set from the UI. Like plugins.json: the values live in DATA_DIR/settings.json, config.toml only gives
 the defaults, and the daemon picks a change up live, without a restart."""
 import json
-import os
 import urllib.request
 from copy import deepcopy
 
@@ -113,23 +112,23 @@ def set_setting(key: str, value) -> None:
         raise ValueError(str(e) if SETTINGS[key][6] is None else f"{key}: a number is expected")
     if key == "music_source" and number == "ytmusic" and not plugins.on(config.load(), "ytmusic"):
         raise ValueError("Enable the YouTube Music integration before selecting it as a source.")
-    saved = _saved()
-    saved[key] = number
-    _write(saved)
+    with config.file_lock(_path()):
+        saved = _saved()
+        saved[key] = number
+        _write(saved)
 
 
 def reset(key: str | None = None) -> None:
     """Back to config.toml: one setting, or all of them."""
-    saved = _saved()
-    for k in ([key] if key else list(saved)):
-        saved.pop(k, None)
-    _write(saved)
+    with config.file_lock(_path()):
+        saved = _saved()
+        for k in ([key] if key else list(saved)):
+            saved.pop(k, None)
+        _write(saved)
 
 
 def _write(saved: dict) -> None:
-    tmp = _path().with_suffix(".tmp")
-    tmp.write_text(json.dumps(saved, indent=1), encoding="utf-8")
-    os.replace(tmp, _path())
+    config.write_json(_path(), saved)
 
 
 def apply(cfg: dict, defaults: dict) -> None:

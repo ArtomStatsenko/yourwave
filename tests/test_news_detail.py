@@ -18,7 +18,7 @@ class NewsDetailTests(unittest.TestCase):
         self.writer = editor.Editor(self.cfg)
 
     def test_modes_change_prompt_budget_validation_and_cache_together(self):
-        def response(target, path, body):
+        def response(target, path, body, timeout=180):
             count = {200: 25, 400: 50, 800: 100}[body['max_tokens']]
             return {'choices': [{'message': {'content': ' '.join(['слово'] * count)}, 'finish_reason': 'stop'}]}
         with patch.object(self.writer, '_post', side_effect=response) as post:

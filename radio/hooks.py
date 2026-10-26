@@ -52,7 +52,7 @@ def export(path, start, end, target):
     tmp = target.with_suffix('.tmp.wav')
     audio._ffmpeg('-y', '-ss', str(start), '-i', str(path), '-t', str(length), '-af',
                   f'loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:d=0.035,afade=t=out:st={length-.15}:d=0.15',
-                  '-c:a', 'pcm_s16le', str(tmp))
+                  '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', str(tmp))
     os.replace(tmp, target)
 
 

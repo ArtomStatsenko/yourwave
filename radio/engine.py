@@ -138,7 +138,7 @@ class Liquidsoap:
 
     async def wait_insert(self, rid=None):
         for _ in range(60):
-            if (not rid or rid in await self.pending()) and await self.command('news.ready') == 'true':
+            if await self.command('news.ready' + (' ' + str(rid) if rid else '')) == 'true':
                 return
             await asyncio.sleep(.05)
         raise TimeoutError('The next section is not loaded yet; try again shortly')

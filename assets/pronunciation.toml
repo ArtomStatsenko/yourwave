@@ -1,5 +1,6 @@
 # How Latin words are spoken: "as written" = "as said". Whole words, case-insensitive.
 # Applied only to the text sent to TTS; history and logs keep the original spelling.
+# OmniVoice uses bundled CMUdict phonemes next; unknown names use the editor (up to 256 results in RAM).
 "GitHub" = "Гитхаб"
 "Claude Code" = "Клод Код"
 "Claude" = "Клод"
@@ -8,6 +9,10 @@
 "JavaScript" = "Джаваскрипт"
 "TypeScript" = "Тайпскрипт"
 "Trending" = "Трендинг"
+"Twenty One Pilots" = "Твенти Уан Пайлотс"
+"Stressed Out" = "Стрест Аут"
+"Muse" = "Мьюз"
+"Uprising" = "Апрайзинг"
 "Mae Sot" = "Мэсот"
 "Siam Rath" = "Сиам Рат"
 "สยามรัฐ" = "Сиам Рат"

@@ -200,6 +200,8 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 if not self._authorized():
                     return self._json({"error": "forbidden"}, 403)
                 resp = send("status", timeout=3)
+                if resp is not None and not resp.get('ok'):
+                    return self._json({'ok': False, 'error': resp.get('error') or 'The radio is busy. Try again.'}, 503)
                 status = resp["status"] if resp and resp.get("ok") else {"state": "STOPPED"}
                 db = store.connect()
                 try:

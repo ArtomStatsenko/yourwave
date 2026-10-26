@@ -48,6 +48,8 @@ class HookTests(unittest.TestCase):
         hooks.save(self.db,ref,self.song,digest,{'start':1,'end':7},'test',{},'APPROVED')
         row=hooks.ready(self.db,ref)
         clip=Path(row['clip']); before=hashlib.sha256(clip.read_bytes()).hexdigest()
+        with wave.open(str(clip)) as stream:
+            self.assertEqual((stream.getframerate(), stream.getnchannels()), (44100, 2))
         hooks.save(self.db,ref,self.song,digest,{'start':8,'end':14},'test',{},'AUTO')
         self.assertEqual(hashlib.sha256(clip.read_bytes()).hexdigest(),before)
         self.wav(self.song,21)

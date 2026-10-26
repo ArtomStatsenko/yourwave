@@ -1,7 +1,6 @@
 """Switchable radio features ("plugins"). The on/off state lives in DATA_DIR/plugins.json, set from the UI;
 config.toml only gives the defaults. The daemon reads it on every check, so a switch works without a restart."""
 import json
-import os
 
 from . import config
 
@@ -78,11 +77,10 @@ def set_plugin(name: str, enabled: bool) -> None:
     if name == 'new_tracks':
         from .settings import set_setting
         set_setting('new_every_sets', int(enabled))
-    saved = _saved()
-    saved[name] = bool(enabled)
-    tmp = _path().with_suffix(".tmp")
-    tmp.write_text(json.dumps(saved, ensure_ascii=False, indent=1), encoding="utf-8")
-    os.replace(tmp, _path())
+    with config.file_lock(_path()):
+        saved = _saved()
+        saved[name] = bool(enabled)
+        config.write_json(_path(), saved)
 
 
 def listing(cfg: dict) -> list[dict]:

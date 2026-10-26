@@ -660,7 +660,12 @@ $('hook-review').onclick=async function(e){
     if(play){var response=await fetch('/hook-preview.wav?id='+play.dataset.hookPlay,{headers:{'X-Radio-Token':TOKEN}});if(!response.ok)throw Error('Hook is unavailable.');
       var blob=await response.blob();if(hookObjectUrl)URL.revokeObjectURL(hookObjectUrl);hookObjectUrl=URL.createObjectURL(blob);
       $('hook-audio').src=hookObjectUrl;$('hook-audio').hidden=false;await $('hook-audio').play();
-    }else{var result=await api('/api/cmd',{cmd:'hook_review',id:+review.dataset.hookReview,approved:review.dataset.approved==='true'});if(!result.ok)throw Error(result.error);hooksView(result.hooks);}
+    }else{var approved=review.dataset.approved==='true';
+      var result=await api('/api/cmd',{cmd:'hook_review',id:+review.dataset.hookReview,approved:approved});if(!result.ok)throw Error(result.error);hooksView(result.hooks);
+      $('hook-audio').pause();$('hook-audio').removeAttribute('src');$('hook-audio').load();$('hook-audio').hidden=true;
+      if(hookObjectUrl){URL.revokeObjectURL(hookObjectUrl);hookObjectUrl=null;}
+      $('hook-feedback').textContent=approved?'Hook approved. It can air when this track is announced.':'Hook rejected.';
+    }
   }catch(error){$('hook-feedback').textContent=error.message||'Could not load the hook.';}finally{button.disabled=false;}
 };
 function localInput(iso,seconds){var d=iso?new Date(iso):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+(seconds?':'+String(d.getSeconds()).padStart(2,'0'):'')}
@@ -989,7 +994,14 @@ function replay(id){
 function unqueue(id){
   var x=items.find(function(i){return String(i.id)===id});if(x)cmd('unqueue',{kind:rk(x),ref:x.ref})}
 function refresh(){
-  return api('/api/status').then(function(d){st=d.status||{state:'STOPPED'};
+  var sequence=refresh.sequence=(refresh.sequence||0)+1;
+  return api('/api/status').then(function(d){
+    if(sequence<(refresh.applied||0))return;
+    if(!d.status)throw Error(d.error||'the page cannot reach the radio');
+    refresh.applied=sequence;
+    if(refresh.error&&$('er').textContent===refresh.error)$('er').textContent='';
+    refresh.error='';
+    st=d.status;
     if(!running()&&listening)unlisten();
     if(d.audio_preset&&document.activeElement!==$('audio-preset')){
       $('audio-preset').value=d.audio_preset.selected;
@@ -1001,7 +1013,7 @@ function refresh(){
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
     hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();watchdog();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)})
-    .catch(function(){$('er').textContent='the page cannot reach the radio'})}
+    .catch(function(error){if(sequence>=(refresh.applied||0)){refresh.error=error.message||'the page cannot reach the radio';$('er').textContent=refresh.error}})}
 
 function selectTab(b){
   if(b.dataset.tab!=='tl'&&planDraft&&!dirBusy)$('plan-done').onclick();

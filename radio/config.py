@@ -1,5 +1,9 @@
 import os
+import fcntl
+import json
+import tempfile
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
 
 DATA_DIR = Path(os.environ.get("RADIO_DATA_DIR", Path.home() / "Library/Application Support/PersonalRadioClaude"))
@@ -8,6 +12,26 @@ ASSETS_DIR = PKG_DIR.parent / "assets"
 RUN_DIR = DATA_DIR / "run"
 SOCK = RUN_DIR / "radio.sock"
 AUDIO_EXTS = {".mp3", ".m4a", ".flac", ".wav"}
+
+
+@contextmanager
+def file_lock(path):
+    with path.with_suffix(path.suffix + '.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def write_json(path, data):
+    fd, name = tempfile.mkstemp(prefix=path.name + '.', suffix='.tmp', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as out:
+            json.dump(data, out, ensure_ascii=False, indent=1)
+        os.replace(name, path)
+    finally:
+        Path(name).unlink(missing_ok=True)
 
 # TOML instead of YAML: stdlib only, no PyYAML to install.
 DEFAULT_CONFIG = """\

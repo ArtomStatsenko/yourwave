@@ -276,7 +276,16 @@ server.register("fresh.replace", fun (arg) -> begin
   result
 end)
 server.register("fresh.ready", fun (_) -> "#{fresh.is_ready()}")
-server.register("news.ready", fun (_) -> "#{news.is_ready()}")
+server.register("news.ready", fun (arg) -> begin
+  if arg == "" then "#{news.is_ready()}" else
+    q = future_requests(news)
+    ready = if list.is_empty(q) then false else
+      r = list.hd(q)
+      request.id(r) == int_of_string(default=-1, arg) and list.mem(request.status(r), ["ready", "playing"])
+    end
+    "#{news.is_ready() and ready}"
+  end
+end)
 def pending_requests(source) =
   current = source.current()
   q = if null.defined(current) then [null.get(current), ...source.queue()] else source.queue() end

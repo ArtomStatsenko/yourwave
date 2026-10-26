@@ -3,10 +3,11 @@ import json
 import tempfile
 import threading
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from radio import config, music
+from radio import config, music, store
 from radio.daemon import Service
 from radio.engine import Liquidsoap
 from radio.tts import MockTTS
@@ -54,6 +55,33 @@ class MusicLibraryTests(unittest.TestCase):
         playlist.write_text('annotate:ref="bad\\q":/bad.wav\n' + valid + '\n')
         self.assertEqual(Liquidsoap(playlist, 3).music_choices('ytmusic:abcdefghijk'),
                          {'ytmusic:abcdefghijk': valid})
+
+    def test_music_estimates_shift_future_editions_at_song_boundaries(self):
+        at = datetime(2026, 10, 26, 9, 30, tzinfo=timezone.utc)
+        self.svc.state = 'PLAYING'
+        self.svc.current = {'kind': 'music', 'started': at.timestamp(), 'duration': 180}
+        plan = [{'id': 'edition', 'kind': 'news', 'at': store.iso(at), 'duration': 45, 'status': 'PENDING'},
+                {'id': 'later', 'kind': 'news', 'at': store.iso(at + timedelta(minutes=5)),
+                 'duration': 120, 'status': 'PENDING'}]
+        rows = [{'kind': 'music', 'ref': ref, 'duration': 180} for ref in ('one', 'two')]
+        with patch('radio.daemon.time.time', return_value=at.timestamp()):
+            songs = self.svc._music_plan_rows(rows, plan=plan)
+        self.assertEqual(songs[0]['at'], store.iso(at + timedelta(seconds=225)))
+        self.assertEqual(plan[0]['expected_at'], store.iso(at + timedelta(seconds=180)))
+        self.assertEqual(plan[1]['expected_at'], store.iso(at + timedelta(seconds=405)))
+        self.assertEqual(songs[1]['at'], store.iso(at + timedelta(seconds=525)))
+
+    def test_queued_skipped_and_expired_blocks_do_not_add_a_second_delay(self):
+        at = datetime(2026, 10, 26, 9, 30, tzinfo=timezone.utc)
+        self.svc.state = 'PLAYING'
+        self.svc.current = {'kind': 'music', 'started': at.timestamp(), 'duration': 180}
+        for extra in ({'status': 'QUEUED'}, {'skipped': True}, {'ends': store.iso(at + timedelta(seconds=60))}):
+            with self.subTest(extra=extra):
+                plan = [{'kind': 'news', 'at': store.iso(at), 'duration': 45, 'status': 'PENDING', **extra}]
+                rows = [{'kind': 'news', 'duration': 45}, {'kind': 'music', 'ref': 'one', 'duration': 180}]
+                with patch('radio.daemon.time.time', return_value=at.timestamp()):
+                    songs = self.svc._music_plan_rows(rows, plan=plan)
+                self.assertEqual(songs[0]['at'], store.iso(at + timedelta(seconds=225)))
 
     def test_deleted_files_are_pruned_and_new_track_selection_keeps_working(self):
         gone, kept = self.root / 'gone.wav', self.root / 'kept.wav'

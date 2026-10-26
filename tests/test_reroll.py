@@ -585,6 +585,8 @@ class RerollTests(unittest.TestCase):
                 await engine.wait_insert(new)
                 queued = (await engine.command('news.pending')).split()
                 self.assertEqual(queued, [new, later])
+                self.assertEqual(await engine.command('news.ready ' + later), 'false',
+                                 'A later queued request must not be reported as the ready next insert')
                 self.assertEqual(events[-1]['ref'], current)
                 await engine.wait_insert(new)
                 await engine.command('skip')

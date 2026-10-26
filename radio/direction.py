@@ -96,7 +96,7 @@ def edit(db, cfg, ref, action, at, value=None):
         if not 0 <= j < len(queue):
             return
         queue[i], queue[j] = queue[j], queue[i]
-        with db:
+        with store.transaction(db):
             for rank, entry in enumerate(queue):
                 db.execute('INSERT INTO air_plan(id,kind,ref,rank) VALUES(?,?,?,?) '
                            'ON CONFLICT(id) DO UPDATE SET rank=excluded.rank',
