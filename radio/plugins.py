@@ -7,6 +7,7 @@ from . import config
 
 # name -> (title, what it does, default from the config)
 PLUGINS = {
+    "track_previews": ("Coming up", 'About once an hour: introduce two queued songs with short hooks, up to 25 seconds. Missing hooks use voice only. Analyzes the library in the background.', lambda c: False),
     "ytmusic": ("YouTube Music", 'Make YouTube Music available as a music source. Select the active source in Settings.',
                 lambda c: False),
     "github_trending": ("GitHub: trending", 'Pick top trending repositories and smaller projects from GitHub Trending.',
@@ -23,7 +24,6 @@ PLUGINS = {
                    lambda c: False),
     "duo_hosts": ("Two hosts", 'Alternate stories between two voices in each host edition. Preparing the second voice may take longer.',
                   lambda c: False),
-    "reroll_next": ("Reroll next track", 'Choose another next track from the timeline or air editor while the current song keeps playing.', lambda c: False),
     "news_reactions": ("News reactions", 'Let the editor choose one subtle reaction for new news text. VoiceStudio only. No extra AI requests; prepared audio stays unchanged. Restart after installing this experiment.', lambda c: False),
     "music_facts": ("Music stories", 'Add short music stories between sets independently of news availability.', lambda c: False),
     "station_ids": ("Station IDs", 'Play the station call sign between songs.',
@@ -40,7 +40,7 @@ PLUGINS = {
 SOURCE_PLUGIN = {"reddit": "reddit", "telegram": "telegram", "weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
 INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction", "reddit", "telegram"}
 
-EXPERIMENTS = {"reddit", "telegram", "air_direction", "reroll_next", "gap_filler", "duo_hosts", "news_reactions"}
+EXPERIMENTS = {"reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "track_previews"}
 
 
 def _path():

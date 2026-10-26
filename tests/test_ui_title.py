@@ -95,6 +95,33 @@ var requests=[],response;function api(path,body){requests.push(body);return Prom
  assert.ok(html.includes('This hour'),'The current hour must not look like a past block');
  planHours[groups[0].key]=true;directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,2);
  planHours={};directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,1);
+ st.upcoming_tracks=[{ref:'first',title:'First song',at:new Date(at+600e3).toISOString(),set:true},
+ {ref:'later',title:'Later song',at:new Date(at+2400e3).toISOString()},
+ {ref:'future',title:'Future song',at:new Date(at+4*3600e3).toISOString()},
+ {ref:'unknown',title:'Unknown time',at:null}];st.announced_tracks=['first'];
+ const before=JSON.stringify(planDraft);directionView();html=$('direction-list').innerHTML;
+ assert.equal(JSON.stringify(planDraft),before,'Queue entries must not become editable draft rows');
+ const mixed=planGroups(planDraft),hour=mixed.find(g=>g.current);
+ assert.deepEqual(hour.entries.map(e=>e.row.title),['Later song','Host edition','First song','Host edition']);
+ assert.equal(hour.entries.find(e=>e.row.title==='First song').index,null);
+ assert(html.includes('announced · set'));assert(!html.includes('Time pending'));assert(html.includes('Unknown time'));
+ assert(!html.includes('Future song'));assert.equal($('plan-later').hidden,false);
+ assert(html.includes('data-plan-at="'+new Date(at+2400e3).toISOString()+'"'));
+ assert(html.includes('data-plan-index="2" data-plan-key="clock:1"'),'Music entries must preserve host edit indices');
+ planHorizon=6;directionView();assert($('direction-list').innerHTML.includes('Future song'));
+ st.upcoming_tracks=[];st.announced_tracks=[];planHorizon=3;
+ st.state='PAUSED';st.paused_at=at/1000;Date.now=()=>at+8*3600e3;
+ directionView();assert.equal($('plan-pause').hidden,false);
+ assert(planGroups(planDraft).some(g=>g.current));
+ assert($('direction-list').innerHTML.includes('clock:0'),'Paused hour groups stay anchored to the pause');
+ let anchorPass=0,anchorHour={open:false,dataset:{hour:'new-hour'}};
+ const anchorRow={dataset:{planKey:'track:0'},getClientRects:()=>[{}],getBoundingClientRect:()=>({top:anchorPass===1?20:35,bottom:50}),closest:()=>anchorHour};
+ $('broadcast-timeline').scrollTop=100;$('broadcast-timeline').getBoundingClientRect=()=>({top:0});
+ $('direction-list').querySelectorAll=selector=>selector==='[data-plan-key]'?(anchorPass++,[anchorRow]):[];
+ st.state='PLAYING';Date.now=()=>at;directionView();assert.equal($('plan-pause').hidden,true);
+ assert.equal($('broadcast-timeline').scrollTop,115,'Resume retains the visible entry when its hour changes');
+ assert.equal(anchorHour.open,true);
+ $('direction-list').querySelectorAll=()=>[];
  planDraft[0].dirty=true;planDraft[0].skipped=true;response={ok:false,error:'Changed elsewhere'};
  await planSave();assert.equal(requests[0].remember_undo,true);assert.equal(planDraft[0].skipped,undefined);assert.equal(dirBusy,false);assert.equal($('direction-message').textContent,'Changed elsewhere');
  planDraft[0].dirty=true;response={ok:true,broadcast_plan:st.broadcast_plan,undo_token:'undo-one'};
@@ -118,7 +145,7 @@ var prevented=0,e={preventDefault(){prevented++},dataTransfer:{}};
 $('tl').ondragover(e);assert.equal(e.dataTransfer.dropEffect,'none');$('tl').ondrop(e);assert.equal(planDrag,null);assert.equal(prevented,2);
 """], check=True, capture_output=True, text=True)
         self.assertIn("button.dataset.planAction==='up'?1:-1", source)
-        self.assertIn('aired.slice(0,5)', source)
+        self.assertIn('aired.slice(0,15)', source)
 
     def test_gap_times_stay_between_future_neighbors(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
@@ -164,11 +191,13 @@ assert.equal(planDraft.length,0,'Changing insertion time must not edit an existi
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
         render = source[source.index('function row('):source.index('function timeline(')]
         subprocess.run(['node', '-e', render + r"""
-const assert=require('node:assert/strict');var current=true,open={},KIND={music:'music'};
+const assert=require('node:assert/strict');var current=true,st={state:'PLAYING'},open={},KIND={music:'music'};
 function isCur(){return current}function esc(s){return String(s)}function entryTitle(k,t){return t}
 const track={id:1,kind:'music',title:'Track',time:'15:00'};
 assert.ok(row(track).includes('<span class="tm">now</span>'));
+st.state='PAUSED';assert.ok(row(track).includes('cur paused'));
 current=false;assert.ok(row(track).includes('<span class="tm">15:00</span>'));
+assert(!row(track).includes('cur paused'));
 """], check=True, capture_output=True, text=True)
         self.assertNotIn('id="plan-history"', source)
         self.assertNotIn('<summary>Add block</summary>', source)

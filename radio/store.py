@@ -16,6 +16,17 @@ CREATE TABLE IF NOT EXISTS events(
 CREATE TABLE IF NOT EXISTS public_news_seen(key TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS tracks(path TEXT PRIMARY KEY, sig TEXT, lufs REAL, ok INTEGER);
 CREATE TABLE IF NOT EXISTS reminders(key TEXT PRIMARY KEY, fired_at TEXT);
+CREATE TABLE IF NOT EXISTS track_hooks(
+  id INTEGER PRIMARY KEY, ref TEXT NOT NULL, audio_hash TEXT NOT NULL, source_path TEXT NOT NULL,
+  source_sig TEXT NOT NULL, lyrics_hash TEXT, algorithm TEXT, start REAL, end REAL,
+  provider TEXT, evidence TEXT, review TEXT NOT NULL, clip TEXT, retry_after REAL DEFAULT 0,
+  updated_at TEXT, UNIQUE(ref,audio_hash,algorithm));
+CREATE TABLE IF NOT EXISTS hook_lookups(
+  provider TEXT, lookup_key TEXT, outcome TEXT, response TEXT, retry_after REAL,
+  PRIMARY KEY(provider,lookup_key));
+CREATE TABLE IF NOT EXISTS music_previews(
+  id TEXT PRIMARY KEY, refs TEXT, titles TEXT, audio_path TEXT, speech_sec REAL,
+  duration_sec REAL, status TEXT, rid TEXT, played_at TEXT);
 CREATE TABLE IF NOT EXISTS air_plan(
   id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '', text TEXT NOT NULL DEFAULT '',
   not_before TEXT, rank INTEGER, skipped INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'PENDING',
@@ -73,4 +84,6 @@ def spoken_last_hour(db) -> float:
                         (since,)).fetchone()[0]
     # Queued/playing audio will be spoken soon, so it counts against the window too.
     pending = db.execute("SELECT COALESCE(SUM(speech_sec),0) FROM packages WHERE status IN ('QUEUED','PLAYING')").fetchone()[0]
-    return played + pending
+    previews = db.execute("SELECT COALESCE(SUM(speech_sec),0) FROM music_previews "
+                          "WHERE status IN ('QUEUED','PLAYING') OR (status='PLAYED' AND played_at>=?)", (since,)).fetchone()[0]
+    return played + pending + previews

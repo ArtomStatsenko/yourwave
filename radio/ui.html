@@ -18,6 +18,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);p
 #direction-list .tx::before{content:none}
 #direction-list .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #direction-list .skipped .tx{color:var(--muted)}
+#direction-list .music .tx{white-space:normal}
+#direction-list .track-labels{white-space:nowrap}
 #direction-list{--plan-pad:8px;--plan-time:56px;--plan-gap:10px;--plan-title-x:calc(var(--plan-pad) + var(--plan-time) + var(--plan-gap) + 22px)}  /* + the .tx gutter: folds and actions start where titles do */
 #direction-list .tg{display:grid;grid-template-columns:var(--plan-time) minmax(0,1fr) auto;align-items:center;column-gap:var(--plan-gap);row-gap:0}
 #direction-list .plan-time{width:var(--plan-time)}
@@ -106,11 +108,14 @@ button:disabled{opacity:.4;cursor:default}button:disabled:hover{border-color:var
 .it{border:0}
 .reroll-track:disabled{opacity:.4}
 .reroll-track{display:inline-flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;padding:6px;border:0;color:var(--muted)}.reroll-track:hover{border:0;color:var(--accent)}
+.reroll-confirm{display:inline-flex;flex:none;align-items:center;gap:4px}.reroll-confirm button{height:32px;padding:0 6px;border:0;font-size:14px;color:var(--muted)}.reroll-confirm button:hover{color:var(--ink)}.reroll-confirm [data-reroll="confirm"]{color:var(--accent)}
+@media(pointer:coarse){.reroll-confirm button{min-width:44px;height:44px}}
 .skipped-label{flex:none;font-size:16px;color:var(--warn)}
 @media(pointer:coarse){.reroll-track{width:44px;height:44px}}
 .edition-toggle{padding:0;border:0;text-align:left;min-width:0}.edition-toggle:hover{border:0;color:var(--accent)}
 .edition-segments{padding-bottom:12px}.edition-segment{padding:6px 0}.edition-segment>span+span{margin-left:16px}.edition-segment p{overflow-wrap:anywhere}
 .it.cur .tx{font-weight:600}.it.cur .tx::before{content:"▶";position:absolute;left:0;color:var(--accent)}
+.it.cur.paused .tx::before{content:"Ⅱ";color:var(--muted)}
 .it.news .tx::before{content:"";font-size:16px;font-weight:400;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .it.host .tx::before{content:"";font-size:16px;font-weight:400;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .it.reminder .tx::before{content:"◆";position:absolute;left:0;color:var(--warn)}
@@ -171,6 +176,8 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .st .hd2{display:flex;justify-content:space-between;gap:16px}.st .v{font-variant-numeric:tabular-nums;color:var(--accent)}
 .st input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0}
 .st input.stepped-range[type=range]{min-height:44px;margin:0}
+.st label:has(input[role=switch]){display:flex;align-items:center;gap:8px;min-height:44px}
+#hook-review audio{max-width:100%}
 .range-labels{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:16px;margin-bottom:8px}
 /* AI block of Settings (design system: AiSettings): summary, provider, key or sign-in, model; glyphs carry the state, not only colour */
 .ai{display:grid}
@@ -269,6 +276,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
     <button role="tab" id="tab-st" aria-controls="stg" aria-selected="false" tabindex="-1" data-tab="st">settings</button>
   </div><details id="activity" hidden><summary>Activity</summary><div id="activity-log" aria-label="Radio activity"></div></details><button id="plan-edit">Edit</button><button id="plan-undo" hidden>Undo</button><button id="plan-done" hidden>Done</button></div>
   <div id="tl-panel" role="tabpanel" aria-labelledby="tab-tl">
+    <p id="plan-pause" class="l" role="status" hidden>Paused · timing will update on resume</p>
     <p id="direction-message" class="l" role="status" aria-live="polite"></p>
     <div id="broadcast-timeline">
     <div id="direction-controls" hidden>
@@ -292,6 +300,13 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
   </div>
   <div id="experiments" role="tabpanel" aria-labelledby="tab-ex" hidden>
     <div id="experiment-plugins"></div>
+    <section id="hook-review" hidden aria-label="Music hook review">
+      <h2>Music hooks</h2>
+      <p id="hook-counts" class="l" role="status"></p>
+      <audio id="hook-audio" controls hidden></audio>
+      <div id="hook-candidates"></div>
+      <p id="hook-feedback" class="l" role="status"></p>
+    </section>
 
   </div>
   <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
@@ -334,7 +349,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 // so a row expanded by its id stays expanded across the 2-second refresh.
 var TOKEN="__TOKEN__";
 var LOCAL_CONTROL="__LOCAL_CONTROL__"==="true";
-var planOpen={},planHours={},planHorizon=3,planUndo=null,planInsertKey=null,historyExpanded=false,rerollBusy=false,rerollError='';
+var planOpen={},planHours={},planHorizon=3,planUndo=null,planInsertKey=null,historyExpanded=false,rerollBusy=false,rerollError='',rerollConfirm=null;
 var KIND={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
 var dirBlocks=[],dirLoaded=false,dirBusy=false,planDraft=null,planVersion=null,planDrag=null,planTimeId=null,planConfirm=null;
 var planPointer=null,planExpandTimer=null,planFineTimer=null,planSuppressClick=false;
@@ -501,8 +516,8 @@ function player(){
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
 var TODO={no_key:{key:'add your API key below',sign:'sign in below'},bad_key:'replace the API key',unreachable:'check the connection',no_model:'choose another model below'};
-function saveKey(provider,key){
-  if(key!==''&&!key.trim()){keyFb={cls:'bad',text:'Enter an API key.',invalid:true};settingsView(true);$('llm-key').focus();return}
+function saveKey(provider,key,remove){
+  if(!remove&&!key.trim()){keyFb={cls:'bad',text:'Enter an API key.',invalid:true};settingsView(true);$('llm-key').focus();return}
   keyBusy=true;settingsView(true);
   api('/api/cmd',{cmd:'llm_key',provider:provider,key:key}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;
     keyFb=key?{cls:'ok',text:'Key saved. Checking it now…',checking:true}:{cls:'',text:'Key removed.'};$('llm-key').value=''})
@@ -589,6 +604,7 @@ function settingsView(force){  // force: after this page saved a value; the poll
   var voice=stg.find(function(s){return s.voice_state});
   var sources=stg.filter(function(s){return s.key==='reddit_communities'||s.key==='telegram_channels'});
   box.innerHTML=(sources.length?'<section class="ai" aria-label="News sources"><div class="ai-h">News sources</div><div class="l">Changes apply to the next source check; no restart needed.</div>'+sources.map(sourceSettingView).join('')+'</section>':'')+stg.map(function(s){if(s.multiline)return '';if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
+    if(s.key==='music_shuffle')return '<div class="st"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label><div class="l" id="hint-music_shuffle">'+esc(s.hint)+'</div></div>';
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range"'+(s.value_labels?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(u(s,s.value))+'" aria-describedby="hint-'+s.key+'">')
@@ -602,9 +618,9 @@ $('audio-preset').onchange=function(){
   }).catch(function(){$('audio-preset-hint').textContent='Could not save the audio preset. Try again.'})
 };
 $('stg').oninput=function(e){if(e.target.dataset.sourceInput){var key=e.target.dataset.sourceInput;sourceDrafts[key]=e.target.value;sourceFeedback[key]={};e.target.setAttribute('aria-invalid','false');return}var r=e.target.closest('[data-st]');if(!r)return;
-  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline){sourceDrafts[s.key]=r.value;sourceFeedback[s.key]={};r.setAttribute('aria-invalid','false');return}if(s.step!==null){$('sv-'+s.key).textContent=settingValue(s,r.value);r.setAttribute('aria-valuetext',settingValue(s,r.value))}};
+  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline){sourceDrafts[s.key]=r.value;sourceFeedback[s.key]={};r.setAttribute('aria-invalid','false');return}if(s.step!==null&&r.type!=='checkbox'){$('sv-'+s.key).textContent=settingValue(s,r.value);r.setAttribute('aria-valuetext',settingValue(s,r.value))}};
 $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
-  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline)return;var value=s.step===null?r.value:+r.value;s.value=value;
+  var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline)return;var value=r.type==='checkbox'?+r.checked:s.step===null?r.value:+r.value;s.value=value;
   if(s.key==='llm_provider')keyFb={cls:'',text:''};
   if(s.key==='voice_engine'){voicePending=value;setTimeout(function(){voicePending=null},6000)}
   api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save'})};
@@ -612,7 +628,7 @@ $('stg').onkeydown=function(e){if(e.key==='Enter'&&e.target.dataset.sourceInput)
 $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();return}
   var source=e.target.closest('[data-source-add],[data-source-remove]');if(source){editSourceName(source.dataset.sourceAdd||source.dataset.sourceRemove,source.dataset.name);return}
   var k=e.target.closest('[data-key],[data-key-rm]');
-  if(k){saveKey(k.dataset.key||k.dataset.keyRm,k.dataset.key?$('llm-key').value:'');return}
+  if(k){saveKey(k.dataset.key||k.dataset.keyRm,k.dataset.key?$('llm-key').value:'',!!k.dataset.keyRm);return}
   var a=e.target.closest('[data-act]');
   if(a){api('/api/cmd',{cmd:a.dataset.act}).then(function(d){if(d.url){location.href=d.url;return}  // same tab: no popup to block; the callback page links back
       if(d.settings)stg=d.settings;settingsView(true)}).catch(function(){$('er').textContent='could not reach the radio'});return}
@@ -629,18 +645,41 @@ function togglePlugin(e){var b=e.target.closest('[data-pl]');if(!b)return;
   var p=pls.find(function(x){return x.name===b.dataset.pl});if(!p)return;
   p.on=!p.on;pluginsView();directionView();cmd('plugin',{name:p.name,on:p.on})};
 ['integrations','experiments','features'].forEach(function(section){$(section).onclick=togglePlugin});
+var hookDataKey='',hookObjectUrl=null;
+function hooksView(data){
+  $('hook-review').hidden=!data;if(!data)return;
+  var key=JSON.stringify(data);if(key===hookDataKey)return;hookDataKey=key;
+  var counts=data.counts||{};
+  $('hook-counts').textContent='Approved: '+(counts.APPROVED||0)+' · Automatic: '+(counts.AUTO||0)+' · Review: '+(counts.CANDIDATE||0)+' · No hook: '+(counts.NO_HOOK||0)+' · Retry: '+(counts.ERROR||0);
+  $('hook-candidates').innerHTML=(data.candidates||[]).map(function(h){return '<div class="st"><div>'+esc(h.ref.split('/').pop())+' · '+esc(h.provider)+' · '+h.start.toFixed(1)+'–'+h.end.toFixed(1)+' s</div><div class="row"><button type="button" data-hook-play="'+h.id+'">Listen</button><button type="button" data-hook-review="'+h.id+'" data-approved="true">Approve</button><button type="button" data-hook-review="'+h.id+'" data-approved="false">Reject</button></div></div>'}).join('')||'<p class="l">No hooks waiting for review.</p>';
+}
+$('hook-review').onclick=async function(e){
+  var play=e.target.closest('[data-hook-play]'),review=e.target.closest('[data-hook-review]');if(!play&&!review)return;
+  var button=play||review;button.disabled=true;$('hook-feedback').textContent='';
+  try{
+    if(play){var response=await fetch('/hook-preview.wav?id='+play.dataset.hookPlay,{headers:{'X-Radio-Token':TOKEN}});if(!response.ok)throw Error('Hook is unavailable.');
+      var blob=await response.blob();if(hookObjectUrl)URL.revokeObjectURL(hookObjectUrl);hookObjectUrl=URL.createObjectURL(blob);
+      $('hook-audio').src=hookObjectUrl;$('hook-audio').hidden=false;await $('hook-audio').play();
+    }else{var result=await api('/api/cmd',{cmd:'hook_review',id:+review.dataset.hookReview,approved:review.dataset.approved==='true'});if(!result.ok)throw Error(result.error);hooksView(result.hooks);}
+  }catch(error){$('hook-feedback').textContent=error.message||'Could not load the hook.';}finally{button.disabled=false;}
+};
 function localInput(iso,seconds){var d=iso?new Date(iso):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+(seconds?':'+String(d.getSeconds()).padStart(2,'0'):'')}
 function directionType(){var b=dirBlocks[+$('direction-block').value],text=!!b&&b.kind==='text';$('direction-text').hidden=!text;$('direction-text-label').hidden=!text;$('direction-text').required=text}
 function directionCatalog(){return api('/api/cmd',{cmd:'direction',action:'catalog'}).then(function(d){if(!d.ok)throw Error(d.error);dirBlocks=d.blocks||[];
   $('direction-block').innerHTML=dirBlocks.map(function(b,i){return '<option value="'+i+'">'+esc(b.title)+'</option>'}).join('');dirLoaded=true;directionType()}).catch(function(e){$('direction-message').textContent=e.message})}
 function rerollButton(){
-  var r=st.next_reroll;if(!r||!pls.some(function(p){return p.name==='reroll_next'&&p.on}))return '';
+  var r=st.next_reroll;if(!r)return '';
+  if(rerollConfirm===r.ref)return '<span class="reroll-confirm" role="group" aria-label="Already announced on air. Replace next track?" title="Already announced on air"><button type="button" data-reroll="confirm" data-ref="'+esc(r.ref)+'">Confirm</button><button type="button" data-reroll="cancel">Cancel</button></span>';
   var label='Choose another random track';
   return '<button type="button" class="reroll-track" data-reroll data-plan-action="reroll" aria-label="'+label+'" title="'+esc(r.reason||'Replace next track now')+'" aria-busy="'+rerollBusy+'"'+(!r.available||rerollBusy?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
 }
-function rerollNext(){
-  if(rerollBusy||!st.next_reroll||!st.next_reroll.available)return;
-  rerollBusy=true;rerollError='';directionView();timeline();
+function rerollNext(action,ref){
+  if(action==='cancel'){rerollConfirm=null;timeline();return}
+  var r=st.next_reroll;
+  if(rerollBusy||!r||!r.available)return;
+  if(action==='confirm'&&(rerollConfirm!==r.ref||ref!==r.ref))return;
+  if(action!=='confirm'&&(st.announced_tracks||[]).includes(r.ref)&&!r.pending){rerollConfirm=r.ref;timeline();return}
+  rerollConfirm=null;rerollBusy=true;rerollError='';directionView();timeline();
   cmd('reroll-next',{ref:st.next_reroll.ref}).then(function(r){rerollError=r&&r.ok?'':r&&r.error||'Could not replace the next track. Try again.'}).finally(function(){rerollBusy=false;directionView();timeline()});
 }
 function planReadiness(r){
@@ -653,15 +692,19 @@ function planReadiness(r){
   return typeof r.text_ready==='boolean'?'text pending':'';
 }
 function planGroups(rows){
-  var first=Date.now(),end=first+planHorizon*3600e3,groups={};
+  var first=planNow(),end=first+planHorizon*3600e3,groups={};
   var format=new Intl.DateTimeFormat('en-CA',{timeZone:st.direction_timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}),current=format.format(new Date(first));
-  rows.forEach(function(r,i){if(r.kind==='music'||Date.parse(r.at)>=end)return;var hour=format.format(new Date(r.at));
-    (groups[hour]||(groups[hour]=[])).push({row:r,index:i})});
-  return Object.keys(groups).map(function(k){return {key:k,current:k===current,entries:groups[k].sort(function(a,b){return Date.parse(b.row.at)-Date.parse(a.row.at)})}}).sort(function(a,b){return Date.parse(b.entries[0].row.at)-Date.parse(a.entries[0].row.at)});
+  var entries=rows.flatMap(function(r,i){return r.kind==='music'?[]:[{row:r,index:i}]}),announced=(st.announced_tracks||[]).slice();
+  (st.upcoming_tracks||[]).forEach(function(r,i){var mark=announced.indexOf(r.ref);if(mark>=0)announced.splice(mark,1);
+    entries.push({row:Object.assign({},r,{id:'track:'+i,kind:'music',announced:mark>=0}),index:null})});
+  entries.forEach(function(e){var at=Date.parse(e.row.at);if(at>=end)return;var hour=Number.isFinite(at)?format.format(new Date(at)):'pending';
+    (groups[hour]||(groups[hour]=[])).push(e)});
+  return Object.keys(groups).map(function(k){return {key:k,current:k===current,entries:groups[k].sort(function(a,b){return k==='pending'?b.row.id.slice(6)-a.row.id.slice(6):Date.parse(b.row.at)-Date.parse(a.row.at)})}}).sort(function(a,b){return a.key==='pending'?-1:b.key==='pending'?1:Date.parse(b.entries[0].row.at)-Date.parse(a.entries[0].row.at)});
 }
+function planNow(){return st.state==='PAUSED'&&st.paused_at?st.paused_at*1000:Date.now()}
 function directionView(force){
   var enabled=pls.some(function(p){return p.name==='air_direction'&&p.on});if(!enabled)planDraft=null;
-  var editing=!!planDraft;$('direction-controls').hidden=!enabled;document.body.classList.toggle('program-editing',editing);
+  var editing=!!planDraft;$('plan-pause').hidden=!editing||st.state!=='PAUSED';$('direction-controls').hidden=!enabled;document.body.classList.toggle('program-editing',editing);
   $('direction-controls').classList.toggle('editing',editing);$('upcoming').hidden=editing||!$('upcoming').innerHTML;
   $('plan-edit').hidden=!enabled||editing;
   ['plan-done','direction-list','plan-later'].forEach(function(id){$(id).hidden=!editing});
@@ -670,9 +713,13 @@ function directionView(force){
   if(!dirLoaded&&!dirBusy){dirLoaded=true;directionCatalog()}
   var box=$('direction-list');if(planInsertKey!==null&&!dirBusy)return;if(planDrag!==null&&!force||!force&&!dirBusy&&box.contains(document.activeElement)&&document.activeElement.type==='datetime-local')return;
   if(planDrag===null&&!dirBusy&&!planDraft.some(function(r){return r.dirty})){planDraft=JSON.parse(JSON.stringify(st.broadcast_plan.rows));planVersion=st.broadcast_plan.version}
+  var viewport=$('broadcast-timeline'),resuming=directionView.paused&&st.state!=='PAUSED';directionView.paused=st.state==='PAUSED';
+  var anchor=resuming?Array.from(box.querySelectorAll('[data-plan-key]')).find(function(el){return el.getClientRects().length&&el.getBoundingClientRect().bottom>viewport.getBoundingClientRect().top}):null;
+  var anchorKey=anchor&&anchor.dataset.planKey,anchorTop=anchor&&anchor.getBoundingClientRect().top;
   var focused=box.contains(document.activeElement)?document.activeElement:null,fr=focused&&focused.closest('[data-plan-index]'),focusId=fr&&fr.dataset.planKey,focusAction=focused&&focused.dataset.planAction,focusGap=focused&&focused.hasAttribute('data-plan-add')&&focused.parentNode.dataset.planGap,focusHour=focused&&focused.closest('summary')&&focused.closest('[data-hour]').dataset.hour;
   function clock(at){return at?new Intl.DateTimeFormat(undefined,{timeZone:st.direction_timezone,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(at)):'—'}
-  function render(entry){var r=entry.row,i=entry.index,title=r.kind==='music'?'Music':r.title||r.kind;
+  function render(entry){var r=entry.row,i=entry.index,title=r.title||r.kind;
+    if(r.kind==='music')return '<div class="it music" data-plan-key="'+esc(r.id)+'"'+(r.at?' data-plan-at="'+esc(r.at)+'"':'')+'><div class="hd"><div class="tg"><span class="tm plan-time">'+(r.at?'~':'')+esc(clock(r.at))+'</span><span class="tx" title="'+esc(title)+'">'+'<span class="track-title">'+esc(title)+'</span> <span class="l track-labels">'+(r.announced?'announced':'')+(r.set?(r.announced?' · ':'')+'set':'')+'</span></span></div></div></div>';
     var editable=!r.locked&&r.kind!=='music',skippable=['news','weather','reminder'].includes(r.kind),readiness=planReadiness(r)||(r.kind==='music'?'':'scheduled');
     var detail=r.edition?(r.segments||[]).map(function(seg){return seg.title}).join(' · '):r.kind==='music'?'':r.content_title||'';
     var expected=r.expected_at&&Math.abs(Date.parse(r.expected_at)-Date.parse(r.at))>=60000?' · expected ~'+clock(r.expected_at):'';
@@ -686,7 +733,7 @@ function directionView(force){
       +(r.error?'<p class="l err">'+esc(r.error)+'</p>':'')+'</div>';
   }
   var groups=planGroups(planDraft),nearest=groups.length&&groups[groups.length-1].key;
-  var ordered=groups.flatMap(function(g){return g.entries});
+  var ordered=groups.flatMap(function(g){return g.entries}).filter(function(e){return e.row.at});
   function gap(index){var at=planGapTime(ordered.map(function(e){return e.row}),index);if(!at)return '';
     var key=index<ordered.length?ordered[index].row.id:'now';
     var lower=index<ordered.length?Date.parse(ordered[index].row.at):Date.now(),upper=index?Date.parse(ordered[index-1].row.at):Date.now()+planHorizon*3600e3;
@@ -694,14 +741,15 @@ function directionView(force){
   }
   var add=$('plan-add');if(box.contains(add))$('tl-panel').appendChild(add);
 
-  box.innerHTML=groups.map(function(g){var expanded=Object.prototype.hasOwnProperty.call(planHours,g.key)?planHours[g.key]:g.key===nearest,count=g.entries.filter(function(e){return e.row.kind!=='music'}).length;
-    return gap(ordered.indexOf(g.entries[0]))+'<details class="plan-hour" data-hour="'+esc(g.key)+'"'+(expanded?' open':'')+'><summary data-plan-first="'+g.entries[0].index+'">'+esc(g.current?'This hour':clock(g.entries[g.entries.length-1].row.at).slice(0,2)+':00')+(count?' <span class="l">· '+count+(count===1?' block':' blocks')+'</span>':'')+'</summary>'+g.entries.map(function(entry,index){return (index?gap(ordered.indexOf(entry)):'')+render(entry)}).join('')+'</details>'}).join('')||'<p class="l">No blocks scheduled in the next '+planHorizon+' hours.</p>';
+  box.innerHTML=groups.map(function(g){if(g.key==='pending')return g.entries.map(render).join('');var expanded=Object.prototype.hasOwnProperty.call(planHours,g.key)?planHours[g.key]:g.key===nearest,count=g.entries.length;
+    return gap(ordered.indexOf(g.entries[0]))+'<details class="plan-hour" data-hour="'+esc(g.key)+'"'+(expanded?' open':'')+'><summary data-plan-at="'+esc(g.entries[0].row.at)+'">'+esc(g.current?'This hour':clock(g.entries[g.entries.length-1].row.at).slice(0,2)+':00')+' <span class="l">· '+count+(count===1?' entry':' entries')+'</span></summary>'+g.entries.map(function(entry,index){return (index?gap(ordered.indexOf(entry)):'')+render(entry)}).join('')+'</details>'}).join('')||'<p class="l">No entries scheduled in the next '+planHorizon+' hours.</p>';
   box.innerHTML+=gap(ordered.length);
   add.hidden=planInsertKey===null;
   if(planInsertKey!==null){var slot=findPlanGap(planInsertKey);if(slot)slot.appendChild(add);else{planInsertKey=null;add.hidden=true}}
   box.querySelectorAll('details[data-hour]').forEach(function(el){el.ontoggle=function(){planHours[el.dataset.hour]=el.open}});
   box.querySelectorAll('button,input').forEach(function(el){el.disabled=dirBusy});$('direction-add').disabled=dirBusy;
-  $('plan-later').hidden=!planDraft.some(function(r){return r.kind!=='music'&&Date.parse(r.at)>=Date.now()+planHorizon*3600e3});
+  $('plan-later').hidden=!planDraft.filter(function(r){return r.kind!=='music'}).concat(st.upcoming_tracks||[]).some(function(r){return !r.placeholder&&Date.parse(r.at)>=planNow()+planHorizon*3600e3});
+  if(anchorKey){var restored=Array.from(box.querySelectorAll('[data-plan-key]')).find(function(el){return el.dataset.planKey===anchorKey});if(restored){var hour=restored.closest('[data-hour]');if(hour){hour.open=true;planHours[hour.dataset.hour]=true}viewport.scrollTop+=restored.getBoundingClientRect().top-anchorTop}}
   if(focusGap){var gapButton=findPlanGap(focusGap);if(gapButton)gapButton.querySelector('button').focus({preventScroll:true})}
   if(focusHour){var hour=Array.from(box.querySelectorAll('[data-hour]')).find(function(el){return el.dataset.hour===focusHour});if(hour)hour.querySelector('summary').focus({preventScroll:true})}
   if(focusId&&focusAction){var i=planDraft.findIndex(function(r){return r.id===focusId}),el=box.querySelector('[data-plan-index="'+i+'"] [data-plan-action="'+focusAction+'"]');if(el)el.focus({preventScroll:true})}
@@ -809,17 +857,17 @@ function planDragPreview(x,y){
     planClearDragTimers();p.at=null;p.fine=null;p.hoverKey=null;box.querySelectorAll('.plan-drop-line,.plan-drag-lens').forEach(function(el){el.remove()});return;
   }
   if(p.fine){p.at=p.fine.base+Math.round((p.fine.y-y)/20)*60000;if(Math.abs(p.at-p.fine.base)>3*60000)p.fine={base:p.at,y:y};planPaintDrag();return;}
-  var target=document.elementFromPoint(x,y);target=target&&target.closest('[data-plan-gap],[data-plan-index],summary[data-plan-first]');
+  var target=document.elementFromPoint(x,y);target=target&&target.closest('[data-plan-gap],[data-plan-index],[data-plan-at],summary[data-plan-first]');
   if(!target||!box.contains(target))return;
   var rect=target.getBoundingClientRect(),key,lower,upper;
   if(target.hasAttribute('data-plan-gap')){
     lower=+target.dataset.planLower;upper=+target.dataset.planUpper;
     var ratio=Math.min(1,Math.max(0,(y-rect.top+5)/10));p.raw=upper-(upper-lower)*ratio;p.targetY=rect.top;key='gap:'+target.dataset.planGap;
-  }else if(target.hasAttribute('data-plan-first')){
-    lower=planSnap(Date.parse(planDraft[+target.dataset.planFirst].at),60,true);upper=lower+3600e3;
+  }else if(target.matches('summary')){
+    lower=planSnap(Date.parse(target.dataset.planAt||planDraft[+target.dataset.planFirst].at),60,true);upper=lower+3600e3;
     p.raw=upper-(upper-lower)*Math.min(1,Math.max(0,(y-rect.top)/Math.max(1,rect.height)));p.targetY=rect.top+rect.height/2;key='hour:'+target.parentNode.dataset.hour;
   }else{
-    p.raw=Date.parse(planDraft[+target.dataset.planIndex].at);p.targetY=rect.top;key='row:'+target.dataset.planKey;
+    p.raw=Date.parse(target.dataset.planAt||planDraft[+target.dataset.planIndex].at);p.targetY=rect.top;key='row:'+target.dataset.planKey;
   }
   p.at=planSnap(p.raw,30);planQueueDragHover(target,key);planPaintDrag();
 }
@@ -885,7 +933,7 @@ function queued(x){return (st.replay_queue||[]).some(function(q){return q.kind==
 function row(x){
   var P=x.parts||(x.kind==='reminder'?[{text:x.title,description:x.description,links:x.links||[]}]:[]),id=String(x.id),c=isCur(x),ex=P.some(function(p){return p.text||p.description||(p.links||[]).length}),o=ex&&!!open[id];
   var inner='<span class="tm">'+(c?'now':esc(x.time))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+KIND[x.kind]+'</span><span class="tx">'+esc(entryTitle(x.kind,x.title))+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
-  var h='<div class="it '+x.kind+(c?' cur':'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
+  var h='<div class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
   if(x.kind==='music'&&x.replayable)
     h+=queued(x)?'<button class="rp on" data-dq="'+id+'" title="remove from the queue" aria-label="remove from the queue">queued ✕</button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
   h+='</div>';
@@ -904,19 +952,23 @@ function row(x){
       if(old)h+='<p class="l">stars and description were not saved for older bulletins</p>'});
     h+='</div>'}
   return h+'</div>'}
-function timeline(){var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
+function timeline(){
+  if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
+  var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
+  var tracks=st.upcoming_tracks||[],announced=(st.announced_tracks||[]).slice();
+  function trackLabels(x,isSet){if(!x||x.kind&&x.kind!=='music')return '';var i=announced.indexOf(x.ref),label='';if(i>=0){announced.splice(i,1);label='<span class="l announced-track"> · announced</span>'}return label+(isSet?'<span class="l"> · set</span>':'')}
   var next=(st.upcoming||[]).find(function(x){return x.stage==='queued'})||(st.upcoming||[]).find(function(x){return x.stage==='next'})||(st.upcoming||[]).find(function(x){return x.stage==='music'});
   $('upcoming').hidden=!next||!!planDraft;
-  var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll');
+  var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;
   var nr=st.next_reroll||{},pend=nr.pending,nextTitle=pend?pend.title:entryTitle(next&&next.kind,next&&next.title),rerr=rerollError||nr.error||'';
-  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':'')+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
-  if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
+  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':trackLabels(next,tracks.length&&tracks[0].ref===next.ref&&tracks[0].set))+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
+  if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
   var aired=items.filter(function(x){return x.kind!=='session'}),activity=items.filter(function(x){return x.kind==='session'});
   $('activity').hidden=!activity.length;
   $('activity-log').innerHTML=activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(x.time)+'</span><span class="tx">Radio started</span></div>'}).join('');
-  $('history-more').hidden=aired.length<=5;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
-  $('tl').innerHTML=aired.length?(historyExpanded?aired:aired.slice(0,5)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
+  $('history-more').hidden=aired.length<=15;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
+  $('tl').innerHTML=aired.length?(historyExpanded?aired:aired.slice(0,15)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
   $('tl').scrollTop=sc;
   if(a){var e=$('tl').querySelector('[data-id="'+a+'"]');if(e)e.focus({preventScroll:true})}}
 
@@ -948,7 +1000,7 @@ function refresh(){
       if(!ytLoaded&&document.activeElement!==$('yt-playlist')){$('yt-playlist').value=d.ytmusic.playlist;ytLoaded=true}
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
-    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();watchdog();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView()})
+    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();watchdog();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)})
     .catch(function(){$('er').textContent='the page cannot reach the radio'})}
 
 function selectTab(b){
@@ -968,7 +1020,8 @@ $('pp').onclick=function(){
   if(!running()||(!browser()&&busy))return;
   if(!browser())return cmd(st.state==='PLAYING'?'pause':'resume');
   listening?unlisten():listen()};
-$('upcoming').onclick=function(e){if(e.target.closest('[data-reroll]'))rerollNext()};
+$('upcoming').onclick=function(e){var b=e.target.closest('[data-reroll]');if(b)rerollNext(b.dataset.reroll,b.dataset.ref)};
+$('upcoming').onkeydown=function(e){if(e.key==='Escape'&&rerollConfirm){e.preventDefault();rerollNext('cancel')}};
 $('music-source-select').onchange=function(){musicChoice=this.value;cmd('setting',{key:'music_source',value:this.value})};
 $('nx').onclick=function(){cmd('next')};
 $('sk').onclick=function(){cmd('skip-news')};

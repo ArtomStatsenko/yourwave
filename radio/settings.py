@@ -10,6 +10,7 @@ from . import chatgpt, config, editor, openrouter, plugins, public_news
 
 # key -> (section, name, title, hint, min, max, step, unit); step None: a text, min and max are its length
 SETTINGS = {
+    "music_shuffle": ("music", "shuffle", "Shuffle", "Shuffle the remaining library. Off follows library order. Prepared tracks and unplayed-track priority keep their place.", 0, 1, 1, ""),
     "music_source": ("music", "source", "Music source", "", 1, 20, None, ""),
     "news_detail": ("editor", "news_detail", "News detail", "For new retellings: the gist without lists of prices or specs. Discussion adds a host comment grounded in the source; reminders stay exact.", 0, 2, 1, ""),
     "reddit_communities": ("sources.reddit", "communities", "Reddit · Subreddits",

@@ -9,11 +9,14 @@ import random
 import threading
 import time
 import uuid
+import sys
+import signal
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import broadcast_clock, audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
 from . import editor, public_news, reddit, telegram
+from . import hooks, previews
 from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
@@ -43,7 +46,6 @@ NUMBER_WORD = re.compile(r"(ноль|один|одна|одно|одну|одн�
 
 
 UNAVAILABLE = "unavailable"  # a reroll pick YouTube does not serve: the next spare is tried
-UPCOMING_SHOWN = 6     # planned songs shown on the page (the next one first)
 HEAR_EVERY_SEC = 180  # one song every 3 minutes: the library (~270 songs) is done in about a day, never at once
 
 
@@ -85,6 +87,16 @@ class Service:
         self.handoff_lock = asyncio.Lock()
         self.plan_undo = None
         self.schedule_generation = 0
+        self.preview_job = None
+        self.announced_tracks = []
+        self.plan_durations = {}
+        self.plan_metadata_task = None
+        self.plan_metadata_missing = False
+        self.preview_enabled = False
+        self.preview_retry = 0.0
+        self.hook_proc = None
+        self.hook_retry = {}
+        self.hook_snapshot = []
         self.tts_retry_at, self.tts_backoff = 0.0, 60.0
         self.stop_measure = threading.Event()
         self.sources: dict[str, str] = {}
@@ -165,6 +177,7 @@ class Service:
         self.engine = Liquidsoap(remote_m3u, m["crossfade_sec"], self.output, os.environ.get("RADIO_RECORD", ""),
                                  self.cfg["output"], fallback_m3u=m3u)
         self.engine.music_source = 'ytmusic' if self.ytmusic_active else 'local'
+        self.engine.music_shuffle = bool(m['shuffle'])
         restored = self._restore_session()
         resumed = self._resume_line()
         # Answer on the socket while the engine starts: the page then sees a radio starting, not a stopped one it
@@ -191,6 +204,8 @@ class Service:
         asyncio.create_task(self.public_news_loop())
         asyncio.create_task(self.reminders_loop())
         asyncio.create_task(self.gap_loop())
+        asyncio.create_task(self.preview_loop())
+        asyncio.create_task(self.hook_loop())
         if not self.mock_voice:
             asyncio.create_task(self.hearing_loop())
         if not self.mock_voice:
@@ -208,6 +223,7 @@ class Service:
         self._save_session()
         horizon.stop()
         tts_mod.stop_whisper()  # a song being heard would keep the process alive after the socket is gone
+        self._stop_hook_worker()
         await self._stop_voice()
         self.stop_measure.set()
         await self.engine.stop()
@@ -257,6 +273,7 @@ class Service:
 
     async def _cancel_automatic(self, status='PENDING'):
         self.schedule_generation += 1
+        await self._cancel_preview()
         async with self.handoff_lock:
             if self.gap_rid:
                 await self.engine.remove(self.gap_rid)
@@ -319,6 +336,7 @@ class Service:
     async def gap_loop(self) -> None:
         while not self.stopping:
             try:
+                await self._sync_shuffle()
                 await self._sync_music_source()
                 self.music_source_ready = await self.engine.command("music.source_ready") == "true"
                 await self._forget_dropped_fresh()
@@ -326,6 +344,129 @@ class Service:
             except Exception as e:
                 log("gap filler:", type(e).__name__)
             await asyncio.sleep(1)
+
+    def _stop_hook_worker(self):
+        if self.hook_proc and self.hook_proc.returncode is None:
+            try:
+                os.killpg(self.hook_proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+
+    async def hook_loop(self):
+        while not self.stopping:
+            try:
+                if plugins.on(self.cfg, 'track_previews'):
+                    paths = [(x['ref'], x['path']) for x in self.hook_snapshot]
+                    paths += [(str(p), str(p)) for p in self._local_files()]
+                    for ref, path in paths:
+                        if not Path(path).is_file() or self.hook_retry.get((ref,path), 0) > time.time():
+                            continue
+                        row = self.db.execute('SELECT * FROM track_hooks WHERE ref=? AND source_path=? ORDER BY id DESC LIMIT 1', (ref,path)).fetchone()
+                        if row and row['source_sig'] == hooks.signature(path) and row['retry_after'] > time.time() and not hooks.missing_clip(row):
+                            continue
+                        self.hook_proc = await asyncio.create_subprocess_exec('taskpolicy','-b','nice','-n','20',sys.executable, '-m', 'radio.hooks', '--ref', ref, '--path', path,
+                            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
+                        try:
+                            await asyncio.wait_for(self.hook_proc.wait(), 1500)
+                        except asyncio.TimeoutError:
+                            self._stop_hook_worker()
+                            await self.hook_proc.wait()
+                        if self.hook_proc.returncode:
+                            self.hook_retry[(ref,path)] = time.time() + 1800
+                            store.log_event(self.db, self.session, 'HOOK_ANALYSIS_ERROR', ref)
+                        self.hook_proc = None
+                        break
+            except Exception as error:
+                log('hooks:', type(error).__name__)
+            await asyncio.sleep(30)
+
+    async def _cancel_preview(self):
+        if not self.preview_job:
+            return
+        job = self.preview_job
+        await self.engine.command('previews.cancel ' + job['id'])
+        try:
+            if job.get('rid'):
+                await self.engine.remove(job['rid'])
+        finally:
+            self.preview_job = None
+            self.db.execute("UPDATE music_previews SET status='CANCELLED',rid=NULL WHERE id=? AND status='QUEUED'", (job['id'],))
+            self.id_pending = False
+
+    async def preview_loop(self):
+        while not self.stopping:
+            try:
+                await self._preview_tick()
+            except Exception as error:
+                self.preview_retry = time.time() + 60
+                log('coming up:', type(error).__name__)
+            await asyncio.sleep(2)
+
+    async def _preview_tick(self):
+        enabled = plugins.on(self.cfg, 'track_previews')
+        if enabled != self.preview_enabled:
+            if await self.engine.command('previews.enable ' + ('1' if enabled else '0')) != 'OK':
+                return
+            self.preview_enabled = enabled
+        if not enabled:
+            await self._cancel_preview()
+            self._stop_hook_worker()
+            return
+        if self.preview_job:
+            snapshot = json.loads(await self.engine.command('previews.next'))
+            if (self.state != 'PLAYING' or [x['ref'] for x in snapshot] != json.loads(self.preview_job['refs'])
+                    or self.preview_job.get('failed') or self.reminders_due or self.replays or time.time() > self.preview_job['expires']):
+                await self._cancel_preview()
+            return
+        current = self.current
+        if (self.state != 'PLAYING' or not current or current['kind'] != 'music' or self.manual_switch
+                or self.manual_skip_pending or self.id_pending or self.queued_break or self.rerolling
+                or self.rendering or self.assembling or self.reminders_due or self.replays or self.stopping):
+            return
+        remaining = current.get('duration', 0) - (time.time() - current['started'])
+        if not 45 <= remaining <= 120 or time.time() < self.preview_retry:
+            return
+        last = self.db.execute("SELECT at FROM events WHERE type='MUSIC_TEASER' ORDER BY id DESC LIMIT 1").fetchone()
+        if last and (now() - content.parse_time(last['at'])).total_seconds() < 3600:
+            return
+        if self._waiting_break(remaining) or await self.engine.pending():
+            return
+        snapshot = json.loads(await self.engine.command('previews.prepare'))
+        if len(snapshot) != 2:
+            return
+        self.hook_snapshot = snapshot
+        refs = [x['ref'] for x in snapshot]
+        titles = [music.label(self.db, ref) for ref in refs]
+        generation = self.schedule_generation
+        rendered = await asyncio.to_thread(previews.render, self.db, snapshot, titles, self._say)
+        self.preview_retry = time.time() + 60
+        if not rendered:
+            return
+        async with self.handoff_lock:
+            if (generation != self.schedule_generation or current is not self.current or self.state != 'PLAYING'
+                    or self.stopping or self.id_pending or self.queued_break or self.reminders_due or self.replays
+                    or not plugins.on(self.cfg, 'track_previews') or self.rerolling
+                    or store.spoken_last_hour(self.db) + rendered['speech_sec'] > self.cfg['broadcast']['max_spoken_seconds_per_rolling_hour']):
+                return
+            job = {**rendered, 'id': uuid.uuid4().hex, 'refs': json.dumps(refs), 'titles': json.dumps(titles, ensure_ascii=False),
+                   'snapshot':json.dumps(snapshot,ensure_ascii=False),
+                   'expires': time.time() + max(0, current['duration'] - (time.time()-current['started'])) + 15}
+            if json.loads(await self.engine.command('previews.next')) != snapshot:
+                return
+            self.db.execute("INSERT INTO music_previews(id,refs,titles,audio_path,speech_sec,duration_sec,status) VALUES(?,?,?,?,?,?,'QUEUED')",
+                tuple(job[k] for k in ('id','refs','titles','audio_path','speech_sec','duration_sec')))
+            try:
+                rid = await self.engine.command('previews.push ' + json.dumps({'refs': refs, 'files':snapshot, 'uri': previews.uri(job)}, ensure_ascii=False))
+            except (OSError,asyncio.TimeoutError,asyncio.IncompleteReadError):
+                self.preview_job, self.id_pending = {**job,'failed':True}, True
+                raise
+            if not rid.isdigit():
+                self.db.execute("UPDATE music_previews SET status='CANCELLED' WHERE id=?", (job['id'],))
+                return
+            job['rid'] = rid
+            self.db.execute('UPDATE music_previews SET rid=? WHERE id=?', (rid,job['id']))
+            if not self.current or self.current.get('ref') != job['id']:
+                self.preview_job, self.id_pending = job, True
 
     def _opener_text(self) -> str:
         return host.startup(self.cfg["broadcast"]["station_name"])
@@ -415,6 +556,10 @@ class Service:
             self.state = "PLAYING"
 
     def _reset_inflight(self) -> None:
+        self.announced_tracks = []
+        self.db.execute("UPDATE music_previews SET status='CANCELLED',rid=NULL WHERE status='QUEUED'")
+        self.db.execute("UPDATE music_previews SET status='PLAYED',rid=NULL WHERE status='PLAYING'")
+        self.preview_job, self.preview_enabled = None, False
         for key, (_, r) in self.queued_reminders.items():
             self.reminders_due[key] = r
             self.reminder_text.pop(key, None)
@@ -468,6 +613,8 @@ class Service:
                     item = self.db.execute("SELECT item_id FROM packages WHERE id=?", (pid,)).fetchone()
                     content.finish_item_if_done(self.db, item["item_id"])
         self.skip_flag = False
+        if prev and prev['kind'] == 'teaser':
+            self.db.execute("UPDATE music_previews SET status='PLAYED',played_at=? WHERE id=? AND status='PLAYING'", (iso(now()),prev['ref']))
         self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (m.get("replay_id") or "",))
         self.replays.pop(m.get("replay_id") or "", None)  # on air now: no longer queued
         self.fresh_queued.pop(m.get("ref") or "", None)
@@ -515,6 +662,14 @@ class Service:
             store.log_event(self.db, self.session, self.current["kind"].upper(), self.current["ref"],
                             self.reminder_text.pop(self.current["ref"], ""))
             log(self.current["kind"], "on air")
+        elif self.current['kind'] == 'teaser':
+            job = self.db.execute('SELECT * FROM music_previews WHERE id=?', (self.current['ref'],)).fetchone()
+            self.preview_job, self.id_pending = None, False
+            if job:
+                self.announced_tracks = json.loads(job['refs'])
+                self.current['duration'] = job['duration_sec']
+                self.db.execute("UPDATE music_previews SET status='PLAYING',played_at=? WHERE id=?", (iso(now()),job['id']))
+                store.log_event(self.db, self.session, 'MUSIC_TEASER', job['id'], ' · '.join(json.loads(job['titles'])))
         elif self.current["kind"] == "gap":
             self.gap_rid = None
             self.id_pending = False
@@ -528,6 +683,8 @@ class Service:
             store.log_event(self.db, self.session, "STATION_ID", self.current["ref"])
             log("station id:", self.current["ref"])
         else:
+            if self.current['ref'] in self.announced_tracks:
+                self.announced_tracks.remove(self.current['ref'])
             self.songs_since_break += 1
             self.set_started = self.set_started or self.current["started"]
             if s := music.song(self.db, self.current["ref"]):
@@ -1153,6 +1310,10 @@ class Service:
         if self.voice_proc and self.voice_proc_engine != engine:
             await self._stop_voice()  # the other engine's server: free the GPU memory for this one
         if await asyncio.to_thread(self.tts.health):
+            if self.last_error == "VoiceStudio unavailable, will retry later":
+                self.last_error = ""
+                self.tts_retry_at, self.tts_backoff = 0.0, 60.0
+                self.wake.set()
             return
         port = int((v["mlx_audio_url"] if engine == "qwen3" else v["base_url"]).rsplit(":", 1)[-1])
         if (self.voice_proc and self.voice_proc.poll() is None) or await asyncio.to_thread(tts_mod.port_open, port) \
@@ -1666,6 +1827,7 @@ class Service:
             gain = min(m["max_boost_db"], m["target_lufs"] - row["lufs"]) if row and row["lufs"] is not None else 0.0
         else:
             return {"ok": False, "error": "nothing to replay"}
+        await self._cancel_preview()
         replay_id = f"r{time.time_ns()}"
         duration = await asyncio.to_thread(self._song_seconds, ref)  # before the push: it may air at once
         rid = await self.engine.push_replay(Path(ref), "music", ref, gain, replay_id)
@@ -1698,8 +1860,6 @@ class Service:
         return {"ok": True, "status": self.status()}
 
     def _next_music_slot(self):
-        if not plugins.on(self.cfg, 'reroll_next'):
-            return None
         for key, row in self.replays.items():
             if row['kind'] == 'music':
                 return {'ref': row['ref'], 'queue': 'news', 'rid': row['rid'], 'replay_id': key}
@@ -1739,6 +1899,7 @@ class Service:
         state = self._reroll_state()
         if not state or not state['available'] or expected != state['ref']:
             return {'ok': False, 'error': (state or {}).get('reason') or 'The next track changed. Try again.'}
+        await self._cancel_preview()
         slot = self._next_music_slot()
         choices = self.engine.music_choices(expected)
         excluded = {expected, self.current['ref'], self.reroll_pending, *self.fresh_queued, *(r['ref'] for r in self.replays.values())}
@@ -1797,6 +1958,8 @@ class Service:
                 uri = uri.removesuffix(replacement) + 'tmp:' + downloaded  # Liquidsoap removes it after airing
             rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
             downloaded = None
+            if expected in self.announced_tracks:
+                self.announced_tracks.remove(expected)
             if slot.get('replay_id') in self.replays:
                 self.replays[slot['replay_id']].update(ref=replacement, rid=rid,
                                                        duration=await asyncio.to_thread(self._song_seconds, replacement))
@@ -1988,9 +2151,68 @@ class Service:
         """Sources whose plugin is switched off: their ready bulletins wait instead of airing."""
         return [src for src, name in plugins.SOURCE_PLUGIN.items() if not plugins.on(self.cfg, name)]
 
+    async def _sync_shuffle(self):
+        settings.apply(self.cfg, self.defaults)
+        enabled = bool(self.cfg['music']['shuffle'])
+        if getattr(self.engine, 'music_shuffle', None) != enabled:
+            result = await self.engine.command('music.shuffle ' + ('1' if enabled else '0'))
+            if result == 'OK':
+                self.engine.music_shuffle = enabled
+
     async def _sync_music_source(self):
         async with self.music_source_lock:
             await self._set_music_source()
+
+    def _music_plan_rows(self, rows, probe=True):
+        current = self.current or {}
+        now = time.time()
+        at = self.paused_at if self.state == 'PAUSED' else now
+        offset = max(0, current.get('duration',0) - (at-current.get('started',at)))
+        cursor = at + offset if self.state in ('PLAYING','PAUSED') and current.get('duration') else None
+        if not probe:
+            self.plan_metadata_missing = False
+        result = []
+        for row in rows:
+            if self.stopping or offset >= PLAN_HOURS * 3600:
+                break
+            ref = row.get('ref','')
+            uri = row.get('uri','')
+            if not ref:
+                match = re.search(r'(?:^annotate:|,)ref=("(?:[^"\\\r\n]|\\.)*")',uri)
+                if match:
+                    ref = json.loads(match.group(1))
+            kind = row.get('kind') or ('music' if ref in self.library else '')
+            seconds = row.get('duration',0)
+            if kind == 'music' and ref:
+                if not seconds:
+                    if ref.startswith('ytmusic:'):
+                        seconds = ytmusic.duration(ref)
+                    else:
+                        try:
+                            sig = hooks.signature(ref)
+                            cached = self.plan_durations.get(ref)
+                            if not cached or cached[0] != sig:
+                                if probe:
+                                    cached = self.plan_durations[ref] = (sig,audio.duration(Path(ref)))
+                                else:
+                                    cached = None
+                                    self.plan_metadata_missing = True
+                            seconds = cached[1] if cached else 0
+                        except OSError:
+                            seconds = 0
+                result.append({'ref':ref,'title':music.label(self.db,ref),'set':bool(row.get('set')),
+                               'at':iso(datetime.fromtimestamp(cursor,timezone.utc)) if cursor is not None else None})
+                if not probe and self.plan_metadata_missing:
+                    break
+            cursor = cursor + seconds if cursor is not None and seconds > 0 else None
+            offset += seconds
+        return result
+
+    async def _warm_music_plan(self, rows):
+        try:
+            await asyncio.to_thread(self._music_plan_rows,rows)
+        except Exception as error:
+            log('music plan metadata:',type(error).__name__)
 
     async def _set_music_source(self):
         target = settings.music_source(self.cfg) == 'ytmusic'
@@ -2019,6 +2241,7 @@ class Service:
         await self._cancel_automatic()
         await self._clear_fresh()
         self.ytmusic_active = target
+        self.announced_tracks = []
         self.music_source_ready = False
         self.music_source_error = "" if target or self.files else "No local music available"
         self.next_track = ""
@@ -2061,6 +2284,11 @@ class Service:
                     if key.startswith('weather:slot:'):
                         self.reminders_due.pop(key)
             plugins.set_plugin(name, enabled)
+            if name == 'track_previews' and not enabled:
+                await self.engine.command('previews.enable 0')
+                self.preview_enabled = False
+                await self._cancel_preview()
+                self._stop_hook_worker()
             if name == 'new_tracks' and not enabled:
                 await self._clear_fresh()
             if name == "ytmusic":
@@ -2096,9 +2324,19 @@ class Service:
                         status['upcoming'].append({'kind': 'music', 'ref': ref, 'title': music.label(self.db, ref), 'stage': 'music'})
                         later = await asyncio.wait_for(self.engine.upcoming_music(), .5)
                         # tentative: a reshuffle, a break or a reroll can change the order; only the next is certain
-                        status['upcoming_tracks'] = [{'ref': r, 'title': music.label(self.db, r)} for r in later[:UPCOMING_SHOWN]]
+                        status['upcoming_tracks'] = [{'ref': r, 'title': music.label(self.db, r)} for r in later]
                         if plugins.on(self.cfg, 'air_direction'):
                             status['broadcast_plan'] = self._broadcast_plan()
+                    rows = await asyncio.wait_for(self.engine.music_plan(),.5)
+                    if isinstance(rows,list):
+                        status['upcoming_tracks'] = self._music_plan_rows(rows,probe=False)
+                        if not ref and status['upcoming_tracks']:
+                            self.next_track = status['upcoming_tracks'][0]['ref']
+                            status['upcoming'].append({'kind':'music','ref':self.next_track,
+                                                       'title':status['upcoming_tracks'][0]['title'],'stage':'music'})
+                            status['next_reroll'] = self._reroll_state()
+                        if self.plan_metadata_missing and (self.plan_metadata_task is None or self.plan_metadata_task.done()):
+                            self.plan_metadata_task = asyncio.create_task(self._warm_music_plan(rows))
                 except (OSError, asyncio.TimeoutError, asyncio.IncompleteReadError):
                     pass
             return {"ok": True, "status": status}
@@ -2158,10 +2396,10 @@ class Service:
             return music.label(self.db, ref)
         if kind == "news":
             return 'Host edition'
-        return {"id": "Station ID", "reminder": "Reminder", "weather": "Weather"}.get(kind, kind)
+        return {"id": "Station ID", "reminder": "Reminder", "weather": "Weather", "teaser": "Coming up"}.get(kind, kind)
 
-    def _clock_rows(self):
-        return broadcast_clock.rows(self.db, now(), PLAN_HOURS, self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'))
+    def _clock_rows(self, at=None):
+        return broadcast_clock.rows(self.db, at or now(), PLAN_HOURS, self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'))
 
     def _clock_slot(self, at=None):
         at = at or now()
@@ -2173,7 +2411,7 @@ class Service:
         return rows[0]['id'] if rows else ''
 
     def _broadcast_plan(self):
-        at = now()
+        at = datetime.fromtimestamp(self.paused_at,timezone.utc) if self.state == 'PAUSED' else now()
         cur = self.current
         remaining = max(0, (cur.get('duration') or 0) - ((self.paused_at if self.state == 'PAUSED' else time.time()) - cur['started'])) if cur else 0
         boundary = at + timedelta(seconds=remaining)
@@ -2183,7 +2421,7 @@ class Service:
         interval = 1800
         horizon = at + timedelta(hours=PLAN_HOURS)
         plan = direction.rows(self.db, self.cfg, at)
-        result = self._clock_rows()
+        result = self._clock_rows(at)
         selected = self._pick_break(preview=True)
         if not selected:
             selected = [r for r in direction.news(self.db) if r['source'] not in self._sources_off()][:2]
@@ -2554,6 +2792,8 @@ class Service:
                 cur = "НАПОМИНАНИЕ"
             elif self.current["kind"] == "weather":
                 cur = "ПОГОДА"
+            elif self.current['kind'] == 'teaser':
+                cur = 'АНОНС ТРЕКОВ'
             elif self.current["kind"] == "news":
                 row = self.db.execute("SELECT p.part, p.parts, p.duration_sec, i.topic FROM packages p "
                                       "JOIN items i ON i.id=p.item_id WHERE p.id=?", (ref.split(BREAK_SEP)[0],)).fetchone()
@@ -2571,6 +2811,7 @@ class Service:
         plan = direction.rows(self.db, self.cfg, now())
         return {
             "state": self.state, "session": self.session, "current": cur,
+            "paused_at": self.paused_at if self.state == "PAUSED" else None,
             "current_kind": self.current["kind"] if self.current else None, "current_title": title,
             "elapsed_sec": round((self.paused_at if self.state == "PAUSED" else time.time()) - self.current["started"])
             if self.current else 0,
@@ -2588,6 +2829,7 @@ class Service:
             "broadcast_plan": self._broadcast_plan() if plugins.on(self.cfg, 'air_direction') else None,
             "direction": plan if plugins.on(self.cfg, 'air_direction') else [],
             "upcoming": self._upcoming(plan),
+            "announced_tracks": list(self.announced_tracks),
             "next_reroll": self._reroll_state(),
             "direction_timezone": self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'),
             "replay_queue": [{"kind": r["kind"], "ref": r["ref"]} for r in self.replays.values()],

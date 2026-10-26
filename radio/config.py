@@ -14,9 +14,13 @@ DEFAULT_CONFIG = """\
 [music]
 path = "~/Music/Radio"
 source = "local"           # selected independently of the YouTube Music integration switch
+shuffle = true            # off: library order; queued tracks keep their place
 crossfade_sec = 3.0
 target_lufs = -16.0
 max_boost_db = 4.0          # cap for quiet tracks
+
+[hooks]
+analyzer_python = ""        # optional Python with allin1 installed; never installs or downloads models on air
 
 [output]
 mode = "browser"            # speakers | browser | both. browser = the page plays the live stream (radio ui)

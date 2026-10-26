@@ -62,3 +62,22 @@ c.st.state='PLAYING';c.player();assert.equal($('nx').disabled,false,'Other liste
                                 json.dumps(player) + ';\nconst HANDLERS=' + json.dumps(handlers) + ';\n' + harness],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_reroll_button_needs_no_plugin_switch(self):
+        page = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        button = page[page.index('function rerollButton()'):page.index('function rerollNext(')]
+        harness = r"""
+const assert=require('node:assert/strict');
+let st={},rerollBusy=false,rerollConfirm=null;const esc=s=>s;
+""" + button + r"""
+assert.equal(rerollButton(),'');
+st.next_reroll={available:true};
+assert.match(rerollButton(),/data-reroll/);
+assert.doesNotMatch(rerollButton(),/ disabled/);
+st.next_reroll.available=false;
+assert.match(rerollButton(),/ disabled/);
+st.next_reroll.available=true;rerollBusy=true;
+assert.match(rerollButton(),/ disabled/);
+"""
+        result = subprocess.run(['node', '-e', harness], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)

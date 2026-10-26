@@ -33,7 +33,7 @@ class Liquidsoap:
         if not first:
             return
         try:
-            rids = [(await self.command(f"news.push {line}")).strip() for line in first]
+            rids = [(await self.command(f'news.push annotate:plan_queue="news":{line}')).strip() for line in first]
             for _ in range(300):
                 if await self.command("news.ready") == "true":
                     break
@@ -56,6 +56,7 @@ class Liquidsoap:
                    RADIO_LIQ_LOG=str(config.DATA_DIR / "logs/liquidsoap.log"), RADIO_OUTPUT=self.output,
                    RADIO_SINK_CMD=self.sink_command(), RADIO_DATA_DIR=str(config.DATA_DIR),
                    RADIO_MUSIC_SOURCE=getattr(self, "music_source", "ytmusic"),
+                   RADIO_SHUFFLE="1" if getattr(self, "music_shuffle", True) else "0",
                    RADIO_FALLBACK_M3U=str(self.fallback_m3u or ""), RADIO_START_PAUSED="1" if paused else "",
                    RADIO_YTMUSIC_COUNT=str(len(ytmusic.library()["tracks"])) if self.m3u.name == "ytmusic.m3u" else "0",
                    RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]))
@@ -113,15 +114,19 @@ class Liquidsoap:
                         print("event error:", e, line, flush=True)
 
     async def command(self, cmd: str, timeout: float = 5) -> str:
-        reader, writer = await asyncio.wait_for(asyncio.open_unix_connection(str(self.sock)), 3)
+        reader, writer = await asyncio.wait_for(asyncio.open_unix_connection(str(self.sock),limit=4*1024*1024), 3)
         try:
             writer.write((cmd + "\n").encode())
             await writer.drain()
             data = await asyncio.wait_for(reader.readuntil(b"END\r\n"), timeout)
             writer.write(b"quit\n")
+            await writer.drain()
+            # Wait for Liquidsoap to close; disconnecting during quit leaks its server socket.
+            await asyncio.wait_for(reader.read(), timeout)
             return data.decode().removesuffix("END\r\n").strip()
         finally:
             writer.close()
+            await writer.wait_closed()
 
     async def wait_music(self):
         deadline = asyncio.get_running_loop().time() + 30
@@ -150,7 +155,7 @@ class Liquidsoap:
                   else 'liq_cross_end_duration="1.5"')
         # Start window longer than any song's end window: radio.liq then places the break by liq_talk_up.
         ending += ',liq_cross_start_duration="12"'
-        uri = f'annotate:air_until="{expires:.3f}",kind="news",ref="{safe_id}",liq_amplify="{gain:+.1f} dB",{ending},liq_fade_in="0.1":{wav}'
+        uri = f'annotate:plan_queue="news",air_until="{expires:.3f}",kind="news",ref="{safe_id}",liq_amplify="{gain:+.1f} dB",{ending},liq_fade_in="0.1":{wav}'
         return (await self.command(f"news.push {uri}")).strip()
 
     async def pending(self, queue: str = "news") -> list[str]:
@@ -160,7 +165,7 @@ class Liquidsoap:
     async def push_station_id(self, wav: Path, gain_db: float, tail_sec: float = 0.0, expires: float = 0.0) -> str:
         # Goes through the same queue as news, so it too waits for the song boundary. The next song starts
         # over the call sign's decaying tail instead of after it.
-        uri = (f'annotate:air_until="{expires:.3f}",kind="id",ref="{wav.name}",liq_amplify="{gain_db:+.2f} dB",'
+        uri = (f'annotate:plan_queue="news",air_until="{expires:.3f}",kind="id",ref="{wav.name}",liq_amplify="{gain_db:+.2f} dB",'
                f'liq_cross_duration="{max(1.0, tail_sec + 0.3):.2f}",liq_fade_in="0.1":{wav}')
         return (await self.command(f"news.push {uri}")).strip()
 
@@ -169,7 +174,7 @@ class Liquidsoap:
         """A song into a request queue (news: next song boundary, before everything; fresh: after the news
         queue). tags: more annotations starting with a comma. Returns the request id, for remove()."""
         safe_ref = json.dumps(ref, ensure_ascii=False)
-        uri = (f'annotate:kind="{kind}",ref={safe_ref},replay_id="{replay_id}",liq_amplify="{gain_db:+.2f} dB",'
+        uri = (f'annotate:plan_queue="{queue}",kind="{kind}",ref={safe_ref},replay_id="{replay_id}",liq_amplify="{gain_db:+.2f} dB",'
                f'liq_fade_in="0.1"{tags}:{wav}')
         return (await self.command(f"{queue}.push {uri}")).strip()
 
@@ -180,6 +185,13 @@ class Liquidsoap:
     async def upcoming_music(self) -> list[str]:
         """The next songs in air order (queued, then the rest of the shuffle round); only the first is certain."""
         return [r for r in (await self.command('music.upcoming')).splitlines() if r.strip()]
+
+    async def music_plan(self) -> list[dict] | None:
+        try:
+            rows = json.loads(await self.command('music.plan'))
+            return rows if isinstance(rows,list) else None
+        except ValueError:
+            return None  # an older running engine: keep the existing queue view until its next restart
 
     def music_choices(self, expected: str) -> dict[str, str]:
         paths = [self.m3u, self.fallback_m3u]

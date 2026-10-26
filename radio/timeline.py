@@ -52,7 +52,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
     remote_refs = {"ytmusic:" + t["id"] for t in ytmusic.library()["tracks"]}
     since = store.iso(store.now() - timedelta(hours=hours))
     rows = db.execute("""SELECT id, at, type, ref, detail FROM events WHERE at>=? AND type IN
-                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','STATION_ID','REPLAY','REMINDER','WEATHER','GAP')
+                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','STATION_ID','REPLAY','REMINDER','WEATHER','GAP','MUSIC_TEASER')
                          ORDER BY id DESC LIMIT ?""", (since, limit)).fetchall()
     out = []
     for r in rows:
@@ -103,6 +103,8 @@ def _build(db, hours: int, limit: int) -> list[dict]:
                         e["description"] = detail["description"]
                     elif isinstance(detail.get("links"), list):
                         e["links"] = detail["links"]
+        elif r['type'] == 'MUSIC_TEASER':
+            e.update(kind='host', title='Coming up', parts=[{'text': r['detail'], 'links': []}])
         elif r["type"] == "GAP":
             e.update(kind="host", title=r["detail"] or "Loading gap")
         elif r["type"] == "STATION_ID":
@@ -111,7 +113,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
             e.update(kind="session", title="broadcast started")
         out.append(e)
     for e in out:
-        if e.get('parts'):
+        if e.get('parts') and e['type'] != 'MUSIC_TEASER':
             e['title'] = edition_title(part['source'] for part in e['parts'])
         e.pop("_at", None)
         e.pop("_topics", None)

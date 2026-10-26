@@ -113,6 +113,16 @@ Unprepared news waits if the editor is disabled, unavailable, or at its request 
 
 ## Settings
 
+**Shuffle** is a saved, standard setting, enabled by default. Changes apply live to the remaining library: off follows local file order or the YouTube Music playlist order; on shuffles each library round. The current song, prepared requests, manual inserts, and unplayed-track priority keep their place.
+
+**Experiments → Coming up** introduces two prepared songs about once an hour, at a song boundary, within 25 seconds. Missing hooks use voice only; uncertain hooks wait under **Music hooks**, with Listen / Approve / Reject. Confident lyric alignments can air automatically. The local library is analyzed one song at a time at background priority; YouTube files are analyzed when prepared for playback. Next during an announcement starts its first promised song. Shuffle preserves prepared songs; reroll changes only the next song and cancels an announcement that has not aired. Source changes, pause and disabling the experiment cancel pending announcements. The switch defaults off; after installing this version, restart the station and UI once.
+
+Hooks use embedded chorus labels and local Whisper word timestamps, then global lyric alignment. The existing cached Whisper model and VoiceStudio Python environment are reused; missing models or uncertain timing leave music playing normally. Songle lookups by exact YouTube ID and imported annotations produce review candidates, since an ID alone does not verify local timing. Optional `[hooks].analyzer_python` points to an existing Python environment with All-In-One; the application does not install it. These automatic thresholds are experimental, not measured probabilities of correctness.
+
+The timeline shows Next and the already determined upcoming songs within the editor's 12-hour horizon: manual music inserts, selections, then the remaining library round. There is no separate track-count limit. Shuffle exposes its already chosen permutation; with Shuffle off, the remaining playlist follows its file order. Future shuffle rounds are not guessed. Durations warm in the background, so the visible list can grow during its first refreshes without blocking playback controls. Approximate start times stay on the left (`~HH:MM`); unknown times show a dash. Inserted speech, loading and manual commands can change times. Selection tracks carry **set** after the title, independently of **announced**, which appears after a Coming up announcement starts on air. The announcement label disappears when the song starts; a successful reroll removes it only from the replaced song. Refreshing the page preserves labels, while changing the music source or restarting the playback engine clears them.
+
+Import previously approved trial clips with `python3 -m radio.hooks --import-approved spike/music-hooks/approved-global-hooks.json`, followed by `approved-hooks.json` at the same location. Imports verify the recorded trial input hash and the current recording's decoded PCM before preserving approval. To reuse external databases, normalize their annotations to a JSON array with `ref`, `start`, `end`, `provider` and provenance/license fields, then run `python3 -m radio.hooks --import-annotations /path/to/annotations.json`. Times are seconds; use an exact local path or `ytmusic:VIDEO_ID` as `ref`. Imported timing remains a candidate until listened to and approved. Raw SongFormDB/Harmonix downloads and bulk catalog ingestion are not automatic.
+
 The existing data-directory name is retained for compatibility:
 
 ```text
@@ -153,7 +163,7 @@ RADIO_DATA_DIR="$HOME/.yourwave-dev" ./bin/radio ui --port 8766
 
 The normal timeline shows one muted next row above history. Future planning is visible inside Edit. A `~` time is an estimate; a scheduled time is a lower bound, since text and audio must be ready and playback waits for a track boundary. Saved edits survive restarts.
 
-**Reroll next track** replaces the next track without interrupting the current one. **Host covers loading gaps** can fill YouTube Music loading pauses. Both are controlled through Experiments.
+**Reroll next track** is always available beside the next track in the timeline and air editor, and replaces it without interrupting the current one. **Host covers loading gaps** can fill YouTube Music loading pauses and is controlled through Experiments.
 
 News text is prepared 15 minutes before a section and speech five minutes before it. During a pause, new preparation stops while existing material is retained. If preparation runs late, music continues. Next keeps the browser stream open; manual transitions take 100 ms and automatic transitions retain configured timing.
 

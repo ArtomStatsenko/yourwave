@@ -35,6 +35,27 @@ class DirectionTests(unittest.TestCase):
         content_clock.start()
         self.addCleanup(content_clock.stop)
 
+    def test_paused_plan_times_stay_fixed_until_resume(self):
+        self.svc.state='PAUSED';self.svc.paused_at=self.AT.timestamp()
+        self.svc.current={'kind':'music','ref':'current','started':self.AT.timestamp()-20,'duration':120}
+        before=self.svc._broadcast_plan()
+        self.clock.return_value=self.AT+timedelta(hours=4)
+        later=self.svc._broadcast_plan()
+        self.assertEqual([(r['id'],r['at']) for r in before['rows']],[(r['id'],r['at']) for r in later['rows']])
+        self.assertEqual(self.svc.status()['paused_at'],self.AT.timestamp())
+        self.svc.state='PLAYING'
+        self.assertNotEqual([r['at'] for r in later['rows']],[r['at'] for r in self.svc._broadcast_plan()['rows']])
+
+    def test_paused_status_gets_next_from_actual_plan_when_peek_is_empty(self):
+        self.svc.state='PAUSED';self.svc.paused_at=self.AT.timestamp()
+        self.svc.current={'kind':'music','ref':'current','started':self.AT.timestamp()-20,'duration':120}
+        self.svc.engine=Mock(proc=Mock(returncode=None),next_music=AsyncMock(return_value=None),
+                             music_plan=AsyncMock(return_value=[{'kind':'music','ref':'next','duration':180}]))
+        with patch.object(self.svc,'_forget_dropped_fresh',new=AsyncMock()),patch.object(self.svc,'_forget_dropped_replays',new=AsyncMock()):
+            result=asyncio.run(self.svc.dispatch('status'))['status']
+        self.assertEqual(next(r['ref'] for r in result['upcoming'] if r['kind']=='music'),'next')
+        self.assertEqual(result['next_reroll']['ref'],'next')
+
     def add_news(self, name, part_text='Текст новости.'):
         content.add_item(self.svc.db, self.cfg, {'id': name, 'topic': name, 'source': 'inbox', 'url': '',
                          'body': part_text, 'published_at': self.AT}, 'test')
@@ -1004,6 +1025,7 @@ class DirectionTests(unittest.TestCase):
         self.svc.db.execute("UPDATE packages SET status='QUEUED' WHERE id=?", (pid,))
         self.svc.replays['repeat'] = {'kind': 'music', 'ref': '/tmp/Artist - Repeat.mp3', 'rid': '42'}
         self.svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value='/tmp/Artist - Next.mp3'),
+                               music_plan=AsyncMock(return_value=None),
                                upcoming_music=AsyncMock(return_value=['/tmp/Artist - Next.mp3', '/tmp/Artist - Later.mp3']),
                                pending=AsyncMock(return_value=['42']))  # the replay is still queued
         status = asyncio.run(self.svc.dispatch('status'))['status']

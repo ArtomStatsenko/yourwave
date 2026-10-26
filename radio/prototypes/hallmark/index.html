@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en" data-variant="A">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#17151d"><meta name="description" content="Three dark Yourwave design prototypes with sample broadcast data."><title>Yourwave / Hallmark prototypes</title>
+<style>:root{--boot-bg:#17151d;--boot-ink:#c7c2cd}html,body{background:var(--boot-bg);color:var(--boot-ink);color-scheme:dark}</style>
+<script>document.documentElement.dataset.variant=['A','B','C'].includes(new URLSearchParams(location.search).get('variant'))?new URLSearchParams(location.search).get('variant'):'A';</script>
+<link rel="stylesheet" href="preview.css"></head><body>
+<p class="preview-note">Design prototype / sample broadcast / controls do not change your station</p>
+<div class="variant shell" data-variant-panel="A" >
+ <header class="app-header"><a class="brand" href="?variant=A" aria-label="Yourwave Ultraviolet preview"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 18v-4m6 10V8m7 20V4m7 20V8m6 10v-4"/></svg>yourwave</a><nav class="nav" aria-label="Radio screens"><button type="button" data-nav="timeline" aria-pressed="true">Timeline</button><button type="button" data-nav="settings" aria-pressed="false">Settings</button><button type="button" data-nav="integrations" aria-pressed="false">Integrations</button><button type="button" data-nav="experiments" aria-pressed="false">Experiments</button></nav></header>
+ <main class="workspace"><section class="player" aria-label="Sample player">
+ <div class="player-top"><h2>Now playing</h2><span class="source">Local library</span></div>
+ <div class="track-info"><h2 class="track-title" data-track-title>Everything In Its Right Place</h2><p class="artist" data-track-artist>Radiohead</p></div>
+ <div class="track-credit"><span data-track-album>Kid A</span><span data-track-year>2000</span></div>
+ <div class="progress-block"><div class="progress" aria-hidden="true"><span></span></div><div class="progress-times"><span>1:36</span><span>4:11</span></div></div>
+ <div class="transport"><button class="primary" type="button" data-listen aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 10 7-10 7Z"/></svg><span>Listen</span></button><button class="icon" type="button" data-next aria-label="Preview next sample track"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 5 10 7-10 7Z M19 5v14"/></svg></button></div>
+ <label class="volume" for="volume-A"><span>Volume</span><input type="range" id="volume-A" name="volume-A" min="0" max="100" value="65" data-volume><output>65%</output></label>
+ <details class="station-details"><summary>Playback details</summary><dl><div><dt>Source</dt><dd>Local library</dd></div><div><dt>Requested source</dt><dd>Local library</dd></div><div><dt>Device playback</dt><dd>Preview only</dd></div></dl></details>
+ </section><div class="desk"><section data-screen="timeline">
+ <div class="section-head"><h1>Timeline</h1><button class="edit" type="button" data-edit aria-pressed="false">Edit program</button></div>
+ <p class="schedule-hint" data-schedule-hint>Next above, recent broadcasts below.</p>
+ <div class="future" data-future hidden><div class="future-heading"><span>22:00</span><span>Later</span></div>
+ <div class="timeline-row future-row" ><time>22:00</time><div><span class="item-title">Host edition</span><span class="item-sub">Weather / Da Lat</span></div><span class="duration"></span></div>
+ <div class="future-heading"><span>21:00</span><span>Sample program</span></div>
+ <div class="timeline-row"><time>21:30</time><div><span class="item-title">Host edition</span><span class="item-sub">Technology / GitHub</span></div><button class="icon" data-move type="button" aria-label="Preview changing edition time">+15</button></div>
+ <button class="insert" data-insert type="button">Insert a block at 21:15</button></div>
+ <div class="timeline">
+ <div class="timeline-row next" data-up-next><time>next</time><div><span class="item-title">A Walk</span><span class="item-sub">Tycho</span></div><span class="duration">5:16</span></div>
+ <div class="timeline-row now"><time>now</time><div><span class="item-title" data-track-title>Everything In Its Right Place</span><span class="item-sub" data-track-artist>Radiohead</span></div><span class="duration">4:11</span></div>
+ <div class="timeline-row history"><time>20:58</time><details class="edition"><summary><span class="item-title">Host edition</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary><div class="edition-body"><p>Technology: sample news segment.</p><p>Weather: sample forecast segment.</p><p>Prepared text and voice would appear here.</p></div></details><span class="duration">1:24</span></div>
+ <div class="timeline-row history" ><time>20:53</time><div><span class="item-title">Two Thousand and Seventeen</span><span class="item-sub">Four Tet</span></div><span class="duration">4:12</span></div>
+ <div class="timeline-row history" ><time>20:49</time><div><span class="item-title">Kerala</span><span class="item-sub">Bonobo</span></div><span class="duration">3:57</span></div>
+ <div class="timeline-row history" ><time>20:45</time><div><span class="item-title">Open Eye Signal</span><span class="item-sub">Jon Hopkins</span></div><span class="duration">7:51</span></div>
+ <div class="timeline-row history" ><time>20:38</time><div><span class="item-title">Awake</span><span class="item-sub">Tycho</span></div><span class="duration">4:44</span></div>
+ <div class="timeline-row history" data-earlier hidden><time>20:34</time><div><span class="item-title">Dayvan Cowboy</span><span class="item-sub">Boards of Canada</span></div><span class="duration">5:00</span></div>
+ </div><button class="history-more" data-more type="button">Show earlier</button>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p>
+ </section><section class="screen-panel" data-screen="settings" hidden><div class="section-head"><h1>Settings</h1></div><p>Try the controls. Changes stay in this preview.</p>
+ <div class="setting-row"><label for="source-A">Music source<p>Switch at the next track boundary.</p></label><select id="source-A" name="source-A"><option>Local library</option><option>YouTube Music</option></select></div>
+ <div class="setting-row"><label for="detail-A">News detail<p>For newly prepared stories.</p></label><select id="detail-A" name="detail-A"><option>Brief</option><option selected>Standard</option><option>Discussion</option></select></div>
+ <div class="setting-row"><label for="audio-A">Audio preset</label><select id="audio-A" name="audio-A"><option>Local preset</option><option>Base preset</option></select></div>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p></section>
+ <section class="screen-panel" data-screen="integrations" hidden><div class="section-head"><h1>Integrations</h1></div><p>Sample availability. Account connections are not read.</p>
+ <div class="setting-row"><div>Weather<p>Short forecasts from Open-Meteo.</p></div><button class="switch" type="button" data-toggle aria-label="Weather integration" aria-pressed="true">On</button></div>
+ <div class="setting-row"><div>Calendar<p>Upcoming events and reminders.</p></div><button class="switch" type="button" data-toggle aria-label="Calendar integration" aria-pressed="false">Off</button></div>
+ <div class="setting-row"><div>Todoist<p>Task reminders in the broadcast.</p></div><button class="switch" type="button" data-toggle aria-label="Todoist integration" aria-pressed="false">Off</button></div>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p></section>
+ <section class="screen-panel" data-screen="experiments" hidden><div class="section-head"><h1>Experiments</h1></div><div class="empty-state"><h2>No experiments in this preview</h2><p class="muted">This tab stays available when the list is empty.</p></div></section></div></main>
+ <footer class="colophon"><span data-preview-feedback>Sample broadcast. No audio is connected.</span><span>Ultraviolet / dark</span></footer></div><div class="variant shell" data-variant-panel="B" hidden>
+ <header class="app-header"><a class="brand" href="?variant=B" aria-label="Yourwave Darkroom preview"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 18v-4m6 10V8m7 20V4m7 20V8m6 10v-4"/></svg>yourwave</a><nav class="nav" aria-label="Radio screens"><button type="button" data-nav="timeline" aria-pressed="true">Timeline</button><button type="button" data-nav="settings" aria-pressed="false">Settings</button><button type="button" data-nav="integrations" aria-pressed="false">Integrations</button><button type="button" data-nav="experiments" aria-pressed="false">Experiments</button></nav></header>
+ <main class="workspace"><section class="player" aria-label="Sample player">
+ <div class="player-top"><h2>Now playing</h2><span class="source">Local library</span></div>
+ <div class="track-info"><h2 class="track-title" data-track-title>Everything In Its Right Place</h2><p class="artist" data-track-artist>Radiohead</p></div>
+ <div class="track-credit"><span data-track-album>Kid A</span><span data-track-year>2000</span></div>
+ <div class="progress-block"><div class="progress" aria-hidden="true"><span></span></div><div class="progress-times"><span>1:36</span><span>4:11</span></div></div>
+ <div class="transport"><button class="primary" type="button" data-listen aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 10 7-10 7Z"/></svg><span>Listen</span></button><button class="icon" type="button" data-next aria-label="Preview next sample track"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 5 10 7-10 7Z M19 5v14"/></svg></button></div>
+ <label class="volume" for="volume-B"><span>Volume</span><input type="range" id="volume-B" name="volume-B" min="0" max="100" value="65" data-volume><output>65%</output></label>
+ <details class="station-details"><summary>Playback details</summary><dl><div><dt>Source</dt><dd>Local library</dd></div><div><dt>Requested source</dt><dd>Local library</dd></div><div><dt>Device playback</dt><dd>Preview only</dd></div></dl></details>
+ </section><div class="desk"><section data-screen="timeline">
+ <div class="section-head"><h1>Timeline</h1><button class="edit" type="button" data-edit aria-pressed="false">Edit program</button></div>
+ <p class="schedule-hint" data-schedule-hint>Next above, recent broadcasts below.</p>
+ <div class="future" data-future hidden><div class="future-heading"><span>22:00</span><span>Later</span></div>
+ <div class="timeline-row future-row" ><time>22:00</time><div><span class="item-title">Host edition</span><span class="item-sub">Weather / Da Lat</span></div><span class="duration"></span></div>
+ <div class="future-heading"><span>21:00</span><span>Sample program</span></div>
+ <div class="timeline-row"><time>21:30</time><div><span class="item-title">Host edition</span><span class="item-sub">Technology / GitHub</span></div><button class="icon" data-move type="button" aria-label="Preview changing edition time">+15</button></div>
+ <button class="insert" data-insert type="button">Insert a block at 21:15</button></div>
+ <div class="timeline">
+ <div class="timeline-row next" data-up-next><time>next</time><div><span class="item-title">A Walk</span><span class="item-sub">Tycho</span></div><span class="duration">5:16</span></div>
+ <div class="timeline-row now"><time>now</time><div><span class="item-title" data-track-title>Everything In Its Right Place</span><span class="item-sub" data-track-artist>Radiohead</span></div><span class="duration">4:11</span></div>
+ <div class="timeline-row history"><time>20:58</time><details class="edition"><summary><span class="item-title">Host edition</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary><div class="edition-body"><p>Technology: sample news segment.</p><p>Weather: sample forecast segment.</p><p>Prepared text and voice would appear here.</p></div></details><span class="duration">1:24</span></div>
+ <div class="timeline-row history" ><time>20:53</time><div><span class="item-title">Two Thousand and Seventeen</span><span class="item-sub">Four Tet</span></div><span class="duration">4:12</span></div>
+ <div class="timeline-row history" ><time>20:49</time><div><span class="item-title">Kerala</span><span class="item-sub">Bonobo</span></div><span class="duration">3:57</span></div>
+ <div class="timeline-row history" ><time>20:45</time><div><span class="item-title">Open Eye Signal</span><span class="item-sub">Jon Hopkins</span></div><span class="duration">7:51</span></div>
+ <div class="timeline-row history" ><time>20:38</time><div><span class="item-title">Awake</span><span class="item-sub">Tycho</span></div><span class="duration">4:44</span></div>
+ <div class="timeline-row history" data-earlier hidden><time>20:34</time><div><span class="item-title">Dayvan Cowboy</span><span class="item-sub">Boards of Canada</span></div><span class="duration">5:00</span></div>
+ </div><button class="history-more" data-more type="button">Show earlier</button>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p>
+ </section><section class="screen-panel" data-screen="settings" hidden><div class="section-head"><h1>Settings</h1></div><p>Try the controls. Changes stay in this preview.</p>
+ <div class="setting-row"><label for="source-B">Music source<p>Switch at the next track boundary.</p></label><select id="source-B" name="source-B"><option>Local library</option><option>YouTube Music</option></select></div>
+ <div class="setting-row"><label for="detail-B">News detail<p>For newly prepared stories.</p></label><select id="detail-B" name="detail-B"><option>Brief</option><option selected>Standard</option><option>Discussion</option></select></div>
+ <div class="setting-row"><label for="audio-B">Audio preset</label><select id="audio-B" name="audio-B"><option>Local preset</option><option>Base preset</option></select></div>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p></section>
+ <section class="screen-panel" data-screen="integrations" hidden><div class="section-head"><h1>Integrations</h1></div><p>Sample availability. Account connections are not read.</p>
+ <div class="setting-row"><div>Weather<p>Short forecasts from Open-Meteo.</p></div><button class="switch" type="button" data-toggle aria-label="Weather integration" aria-pressed="true">On</button></div>
+ <div class="setting-row"><div>Calendar<p>Upcoming events and reminders.</p></div><button class="switch" type="button" data-toggle aria-label="Calendar integration" aria-pressed="false">Off</button></div>
+ <div class="setting-row"><div>Todoist<p>Task reminders in the broadcast.</p></div><button class="switch" type="button" data-toggle aria-label="Todoist integration" aria-pressed="false">Off</button></div>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p></section>
+ <section class="screen-panel" data-screen="experiments" hidden><div class="section-head"><h1>Experiments</h1></div><div class="empty-state"><h2>No experiments in this preview</h2><p class="muted">This tab stays available when the list is empty.</p></div></section></div></main>
+ <footer class="colophon"><span data-preview-feedback>Sample broadcast. No audio is connected.</span><span>Darkroom / dark</span></footer></div><div class="variant shell" data-variant-panel="C" hidden>
+ <header class="app-header"><a class="brand" href="?variant=C" aria-label="Yourwave Ribbon preview"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 18v-4m6 10V8m7 20V4m7 20V8m6 10v-4"/></svg>yourwave</a><nav class="nav" aria-label="Radio screens"><button type="button" data-nav="timeline" aria-pressed="true">Timeline</button><button type="button" data-nav="settings" aria-pressed="false">Settings</button><button type="button" data-nav="integrations" aria-pressed="false">Integrations</button><button type="button" data-nav="experiments" aria-pressed="false">Experiments</button></nav></header>
+ <main class="workspace"><section class="player" aria-label="Sample player">
+ <div class="player-top"><h2>Now playing</h2><span class="source">Local library</span></div>
+ <div class="track-info"><h2 class="track-title" data-track-title>Everything In Its Right Place</h2><p class="artist" data-track-artist>Radiohead</p></div>
+ <div class="track-credit"><span data-track-album>Kid A</span><span data-track-year>2000</span></div>
+ <div class="progress-block"><div class="progress" aria-hidden="true"><span></span></div><div class="progress-times"><span>1:36</span><span>4:11</span></div></div>
+ <div class="transport"><button class="primary" type="button" data-listen aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 10 7-10 7Z"/></svg><span>Listen</span></button><button class="icon" type="button" data-next aria-label="Preview next sample track"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 5 10 7-10 7Z M19 5v14"/></svg></button></div>
+ <label class="volume" for="volume-C"><span>Volume</span><input type="range" id="volume-C" name="volume-C" min="0" max="100" value="65" data-volume><output>65%</output></label>
+ <details class="station-details"><summary>Playback details</summary><dl><div><dt>Source</dt><dd>Local library</dd></div><div><dt>Requested source</dt><dd>Local library</dd></div><div><dt>Device playback</dt><dd>Preview only</dd></div></dl></details>
+ </section><div class="desk"><section data-screen="timeline">
+ <div class="section-head"><h1>Timeline</h1><button class="edit" type="button" data-edit aria-pressed="false">Edit program</button></div>
+ <p class="schedule-hint" data-schedule-hint>Next above, recent broadcasts below.</p>
+ <div class="future" data-future hidden><div class="future-heading"><span>22:00</span><span>Later</span></div>
+ <div class="timeline-row future-row" ><time>22:00</time><div><span class="item-title">Host edition</span><span class="item-sub">Weather / Da Lat</span></div><span class="duration"></span></div>
+ <div class="future-heading"><span>21:00</span><span>Sample program</span></div>
+ <div class="timeline-row"><time>21:30</time><div><span class="item-title">Host edition</span><span class="item-sub">Technology / GitHub</span></div><button class="icon" data-move type="button" aria-label="Preview changing edition time">+15</button></div>
+ <button class="insert" data-insert type="button">Insert a block at 21:15</button></div>
+ <div class="timeline">
+ <div class="timeline-row next" data-up-next><time>next</time><div><span class="item-title">A Walk</span><span class="item-sub">Tycho</span></div><span class="duration">5:16</span></div>
+ <div class="timeline-row now"><time>now</time><div><span class="item-title" data-track-title>Everything In Its Right Place</span><span class="item-sub" data-track-artist>Radiohead</span></div><span class="duration">4:11</span></div>
+ <div class="timeline-row history"><time>20:58</time><details class="edition"><summary><span class="item-title">Host edition</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary><div class="edition-body"><p>Technology: sample news segment.</p><p>Weather: sample forecast segment.</p><p>Prepared text and voice would appear here.</p></div></details><span class="duration">1:24</span></div>
+ <div class="timeline-row history" ><time>20:53</time><div><span class="item-title">Two Thousand and Seventeen</span><span class="item-sub">Four Tet</span></div><span class="duration">4:12</span></div>
+ <div class="timeline-row history" ><time>20:49</time><div><span class="item-title">Kerala</span><span class="item-sub">Bonobo</span></div><span class="duration">3:57</span></div>
+ <div class="timeline-row history" ><time>20:45</time><div><span class="item-title">Open Eye Signal</span><span class="item-sub">Jon Hopkins</span></div><span class="duration">7:51</span></div>
+ <div class="timeline-row history" ><time>20:38</time><div><span class="item-title">Awake</span><span class="item-sub">Tycho</span></div><span class="duration">4:44</span></div>
+ <div class="timeline-row history" data-earlier hidden><time>20:34</time><div><span class="item-title">Dayvan Cowboy</span><span class="item-sub">Boards of Canada</span></div><span class="duration">5:00</span></div>
+ </div><button class="history-more" data-more type="button">Show earlier</button>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p>
+ </section><section class="screen-panel" data-screen="settings" hidden><div class="section-head"><h1>Settings</h1></div><p>Try the controls. Changes stay in this preview.</p>
+ <div class="setting-row"><label for="source-C">Music source<p>Switch at the next track boundary.</p></label><select id="source-C" name="source-C"><option>Local library</option><option>YouTube Music</option></select></div>
+ <div class="setting-row"><label for="detail-C">News detail<p>For newly prepared stories.</p></label><select id="detail-C" name="detail-C"><option>Brief</option><option selected>Standard</option><option>Discussion</option></select></div>
+ <div class="setting-row"><label for="audio-C">Audio preset</label><select id="audio-C" name="audio-C"><option>Local preset</option><option>Base preset</option></select></div>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p></section>
+ <section class="screen-panel" data-screen="integrations" hidden><div class="section-head"><h1>Integrations</h1></div><p>Sample availability. Account connections are not read.</p>
+ <div class="setting-row"><div>Weather<p>Short forecasts from Open-Meteo.</p></div><button class="switch" type="button" data-toggle aria-label="Weather integration" aria-pressed="true">On</button></div>
+ <div class="setting-row"><div>Calendar<p>Upcoming events and reminders.</p></div><button class="switch" type="button" data-toggle aria-label="Calendar integration" aria-pressed="false">Off</button></div>
+ <div class="setting-row"><div>Todoist<p>Task reminders in the broadcast.</p></div><button class="switch" type="button" data-toggle aria-label="Todoist integration" aria-pressed="false">Off</button></div>
+ <p class="screen-feedback" data-screen-feedback aria-live="polite"></p></section>
+ <section class="screen-panel" data-screen="experiments" hidden><div class="section-head"><h1>Experiments</h1></div><div class="empty-state"><h2>No experiments in this preview</h2><p class="muted">This tab stays available when the list is empty.</p></div></section></div></main>
+ <footer class="colophon"><span data-preview-feedback>Sample broadcast. No audio is connected.</span><span>Ribbon / dark</span></footer></div>
+<aside class="prototype-switcher" aria-label="Выбор варианта дизайна">
+<button type="button" data-cycle="-1" aria-label="Предыдущий вариант"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button>
+<div class="switcher-copy" aria-live="polite"><span id="variant-name">A / Ultraviolet</span><small id="variant-description">Плеер слева, эфир справа</small></div>
+<button type="button" data-cycle="1" aria-label="Следующий вариант"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5 7 7-7 7"/></svg></button>
+<div class="variant-picks"><button type="button" data-pick="A" aria-pressed="true">A</button><button type="button" data-pick="B" aria-pressed="false">B</button><button type="button" data-pick="C" aria-pressed="false">C</button></div>
+</aside>
+<noscript><p class="preview-note">Enable JavaScript to compare all three variants. Variant A is shown above.</p></noscript>
+<script src="preview.js"></script></body></html>

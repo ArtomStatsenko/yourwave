@@ -63,6 +63,8 @@ Every news source passes a shared Russian editorial policy before its material c
 
 ## Brand Commitments
 
+Interaction conventions, including inline Confirm · Cancel, are recorded in [DESIGN.md](DESIGN.md).
+
 Keep the Yourwave identity and the existing compact interface. The host speaks Russian; timeline block labels and configuration UI use the established English vocabulary. Russian source descriptions are valid. Do not rewrite original user content merely to normalize the interface.
 
 Repository presentation follows the [terminal/ASCII style guide](docs/style.md): compact radio-scale art, plain Markdown, monospace labels, and real interface screenshots. Keep new public-facing copy in English; avoid decorative raster covers, badge walls, and animated banners.

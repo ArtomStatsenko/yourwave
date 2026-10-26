@@ -6,5 +6,20 @@
       "maxChars": 8000
     }
   },
-  "buildPath": "comp"
+  "buildPath": "comp",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "instrument sans",
+        "files": [
+          "radio/prototypes/hallmark/preview.css"
+        ],
+        "createdAt": "2026-10-25T14:49:04.112Z",
+        "reason": "Agent: intentional Hallmark theme comparison prototype; Instrument Sans is the Ribbon theme face, isolated from production UI."
+      }
+    ]
+  }
 }

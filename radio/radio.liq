@@ -60,7 +60,7 @@ def replace_music(get_queue, set_queue, arg) =
         # playlist.set_queue destroys old requests; resolve copies before clearing so prefetch cannot jump ahead.
         # shortcut: reroll downloads prefetched remote tracks again; reuse their files if this becomes too slow.
         prepared = list.map(fun (r) -> if request.id(r) == request.id(old) then replacement
-          elsif params.rid < 0 then request.create(request.uri(r)) else r end, q)
+          elsif params.rid < 0 then request.create("annotate:plan_clone=\"1\":#{request.uri(r)}") else r end, q)
         resolved = if params.rid < 0 then list.for_all(fun (r) -> request.resolve(timeout=25., r), prepared) else true end
         unchanged = list.map(request.id, q) == list.map(request.id, get_queue())
         if not resolved or not unchanged then
@@ -100,19 +100,70 @@ def queued_music_ref(playlist_source) =
   end
 end
 
-# randomize = new Fisher-Yates permutation on every start and on every loop of the library.
-music = playlist(id="music", prefetch=(if yt_count > 0 then 3 else 1 end), mode="randomize", reload_mode="never", environment.get("RADIO_M3U"))
+# Reorder only the unrequested files; keep currently playing and prefetched requests intact.
+shuffle_enabled = ref(environment.get(default="1", "RADIO_SHUFFLE") == "1")
+def controlled_playlist(~id, ~prefetch=1, uri) =
+  def load(uri) = list.map(fun (item) -> "annotate:plan_queue=\"#{id}\":#{item}", playlist.files(uri)) end
+  files = ref(load(uri))
+  def ordered(p) = if shuffle_enabled() then list.shuffle(p) else p end end
+  loop_reload = ref(fun () -> ())
+  loaded = ref(false)
+  s = playlist.list(id=id, prefetch=prefetch, mode="normal",
+    on_loop=fun () -> begin f = loop_reload(); f() end, [])
+  s.on_wake_up(synchronous=false, memoize(fun () -> begin
+    s.reload(ordered(files()))
+    loaded := true
+  end))
+  loop_reload := {if loaded() then s.reload(empty_queue=false, ordered(files())) end}
+  def reorder() =
+    remaining = s.remaining_files()
+    pending = if shuffle_enabled() then list.shuffle(remaining) else
+      list.filter(fun (f) -> list.mem(f, remaining), files())
+    end
+    s.reload(empty_queue=false, pending)
+  end
+  def reserve() =
+    q = s.queue()
+    remaining = s.remaining_files()
+    if loaded() and list.length(q) < 2 and not list.is_empty(remaining) then
+      r = request.create(list.hd(remaining))
+      if not string.contains(substring="ytmusic:", request.uri(r)) and request.resolve(timeout=3., r) and
+         list.map(request.id, q) == list.map(request.id, s.queue()) and remaining == s.remaining_files() then
+        if s.add(r) then s.reload(empty_queue=false, list.tl(remaining)) else request.destroy(r) end
+      else request.destroy(r) end
+    end
+  end
+  server.register("#{id}.reload", fun (arg) -> begin
+    files := load(if string.trim(arg) == "" then uri else string.trim(arg) end)
+    s.reload(ordered(files()))
+    "OK"
+  end)
+  s.{reorder=reorder,reserve=reserve}
+end
+music = controlled_playlist(id="music", prefetch=(if yt_count > 0 then 3 else 1 end), environment.get("RADIO_M3U"))
+local_reorder = ref(fun () -> ())
+server.register("music.shuffle", fun (arg) -> begin
+  if arg == "1" or arg == "0" then
+    shuffle_enabled := arg == "1"
+    music.reorder()
+    f = local_reorder(); f()
+    "OK"
+  else "ERROR" end
+end)
 server.register("music.replace", fun (arg) -> replace_music(music.queue, music.set_queue, arg))
 primary_music = music
+active_playlist = ref(fun () -> primary_music)
 local_playlist = environment.get(default="", "RADIO_FALLBACK_M3U")
 music = if local_playlist != "" then
-  local_music = playlist(id="local_music", mode="randomize", local_playlist)
+  local_music = controlled_playlist(id="local_music", local_playlist)
+  local_reorder := local_music.reorder
   server.register("local_music.replace", fun (arg) -> replace_music(local_music.queue, local_music.set_queue, arg))
   selected = ref(environment.get(default="ytmusic", "RADIO_MUSIC_SOURCE"))
   server.register("music.source", fun (arg) -> begin
     if arg == "local" or arg == "ytmusic" then selected := arg; "OK" else "ERROR" end
   end)
   def selected_music() = if selected() == "local" or yt_offline() then local_music else primary_music end end
+  active_playlist := selected_music
   server.register("music.source_ready", fun (_) -> begin
     ready = if selected() == "local" then local_music.is_ready() else primary_music.is_ready() end
     "#{ready}"
@@ -132,6 +183,88 @@ news = request.queue(id="news")
 # Unplayed songs of the active music source take priority over shuffle. News and manual replays still come
 # first at a song boundary; this queue does not depend on a news break.
 fresh = request.queue(id="fresh")
+previews_enabled = ref(false)
+cancelled_previews = ref([])
+aired_requests = ref([])
+def future_requests(s) =
+  current = s.current()
+  # Resolving requests are temporarily outside the source queue, but retain their original queue tag.
+  resolving = list.filter(fun (r) -> request.status(r) == "resolving" and
+    not string.contains(substring="plan_clone=\"1\"", request.uri(r)) and
+    string.contains(substring="plan_queue=\"#{s.id()}\"", request.uri(r)), request.all())
+  q = list.append(resolving, s.queue())
+  if null.defined(current) then
+    r = null.get(current)
+    m = request.metadata(r)
+    if not list.mem(request.id(r),aired_requests()) and list.mem(request.status(r), ["ready", "playing"]) then [r, ...q] else q end
+  else q end
+end
+server.register("music.plan", fun (_) -> begin
+  get = active_playlist()
+  source = get()
+  def rows(s, is_set) =
+    list.map(fun (r) -> begin
+      m = request.metadata(r)
+      {ref=m["ref"], uri=request.uri(r), kind=m["kind"], set=is_set,
+       duration=float_of_string(default=0., m["duration"])}
+    end, future_requests(s))
+  end
+  tail = list.map(fun (uri) -> {ref="", uri=uri, kind="music", set=false, duration=0.}, source.remaining_files())
+  json.stringify(compact=true, list.append(rows(news,false),
+    list.append(rows(fresh,true),list.append(rows(source,false),tail))))
+end)
+def preview_requests() =
+  get = active_playlist()
+  list.prefix(2, list.append(future_requests(fresh), future_requests(get())))
+end
+def preview_refs() =
+  q = preview_requests()
+  if list.length(q) != 2 or not list.for_all(fun (r) -> list.mem(request.status(r), ["ready", "playing"]) and file.exists(request.filename(r)), q) then [] else
+    list.map(fun (r) -> begin m = request.metadata(r); m["ref"] end, q)
+  end
+end
+def preview_files() =
+  if list.length(preview_refs()) != 2 then [] else
+    list.map(fun (r) -> begin
+      m = request.metadata(r)
+      path = request.filename(r)
+      {ref=m["ref"], path=path, modified=int_of_float(file.mtime(path) * 1000000.), size=file.size(path)}
+    end, preview_requests())
+  end
+end
+def preview_snapshot() = json.stringify(compact=true, preview_files()) end
+server.register("previews.enable", fun (arg) -> begin previews_enabled := arg == "1"; "OK" end)
+server.register("previews.cancel", fun (arg) -> begin
+  cancelled_previews := [arg, ...list.prefix(31, cancelled_previews())]
+  list.iter(fun (r) -> begin
+    m = request.metadata(r)
+    if m["kind"] == "teaser" and m["ref"] == arg then news.remove_request_id(request.id(r)) end
+  end, news.queue())
+  current = news.current()
+  if null.defined(current) then
+    m = request.metadata(null.get(current))
+    if m["kind"] == "teaser" and m["ref"] == arg then news.skip() end
+  end
+  "OK"
+end)
+server.register("previews.next", fun (_) -> preview_snapshot())
+server.register("previews.prepare", fun (_) -> begin
+  list.iter(fun (r) -> begin
+    if request.status(r) == "idle" and not string.contains(substring="ytmusic:", request.uri(r)) then ignore(request.resolve(timeout=3., r)) end
+  end, list.prefix(2, fresh.queue()))
+  if list.length(fresh.queue()) < 2 then get = active_playlist(); get().reserve() end
+  preview_snapshot()
+end)
+server.register("previews.push", fun (arg) -> begin
+  let json.parse (p : {refs: [string], files: [{ref:string,path:string,modified:int,size:int}], uri: string}) = arg
+  if previews_enabled() and p.refs == preview_refs() and p.files == preview_files() and list.length(p.refs) == 2 and list.is_empty(news.queue()) then
+    r = request.create(p.uri)
+    resolved = request.resolve(timeout=3., r)
+    m = request.metadata(r)
+    if resolved and p.refs == preview_refs() and p.files == preview_files() and not list.mem(m["ref"], cancelled_previews()) then news.push(r); "#{request.id(r)}"
+    else request.destroy(r); "STALE" end
+  else "STALE" end
+end)
 server.register("news.replace", fun (arg) -> begin
   result = replace_music(news.queue, news.set_queue, arg)
   news.fetch()
@@ -158,6 +291,8 @@ server.register("fresh.pending", fun (_) -> pending_requests(fresh))
 # Events go to a file the daemon tails: stdout is block-buffered when piped.
 events_path = environment.get("RADIO_EVENTS")
 def emit_track(m) =
+  rid = int_of_string(default=-1,m["rid"])
+  if rid >= 0 then aired_requests := [rid, ...list.prefix(127,aired_requests())] end
   file.write(append=true, data=json.stringify(compact=true, {kind=m["kind"], ref=m["ref"], filename=m["filename"], replay_id=m["replay_id"]}) ^ "\n", events_path)
 end
 
@@ -170,7 +305,12 @@ def news_eligible() =
   if list.is_empty(q) then false else
     m = request.metadata(list.hd(q))
     until = float_of_string(default=0., m["air_until"])
-    until == 0. or time() < until
+    valid = if m["kind"] == "teaser" then
+      let json.parse (expected : [string]) = m["preview_refs"]
+      let json.parse (files : [{ref:string,path:string,modified:int,size:int}]) = m["preview_files"]
+      previews_enabled() and not list.mem(m["ref"], cancelled_previews()) and expected == preview_refs() and files == preview_files()
+    else true end
+    valid and (until == 0. or time() < until)
   end
 end
 eligible_news = switch(track_sensitive=true, [({news_eligible()}, news)])

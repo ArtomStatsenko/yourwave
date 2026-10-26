@@ -115,7 +115,6 @@ class MusicSourceTests(unittest.TestCase):
         self.assertIn('No local music', self.svc.music_source_error)
 
     def test_status_forgets_unavailable_priority_tracks_before_showing_next(self):
-        plugins.set_plugin('reroll_next', True)
         dropped, ready = 'ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb'
         self.svc.ytmusic_active = True
         self.svc.current['ref'] = 'ytmusic:ccccccccccc'
@@ -148,7 +147,6 @@ class MusicSourceTests(unittest.TestCase):
         asyncio.run(scenario())
 
     def test_status_clears_stale_next_when_playlist_is_not_ready(self):
-        plugins.set_plugin('reroll_next', True)
         self.svc.next_track = '/old-next.wav'
         self.svc.engine.proc = Mock(returncode=None)
         self.svc.engine.next_music.return_value = None

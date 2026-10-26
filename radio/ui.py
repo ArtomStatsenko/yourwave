@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import chatgpt, config, editor, openrouter, plugins, public_news, reddit, settings, telegram, tts, ytmusic
 from .timeline import timeline
+from . import hooks, store
 
 PAGE = Path(__file__).with_name("ui.html")
 CALLBACK = Path(__file__).with_name("callback.html")  # the page the browser lands on after OpenRouter sign-in
@@ -174,14 +175,40 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 self.wfile.write(body)
             elif self.path.split("?")[0] == "/stream":
                 self._stream()
+            elif self.path.split('?')[0] == '/hook-preview.wav':
+                if not self._authorized():
+                    return self._json({'error':'forbidden'},403)
+                db = store.connect()
+                try:
+                    query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                    row = db.execute('SELECT * FROM track_hooks WHERE id=?', (int(query.get('id',['0'])[0]),)).fetchone()
+                    path = Path(row['clip']).resolve() if row and row['clip'] else None
+                    if not path or not path.is_relative_to((config.DATA_DIR / 'cache/hooks').resolve()) or hooks.signature(row['source_path']) != row['source_sig']:
+                        return self._json({'error':'unavailable'},404)
+                    body = path.read_bytes()
+                except (OSError,ValueError):
+                    return self._json({'error':'unavailable'},404)
+                finally:
+                    db.close()
+                self.send_response(200)
+                self.send_header('Content-Type','audio/wav')
+                self.send_header('Content-Length',str(len(body)))
+                self.send_header('Cache-Control','no-store')
+                self.end_headers()
+                self.wfile.write(body)
             elif self.path == "/api/status":
                 if not self._authorized():
                     return self._json({"error": "forbidden"}, 403)
                 resp = send("status", timeout=3)
                 status = resp["status"] if resp and resp.get("ok") else {"state": "STOPPED"}
+                db = store.connect()
+                try:
+                    hook_status = hooks.listing(db) if plugins.on(cfg,'track_previews') else None
+                finally:
+                    db.close()
                 self._json({"status": status, "timeline": timeline(), "plugins": plugins.listing(cfg),
                             "settings": settings.listing(cfg), "ytmusic": ytmusic.status(),
-                            "audio_preset": config.audio_presets(), "music_source_choice": settings.music_source(cfg)})
+                            "audio_preset": config.audio_presets(), "music_source_choice": settings.music_source(cfg), 'hooks':hook_status})
             else:
                 self._json({"error": "not found"}, 404)
 
@@ -306,6 +333,17 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 except ValueError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
                 resp = {"ok": True, "settings": settings.listing(cfg)}
+            elif cmd == 'hook_review':
+                db = store.connect()
+                try:
+                    if type(body.get('approved')) is not bool:
+                        raise ValueError('Choose approve or reject')
+                    hooks.review(db,body.get('id'),body['approved'])
+                    resp = {'ok':True,'hooks':hooks.listing(db)}
+                except (OSError,ValueError,TypeError) as error:
+                    return self._json({'ok':False,'error':str(error)},400)
+                finally:
+                    db.close()
             elif cmd == "reroll-next":
                 resp = send(cmd, timeout=45, ref=str(body.get("ref", "")))
             elif cmd == "direction":

@@ -7,7 +7,7 @@ import wave
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
-from radio import config, plugins
+from radio import config
 from radio.daemon import Service
 from radio.engine import Liquidsoap
 from radio.tts import MockTTS
@@ -43,13 +43,12 @@ class RerollTests(unittest.TestCase):
             return answer
         return asyncio.run(go())
 
-    def test_disabled_experiment_does_not_change_playback(self):
-        self.assertIsNone(self.svc.status()['next_reroll'])
-        self.assertFalse(self.reroll()['ok'])
-        self.svc.engine.replace_music.assert_not_awaited()
+    def test_legacy_disabled_switch_does_not_hide_standard_control(self):
+        (config.DATA_DIR / 'plugins.json').write_text('{"reroll_next": false}')
+        self.assertTrue(self.svc.status()['next_reroll']['available'])
+        self.assertTrue(self.reroll()['ok'])
 
-    def test_enabled_replaces_next_and_keeps_current(self):
-        plugins.set_plugin('reroll_next', True)
+    def test_replaces_next_and_keeps_current(self):
         current = dict(self.svc.current)
         self.assertTrue(self.reroll()['ok'])
         self.assertEqual(self.svc.next_track, '/tmp/other.wav')
@@ -60,7 +59,6 @@ class RerollTests(unittest.TestCase):
 
     def test_youtube_reroll_answers_at_once_with_the_new_title(self):
         import threading
-        plugins.set_plugin('reroll_next', True)
         refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc']
         self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
         self.svc.library = set(refs)
@@ -88,7 +86,6 @@ class RerollTests(unittest.TestCase):
 
     def test_a_second_click_while_loading_replaces_the_pick(self):
         import threading
-        plugins.set_plugin('reroll_next', True)
         refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc', 'ytmusic:ddddddddddd', 'ytmusic:eeeeeeeeeee']
         self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
         self.svc.library = set(refs)
@@ -130,7 +127,6 @@ class RerollTests(unittest.TestCase):
         self.assertFalse(self.svc.rerolling)
 
     def test_a_replay_the_engine_dropped_is_forgotten(self):
-        plugins.set_plugin('reroll_next', True)
         self.svc.replays = {'r1': {'kind': 'music', 'ref': '/tmp/other.wav', 'rid': '7', 'duration': 180}}
         from radio import daemon
         def look():  # a status poll, 10 s after the previous one (looks closer together are skipped)
@@ -148,7 +144,6 @@ class RerollTests(unittest.TestCase):
 
     def test_youtube_reroll_skips_an_unavailable_song(self):
         from radio import ytmusic
-        plugins.set_plugin('reroll_next', True)
         refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc', 'ytmusic:ddddddddddd']
         self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
         self.svc.library = set(refs)
@@ -168,7 +163,6 @@ class RerollTests(unittest.TestCase):
         self.assertIsNone(self.svc.reroll_error)
 
     def test_youtube_music_replacement_is_downloaded_outside_the_engine(self):
-        plugins.set_plugin('reroll_next', True)
         refs = ['ytmusic:aaaaaaaaaaa', 'ytmusic:bbbbbbbbbbb', 'ytmusic:ccccccccccc']
         self.svc.current['ref'], self.svc.next_track = refs[0], refs[1]
         self.svc.library = set(refs)
@@ -202,7 +196,6 @@ class RerollTests(unittest.TestCase):
                 self.assertIn('did not answer in time', send('status', timeout=.2)['error'])
 
     def test_stale_or_locked_transition_cannot_change_queue(self):
-        plugins.set_plugin('reroll_next', True)
         self.assertFalse(self.reroll('/tmp/stale.wav')['ok'])
         self.svc.queued_break = ('9', ['news#1'])
         self.assertFalse(self.reroll()['ok'])
@@ -215,14 +208,12 @@ class RerollTests(unittest.TestCase):
         self.svc.engine.replace_music.assert_not_awaited()
 
     def test_failure_keeps_previous_selection_and_clears_busy(self):
-        plugins.set_plugin('reroll_next', True)
         self.svc.engine.replace_music.side_effect = ValueError('unavailable')
         self.assertFalse(self.reroll()['ok'])
         self.assertEqual(self.svc.next_track, '/tmp/next.wav')
         self.assertFalse(self.svc.rerolling)
 
     def test_queued_replay_is_replaced_in_place(self):
-        plugins.set_plugin('reroll_next', True)
         self.svc.replays['r1'] = {'kind': 'music', 'ref': '/tmp/next.wav', 'rid': '8'}
         self.assertTrue(self.reroll()['ok'])
         self.assertEqual(self.svc.replays['r1'], {'kind': 'music', 'ref': '/tmp/other.wav', 'rid': '42', 'duration': 0.0})
@@ -230,7 +221,6 @@ class RerollTests(unittest.TestCase):
         self.assertIn('replay_id="r1"', self.svc.engine.replace_music.call_args.args[1])
 
     def test_new_tracks_queue_is_replaced_in_place(self):
-        plugins.set_plugin('reroll_next', True)
         tail = [(f'/tmp/later{i}.wav', str(11 + i)) for i in range(4)]
         self.svc.fresh_queued = dict([('/tmp/next.wav', '10'), *tail])
         current = dict(self.svc.current)
@@ -244,7 +234,6 @@ class RerollTests(unittest.TestCase):
 
     def test_youtube_reroll_preserves_all_later_priority_tracks(self):
         from radio import ytmusic
-        plugins.set_plugin('reroll_next', True)
         refs = [f'ytmusic:{letter * 11}' for letter in 'abcde']
         self.svc.current['ref'] = refs[0]
         self.svc.library = set(refs)
@@ -258,7 +247,6 @@ class RerollTests(unittest.TestCase):
         self.assertEqual(self.svc.current['ref'], refs[0])
 
     def test_no_alternative_keeps_the_original_track(self):
-        plugins.set_plugin('reroll_next', True)
         self.svc.library.remove('/tmp/other.wav')
         self.assertFalse(self.reroll()['ok'])
         self.svc.engine.replace_music.assert_not_awaited()
