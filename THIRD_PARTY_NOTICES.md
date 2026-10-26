@@ -14,6 +14,10 @@ The separately distributed Base pack contains four edited excerpts from **Tech L
 
 Changes: beat-aligned excerpts at 124 BPM, normalization, peak limiting, fades, PCM S16LE stereo at 44.1 kHz. Keep attribution and describe further modifications. Do not imply the author's endorsement. Credits are also displayed in Settings → Audio preset.
 
+## Pronunciation dictionary
+
+`assets/cmudict.dict.gz` contains the CMU Pronouncing Dictionary, copyright 1993–2015 Carnegie Mellon University. It is bundled from [cmusphinx/cmudict](https://github.com/cmusphinx/cmudict/tree/74790861f652b15e4ac49015a90074ad62a27690), compressed for storage, and used for English pronunciation hints in OmniVoice. Its redistribution terms and disclaimer are preserved in [assets/cmudict.LICENSE](assets/cmudict.LICENSE).
+
 ## Excluded local recordings
 
 The historical audit of October 21, 2026 covered 52 recordings. Four unverified fallback WAVs have been replaced; the other 48 recordings remain local. Their provenance is retained as metadata in the [audio manifest](assets/audio-manifest.json) and [historical audit](docs/audio.md) (Russian).

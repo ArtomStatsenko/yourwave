@@ -38,7 +38,7 @@ Base provides an intro, a speech bed, an outro, and a separator also used for re
 | Component | Purpose | Default |
 | --- | --- | --- |
 | VoiceStudio | Host speech and bulletins | `http://127.0.0.1:3900`, voice `default` |
-| Ollama | GitHub summaries and host links | `http://127.0.0.1:11434`, model `qwen3.5:4b` |
+| Ollama | Russian scripts and pronunciation preparation | `http://127.0.0.1:11434`, model `qwen3.5:4b` |
 
 Install VoiceStudio separately. Yourwave starts its backend from `voice.server_dir`; set this path to your installation. It does not stop a server that was already running.
 
@@ -48,7 +48,7 @@ With Ollama installed, download the model and make sure its server is running:
 ollama pull qwen3.5:4b
 ```
 
-Model names and server addresses are configurable. Imported bulletins are read without an LLM rewrite.
+Model names and server addresses are configurable. Imported bulletins pass through the same Russian news editor before speech; reminders retain their authored text.
 
 ### 3. Open the station
 
