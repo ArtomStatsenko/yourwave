@@ -6,7 +6,7 @@
 <title>Yourwave</title>
 <style>
 /* Listening and editing share one bottom-to-top broadcast timeline. */
-:root{--bg:#f2f2ee;--surface:#e7e7e1;--ink:#17170f;--muted:#5f5f55;--line:#cfcfc5;--accent:#c2410c;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
+:root{color-scheme:light;--bg:#f2f2ee;--surface:#e7e7e1;--ink:#17170f;--muted:#5f5f55;--line:#cfcfc5;--accent:#c2410c;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
 --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121210;--surface:#1b1a17;--ink:#ece8dc;--muted:#9a968a;--line:#2e2d27;--accent:#ff6a3d;--accent-ink:#121210;--ok:#5fd08a;--warn:#f0b429;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#121210;--surface:#1b1a17;--ink:#ece8dc;--muted:#9a968a;--line:#2e2d27;--accent:#ff6a3d;--accent-ink:#121210;--ok:#5fd08a;--warn:#f0b429;color-scheme:dark}
@@ -251,7 +251,101 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 @media(hover:none){.plan-gap>button{opacity:1}}
 @media(max-width:640px){.program-editing main{height:calc(100dvh - 40px)}#plan-add{padding-left:0}}
 @media(max-width:480px){#direction-list{--plan-time:48px}}
+
+/* Appearance is local to this device and never changes station settings. */
+:root{accent-color:var(--accent);scrollbar-color:var(--muted) var(--bg)}
+a{color:var(--accent);text-underline-offset:.18em}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:1}
+::selection{background:var(--accent);color:var(--accent-ink)}
+input,textarea{caret-color:var(--accent)}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#appearance{gap:16px}
+#appearance .appearance-heading{justify-content:space-between}
+#appearance .appearance-heading button{border:0;padding:4px 0;font-size:16px;color:var(--muted);min-height:44px}
+#appearance fieldset{border:0;padding:0;margin:0;min-width:0}
+#appearance legend{padding:0;margin-bottom:8px;font-size:16px;color:var(--muted)}
+#appearance label{cursor:pointer}
+#appearance input[type=radio]{width:auto;margin:0 4px 0 0;accent-color:var(--accent)}
+#appearance .appearance-mode label{display:inline-flex;align-items:center;min-height:44px;margin-right:16px}
+.appearance-palettes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.palette-choice{padding:12px;border:1px solid var(--line);border-radius:2px;display:grid;gap:8px;font-size:16px}
+.palette-choice:has(input:checked){border-color:var(--accent);outline:1px solid var(--accent)}
+.palette-choice:hover{border-color:var(--ink)}
+.palette-sample{display:flex;align-items:center;justify-content:space-between;background:var(--sample-bg);color:var(--sample-ink);padding:8px 12px;min-height:48px}
+.palette-sample i{display:block;width:24px;height:4px;background:var(--sample-accent)}
+#appearance p{margin:0}
+#appearance details summary{cursor:pointer;min-height:44px;font-size:16px}
+#accent-form{display:grid;gap:12px;padding-top:8px}
+#accent-form label{font-size:16px}
+#appearance .accent-inputs{flex-wrap:nowrap}
+#appearance #accent-picker{width:52px;height:44px;padding:4px;flex:none}
+#appearance #accent-hex{width:10ch;max-width:100%;min-width:0;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:6px 8px}
+#appearance #accent-hex[aria-invalid=true]{border-color:var(--warn)}
+#appearance #accent-feedback{min-height:24px}
+#accent-form button{font-size:16px;min-height:44px;padding:8px 12px}
+@media(max-width:420px){.appearance-palettes{gap:8px}.palette-choice{padding:8px}.palette-sample{padding:8px}.palette-choice>span:last-child{white-space:nowrap}#appearance .appearance-mode label{margin-right:8px}}
 </style>
+<script id="appearance-script">
+// Apply before the body is painted; appearance belongs to this browser, not the station.
+var appearance=(function(){
+  var key='yourwave.appearance',root=document.documentElement,system=matchMedia('(prefers-color-scheme:dark)'),
+    tokens=['bg','surface','ink','muted','line','accent','accent-ink'],
+    palettes={
+      ember:{light:['#f2f2ee','#e7e7e1','#17170f','#5f5f55','#cfcfc5','#c2410c','#ffffff'],dark:['#121210','#1b1a17','#ece8dc','#9a968a','#2e2d27','#ff6a3d','#121210']},
+      forest:{light:['#f1f3eb','#e3e8d9','#20271e','#56624f','#c8d1bf','#346347','#ffffff'],dark:['#131b17','#1c2821','#e5eee4','#a0b3a4','#34463b','#93cba5','#132319']},
+      ocean:{light:['#edf3f6','#dfe8ee','#192b36','#506575','#c3d1dc','#185e91','#ffffff'],dark:['#111c27','#1b2b3b','#e4edf4','#9db0c2','#334b60','#80bce7','#14283a']}
+    },state={mode:'system',palette:'ember',accent:''},mounted=false,saveError=false;
+  function hex(value){return typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)}
+  function luminance(color){var c=[1,3,5].map(function(i){var v=parseInt(color.slice(i,i+2),16)/255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)});return c[0]*.2126+c[1]*.7152+c[2]*.0722}
+  function contrast(a,b){var x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+  function mode(){return state.mode==='system'?(system.matches?'dark':'light'):state.mode}
+  function colors(){return palettes[state.palette][mode()]}
+  function readable(value){var c=colors();return hex(value)&&Math.min(contrast(value,c[0]),contrast(value,c[1]))>=4.5}
+  function accent(value){root.style.setProperty('--accent',value);root.style.setProperty('--accent-ink',contrast('#ffffff',value)>=contrast('#121210',value)?'#ffffff':'#121210')}
+  function apply(){var c=colors();tokens.forEach(function(t,i){root.style.setProperty('--'+t,c[i])});root.dataset.theme=mode();root.style.colorScheme=mode();
+    if(readable(state.accent))accent(state.accent);
+  }
+  function save(){try{localStorage.setItem(key,JSON.stringify(state));saveError=false}catch(e){saveError=true}}
+  function el(id){return document.getElementById(id)}
+  function message(text){el('appearance-status').textContent=text||''}
+  function render(){if(!mounted)return;
+    document.querySelectorAll('[name="appearance-mode"]').forEach(function(n){n.checked=n.value===state.mode});
+    document.querySelectorAll('[name="appearance-palette"]').forEach(function(n){n.checked=n.value===state.palette});
+    Object.keys(palettes).forEach(function(name){var p=palettes[name][mode()],n=el('palette-'+name);n.style.setProperty('--sample-bg',p[0]);n.style.setProperty('--sample-ink',p[2]);n.style.setProperty('--sample-accent',p[5])});
+    el('accent-hex').value=state.accent||colors()[5];el('accent-picker').value=hex(state.accent)?state.accent:colors()[5];
+    el('accent-hex').setAttribute('aria-invalid','false');el('accent-apply').disabled=true;
+    el('accent-feedback').textContent='Preview a colour, then apply. Text contrast must be at least 4.5:1.';
+    message(saveError?'Changed for this tab; your browser could not save the preference.':state.accent&&!readable(state.accent)?'Your accent needs more contrast in this theme. The theme accent is shown; choose another colour below.':'Saved on this device.');
+  }
+  function change(){apply();save();render()}
+  function preview(value){el('accent-hex').value=value;var valid=readable(value);apply();
+    el('accent-hex').setAttribute('aria-invalid',String(!valid));el('accent-apply').disabled=!valid;
+    if(valid){accent(value);el('accent-picker').value=value;
+      el('accent-feedback').textContent='Preview · '+Math.min(contrast(value,colors()[0]),contrast(value,colors()[1])).toFixed(1)+':1 contrast. Apply to keep this colour.';
+    }else el('accent-feedback').textContent=hex(value)?'Not enough contrast. Choose a '+(mode()==='dark'?'lighter':'darker')+' colour. Your saved accent is still in use.':'Enter a colour as #RRGGBB. Your saved accent is still in use.';
+  }
+  try{var saved=JSON.parse(localStorage.getItem(key));if(saved&&typeof saved==='object'){
+    if(['system','light','dark'].indexOf(saved.mode)>=0)state.mode=saved.mode;
+    if(Object.prototype.hasOwnProperty.call(palettes,saved.palette))state.palette=saved.palette;
+    if(hex(saved.accent))state.accent=saved.accent;
+  }}catch(e){}
+  apply();
+  system.addEventListener('change',function(){if(state.mode==='system'){apply();render()}});
+  return {mount:function(){mounted=true;
+    document.querySelectorAll('[name="appearance-mode"]').forEach(function(n){n.onchange=function(){state.mode=n.value;change()}});
+    document.querySelectorAll('[name="appearance-palette"]').forEach(function(n){n.onchange=function(){state.palette=n.value;change()}});
+    el('accent-picker').oninput=function(){preview(this.value)};
+    el('accent-hex').oninput=function(){preview(this.value.trim())};
+    el('accent-form').onsubmit=function(e){e.preventDefault();var value=el('accent-hex').value.trim();if(!readable(value))return;state.accent=value.toLowerCase();change()};
+    el('accent-default').onclick=function(){state.accent='';change()};
+    el('appearance-reset').onclick=function(){state={mode:'system',palette:'ember',accent:''};change()};
+    el('accent-cancel').onclick=function(){apply();render()};
+    el('appearance-custom').addEventListener('toggle',function(){if(!this.open){apply();render()}});
+    el('accent-form').onkeydown=function(e){if(e.key==='Escape'){apply();render();el('appearance-custom').open=false;el('appearance-custom').querySelector('summary').focus()}};
+    render();
+  }};
+})();
+</script>
 </head>
 <body>
 <main>
@@ -310,6 +404,29 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 
   </div>
   <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
+    <section class="st" id="appearance" aria-labelledby="appearance-heading">
+      <div class="row appearance-heading"><h2 id="appearance-heading">Appearance</h2><button id="appearance-reset" type="button">Reset</button></div>
+      <fieldset class="appearance-mode"><legend>Mode</legend><div class="row">
+        <label><input type="radio" name="appearance-mode" value="system" checked> System</label>
+        <label><input type="radio" name="appearance-mode" value="light"> Light</label>
+        <label><input type="radio" name="appearance-mode" value="dark"> Dark</label>
+      </div></fieldset>
+      <fieldset><legend>Palette</legend><div class="appearance-palettes">
+        <label id="palette-ember" class="palette-choice"><span class="palette-sample" aria-hidden="true"><span>Aa</span><i></i></span><span><input type="radio" name="appearance-palette" value="ember" checked> Ember</span></label>
+        <label id="palette-forest" class="palette-choice"><span class="palette-sample" aria-hidden="true"><span>Aa</span><i></i></span><span><input type="radio" name="appearance-palette" value="forest"> Forest</span></label>
+        <label id="palette-ocean" class="palette-choice"><span class="palette-sample" aria-hidden="true"><span>Aa</span><i></i></span><span><input type="radio" name="appearance-palette" value="ocean"> Ocean</span></label>
+      </div></fieldset>
+      <p id="appearance-status" class="l" role="status" aria-live="polite"></p>
+      <details id="appearance-custom"><summary>Custom accent</summary>
+        <form id="accent-form">
+          <label for="accent-hex">Accent colour</label>
+          <div class="row accent-inputs"><input id="accent-picker" type="color" aria-label="Choose accent colour" value="#c2410c"><input id="accent-hex" type="text" value="#c2410c" maxlength="7" spellcheck="false" autocomplete="off" aria-describedby="accent-feedback" aria-invalid="false"></div>
+          <p class="l" id="accent-feedback" role="status" aria-live="polite"></p>
+          <div class="row"><button id="accent-apply" type="submit" disabled>Apply accent</button><button id="accent-cancel" type="button">Cancel</button><button id="accent-default" type="button">Use theme accent</button></div>
+        </form>
+      </details>
+    </section>
+
     <div class="st" id="music-source-control">
       <label for="music-source-select">Music source</label>
       <select id="music-source-select" aria-describedby="music-source"><option value="local">Local</option></select>
@@ -1045,6 +1162,8 @@ refresh();
 /* ---- visualizer: audio-driven braille patterns under the title.
    Feed: radioViz.set(32 spectrum values 0..1, dw() waveform values 0..1). No feed (no sound): it settles into a flat
    muted line and the loop stops. ---- */
+appearance.mount();
+
 var radioViz=(function(){
   var CELLS=64,DW=128,ROWS=2,DH=8,N=32,spec=new Array(N).fill(0),wave=new Array(DW).fill(.5),mode='pulse',fed=0,run=false,
     el=$('viz'),BIT=[[1,2,4,64],[8,16,32,128]],MODES=['pulse','scope','bars','peaks','fall','vu','ribbon'],enabled=true,peaks=new Array(N).fill(0),history=[],

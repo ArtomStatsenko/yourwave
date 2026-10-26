@@ -1,6 +1,6 @@
 # Yourwave interface design
 
-This document records interaction conventions for the existing compact radio UI. [PRODUCT.md](PRODUCT.md) defines the product model; [docs/style.md](docs/style.md) governs repository presentation. Preserve the current typography, palette, player and timeline when applying these conventions.
+This document records interaction conventions for the existing compact radio UI. [PRODUCT.md](PRODUCT.md) defines the product model; [docs/style.md](docs/style.md) governs repository presentation. Preserve the current typography, player and timeline when applying these conventions; the appearance controls below govern palette changes.
 
 ## Inline confirmation
 
@@ -20,3 +20,11 @@ Replace the triggering control in its own row with **Confirm · Cancel**. Keep t
 The announced-next reroll in [radio/ui.html](radio/ui.html) is the initial implementation: ordinary next rerolls immediately; an announced next requires Confirm; Cancel and Escape dismiss; a changed or unavailable next clears confirmation. Its pending replacement and error states reuse the existing reroll flow.
 
 This convention is the target for other qualifying actions, not a claim that they have already been migrated. Reminder skipping currently has a second-click `Confirm skip` but lacks the full Cancel/Escape interaction. The [confirmation audit](docs/audits/2026-10-26-confirmations.md) records other gaps and actions that should remain direct.
+
+## Appearance
+
+Appearance lives at the top of Settings and belongs to the current browser, independently of the station and other devices. Offer System / Light / Dark and the Ember, Forest and Ocean palettes. Ember preserves the original default; System follows the device. Apply the saved preference before painting the page. If browser storage is unavailable, keep changes for the current tab and explain that they could not be saved.
+
+Keep custom accent controls in a disclosure. Valid colours preview immediately; Apply saves, Cancel, Escape or closing the disclosure restores the saved appearance. Require at least 4.5:1 against both page and raised surfaces. An incompatible saved accent falls back to the chosen palette with an explicit status message and remains saved for compatible modes. Custom accents never recolour warning or success roles. Reset restores System + Ember + the theme accent.
+
+Use the existing semantic CSS variables for text, surfaces, controls, focus, links, selection and visualization. Palette choices use native radio buttons, labelled previews and a selected outline. Keep typography, spacing, playback, timeline editing and the audio analyser unchanged.
