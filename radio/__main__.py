@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import shutil
@@ -200,8 +199,10 @@ def cmd_doctor(_):
     sys.exit(0 if ok else 1)
 
 
-def main():
-    p = argparse.ArgumentParser(prog="radio", description="Personal AI Radio")
+def build_parser():
+    from . import agent_cli
+    p = agent_cli.Parser(prog="radio", description="Personal AI Radio; use --json for machine-readable output")
+    p.add_argument("--json", action="store_true", help="machine-readable JSON result and exit codes")
     sub = p.add_subparsers(dest="command", required=True)
     pl = sub.add_parser("play")
     pl.add_argument("--record", metavar="FILE.wav", help="также записывать эфир в файл")
@@ -233,7 +234,46 @@ def main():
     d = sub.add_parser("_daemon")
     d.add_argument("--output", default="device")
     d.set_defaults(fn=lambda a: __import__("radio.daemon").daemon.main(a.output))
-    args = p.parse_args()
+    agent_cli.register(sub)
+    return p
+
+
+def main(argv=None):
+    from . import agent_cli, control
+    argv = list(sys.argv[1:] if argv is None else argv)
+    options_end = argv.index('--') if '--' in argv else len(argv)
+    json_mode = '--json' in argv[:options_end]
+    argv = [arg for index, arg in enumerate(argv) if arg != '--json' or index >= options_end]
+    agent_cli.Parser.json_errors = json_mode
+    p = build_parser()
+    args = p.parse_args(argv)
+    args.json = json_mode
+    if args.fn == agent_cli.run:
+        raise SystemExit(args.fn(args))
+    if json_mode:
+        try:
+            if args.command in ('status', 'pause', 'resume', 'stop', 'next', 'skip-news'):
+                result = control.read('status') if args.command == 'status' else control.execute({'cmd': args.command})[0]
+            elif args.command == 'play':
+                record = str(Path(args.record).expanduser().resolve()) if args.record else None
+                if record and send('status') is not None:
+                    result = {'ok': False, 'error': 'Recording requires a stopped station; existing playback was left unchanged.'}
+                else:
+                    result = start_daemon(record) or {'ok': False, 'error': 'Radio startup was not confirmed'}
+            else:
+                import contextlib
+                import io
+                output = io.StringIO()
+                code = 0
+                with contextlib.redirect_stdout(output):
+                    try:
+                        args.fn(args)
+                    except SystemExit as error:
+                        code = error.code or 0
+                result = {'ok': code == 0, 'output': output.getvalue()}
+            raise SystemExit(agent_cli.emit(result, True))
+        except (ValueError, OSError):
+            raise SystemExit(agent_cli.emit({'ok': False, 'error': 'Operation failed; check arguments and local permissions.'}, True))
     if args.command == "status" and send("status") is None:
         print("STOPPED")
         return

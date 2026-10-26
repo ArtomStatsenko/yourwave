@@ -1,0 +1,142 @@
+{
+  "api_version": 1,
+  "ok": true,
+  "reads": [
+    "status",
+    "snapshot",
+    "settings",
+    "plugins",
+    "experiments",
+    "timeline",
+    "queue",
+    "hooks",
+    "ytmusic",
+    "audio",
+    "capabilities"
+  ],
+  "operations": {
+    "play": {
+      "fields": []
+    },
+    "pause": {
+      "fields": []
+    },
+    "resume": {
+      "fields": []
+    },
+    "stop": {
+      "fields": []
+    },
+    "next": {
+      "fields": []
+    },
+    "skip-news": {
+      "fields": []
+    },
+    "plugin": {
+      "fields": [
+        "name",
+        "on"
+      ]
+    },
+    "setting": {
+      "fields": [
+        "key",
+        "value"
+      ]
+    },
+    "settings_reset": {
+      "fields": [
+        "key"
+      ]
+    },
+    "audio_preset": {
+      "fields": [
+        "name"
+      ]
+    },
+    "reddit_community": {
+      "fields": [
+        "action",
+        "value"
+      ]
+    },
+    "telegram_channel": {
+      "fields": [
+        "action",
+        "value"
+      ]
+    },
+    "ytmusic_connect": {
+      "fields": [
+        "cookie",
+        "playlist",
+        "browser"
+      ]
+    },
+    "voice_sample": {
+      "fields": []
+    },
+    "llm_key": {
+      "fields": [
+        "provider",
+        "key"
+      ]
+    },
+    "chatgpt_login": {
+      "fields": []
+    },
+    "chatgpt_logout": {
+      "fields": []
+    },
+    "openrouter_login": {
+      "fields": []
+    },
+    "openrouter_logout": {
+      "fields": []
+    },
+    "hook_review": {
+      "fields": [
+        "id",
+        "approved"
+      ]
+    },
+    "reroll-next": {
+      "fields": [
+        "ref"
+      ]
+    },
+    "replay": {
+      "fields": [
+        "kind",
+        "ref"
+      ]
+    },
+    "unqueue": {
+      "fields": [
+        "kind",
+        "ref"
+      ]
+    },
+    "direction": {
+      "fields": [
+        "action",
+        "kind",
+        "ref",
+        "text",
+        "at",
+        "id",
+        "token",
+        "changes",
+        "version",
+        "remember_undo"
+      ]
+    }
+  },
+  "client_only": [
+    "appearance",
+    "monitor volume",
+    "browser listening"
+  ],
+  "client_note": "These preferences belong to a browser, not the station. probe is always silent."
+}

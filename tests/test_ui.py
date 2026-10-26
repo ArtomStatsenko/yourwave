@@ -49,6 +49,13 @@ class PageServerTests(unittest.TestCase):
                                       data=b'{"cmd":"stop"}')[0], 403)
             self.assertEqual(self.get("/api/cmd", {"X-Radio-Token": "wrong"}, data=b'{"cmd":"stop"}')[0], 403)
 
+    def test_capabilities_reuses_the_shared_registry_and_requires_auth(self):
+        from radio import control
+        self.assertEqual(self.get('/api/capabilities')[0], 403)
+        code, raw = self.get('/api/capabilities', {'X-Radio-Token': self.server.token})
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(raw), control.capabilities())
+
     def test_news_sources_save_through_the_ui_api(self):
         from radio import plugins, settings
         plugins.set_plugin('reddit', True)

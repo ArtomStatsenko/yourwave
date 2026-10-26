@@ -97,6 +97,19 @@ Editions depend on prepared content and the speech budget. Their displayed times
 
 Import a briefing, record an output, or inspect sources with the [command guide](docs/guide.md#commands).
 
+### Agent and script access
+
+The same station operations are available through the HTTP API and the native CLI. Use JSON results for automation:
+
+```sh
+./bin/radio --json capabilities
+./bin/radio --json settings list
+./bin/radio --json queue list
+./bin/radio --json probe --silent --seconds 5
+```
+
+`./bin/radio api serve` runs the existing API without opening a browser. The probe needs that server and a playing stream; it decodes audio without opening an audio device. See the [CLI and API reference](docs/cli/README.md) for all operations, credentials through stdin, exit codes and browser-only settings.
+
 ## Inside the repository
 
 | Path | Contents |

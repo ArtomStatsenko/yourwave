@@ -1,0 +1,41 @@
+{
+  "api_version": 1,
+  "method": "CLI-Anything refine/test/validate adapted to the existing native argparse CLI",
+  "upstream_revision": "34f519533bc175d2fe287ab8316b0dd99bb9cc43",
+  "shared_operations": 24,
+  "read_operations": 11,
+  "installed_command": "~/.local/bin/radio",
+  "full_regression": {
+    "passed": 425,
+    "failed": 0,
+    "seconds": 248.661,
+    "command": "python3 -m unittest discover -s tests -v"
+  },
+  "final_focused_checks": {
+    "control": 8,
+    "cli": 12,
+    "installed_cli_e2e": 6,
+    "http_api": 9,
+    "all_passed": true
+  },
+  "skill_validation": {
+    "validator": "skill-creator/scripts/quick_validate.py",
+    "passed": true
+  },
+  "generated_registry_matches_code": true,
+  "cli_to_http_roundtrip": true,
+  "capabilities_auth_guard": true,
+  "live_probe": {
+    "seconds": 3.0,
+    "rms_dbfs": -16.82,
+    "peak_dbfs": -4.77,
+    "signal": true,
+    "speaker_output": false,
+    "restored_state": "PAUSED"
+  },
+  "limitations": [
+    "Provider sign-in, real credentials, external integration mutations and voice generation were not exercised on the user account.",
+    "Appearance, volume and browser listening remain client-local.",
+    "The upstream Click/namespace/PyPI/ReplSkin/project-session template is deliberately not adopted; no claim of stock harness packaging conformance."
+  ]
+}

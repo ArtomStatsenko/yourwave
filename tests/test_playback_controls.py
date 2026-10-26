@@ -8,7 +8,7 @@ class PlaybackControlsTests(unittest.TestCase):
     def test_station_power_and_device_listening_are_independent(self):
         page = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
         audio = page[page.index('var nextBusy=false;'):page.index('function fitTitle(')]
-        player = page[page.index('function player('):page.index('var keyFb=')]
+        player = page[page.index('function terminalState('):page.index('var keyFb=')]
         handlers = page[page.index("$('pp').onclick="):page.index('// 2-second refresh:')]
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
@@ -24,7 +24,7 @@ function AudioContext(){const chain=()=>({connect(){}});this.destination={};
 const media={actions:{},setActionHandler(name,fn){this.actions[name]=fn}};
 const c={$ ,Audio,window:{AudioContext,addEventListener(){}},navigator:{mediaSession:media},
   MediaMetadata:function(value){return value},KIND:{},
-  document:{activeElement:null},localStorage:{getItem:()=>null,setItem(){}},requestAnimationFrame(){},
+  document:{activeElement:null,documentElement:{dataset:{presentation:'calm'}}},localStorage:{getItem:()=>null,setItem(){}},requestAnimationFrame(){},
   setTitle:t=>title=t,media(){},f:String,musicSourceLabel:()=>'',musicSourceOptions:()=>'',
   st:{state:'STOPPED',output:'browser'},pls:[],ytStatus:{},musicChoice:'local',busy:false,
   LOCAL_CONTROL:true,titleIsTrack:false,cmd:(...args)=>{commands.push(args);return Promise.resolve()},

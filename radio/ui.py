@@ -12,14 +12,11 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import chatgpt, config, editor, openrouter, plugins, public_news, reddit, settings, telegram, tts, ytmusic
-from .timeline import timeline
-from . import hooks, store
+from . import chatgpt, config, openrouter
+from . import hooks, store, control
 
 PAGE = Path(__file__).with_name("ui.html")
 CALLBACK = Path(__file__).with_name("callback.html")  # the page the browser lands on after OpenRouter sign-in
-VOICE_SAMPLE = "Добрый вечер! Вы слушаете Персональное радио. Сейчас — коротко о новостях, а потом снова музыка."
-COMMANDS = {"pause", "resume", "next", "skip-news", "stop"}
 
 
 class Stream:
@@ -102,8 +99,6 @@ def make_server(port: int) -> ThreadingHTTPServer:
     token = secrets.token_urlsafe(16)
     cfg = config.load()
     stream = Stream(cfg["output"]["stream_port"])
-    ytmusic_lock = threading.Lock()
-    source_names_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):  # keep the terminal quiet
@@ -199,18 +194,12 @@ def make_server(port: int) -> ThreadingHTTPServer:
             elif self.path == "/api/status":
                 if not self._authorized():
                     return self._json({"error": "forbidden"}, 403)
-                resp = send("status", timeout=3)
-                if resp is not None and not resp.get('ok'):
-                    return self._json({'ok': False, 'error': resp.get('error') or 'The radio is busy. Try again.'}, 503)
-                status = resp["status"] if resp and resp.get("ok") else {"state": "STOPPED"}
-                db = store.connect()
-                try:
-                    hook_status = hooks.listing(db) if plugins.on(cfg,'track_previews') else None
-                finally:
-                    db.close()
-                self._json({"status": status, "timeline": timeline(), "plugins": plugins.listing(cfg),
-                            "settings": settings.listing(cfg), "ytmusic": ytmusic.status(),
-                            "audio_preset": config.audio_presets(), "music_source_choice": settings.music_source(cfg), 'hooks':hook_status})
+                result = control.read('snapshot', sender=send)
+                self._json(result, 200 if result.get('ok') else 503)
+            elif self.path == '/api/capabilities':
+                if not self._authorized():
+                    return self._json({'error': 'forbidden'}, 403)
+                self._json(control.capabilities())
             else:
                 self._json({"error": "not found"}, 404)
 
@@ -233,130 +222,10 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 return self._json({"error": "bad request"}, 400)
             if cmd in ("play", "stop") and self.server is not server:
                 return self._json({"ok": False, "error": "Start or stop the station on your Mac."}, 403)
-            if cmd == "ytmusic_connect":
-                try:
-                    with ytmusic_lock:
-                        result = ytmusic.connect(str(body.get("cookie", "")),
-                                                 str(body.get("playlist") or ytmusic.DEFAULT_PLAYLIST),
-                                                 browser=str(body.get("browser", "")))
-                except ValueError as e:  # our own messages only: never yt-dlp output (cookies, account details)
-                    return self._json({"ok": False, "error": str(e)}, 400)
-                except OSError:
-                    return self._json({"ok": False, "error": "Could not connect YouTube Music. Check the playlist; YouTube may be rate-limiting requests."}, 400)
-                resp = {"ok": True, "ytmusic": result}
-            elif cmd == "openrouter_login":
-                resp = {"ok": True, "url": openrouter.login_url(f"http://127.0.0.1:{port}/openrouter/callback")}
-            elif cmd == "chatgpt_login":  # OpenAI accepts only a 127.0.0.1 callback; the port may vary
-                resp = {"ok": True, "url": chatgpt.login_url(f"http://127.0.0.1:{port}/auth/callback")}
-            elif cmd == "voice_sample":  # one host line in the selected voice, played by the page
-                live = config.load()
-                settings.apply(live, settings.base(live))
-                try:
-                    voice = tts.make_voice(live)
-                    if not voice.health():
-                        raise OSError
-                    voice.synthesize(VOICE_SAMPLE, config.RUN_DIR / "voice-sample.wav")
-                except OSError:
-                    return self._json({"ok": False, "error": "the voice engine did not answer"}, 400)
-                except (ValueError, RuntimeError) as e:
-                    return self._json({"ok": False, "error": str(e)}, 400)
-                resp = {"ok": True, "url": f"/voice-sample.wav?{time.time_ns()}"}
-            elif cmd == "llm_key":  # the key is stored, never echoed back
-                try:
-                    editor.set_key(str(body.get("provider", "")), str(body.get("key", "")))
-                except ValueError as e:
-                    return self._json({"ok": False, "error": str(e)}, 400)
-                resp = {"ok": True, "settings": settings.listing(cfg)}
-            elif cmd == "chatgpt_logout":
-                chatgpt.sign_out()
-                resp = {"ok": True, "settings": settings.listing(cfg)}
-            elif cmd == "openrouter_logout":
-                openrouter.sign_out()
-                resp = {"ok": True, "settings": settings.listing(cfg)}
-            elif cmd == "play":
-                resp = start_daemon()
-            elif cmd == "plugin":  # a file switch; a running radio also takes back what the plugin already queued
-                name, on = str(body.get("name", "")), bool(body.get("on"))
-                if name not in plugins.PLUGINS:
-                    return self._json({"ok": False, "error": f"unknown plugin {name}"}, 400)
-                resp = send("plugin", timeout=10, name=name, on=on)
-                if resp is None:  # the radio is off: the file alone
-                    plugins.set_plugin(name, on)
-                    resp = {"ok": True}
-            elif cmd == "audio_preset":
-                try:
-                    config.select_audio_preset(str(body.get("name", "")))
-                    cfg = config.load()
-                except (ValueError, OSError) as e:
-                    return self._json({"ok": False, "error": str(e)}, 400)
-                resp = {"ok": True, "audio_preset": config.audio_presets()}
-            elif cmd in ("reddit_community", "telegram_channel"):
-                try:
-                    with source_names_lock:
-                        source, column, key, noun = (("reddit", "communities", "reddit_communities", "subreddit")
-                            if cmd == "reddit_community" else ("telegram", "channels", "telegram_channels", "public channel"))
-                        names = public_news.references(body.get("value"), source, "names")
-                        if len(names) != 1 or body.get("action") not in ("add", "remove"):
-                            raise ValueError(f"Add or remove one {noun} at a time.")
-                        name = names[0]
-                        live = config.load()
-                        settings.apply(live, settings.base(live))
-                        current = list(live["sources"][source][column])
-                        if body["action"] == "add" and name not in current:
-                            if len(current) >= 20:
-                                raise ValueError("Use up to 20 entries. Remove one before adding another.")
-                            if source == "reddit":
-                                reddit.validate([name], "names")
-                            else:
-                                try:
-                                    telegram.fetch(name)
-                                except OSError:
-                                    raise ValueError("Could not read Telegram's public preview. Nothing was added; try again later.") from None
-                            current.append(name)
-                        elif body["action"] == "remove" and name in current:
-                            current.remove(name)
-                        settings.set_setting(key, current)
-                except ValueError as e:
-                    return self._json({"ok": False, "error": str(e)}, 400)
-                resp = {"ok": True, "settings": settings.listing(cfg)}
-            elif cmd in ("setting", "settings_reset"):  # a file too: the daemon reads it before every decision
-                try:
-                    if cmd == "setting":
-                        key, value = str(body.get("key", "")), body.get("value")
-                        if key in ("reddit_communities", "reddit_posts"):
-                            value = reddit.validate(value, settings.SOURCE_LISTS[key][1])
-                        settings.set_setting(key, value)
-                    else:
-                        defaults = settings.base(cfg)
-                        for key in ([str(body["key"])] if body.get("key") else ("reddit_communities", "reddit_posts")):
-                            if key in ("reddit_communities", "reddit_posts"):
-                                reddit.validate(defaults[key], settings.SOURCE_LISTS[key][1])
-                        settings.reset(str(body["key"]) if body.get("key") else None)
-                except ValueError as e:
-                    return self._json({"ok": False, "error": str(e)}, 400)
-                resp = {"ok": True, "settings": settings.listing(cfg)}
-            elif cmd == 'hook_review':
-                db = store.connect()
-                try:
-                    if type(body.get('approved')) is not bool:
-                        raise ValueError('Choose approve or reject')
-                    hooks.review(db,body.get('id'),body['approved'])
-                    resp = {'ok':True,'hooks':hooks.listing(db)}
-                except (OSError,ValueError,TypeError) as error:
-                    return self._json({'ok':False,'error':str(error)},400)
-                finally:
-                    db.close()
-            elif cmd == "reroll-next":
-                resp = send(cmd, timeout=45, ref=str(body.get("ref", "")))
-            elif cmd == "direction":
-                resp = send(cmd, timeout=10, **{k: v for k, v in body.items() if k != "cmd"})
-            elif cmd in ("replay", "unqueue"):
-                resp = send(cmd, timeout=10, kind=str(body.get("kind", "")), ref=str(body.get("ref", "")))
-            elif cmd in COMMANDS:
-                resp = send(cmd, timeout=45 if cmd == 'next' else 10)
-            else:
-                return self._json({"error": "unknown command"}, 400)
-            self._json(resp or {"ok": False, "error": "the radio is not answering"})
+            resp, code = control.execute(body, sender=send, starter=start_daemon, port=port)
+            if cmd == 'audio_preset' and resp.get('ok'):
+                cfg = config.load()
+            self._json(resp, code)
 
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     port = server.server_port  # 0 in tests: the Host check must use the port that was really taken

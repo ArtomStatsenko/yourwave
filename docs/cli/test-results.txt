@@ -1,0 +1,937 @@
+Full unittest output; absolute home directory normalized to <HOME>.
+
+test_corrupted_download_writes_nothing (test_base_audio.BaseAudioTests.test_corrupted_download_writes_nothing) ... ok
+test_custom_audio_and_symlinks_are_not_replaced (test_base_audio.BaseAudioTests.test_custom_audio_and_symlinks_are_not_replaced) ... ok
+test_download_uses_pinned_url_and_timeout (test_base_audio.BaseAudioTests.test_download_uses_pinned_url_and_timeout) ... ok
+test_failed_install_rolls_back_new_files (test_base_audio.BaseAudioTests.test_failed_install_rolls_back_new_files) ... ok
+test_offline_install_is_idempotent_and_preserves_personal_files (test_base_audio.BaseAudioTests.test_offline_install_is_idempotent_and_preserves_personal_files) ... ok
+test_traversal_and_wrong_audio_hash_write_nothing (test_base_audio.BaseAudioTests.test_traversal_and_wrong_audio_hash_write_nothing) ... ok
+test_branding_in_a_recent_edition_suppresses_separate_id (test_broadcast_clock.ClockPlayoutTests.test_branding_in_a_recent_edition_suppresses_separate_id) ... ok
+test_clock_rows_distinguish_routine_slots_from_manual_edits (test_broadcast_clock.ClockPlayoutTests.test_clock_rows_distinguish_routine_slots_from_manual_edits) ... ok
+test_confirmed_start_is_never_replayed_even_after_clock_moves_back (test_broadcast_clock.ClockPlayoutTests.test_confirmed_start_is_never_replayed_even_after_clock_moves_back) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107031460>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:19:39 news on air: one#1
+ok
+test_grid_is_identical_after_restart_and_ignores_session_counters (test_broadcast_clock.ClockPlayoutTests.test_grid_is_identical_after_restart_and_ignores_session_counters) ... ok
+test_late_start_and_sleep_join_current_grid_without_catchup (test_broadcast_clock.ClockPlayoutTests.test_late_start_and_sleep_join_current_grid_without_catchup) ... ok
+test_late_synthesis_cannot_queue_after_next (test_broadcast_clock.ClockPlayoutTests.test_late_synthesis_cannot_queue_after_next) ... ok
+test_next_cancels_queued_edition_and_leaves_material_unconsumed (test_broadcast_clock.ClockPlayoutTests.test_next_cancels_queued_edition_and_leaves_material_unconsumed) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1070320a0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_next_defers_reminder_without_leaving_a_stale_queue_lock (test_broadcast_clock.ClockPlayoutTests.test_next_defers_reminder_without_leaving_a_stale_queue_lock) ... ok
+test_pause_cancels_queue_and_resume_does_not_shift_slots (test_broadcast_clock.ClockPlayoutTests.test_pause_cancels_queue_and_resume_does_not_shift_slots) ... ok
+test_queue_push_racing_with_next_is_removed_before_it_can_air (test_broadcast_clock.ClockPlayoutTests.test_queue_push_racing_with_next_is_removed_before_it_can_air) ... ok
+test_queued_audio_is_removed_when_its_window_expires (test_broadcast_clock.ClockPlayoutTests.test_queued_audio_is_removed_when_its_window_expires) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107031460>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_short_edition_has_smaller_content_budget (test_broadcast_clock.ClockPlayoutTests.test_short_edition_has_smaller_content_budget) ... ok
+test_silence_alarm_does_not_change_the_program_or_track (test_broadcast_clock.ClockPlayoutTests.test_silence_alarm_does_not_change_the_program_or_track) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107032180>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_ten_manual_starts_outside_window_do_not_trigger_id (test_broadcast_clock.ClockPlayoutTests.test_ten_manual_starts_outside_window_do_not_trigger_id) ... 23:19:39 music: 0.wav
+23:19:39 music: 1.wav
+23:19:39 music: 2.wav
+23:19:39 music: 3.wav
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107032260>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107031460>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107032500>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:19:39 music: 4.wav
+23:19:39 music: 5.wav
+23:19:39 music: 6.wav
+23:19:39 music: 7.wav
+23:19:39 music: 8.wav
+23:19:39 music: 9.wav
+ok
+test_bad_operation_returns_failure_exit (test_cli.CliTests.test_bad_operation_returns_failure_exit) ... ok
+test_bounded_private_payloads_from_file_and_stdin (test_cli.CliTests.test_bounded_private_payloads_from_file_and_stdin) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:415: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1070325e0>
+  def key_value_rule(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:415: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1070326c0>
+  def key_value_rule(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:415: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107032420>
+  def key_value_rule(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:415: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107032260>
+  def key_value_rule(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:415: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107032a40>
+  def key_value_rule(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:415: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107031460>
+  def key_value_rule(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_cli_routes_typed_values_to_shared_operation (test_cli.CliTests.test_cli_routes_typed_values_to_shared_operation) ... ok
+test_credentials_have_no_argv_value_option (test_cli.CliTests.test_credentials_have_no_argv_value_option) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/gettext.py:497: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107031e00>
+  if val:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_discovery_covers_every_shared_operation (test_cli.CliTests.test_discovery_covers_every_shared_operation) ... ok
+test_every_friendly_mutation_routes_to_the_shared_api (test_cli.CliTests.test_every_friendly_mutation_routes_to_the_shared_api) ... ok
+test_every_friendly_read_and_generated_schema (test_cli.CliTests.test_every_friendly_read_and_generated_schema) ... ok
+test_failed_provider_message_does_not_echo_a_secret (test_cli.CliTests.test_failed_provider_message_does_not_echo_a_secret) ... ok
+test_json_play_record_does_not_interrupt_running_station (test_cli.CliTests.test_json_play_record_does_not_interrupt_running_station) ... ok
+test_json_usage_errors_are_machine_readable (test_cli.CliTests.test_json_usage_errors_are_machine_readable) ... ok
+test_probe_rejects_remote_and_credential_urls_before_ffmpeg (test_cli.CliTests.test_probe_rejects_remote_and_credential_urls_before_ffmpeg) ... ok
+test_stopped_status_json_is_success_not_failure (test_cli.CliTests.test_stopped_status_json_is_success_not_failure) ... ok
+test_concurrent_setting_writes_preserve_both_keys (test_cli_e2e.TestCLISubprocess.test_concurrent_setting_writes_preserve_both_keys) ... ok
+test_installed_launcher_works_outside_checkout (test_cli_e2e.TestCLISubprocess.test_installed_launcher_works_outside_checkout) ... ok
+test_real_experiment_toggle_and_inspection (test_cli_e2e.TestCLISubprocess.test_real_experiment_toggle_and_inspection) ... ok
+test_real_ffmpeg_probe_distinguishes_silence (test_cli_e2e.TestCLISubprocess.test_real_ffmpeg_probe_distinguishes_silence) ... ok
+test_real_ffmpeg_probe_measures_pcm_without_speakers (test_cli_e2e.TestCLISubprocess.test_real_ffmpeg_probe_measures_pcm_without_speakers) ... ok
+test_real_setting_file_roundtrip_and_rejected_update (test_cli_e2e.TestCLISubprocess.test_real_setting_file_roundtrip_and_rejected_update) ... ok
+test_all_read_operations_have_inspectable_output (test_control.ControlTests.test_all_read_operations_have_inspectable_output) ... ok
+test_all_registered_operations_route_to_real_handler_boundaries (test_control.ControlTests.test_all_registered_operations_route_to_real_handler_boundaries) ... ok
+test_busy_daemon_is_not_reported_as_stopped (test_control.ControlTests.test_busy_daemon_is_not_reported_as_stopped) ... ok
+test_credentials_are_never_returned (test_control.ControlTests.test_credentials_are_never_returned) ... ok
+test_inspection_bounds (test_control.ControlTests.test_inspection_bounds) ... ok
+test_invalid_command_shapes_do_not_mutate (test_control.ControlTests.test_invalid_command_shapes_do_not_mutate) ... ok
+test_setting_roundtrip_and_rejection_preserve_file (test_control.ControlTests.test_setting_roundtrip_and_rejection_preserve_file) ... ok
+test_stopped_status_is_successful_inspection_and_mutation_fails (test_control.ControlTests.test_stopped_status_is_successful_inspection_and_mutation_fails) ... ok
+test_break_waits_one_song_for_the_weather_it_joins (test_direction.DirectionTests.test_break_waits_one_song_for_the_weather_it_joins) ... ok
+test_catalog_has_only_types_regardless_of_library_and_history_size (test_direction.DirectionTests.test_catalog_has_only_types_regardless_of_library_and_history_size) ... ok
+test_clock_skip_can_be_undone_inside_its_window (test_direction.DirectionTests.test_clock_skip_can_be_undone_inside_its_window) ... ok
+test_clock_weather_is_identifiable_before_material_is_prepared (test_direction.DirectionTests.test_clock_weather_is_identifiable_before_material_is_prepared) ... ok
+test_custom_text_and_reused_news_keep_timing_and_no_llm (test_direction.DirectionTests.test_custom_text_and_reused_news_keep_timing_and_no_llm) ... ok
+test_directed_and_source_reminder_are_one_section (test_direction.DirectionTests.test_directed_and_source_reminder_are_one_section) ... ok
+test_disabled_experiment_cancels_unstarted_insert_and_keeps_plan (test_direction.DirectionTests.test_disabled_experiment_cancels_unstarted_insert_and_keeps_plan) ... ok
+test_edit_queued_bulletin_cancels_the_whole_unstarted_break (test_direction.DirectionTests.test_edit_queued_bulletin_cancels_the_whole_unstarted_break) ... ok
+test_edited_unknown_section_survives_restart_and_resolves_without_duplicate_bulletin (test_direction.DirectionTests.test_edited_unknown_section_survives_restart_and_resolves_without_duplicate_bulletin) ... ok
+test_edited_weather_is_displayed_once (test_direction.DirectionTests.test_edited_weather_is_displayed_once) ... ok
+test_edition_material_is_expandable_without_model_calls (test_direction.DirectionTests.test_edition_material_is_expandable_without_model_calls) ... ok
+test_existing_reminder_can_be_deferred_without_losing_original_details (test_direction.DirectionTests.test_existing_reminder_can_be_deferred_without_losing_original_details) ... [_resolve_cli] Using installed command: <HOME>/.local/bin/radio
+23:19:42 task queued: Через пятнадцать минут в планах — Standup. Можно уже готовиться.
+ok
+test_expected_time_keeps_scheduled_time_and_uses_current_song_boundary (test_direction.DirectionTests.test_expected_time_keeps_scheduled_time_and_uses_current_song_boundary) ... ok
+test_explicit_news_time_bypasses_normal_music_set_wait (test_direction.DirectionTests.test_explicit_news_time_bypasses_normal_music_set_wait) ... 23:19:42 break queued for next song boundary: system:direction:ffcc6438fb4c4766aef98b842a059ff5#1
+ok
+test_explicitly_moved_next_section_can_air_after_skipping_the_previous_one (test_direction.DirectionTests.test_explicitly_moved_next_section_can_air_after_skipping_the_previous_one) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107033140>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_failed_loading_does_not_interrupt_current_audio (test_direction.DirectionTests.test_failed_loading_does_not_interrupt_current_audio) ... ok
+test_future_insert_survives_news_ttl_and_audio_cleanup (test_direction.DirectionTests.test_future_insert_survives_news_ttl_and_audio_cleanup) ... ok
+test_future_section_skip_does_not_skip_the_nearer_news (test_direction.DirectionTests.test_future_section_skip_does_not_skip_the_nearer_news) ... ok
+test_gap_never_pulls_a_future_clock_edition_forward (test_direction.DirectionTests.test_gap_never_pulls_a_future_clock_edition_forward) ... ok
+test_generic_weather_job_does_not_shift_clock_slots (test_direction.DirectionTests.test_generic_weather_job_does_not_shift_clock_slots) ... 23:19:42 news on air: system:direction:0b533ea1e259477da5892f5bb2876f36#1
+ok
+test_grouped_section_skip_still_cancels_the_actual_queued_break (test_direction.DirectionTests.test_grouped_section_skip_still_cancels_the_actual_queued_break) ... ok
+test_immediate_edit_undo_restores_time_and_skip_without_replaying (test_direction.DirectionTests.test_immediate_edit_undo_restores_time_and_skip_without_replaying) ... ok
+test_jingle_and_saved_reminder_are_available_as_scheduled_blocks (test_direction.DirectionTests.test_jingle_and_saved_reminder_are_available_as_scheduled_blocks) ... 23:19:42 directed block queued: jingle direction:adf6c5c5a26d4f90a847546062dbacf7
+23:19:42 station id: direction:adf6c5c5a26d4f90a847546062dbacf7
+23:19:42 directed block queued: reminder direction:efaef33e89794504a19cc92dd3fe5331
+23:19:42 reminder on air
+ok
+test_legacy_scheduled_topic_does_not_replace_the_clock_grid (test_direction.DirectionTests.test_legacy_scheduled_topic_does_not_replace_the_clock_grid) ... ok
+test_manual_transition_speed_is_used_only_for_the_next_track (test_direction.DirectionTests.test_manual_transition_speed_is_used_only_for_the_next_track) ... 23:19:42 music: next.wav
+23:19:42 music: later.wav
+ok
+test_manual_weather_history_retains_the_requested_report (test_direction.DirectionTests.test_manual_weather_history_retains_the_requested_report) ... ok
+test_missed_clock_editions_never_form_a_catchup_block (test_direction.DirectionTests.test_missed_clock_editions_never_form_a_catchup_block) ... ok
+test_moving_and_skipping_an_occurrence_preserves_the_next_clock_slot (test_direction.DirectionTests.test_moving_and_skipping_an_occurrence_preserves_the_next_clock_slot) ... ok
+test_moving_or_skipping_the_joint_edition_acts_on_the_news_too (test_direction.DirectionTests.test_moving_or_skipping_the_joint_edition_acts_on_the_news_too) ... ok
+test_moving_the_skipped_section_keeps_only_that_section_skipped (test_direction.DirectionTests.test_moving_the_skipped_section_keeps_only_that_section_skipped) ... ok
+test_music_cannot_be_added_as_an_editor_section (test_direction.DirectionTests.test_music_cannot_be_added_as_an_editor_section) ... ok
+test_music_gap_cannot_change_the_section_schedule (test_direction.DirectionTests.test_music_gap_cannot_change_the_section_schedule) ... ok
+test_music_stories_are_optional_until_selected_for_an_edition (test_direction.DirectionTests.test_music_stories_are_optional_until_selected_for_an_edition) ... ok
+test_news_readiness_distinguishes_missing_text_text_and_rendered_voice (test_direction.DirectionTests.test_news_readiness_distinguishes_missing_text_text_and_rendered_voice) ... ok
+test_news_right_after_a_weather_slot_is_one_edition (test_direction.DirectionTests.test_news_right_after_a_weather_slot_is_one_edition) ... ok
+test_news_skip_covers_new_topics_but_not_the_next_music_set (test_direction.DirectionTests.test_news_skip_covers_new_topics_but_not_the_next_music_set) ... ok
+test_news_skip_order_time_reset_and_disabled_path (test_direction.DirectionTests.test_news_skip_order_time_reset_and_disabled_path) ... ok
+test_news_type_selects_full_edition_when_due_without_replaying_history (test_direction.DirectionTests.test_news_type_selects_full_edition_when_due_without_replaying_history) ... 23:19:43 break queued for next song boundary: fresh bulletin#1, another source#1
+23:19:43 break queued for next song boundary: fresh bulletin#1, another source#1
+23:19:43 news on air: fresh bulletin#1|another source#1
+ok
+test_news_well_after_a_weather_slot_stays_apart (test_direction.DirectionTests.test_news_well_after_a_weather_slot_stays_apart) ... <HOME>/PersonalRadio/radio/broadcast_clock.py:28: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10738c200>
+  result.append({'id': key, 'kind': 'news', 'ref': edit.get('ref', ''), 'title': 'Host edition',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/broadcast_clock.py:28: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10738d460>
+  result.append({'id': key, 'kind': 'news', 'ref': edit.get('ref', ''), 'title': 'Host edition',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/broadcast_clock.py:28: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10738d540>
+  result.append({'id': key, 'kind': 'news', 'ref': edit.get('ref', ''), 'title': 'Host edition',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_next_does_not_advance_a_future_section (test_direction.DirectionTests.test_next_does_not_advance_a_future_section) ... ok
+test_next_does_not_skip_a_section_that_started_while_music_loaded (test_direction.DirectionTests.test_next_does_not_skip_a_section_that_started_while_music_loaded) ... ok
+test_next_does_not_wait_for_host_links_already_being_synthesized (test_direction.DirectionTests.test_next_does_not_wait_for_host_links_already_being_synthesized) ... ok
+test_next_keeps_current_song_until_an_alternative_is_ready (test_direction.DirectionTests.test_next_keeps_current_song_until_an_alternative_is_ready) ... ok
+test_next_keeps_ready_edition_out_of_the_skip_path (test_direction.DirectionTests.test_next_keeps_ready_edition_out_of_the_skip_path) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10738c2e0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_next_previews_ready_edition_before_late_assembly (test_direction.DirectionTests.test_next_previews_ready_edition_before_late_assembly) ... ok
+test_next_track_estimate_includes_the_pending_host_edition (test_direction.DirectionTests.test_next_track_estimate_includes_the_pending_host_edition) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10738c3c0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_old_music_placeholders_do_not_become_individual_track_insertions (test_direction.DirectionTests.test_old_music_placeholders_do_not_become_individual_track_insertions) ... ok
+test_paused_plan_times_stay_fixed_until_resume (test_direction.DirectionTests.test_paused_plan_times_stay_fixed_until_resume) ... ok
+test_paused_status_gets_next_from_actual_plan_when_peek_is_empty (test_direction.DirectionTests.test_paused_status_gets_next_from_actual_plan_when_peek_is_empty) ... ok
+test_placeholder_news_waits_for_preparation_and_obeys_edited_section_time (test_direction.DirectionTests.test_placeholder_news_waits_for_preparation_and_obeys_edited_section_time) ... 23:19:43 break queued for next song boundary: waiting#1
+23:19:43 news on air: waiting#1
+ok
+test_plan_save_is_atomic_and_rejects_changed_or_locked_snapshots (test_direction.DirectionTests.test_plan_save_is_atomic_and_rejects_changed_or_locked_snapshots) ... ok
+test_postponed_section_is_not_replaced_with_other_ready_topics (test_direction.DirectionTests.test_postponed_section_is_not_replaced_with_other_ready_topics) ... <HOME>/PersonalRadio/radio/daemon.py:2622: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10738c2e0>
+  version = hashlib.sha256(json.dumps([{k: r.get(k) for k in ('id', 'status', 'not_before', 'skipped', 'locked')} for r in sorted(result, key=lambda r: r['id'])], sort_keys=True).encode()).hexdigest()[:20]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_preparation_follows_section_time_and_skip (test_direction.DirectionTests.test_preparation_follows_section_time_and_skip) ... ok
+test_queued_replay_is_planned_before_a_waiting_edition (test_direction.DirectionTests.test_queued_replay_is_planned_before_a_waiting_edition) ... ok
+test_queued_tracks_are_contents_of_one_music_section (test_direction.DirectionTests.test_queued_tracks_are_contents_of_one_music_section) ... ok
+test_readiness_of_combined_news_requires_every_selected_voice (test_direction.DirectionTests.test_readiness_of_combined_news_requires_every_selected_voice) ... ok
+test_reminder_material_is_ready_before_voice_and_queued_voice_is_ready (test_direction.DirectionTests.test_reminder_material_is_ready_before_voice_and_queued_voice_is_ready) ... ok
+test_reminder_moved_earlier_becomes_due (test_direction.DirectionTests.test_reminder_moved_earlier_becomes_due) ... ok
+test_reminder_moved_past_the_start_airs_until_the_end (test_direction.DirectionTests.test_reminder_moved_past_the_start_airs_until_the_end) ... 23:19:43 task queued: Время для этого подошло шесть минут назад, но ещё не поздно — Созвон с командой.
+ok
+test_reminder_skip_during_synthesis_prevents_queueing (test_direction.DirectionTests.test_reminder_skip_during_synthesis_prevents_queueing) ... ok
+test_reminder_skip_requires_confirmation_and_does_not_modify_the_task (test_direction.DirectionTests.test_reminder_skip_requires_confirmation_and_does_not_modify_the_task) ... ok
+test_reminder_type_reuses_current_timed_reminder_and_cancellation (test_direction.DirectionTests.test_reminder_type_reuses_current_timed_reminder_and_cancellation) ... 23:19:44 task queued: Загляну в список дел: через восемь минут пора браться — Standup.
+ok
+test_saved_clock_occurrence_does_not_duplicate_the_computed_slot (test_direction.DirectionTests.test_saved_clock_occurrence_does_not_duplicate_the_computed_slot) ... ok
+test_saved_order_remains_the_same_and_does_not_duplicate_music_placeholder (test_direction.DirectionTests.test_saved_order_remains_the_same_and_does_not_duplicate_music_placeholder) ... ok
+test_skip_queued_bulletin_cancels_the_whole_break_without_consuming_topics (test_direction.DirectionTests.test_skip_queued_bulletin_cancels_the_whole_break_without_consuming_topics) ... ok
+test_skip_then_drag_save_preserves_section_count_and_a_single_skip (test_direction.DirectionTests.test_skip_then_drag_save_preserves_section_count_and_a_single_skip) ... ok
+test_skipped_marker_belongs_only_to_the_selected_news_section (test_direction.DirectionTests.test_skipped_marker_belongs_only_to_the_selected_news_section) ... ok
+test_skipped_section_leaves_the_plan_once_its_time_passes (test_direction.DirectionTests.test_skipped_section_leaves_the_plan_once_its_time_passes) ... ok
+test_skipped_sections_keep_their_time_when_another_section_is_selected (test_direction.DirectionTests.test_skipped_sections_keep_their_time_when_another_section_is_selected) ... ok
+test_skipped_weather_does_not_hold_the_break (test_direction.DirectionTests.test_skipped_weather_does_not_hold_the_break) ... ok
+test_skipping_directed_reminder_also_skips_its_original_occurrence (test_direction.DirectionTests.test_skipping_directed_reminder_also_skips_its_original_occurrence) ... ok
+test_skipping_unknown_news_does_not_suppress_later_breaks_forever (test_direction.DirectionTests.test_skipping_unknown_news_does_not_suppress_later_breaks_forever) ... ok
+test_song_uses_the_same_scheduled_insert_path (test_direction.DirectionTests.test_song_uses_the_same_scheduled_insert_path) ... 23:19:44 directed block queued: music direction:9272d55d58674f34a530f3bd08587ddf
+23:19:44 music: song.wav
+ok
+test_sources_wait_for_nearby_section_and_pause (test_direction.DirectionTests.test_sources_wait_for_nearby_section_and_pause) ... ok
+test_timeline_plan_uses_ready_bulletins_player_selection_and_nearby_clock_slots (test_direction.DirectionTests.test_timeline_plan_uses_ready_bulletins_player_selection_and_nearby_clock_slots) ... ok
+test_track_selection_does_not_change_section_identity_or_draft_version (test_direction.DirectionTests.test_track_selection_does_not_change_section_identity_or_draft_version) ... ok
+test_undo_new_announcement_removes_it_from_playout (test_direction.DirectionTests.test_undo_new_announcement_removes_it_from_playout) ... ok
+test_undo_rejects_external_edits_queued_audio_and_expired_original_time (test_direction.DirectionTests.test_undo_rejects_external_edits_queued_audio_and_expired_original_time) ... ok
+test_upcoming_includes_real_queue_and_next_song_without_playback (test_direction.DirectionTests.test_upcoming_includes_real_queue_and_next_song_without_playback) ... ok
+test_upcoming_obeys_edits_and_remains_available_without_experiment (test_direction.DirectionTests.test_upcoming_obeys_edits_and_remains_available_without_experiment) ... ok
+test_upcoming_reminder_is_planned_before_its_lead (test_direction.DirectionTests.test_upcoming_reminder_is_planned_before_its_lead) ... ok
+test_voice_ignores_distant_and_disabled_packages_without_blocking_nearby_news (test_direction.DirectionTests.test_voice_ignores_distant_and_disabled_packages_without_blocking_nearby_news) ... ok
+test_voice_waits_until_five_minutes_and_keeps_existing_material (test_direction.DirectionTests.test_voice_waits_until_five_minutes_and_keeps_existing_material) ... ok
+test_wall_clock_slots_skip_missed_windows_and_persist (test_direction.DirectionTests.test_wall_clock_slots_skip_missed_windows_and_persist) ... ok
+test_weather_and_multiple_sources_share_one_edition_and_skip (test_direction.DirectionTests.test_weather_and_multiple_sources_share_one_edition_and_skip) ... 23:19:44 break queued for next song boundary: system:weather:slot:1792591200#1, technology#1, github#1
+ok
+test_weather_is_rendered_as_soon_as_it_is_due (test_direction.DirectionTests.test_weather_is_rendered_as_soon_as_it_is_due) ... ok
+test_weather_skip_discards_waiting_report_and_allows_the_next_slot (test_direction.DirectionTests.test_weather_skip_discards_waiting_report_and_allows_the_next_slot) ... ok
+test_speaker_switch_has_no_gap_separator_or_voice_fade (test_duo_audio.DuoAudioTests.test_speaker_switch_has_no_gap_separator_or_voice_fade) ... ok
+test_drop_validation_preserves_locked_blocks_and_reminder_deadlines (test_editor_drag.EditorDragTests.test_drop_validation_preserves_locked_blocks_and_reminder_deadlines) ... ok
+test_dropping_over_history_cancels_without_saving (test_editor_drag.EditorDragTests.test_dropping_over_history_cancels_without_saving) ... ok
+test_hover_opens_collapsed_hour_and_edition_and_cancels_stale_hover (test_editor_drag.EditorDragTests.test_hover_opens_collapsed_hour_and_edition_and_cancels_stale_hover) ... ok
+test_station_clock_snap_and_exact_save_do_not_reorder_other_blocks (test_editor_drag.EditorDragTests.test_station_clock_snap_and_exact_save_do_not_reorder_other_blocks) ... ok
+test_disabled_editor_and_hourly_limit_keep_news_retryable (test_editorial.EditorialTests.test_disabled_editor_and_hourly_limit_keep_news_retryable) ... ok
+test_every_news_source_uses_russian_preparation_and_keeps_original (test_editorial.EditorialTests.test_every_news_source_uses_russian_preparation_and_keeps_original) ... ok
+test_existing_source_retelling_is_not_rewritten (test_editorial.EditorialTests.test_existing_source_retelling_is_not_rewritten) ... ok
+test_failed_or_rejected_editorial_text_never_reaches_tts (test_editorial.EditorialTests.test_failed_or_rejected_editorial_text_never_reaches_tts) ... ok
+test_history_and_editor_show_the_spoken_text (test_editorial.EditorialTests.test_history_and_editor_show_the_spoken_text) ... ok
+test_legacy_ready_news_returns_to_preparation_once_without_changing_history (test_editorial.EditorialTests.test_legacy_ready_news_returns_to_preparation_once_without_changing_history) ... ok
+test_notices_keep_dates_numbers_names_and_instructions_exactly (test_editorial.EditorialTests.test_notices_keep_dates_numbers_names_and_instructions_exactly) ... ok
+test_reaction_validation_keeps_only_one_supported_leading_tag (test_editorial.EditorialTests.test_reaction_validation_keeps_only_one_supported_leading_tag) ... ok
+test_reactions_are_an_opt_in_experiment_for_voicestudio (test_editorial.EditorialTests.test_reactions_are_an_opt_in_experiment_for_voicestudio) ... ok
+test_reactions_use_one_editor_call_and_separate_cache_from_neutral (test_editorial.EditorialTests.test_reactions_use_one_editor_call_and_separate_cache_from_neutral) ... ok
+test_ready_audio_cannot_bypass_editorial_gate_even_with_a_plan_override (test_editorial.EditorialTests.test_ready_audio_cannot_bypass_editorial_gate_even_with_a_plan_override) ... ok
+test_switch_off_or_clone_strips_reaction_before_news_synthesis (test_editorial.EditorialTests.test_switch_off_or_clone_strips_reaction_before_news_synthesis) ... ok
+test_repeated_commands_do_not_exhaust_engine_sockets (test_engine_commands.EngineCommandTests.test_repeated_commands_do_not_exhaust_engine_sockets) ... ok
+test_approved_hook_survives_reanalysis_and_changed_audio_is_not_ready (test_hooks.HookTests.test_approved_hook_survives_reanalysis_and_changed_audio_is_not_ready) ... ok
+test_confident_alignment_is_automatic_and_missing_cached_clip_is_rebuilt (test_hooks.HookTests.test_confident_alignment_is_automatic_and_missing_cached_clip_is_rebuilt) ... ok
+test_global_alignment_keeps_intro_repetition_outside_the_chorus (test_hooks.HookTests.test_global_alignment_keeps_intro_repetition_outside_the_chorus) ... ok
+test_import_approval_requires_trial_hash_and_same_pcm (test_hooks.HookTests.test_import_approval_requires_trial_hash_and_same_pcm) ... ok
+test_montage_voice_fallback_and_duration_cap (test_hooks.HookTests.test_montage_voice_fallback_and_duration_cap) ... ok
+test_preview_speech_counts_once_and_cancelled_preview_does_not_count (test_hooks.HookTests.test_preview_speech_counts_once_and_cancelled_preview_does_not_count) ... ok
+test_review_reject_is_retained_and_stale_source_cannot_be_approved (test_hooks.HookTests.test_review_reject_is_retained_and_stale_source_cannot_be_approved) ... ok
+test_songle_units_and_retry_classification (test_hooks.HookTests.test_songle_units_and_retry_classification) ... ok
+test_audio_requires_auth_and_review_is_saved_without_exposing_paths (test_hooks_ui.HookUiTests.test_audio_requires_auth_and_review_is_saved_without_exposing_paths) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tempfile.py:538: ResourceWarning: Implicitly cleaning up <HTTPError 403: 'Forbidden'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tempfile.py:538: ResourceWarning: Implicitly cleaning up <HTTPError 404: 'Not Found'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+ok
+test_review_removes_candidate_stops_preview_and_confirms_result (test_hooks_ui_state.HookReviewStateTests.test_review_removes_candidate_stops_preview_and_confirms_result) ... ok
+test_empty_save_and_enter_do_not_remove_a_saved_key (test_key_ui.KeyUiTests.test_empty_save_and_enter_do_not_remove_a_saved_key) ... ok
+test_commands_require_token_and_exact_configured_host (test_mobile_listening.MobileControlTests.test_commands_require_token_and_exact_configured_host) ... ok
+test_configured_phone_port_reuses_handler_and_token (test_mobile_listening.MobileControlTests.test_configured_phone_port_reuses_handler_and_token) ... ok
+test_local_ui_still_accepts_only_its_local_hosts (test_mobile_listening.MobileControlTests.test_local_ui_still_accepts_only_its_local_hosts) ... ok
+test_phone_controls_the_same_station_and_editor (test_mobile_listening.MobileControlTests.test_phone_controls_the_same_station_and_editor) ... ok
+test_phone_receives_the_desktop_ui_and_uncached_token (test_mobile_listening.MobileControlTests.test_phone_receives_the_desktop_ui_and_uncached_token) ... ok
+test_phone_status_keeps_the_existing_token_guard (test_mobile_listening.MobileControlTests.test_phone_status_keeps_the_existing_token_guard) ... ok
+test_phone_stream_uses_the_same_stream_as_the_desktop (test_mobile_listening.MobileControlTests.test_phone_stream_uses_the_same_stream_as_the_desktop) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:460: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 56301)>
+  new = type(cls.__name__, bases, {'__doc__': cls.__doc__})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_station_start_and_stop_are_only_allowed_on_the_local_mac_port (test_mobile_listening.MobileControlTests.test_station_start_and_stop_are_only_allowed_on_the_local_mac_port) ... ok
+test_broken_connection_still_removes_listener (test_mobile_listening.StreamTests.test_broken_connection_still_removes_listener) ... ok
+test_exact_identity_sources_and_week_cache (test_music_facts.MusicFactsTests.test_exact_identity_sources_and_week_cache) ... ok
+test_musicbrainz_request_spacing (test_music_facts.MusicFactsTests.test_musicbrainz_request_spacing) ... ok
+test_outage_cache_retries_and_partial_source (test_music_facts.MusicFactsTests.test_outage_cache_retries_and_partial_source) ... ok
+test_uncertain_matches_are_silent (test_music_facts.MusicFactsTests.test_uncertain_matches_are_silent) ... ok
+test_bad_annotation_does_not_hide_the_remaining_choices (test_music_library.MusicLibraryTests.test_bad_annotation_does_not_hide_the_remaining_choices) ... ok
+test_deleted_files_are_pruned_and_new_track_selection_keeps_working (test_music_library.MusicLibraryTests.test_deleted_files_are_pruned_and_new_track_selection_keeps_working) ... ok
+test_missing_measured_file_does_not_stop_the_rest_of_the_library (test_music_library.MusicLibraryTests.test_missing_measured_file_does_not_stop_the_rest_of_the_library) ... ok
+test_music_estimates_shift_future_editions_at_song_boundaries (test_music_library.MusicLibraryTests.test_music_estimates_shift_future_editions_at_song_boundaries) ... ok
+test_queued_skipped_and_expired_blocks_do_not_add_a_second_delay (test_music_library.MusicLibraryTests.test_queued_skipped_and_expired_blocks_do_not_add_a_second_delay) ... ok
+test_quoted_path_survives_scan_playlist_choices_resume_and_replay (test_music_library.MusicLibraryTests.test_quoted_path_survives_scan_playlist_choices_resume_and_replay) ... ok
+test_one_unplayed_local_track_has_priority_without_age_or_minimum_count (test_music_priority.MusicPriorityTests.test_one_unplayed_local_track_has_priority_without_age_or_minimum_count) ... ok
+test_priority_is_queued_early_without_waiting_for_news_or_a_clock_slot (test_music_priority.MusicPriorityTests.test_priority_is_queued_early_without_waiting_for_news_or_a_clock_slot) ... ok
+test_remote_priority_excludes_aired_and_current_without_treating_urls_as_files (test_music_priority.MusicPriorityTests.test_remote_priority_excludes_aired_and_current_without_treating_urls_as_files) ... ok
+test_remote_priority_reaches_real_liquidsoap_before_a_repeat (test_music_priority.MusicPriorityTests.test_remote_priority_reaches_real_liquidsoap_before_a_repeat) ... 23:20:05 music: ytmusic:aaaaaaaaaaa
+23:20:05 new-tracks set queued: 1 songs
+23:20:10 music: ytmusic:bbbbbbbbbbb
+ok
+test_single_priority_toggle_handles_legacy_zero_and_persists_both_states (test_music_priority.MusicPriorityTests.test_single_priority_toggle_handles_legacy_zero_and_persists_both_states) ... ok
+test_source_switch_removes_only_the_old_music_priority (test_music_priority.MusicPriorityTests.test_source_switch_removes_only_the_old_music_priority) ... ok
+test_disabled_remote_does_not_mask_an_empty_local_library_at_start (test_music_source.MusicSourceTests.test_disabled_remote_does_not_mask_an_empty_local_library_at_start) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/re/_parser.py:77: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1070303c0>
+  def __init__(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_disabling_integration_resets_selection_and_reenable_keeps_local (test_music_source.MusicSourceTests.test_disabling_integration_resets_selection_and_reenable_keeps_local) ... ok
+test_disabling_integration_stops_selecting_remote_with_no_local_files (test_music_source.MusicSourceTests.test_disabling_integration_stops_selecting_remote_with_no_local_files) ... ok
+test_empty_local_library_does_not_interrupt_remote (test_music_source.MusicSourceTests.test_empty_local_library_does_not_interrupt_remote) ... ok
+test_failed_connection_keeps_local_audio (test_music_source.MusicSourceTests.test_failed_connection_keeps_local_audio) ... ok
+test_host_is_not_reported_as_music_and_overlap_expires (test_music_source.MusicSourceTests.test_host_is_not_reported_as_music_and_overlap_expires) ... ok
+test_integration_enable_does_not_select_it_and_choice_does_not_disable_it (test_music_source.MusicSourceTests.test_integration_enable_does_not_select_it_and_choice_does_not_disable_it) ... ok
+test_live_switch_with_slow_download_keeps_audio_and_switches_back (test_music_source.MusicSourceTests.test_live_switch_with_slow_download_keeps_audio_and_switches_back) ... ok
+test_priority_request_survives_a_transient_handoff_gap (test_music_source.MusicSourceTests.test_priority_request_survives_a_transient_handoff_gap) ... ok
+test_status_clears_stale_next_when_playlist_is_not_ready (test_music_source.MusicSourceTests.test_status_clears_stale_next_when_playlist_is_not_ready) ... ok
+test_status_forgets_unavailable_priority_tracks_before_showing_next (test_music_source.MusicSourceTests.test_status_forgets_unavailable_priority_tracks_before_showing_next) ... ok
+test_switch_does_not_claim_new_source_before_audio_event (test_music_source.MusicSourceTests.test_switch_does_not_claim_new_source_before_audio_event) ... ok
+test_all_modes_request_broadcast_gist_and_only_discussion_adds_commentary (test_news_detail.NewsDetailTests.test_all_modes_request_broadcast_gist_and_only_discussion_adds_commentary) ... ok
+test_detail_is_live_persisted_and_has_named_slider_stops (test_news_detail.NewsDetailTests.test_detail_is_live_persisted_and_has_named_slider_stops) ... ok
+test_modes_change_prompt_budget_validation_and_cache_together (test_news_detail.NewsDetailTests.test_modes_change_prompt_budget_validation_and_cache_together) ... ok
+test_slider_has_names_description_and_updates_accessible_value (test_news_detail.NewsDetailTests.test_slider_has_names_description_and_updates_accessible_value) ... ok
+test_content_source_errors_do_not_stop_scheduling (test_news_reliability.NewsReliabilityTests.test_content_source_errors_do_not_stop_scheduling) ... 23:20:27 inbox: OSError
+23:20:27 music stories: OSError
+ok
+test_disabling_new_tracks_cancels_only_its_own_queue (test_news_reliability.NewsReliabilityTests.test_disabling_new_tracks_cancels_only_its_own_queue) ... ok
+test_failed_github_retellings_are_not_reported_as_success (test_news_reliability.NewsReliabilityTests.test_failed_github_retellings_are_not_reported_as_success) ... 23:20:27 github retelling: ValueError
+23:20:27 github_new: degraded: 1 retellings failed; nothing new
+ok
+test_first_source_queueing_an_edition_does_not_skip_second_source (test_news_reliability.NewsReliabilityTests.test_first_source_queueing_an_edition_does_not_skip_second_source) ... ok
+test_new_repository_failure_does_not_degrade_trending (test_news_reliability.NewsReliabilityTests.test_new_repository_failure_does_not_degrade_trending) ... 23:20:27 github_new: degraded: new repositories fetch failed; nothing new
+ok
+test_new_tracks_reach_real_liquidsoap_without_news_or_host_links (test_news_reliability.NewsReliabilityTests.test_new_tracks_reach_real_liquidsoap_without_news_or_host_links) ... 23:20:28 music: track0.wav
+23:20:28 new-tracks set queued: 1 songs
+23:20:38 music: track3.wav
+ok
+test_partial_horizon_batch_keeps_story_and_reports_error (test_news_reliability.NewsReliabilityTests.test_partial_horizon_batch_keeps_story_and_reports_error) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:1340: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310e40>
+  def __init__(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:20:38 horizon retelling: ValueError
+23:20:38 horizon: RepRapMicron: Ambitious micron-scale 3D printer pr
+ok
+test_partial_script_write_rolls_back_and_item_can_retry (test_news_reliability.NewsReliabilityTests.test_partial_script_write_rolls_back_and_item_can_retry) ... ok
+test_trending_failure_does_not_block_new_repositories (test_news_reliability.NewsReliabilityTests.test_trending_failure_does_not_block_new_repositories) ... 23:20:38 github_trending: error: offline
+ok
+test_unplayed_priority_does_not_wait_for_clock_slots (test_news_reliability.NewsReliabilityTests.test_unplayed_priority_does_not_wait_for_clock_slots) ... ok
+test_weather_and_calendar_do_not_require_host_links (test_news_reliability.NewsReliabilityTests.test_weather_and_calendar_do_not_require_host_links) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310e40>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_paused_radio_rejects_next_without_touching_audio (test_next_paused.NextPausedTests.test_paused_radio_rejects_next_without_touching_audio) ... ok
+test_playing_radio_still_accepts_next (test_next_paused.NextPausedTests.test_playing_radio_still_accepts_next) ... ok
+test_editor_payload_adds_host_edition (test_plan_insert.PlanInsertTests.test_editor_payload_adds_host_edition) ... ok
+test_editor_payload_adds_text_with_undo (test_plan_insert.PlanInsertTests.test_editor_payload_adds_text_with_undo) ... ok
+test_new_block_still_requires_current_or_future_time (test_plan_insert.PlanInsertTests.test_new_block_still_requires_current_or_future_time) ... ok
+test_reroll_button_needs_no_plugin_switch (test_playback_controls.PlaybackControlsTests.test_reroll_button_needs_no_plugin_switch) ... ok
+test_station_power_and_device_listening_are_independent (test_playback_controls.PlaybackControlsTests.test_station_power_and_device_listening_are_independent) ... ok
+test_change_during_synthesis_does_not_queue_stale_announcement (test_previews.PreviewTests.test_change_during_synthesis_does_not_queue_stale_announcement) ... ok
+test_only_matching_queue_is_committed_and_hourly_cadence_uses_on_air_event (test_previews.PreviewTests.test_only_matching_queue_is_committed_and_hourly_cadence_uses_on_air_event) ... 23:20:38 music: one
+ok
+test_pause_queue_change_and_disable_cancel_pending_preview (test_previews.PreviewTests.test_pause_queue_change_and_disable_cancel_pending_preview) ... ok
+test_push_timeout_is_cancelled_by_id_before_retry (test_previews.PreviewTests.test_push_timeout_is_cancelled_by_id_before_retry) ... ok
+test_real_engine_guard_and_next_play_first_promised_song (test_previews.PreviewTests.test_real_engine_guard_and_next_play_first_promised_song) ... 23:20:40 music: song-0.wav
+23:20:44 music: song-1.wav
+23:20:48 music: song-0.wav
+ok
+test_reroll_removes_only_replaced_announcement_after_success (test_previews.PreviewTests.test_reroll_removes_only_replaced_announcement_after_success) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107032c00>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_source_switch_clears_announcements_only_after_success (test_previews.PreviewTests.test_source_switch_clears_announcements_only_after_success) ... ok
+test_switch_is_off_by_default_and_disabled_path_does_nothing (test_previews.PreviewTests.test_switch_is_off_by_default_and_disabled_path_does_nothing) ... ok
+test_artist_and_track_use_one_request_and_no_disk_cache (test_pronunciation.PronunciationTests.test_artist_and_track_use_one_request_and_no_disk_cache) ... ok
+test_both_hosts_receive_spelling_but_original_is_preserved (test_pronunciation.PronunciationTests.test_both_hosts_receive_spelling_but_original_is_preserved) ... ok
+test_cache_has_a_fixed_bound_and_requests_are_batched (test_pronunciation.PronunciationTests.test_cache_has_a_fixed_bound_and_requests_are_batched) ... ok
+test_dictionary_wins_and_tags_urls_and_numbers_are_not_sent (test_pronunciation.PronunciationTests.test_dictionary_wins_and_tags_urls_and_numbers_are_not_sent) ... ok
+test_disabled_editor_and_exhausted_budget_preserve_original (test_pronunciation.PronunciationTests.test_disabled_editor_and_exhausted_budget_preserve_original) ... ok
+test_invalid_or_unavailable_reply_keeps_names_and_backs_off (test_pronunciation.PronunciationTests.test_invalid_or_unavailable_reply_keeps_names_and_backs_off) ... ok
+test_json_mode_and_timeout_reach_each_provider (test_pronunciation.PronunciationTests.test_json_mode_and_timeout_reach_each_provider) ... ok
+test_malformed_provider_reply_cannot_break_speech (test_pronunciation.PronunciationTests.test_malformed_provider_reply_cannot_break_speech) ... ok
+test_native_phonemes_are_idempotent_and_do_not_change_other_engines (test_pronunciation.PronunciationTests.test_native_phonemes_are_idempotent_and_do_not_change_other_engines) ... ok
+test_omnivoice_uses_ready_phonemes_without_llm (test_pronunciation.PronunciationTests.test_omnivoice_uses_ready_phonemes_without_llm) ... ok
+test_unknown_name_is_preserved_and_negative_result_reused (test_pronunciation.PronunciationTests.test_unknown_name_is_preserved_and_negative_result_reused) ... ok
+test_access_validation_and_experiment_listing (test_public_news.PublicNewsTests.test_access_validation_and_experiment_listing) ... ok
+test_changed_source_list_is_loaded_live_and_old_response_discarded (test_public_news.PublicNewsTests.test_changed_source_list_is_loaded_live_and_old_response_discarded) ... ok
+test_digest_import_unchanged (test_public_news.PublicNewsTests.test_digest_import_unchanged) ... ok
+test_normalization_dates_and_durable_dedup (test_public_news.PublicNewsTests.test_normalization_dates_and_durable_dedup) ... ok
+test_poll_gates_error_isolation_and_throttle (test_public_news.PublicNewsTests.test_poll_gates_error_isolation_and_throttle) ... ok
+test_rss_source_validation_without_login (test_public_news.PublicNewsTests.test_rss_source_validation_without_login) ... ok
+test_source_settings_validation_persistence_and_reset (test_public_news.PublicNewsTests.test_source_settings_validation_persistence_and_reset) ... ok
+test_sources_reach_actual_broadcast (test_public_news.PublicNewsTests.test_sources_reach_actual_broadcast) ... 23:20:49 session 56309d17dcd9 started, 1 tracks
+23:20:49 music: track.mp3
+23:20:51 package ready: reddit:t3_one#1 speech=3.6s in 1s
+23:20:51 break queued for next song boundary: reddit:t3_one#1
+23:21:05 news on air: reddit:t3_one#1
+23:21:06 music: track.mp3
+23:21:08 package ready: telegram:example/42#1 speech=3.6s in 2s
+23:21:08 break queued for next song boundary: telegram:example/42#1
+23:21:34 news on air: telegram:example/42#1
+23:21:34 music: track.mp3
+23:21:34 session stopped
+ok
+test_specific_posts_and_thread_comment_text (test_public_news.PublicNewsTests.test_specific_posts_and_thread_comment_text) ... ok
+test_base_requires_only_repository_sounds (test_radio.ConfigPresetTests.test_base_requires_only_repository_sounds) ... ok
+test_invalid_preset_does_not_replace_working_selection (test_radio.ConfigPresetTests.test_invalid_preset_does_not_replace_working_selection) ... ok
+test_personal_overlay_preserves_secrets_settings_and_base (test_radio.ConfigPresetTests.test_personal_overlay_preserves_secrets_settings_and_base) ... ok
+test_unknown_ai_provider_is_a_clear_error (test_radio.ConfigPresetTests.test_unknown_ai_provider_is_a_clear_error) ... ok
+test_freshness (test_radio.ContentTests.test_freshness) ... ok
+test_pronunciation (test_radio.ContentTests.test_pronunciation) ... ok
+test_separators (test_radio.ContentTests.test_separators) ... ok
+test_split_is_verbatim_and_on_boundaries (test_radio.ContentTests.test_split_is_verbatim_and_on_boundaries) ... ok
+test_time_words (test_radio.ContentTests.test_time_words) ... ok
+test_tts_rejects_bad_cached_audio_before_reusing_it (test_radio.ContentTests.test_tts_rejects_bad_cached_audio_before_reusing_it) ... ok
+test_tts_removes_urls_before_synthesis_and_cache_lookup (test_radio.ContentTests.test_tts_removes_urls_before_synthesis_and_cache_lookup) ... ok
+test_tts_retakes_noisy_clip (test_radio.ContentTests.test_tts_retakes_noisy_clip) ... ok
+test_broadcast (test_radio.EndToEnd.test_broadcast) ... 23:21:36 session d841e0345dfe started, 4 tracks
+23:21:36 new digest: digest:a8e166f9292df599
+23:21:36 new digest: digest:0daa7aa8442887e6
+23:21:36 new digest: digest:03f4bb2ab69c8f9b
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/contextlib.py:656: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313060>
+  is_sync, cb = self._exit_callbacks.pop()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/contextlib.py:656: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073102e0>
+  is_sync, cb = self._exit_callbacks.pop()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:21:36 github: new pengchujin/aerial-tv
+23:21:37 music: track1.mp3
+23:21:37 new-tracks set queued: 3 songs
+23:21:37 package ready: digest:a8e166f9292df599#1 speech=3.4s in 1s
+23:21:39 break assembled for 23:21: 1 bulletins in 2.2s
+23:21:39 break queued for next song boundary: digest:a8e166f9292df599#1
+23:21:53 news on air: digest:a8e166f9292df599#1
+23:22:09 music: track2.mp3
+23:22:12 session stopped
+ok
+test_replay_unqueue (test_radio.EndToEnd.test_replay_unqueue) ... 23:22:12 session 8dfc05e9ff10 started, 4 tracks
+23:22:13 github retelling: URLError
+23:22:13 github retelling: URLError
+23:22:13 github retelling: URLError
+23:22:13 github retelling: URLError
+23:22:13 github_new: degraded: 4 retellings failed; nothing new
+23:22:13 music: track1.mp3
+23:22:13 new-tracks set queued: 1 songs
+23:22:14 replay queued: music /var/folders/3b/wfmft63x24qb59r4dcc6mm740000gn/T/radio-test-4ctwt93m/music/track1.mp3
+23:22:14 replay queued: music /var/folders/3b/wfmft63x24qb59r4dcc6mm740000gn/T/radio-test-4ctwt93m/music/track0.mp3
+23:22:14 replay unqueued: music /var/folders/3b/wfmft63x24qb59r4dcc6mm740000gn/T/radio-test-4ctwt93m/music/track1.mp3
+23:22:14 music: track0.mp3
+23:22:30 music: track0.mp3
+23:22:30 session stopped
+ok
+test_briefing_items_retold (test_radio.HorizonTests.test_briefing_items_retold) ... 23:22:30 horizon: Together Computer releases Hybrid Reasoning Agents; RepRapMicron: Ambitious micron-scale 3D printer pr; PalmOS Lemmings clone released by Aaron
+ok
+test_no_repeat_until_folder_used_up (test_radio.JingleRotationTests.test_no_repeat_until_folder_used_up) ... ok
+test_connection_state_for_the_settings_page (test_radio.LlmProviderTests.test_connection_state_for_the_settings_page) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tempfile.py:538: ResourceWarning: Implicitly cleaning up <HTTPError 401: 'no'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+ok
+test_deepseek_key_pasted_in_settings (test_radio.LlmProviderTests.test_deepseek_key_pasted_in_settings) ... ok
+test_deepseek_retries_old_empty_cache_without_thinking (test_radio.LlmProviderTests.test_deepseek_retries_old_empty_cache_without_thinking) ... ok
+test_empty_or_truncated_reply_is_not_cached_but_skip_is (test_radio.LlmProviderTests.test_empty_or_truncated_reply_is_not_cached_but_skip_is) ... ok
+test_llm_limit_is_per_hour_not_per_session (test_radio.LlmProviderTests.test_llm_limit_is_per_hour_not_per_session) ... ok
+test_provider_switch_reaches_editor_and_horizon_proxy (test_radio.LlmProviderTests.test_provider_switch_reaches_editor_and_horizon_proxy) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tempfile.py:538: ResourceWarning: Implicitly cleaning up <HTTPError 401: 'Unauthorized'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tempfile.py:538: ResourceWarning: Implicitly cleaning up <HTTPError 403: 'Forbidden'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/case.py:637: ResourceWarning: unclosed <socket.socket fd=15, family=2, type=1, proto=0, laddr=('127.0.0.1', 56496)>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/case.py:637: ResourceWarning: unclosed <socket.socket fd=10, family=2, type=1, proto=0, laddr=('127.0.0.1', 56495)>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_sign_in_with_chatgpt (test_radio.LlmProviderTests.test_sign_in_with_chatgpt) ... ok
+test_enhanced_copy_is_skipped (test_radio.MusicTests.test_enhanced_copy_is_skipped) ... ok
+test_day_mentions_dates_recurrence_and_limits (test_radio.ReminderTests.test_day_mentions_dates_recurrence_and_limits) ... ok
+test_day_mentions_spans_overrides_and_rotation (test_radio.ReminderTests.test_day_mentions_spans_overrides_and_rotation) ... ok
+test_moved_and_cancelled_occurrences (test_radio.ReminderTests.test_moved_and_cancelled_occurrences) ... ok
+test_recurring_events (test_radio.ReminderTests.test_recurring_events) ... ok
+test_single_utc_and_all_day_events (test_radio.ReminderTests.test_single_utc_and_all_day_events) ... ok
+test_spoken_text (test_radio.ReminderTests.test_spoken_text) ... ok
+test_todoist_offsets_named_zones_and_links (test_radio.ReminderTests.test_todoist_offsets_named_zones_and_links) ... ok
+test_todoist_tasks_with_a_time (test_radio.ReminderTests.test_todoist_tasks_with_a_time) ... ok
+test_unsupported_rule_is_reported_not_guessed (test_radio.ReminderTests.test_unsupported_rule_is_reported_not_guessed) ... ok
+test_all_day_mention_flow_and_restart (test_radio.SchedulingTests.test_all_day_mention_flow_and_restart) ... 23:22:31 news on air: system:day:2026-10-20:81c16d337a1b7314:1#1
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312f80>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073126c0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312c00>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313e60>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107030d60>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_audio_preset_rebuilds_prepared_packages (test_radio.SchedulingTests.test_audio_preset_rebuilds_prepared_packages) ... ok
+test_auto_pause_without_listeners (test_radio.SchedulingTests.test_auto_pause_without_listeners) ... 23:22:32 no listeners: paused
+23:22:33 listener back: resumed
+ok
+test_breaks_end_music_sets (test_radio.SchedulingTests.test_breaks_end_music_sets) ... 23:22:34 music: 1.mp3
+23:22:34 break queued for next song boundary: a#1, github:b#1
+23:22:34 news on air: a#1|github:b#1
+23:22:34 music: 2.mp3
+23:22:34 break queued for next song boundary: c#1
+ok
+test_calendar_story_fallback (test_radio.SchedulingTests.test_calendar_story_fallback) ... 23:22:34 calendar story: OSError
+ok
+test_every_fresh_take_is_checked_by_transcript (test_radio.SchedulingTests.test_every_fresh_take_is_checked_by_transcript) ... 23:22:35 speech verification unavailable: RuntimeError
+ok
+test_gap_filler_covers_a_song_youtube_music_has_not_loaded (test_radio.SchedulingTests.test_gap_filler_covers_a_song_youtube_music_has_not_loaded) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313bc0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313d80>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312260>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313220>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073102e0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310e40>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:22:36 gap filler: a ready edition airs while YouTube Music loads
+23:22:36 gap filler queued: the next YouTube Music song is not loaded, a local one follows
+23:22:36 gap filler queued: the next YouTube Music song is not loaded, a local one follows
+23:22:36 gap filler on air
+ok
+test_host_line_between_songs_is_voice_first_then_jingle (test_radio.SchedulingTests.test_host_line_between_songs_is_voice_first_then_jingle) ... ok
+test_host_lines (test_radio.SchedulingTests.test_host_lines) ... ok
+test_late_assembly_waits_for_song_end (test_radio.SchedulingTests.test_late_assembly_waits_for_song_end) ... 23:22:37 break queued for next song boundary: d#1
+ok
+test_music_link_gates_cache_queue_and_history (test_radio.SchedulingTests.test_music_link_gates_cache_queue_and_history) ... 23:22:37 music link prepared
+23:22:37 music link prepared
+ok
+test_music_link_is_independent_of_waiting_news (test_radio.SchedulingTests.test_music_link_is_independent_of_waiting_news) ... 23:22:37 music link prepared
+ok
+test_names_come_from_tags (test_radio.SchedulingTests.test_names_come_from_tags) ... ok
+test_new_track_set_length_does_not_move_host_editions (test_radio.SchedulingTests.test_new_track_set_length_does_not_move_host_editions) ... ok
+test_new_tracks_set (test_radio.SchedulingTests.test_new_tracks_set) ... 23:22:37 music: Old - Aired.mp3
+23:22:37 new-tracks set queued: 2 songs
+23:22:37 break queued for next song boundary: a#1, b#1
+23:22:37 news on air: a#1|b#1
+23:22:37 music: Old - Aired.mp3
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107311a80>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312a40>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313bc0>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310e40>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312b20>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073134c0>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313d80>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073126c0>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073102e0>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<HOME>/PersonalRadio/radio/daemon.py:1758: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312f80>
+  def _pick_break(self, preview=False) -> list:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:22:37 break queued for next song boundary: c#1
+23:22:37 music: New - Three.mp3
+ok
+test_pause_removes_notice_before_resume_and_recalculates_countdown (test_radio.SchedulingTests.test_pause_removes_notice_before_resume_and_recalculates_countdown) ... 23:22:37 task queued: Загляну в список дел: через пять минут пора браться — Созвон.
+23:22:37 task queued: Загляну в список дел: через три минуты пора браться — Созвон.
+ok
+test_playlist_intro_windows (test_radio.SchedulingTests.test_playlist_intro_windows) ... ok
+test_playlist_outro_talk_point (test_radio.SchedulingTests.test_playlist_outro_talk_point) ... ok
+test_playlist_talk_up_points (test_radio.SchedulingTests.test_playlist_talk_up_points) ... ok
+test_plugin_switches (test_radio.SchedulingTests.test_plugin_switches) ... ok
+test_reminder_flow (test_radio.SchedulingTests.test_reminder_flow) ... 23:22:37 event queued: Небольшая сверка с календарём: через пять минут у тебя — Стендап.
+23:22:37 reminder on air
+23:22:37 reminders calendar: OSError
+ok
+test_retry_seed_goes_with_the_request_not_onto_the_shared_voice (test_radio.SchedulingTests.test_retry_seed_goes_with_the_request_not_onto_the_shared_voice) ... ok
+test_round_robin (test_radio.SchedulingTests.test_round_robin) ... ok
+test_section_intro_or_short_phrase (test_radio.SchedulingTests.test_section_intro_or_short_phrase) ... ok
+test_settings_apply_before_the_first_job (test_radio.SchedulingTests.test_settings_apply_before_the_first_job) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312260>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310d60>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313e60>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312f80>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313680>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107311ee0>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313220>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073126c0>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tomllib/_parser.py:259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073120a0>
+  cont[key_stem] = {"flags": set(), "recursive_flags": set(), "nested": {}}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_settings_from_the_ui (test_radio.SchedulingTests.test_settings_from_the_ui) ... ok
+test_single_bulletin_without_host_links_queues_without_new_tracks (test_radio.SchedulingTests.test_single_bulletin_without_host_links_queues_without_new_tracks) ... 23:22:37 break queued for next song boundary: system:plain#1
+23:22:37 break queued for next song boundary: digest:plain#1
+ok
+test_slow_notice_missing_boundary_is_not_marked_as_announced (test_radio.SchedulingTests.test_slow_notice_missing_boundary_is_not_marked_as_announced) ... ok
+test_station_id_is_not_triggered_by_song_starts (test_radio.SchedulingTests.test_station_id_is_not_triggered_by_song_starts) ... 23:22:37 music: 0.mp3
+23:22:38 music: 1.mp3
+23:22:38 music: 2.mp3
+23:22:38 music: 3.mp3
+23:22:38 music: 4.mp3
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312260>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313e60>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313680>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313060>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312c00>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312f80>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310200>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313760>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313ca0>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107311a80>
+  def __setattr__(self, name, value):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:22:38 music: 5.mp3
+23:22:38 music: 6.mp3
+23:22:38 music: 7.mp3
+23:22:38 music: 8.mp3
+23:22:38 music: 9.mp3
+ok
+test_stop_ends_a_horizon_run_in_flight (test_radio.SchedulingTests.test_stop_ends_a_horizon_run_in_flight) ... ok
+test_timed_reminder_before_day_mention (test_radio.SchedulingTests.test_timed_reminder_before_day_mention) ... 23:22:38 event queued: Кстати, через тридцать две минуты — Встреча. Самое время потихоньку закругляться.
+ok
+test_timed_reminder_prepares_early_and_expires_while_paused (test_radio.SchedulingTests.test_timed_reminder_prepares_early_and_expires_while_paused) ... 23:22:38 task queued: И про дела: через пять минут по плану — Созвон.
+ok
+test_timed_reminder_render_crossing_song_boundary_is_discarded (test_radio.SchedulingTests.test_timed_reminder_render_crossing_song_boundary_is_discarded) ... ok
+test_timeline_merges_a_break_and_titles_are_clean (test_radio.SchedulingTests.test_timeline_merges_a_break_and_titles_are_clean) ... ok
+test_todoist_link_reaches_persistent_timeline_without_being_spoken (test_radio.SchedulingTests.test_todoist_link_reaches_persistent_timeline_without_being_spoken) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107311a80>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313ca0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313760>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310200>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312f80>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073126c0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073102e0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310d60>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073134c0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:22:38 task queued: Через десять минут в планах — Созвон. Можно уже готовиться.
+23:22:38 reminder on air
+ok
+test_two_hosts_enter_without_handoff_or_thanks (test_radio.SchedulingTests.test_two_hosts_enter_without_handoff_or_thanks) ... 23:22:38 break assembled for 23:00: 3 bulletins in 0.0s
+ok
+test_vocal_start_from_synced_lyrics (test_radio.SchedulingTests.test_vocal_start_from_synced_lyrics) ... ok
+test_vocal_timing_skips_a_song_deleted_while_playing (test_radio.SchedulingTests.test_vocal_timing_skips_a_song_deleted_while_playing) ... ok
+test_voicestudio_server_started_and_stopped_with_the_radio (test_radio.SchedulingTests.test_voicestudio_server_started_and_stopped_with_the_radio) ... 23:22:38 voice server for voicestudio is not answering: started it (pid 123 )
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/asyncio/events.py:94: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3b/wfmft63x24qb59r4dcc6mm740000gn/T/radio-test-4ctwt93m/data/logs/voicestudio.log' mode='a' encoding='utf-8'>
+  self._context.run(self._callback, *self._args)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:22:38 VoiceStudio server stopped
+23:22:38 voice server for voicestudio is not answering: started it (pid 123 )
+23:22:38 VoiceStudio server stopped
+ok
+test_weather_assembly_checks_host_time_as_host_speech (test_radio.SchedulingTests.test_weather_assembly_checks_host_time_as_host_speech) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:694: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313300>
+  raise AttributeError(name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:694: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x106efd380>
+  raise AttributeError(name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:694: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312260>
+  raise AttributeError(name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:694: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313680>
+  raise AttributeError(name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:22:38 break assembled for 23:00: 1 bulletins in 0.0s
+ok
+test_weather_flow_cadence_restart_and_expiry (test_radio.SchedulingTests.test_weather_flow_cadence_restart_and_expiry) ... 23:22:38 news on air: system:weather:slot:1793023200#1
+ok
+test_weather_outage_retries_without_announcing (test_radio.SchedulingTests.test_weather_outage_retries_without_announcing) ... 23:22:38 weather: OSError
+ok
+test_weather_replaces_noise_that_passes_spectrum_check (test_radio.SchedulingTests.test_weather_replaces_noise_that_passes_spectrum_check) ... ok
+test_whisper_timing_for_songs_lrclib_does_not_know (test_radio.SchedulingTests.test_whisper_timing_for_songs_lrclib_does_not_know) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073103c0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073125e0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313840>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313140>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312960>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310900>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312180>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312340>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312dc0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312a40>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313220>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107312ce0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310e40>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x1073134c0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313e60>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py:333: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313760>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_openrouter_pkce_sign_in_and_model_row (test_radio.SignInTests.test_openrouter_pkce_sign_in_and_model_row) ... ok
+test_youtube_sign_in_from_browser_keeps_only_youtube_cookies (test_radio.SignInTests.test_youtube_sign_in_from_browser_keeps_only_youtube_cookies) ... ok
+test_no_file_leak_on_polling (test_radio.TimelineTests.test_no_file_leak_on_polling) ... ok
+test_failed_retelling_gives_slot_to_next (test_radio.TrendingTests.test_failed_retelling_gives_slot_to_next) ... 23:22:38 github: indie zeta/kept, indie zeta/also
+ok
+test_github_mix_never_repeats (test_radio.TrendingTests.test_github_mix_never_repeats) ... 23:22:38 github: top acme/big, indie acme/tiny, indie acme/small, new acme/fresh
+23:22:38 github: top acme/huge, indie acme/mini
+ok
+test_llm_output_check (test_radio.TrendingTests.test_llm_output_check) ... ok
+test_parse_fixture (test_radio.TrendingTests.test_parse_fixture) ... ok
+test_select_top_and_indie (test_radio.TrendingTests.test_select_top_and_indie) ... ok
+test_short_bulletin_text (test_radio.TrendingTests.test_short_bulletin_text) ... ok
+test_fetch_uses_resolved_city_and_explicit_units (test_radio.WeatherTests.test_fetch_uses_resolved_city_and_explicit_units) ... ok
+test_short_report_and_current_weather_validation (test_radio.WeatherTests.test_short_report_and_current_weather_validation) ... ok
+test_http_date_and_missing_retry_after (test_reddit_rate_limit.RedditRateLimitTests.test_http_date_and_missing_retry_after) ... ok
+test_ui_and_import_respect_the_same_server_cooldown (test_reddit_rate_limit.RedditRateLimitTests.test_ui_and_import_respect_the_same_server_cooldown) ... ok
+test_a_busy_radio_answers_with_an_error_not_a_crash (test_reroll.RerollTests.test_a_busy_radio_answers_with_an_error_not_a_crash) ... ok
+test_a_replay_the_engine_dropped_is_forgotten (test_reroll.RerollTests.test_a_replay_the_engine_dropped_is_forgotten) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107310200>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x106efd380>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107313300>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:22:38 replay dropped by the engine (could not load): /tmp/other.wav
+ok
+test_a_second_click_while_loading_replaces_the_pick (test_reroll.RerollTests.test_a_second_click_while_loading_replaces_the_pick) ... ok
+test_a_second_daemon_does_not_start (test_reroll.RerollTests.test_a_second_daemon_does_not_start) ... 23:22:39 another radio daemon is running: not starting a second one
+<HOME>/PersonalRadio/tests/test_reroll.py:465: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3b/wfmft63x24qb59r4dcc6mm740000gn/T/radio-reroll-gqdd0bea/run/daemon.lock' mode='w' encoding='utf-8'>
+  daemon.main('x')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_engine_airs_the_opener_then_the_resumed_song_before_the_shuffle (test_reroll.RerollTests.test_engine_airs_the_opener_then_the_resumed_song_before_the_shuffle) ... ok
+test_engine_ends_a_liquidsoap_its_dead_daemon_left_and_stops_while_starting (test_reroll.RerollTests.test_engine_ends_a_liquidsoap_its_dead_daemon_left_and_stops_while_starting) ... ended a Liquidsoap left by a previous daemon: 72916
+ok
+test_engine_plays_local_music_while_the_primary_song_is_not_loaded (test_reroll.RerollTests.test_engine_plays_local_music_while_the_primary_song_is_not_loaded) ... ok
+test_engine_rejects_expired_insert_without_scheduler (test_reroll.RerollTests.test_engine_rejects_expired_insert_without_scheduler) ... ok
+test_engine_replaces_prefetch_and_queued_replay_without_skipping_current (test_reroll.RerollTests.test_engine_replaces_prefetch_and_queued_replay_without_skipping_current) ... ok
+test_engine_reroll_preserves_every_later_track_in_shuffle (test_reroll.RerollTests.test_engine_reroll_preserves_every_later_track_in_shuffle) ... ok
+test_engine_resumes_a_song_at_its_position_before_the_shuffle (test_reroll.RerollTests.test_engine_resumes_a_song_at_its_position_before_the_shuffle) ... ok
+test_failure_keeps_previous_selection_and_clears_busy (test_reroll.RerollTests.test_failure_keeps_previous_selection_and_clears_busy) ... ok
+test_immediate_edition_joins_ready_audio_in_order (test_reroll.RerollTests.test_immediate_edition_joins_ready_audio_in_order) ... ok
+test_late_restart_starts_a_new_session (test_reroll.RerollTests.test_late_restart_starts_a_new_session) ... ok
+test_legacy_disabled_switch_does_not_hide_standard_control (test_reroll.RerollTests.test_legacy_disabled_switch_does_not_hide_standard_control) ... ok
+test_manual_skip_and_host_edition_keep_audio_continuous (test_reroll.RerollTests.test_manual_skip_and_host_edition_keep_audio_continuous) ... ok
+test_new_tracks_queue_is_replaced_in_place (test_reroll.RerollTests.test_new_tracks_queue_is_replaced_in_place) ... ok
+test_no_alternative_keeps_the_original_track (test_reroll.RerollTests.test_no_alternative_keeps_the_original_track) ... ok
+test_opener_is_the_jingle_until_the_voice_is_rendered (test_reroll.RerollTests.test_opener_is_the_jingle_until_the_voice_is_rendered) ... ok
+test_queued_replay_is_replaced_in_place (test_reroll.RerollTests.test_queued_replay_is_replaced_in_place) ... ok
+test_replaces_next_and_keeps_current (test_reroll.RerollTests.test_replaces_next_and_keeps_current) ... ok
+test_restart_within_minutes_continues_session_set_and_song (test_reroll.RerollTests.test_restart_within_minutes_continues_session_set_and_song) ... 23:23:14 music: current.wav
+ok
+test_stale_or_locked_transition_cannot_change_queue (test_reroll.RerollTests.test_stale_or_locked_transition_cannot_change_queue) ... ok
+test_wait_music_keeps_waiting_until_prefetch_is_ready (test_reroll.RerollTests.test_wait_music_keeps_waiting_until_prefetch_is_ready) ... ok
+test_youtube_music_replacement_is_downloaded_outside_the_engine (test_reroll.RerollTests.test_youtube_music_replacement_is_downloaded_outside_the_engine) ... ok
+test_youtube_reroll_answers_at_once_with_the_new_title (test_reroll.RerollTests.test_youtube_reroll_answers_at_once_with_the_new_title) ... ok
+test_youtube_reroll_preserves_all_later_priority_tracks (test_reroll.RerollTests.test_youtube_reroll_preserves_all_later_priority_tracks) ... ok
+test_youtube_reroll_skips_an_unavailable_song (test_reroll.RerollTests.test_youtube_reroll_skips_an_unavailable_song) ... ok
+test_confirmation_cancel_refresh_and_changed_track (test_reroll_ui.RerollUiTests.test_confirmation_cancel_refresh_and_changed_track) ... ok
+test_infinite_number_is_rejected_and_does_not_replace_saved_settings (test_settings.SavedSettingsTests.test_infinite_number_is_rejected_and_does_not_replace_saved_settings) ... ok
+test_non_object_json_uses_defaults_without_overwriting_the_file (test_settings.SavedSettingsTests.test_non_object_json_uses_defaults_without_overwriting_the_file) ... ok
+test_voice_state_checks_the_port_once (test_settings.SavedSettingsTests.test_voice_state_checks_the_port_once) ... ok
+test_cold_plan_does_not_probe_audio_in_status (test_shuffle.ShuffleTests.test_cold_plan_does_not_probe_audio_in_status) ... ok
+test_engine_plan_is_not_truncated_at_24_or_64k_bytes (test_shuffle.ShuffleTests.test_engine_plan_is_not_truncated_at_24_or_64k_bytes) ... ok
+test_engine_preserves_queue_and_plays_in_order_after_toggle (test_shuffle.ShuffleTests.test_engine_preserves_queue_and_plays_in_order_after_toggle) ... ok
+test_live_sync_retries_failure_and_sends_only_changes (test_shuffle.ShuffleTests.test_live_sync_retries_failure_and_sends_only_changes) ... ok
+test_plan_keeps_engine_order_and_set_membership_and_accounts_for_voice (test_shuffle.ShuffleTests.test_plan_keeps_engine_order_and_set_membership_and_accounts_for_voice) ... ok
+test_plan_uses_editor_time_horizon_instead_of_track_count (test_shuffle.ShuffleTests.test_plan_uses_editor_time_horizon_instead_of_track_count) ... ok
+test_saved_shuffle_is_independent_of_experiments_and_source (test_shuffle.ShuffleTests.test_saved_shuffle_is_independent_of_experiments_and_source) ... ok
+test_ui_switch_renders_and_saves_unchecked_as_zero (test_shuffle.ShuffleTests.test_ui_switch_renders_and_saves_unchecked_as_zero) ... ok
+test_single_source_controls_for_reddit_and_telegram (test_source_settings_ui.SourceSettingsUiTests.test_single_source_controls_for_reddit_and_telegram) ... ok
+test_busy_daemon_is_an_error_not_a_stopped_station (test_status_sync.StatusSyncTests.test_busy_daemon_is_an_error_not_a_stopped_station) ... ok
+test_old_responses_and_timeouts_do_not_overwrite_current_playback (test_status_sync.StatusSyncTests.test_old_responses_and_timeouts_do_not_overwrite_current_playback) ... ok
+test_engine_reset_discards_old_request_ids_and_unlocks_plan (test_sync.SyncTests.test_engine_reset_discards_old_request_ids_and_unlocks_plan) ... ok
+test_failed_plan_save_rolls_back_every_change (test_sync.SyncTests.test_failed_plan_save_rolls_back_every_change) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/asyncio/base_events.py:652: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107033060>
+  self._old_agen_hooks = sys.get_asyncgen_hooks()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_parallel_settings_keep_both_values (test_sync.SyncTests.test_parallel_settings_keep_both_values) ... ok
+test_pronunciations_leave_budget_for_news (test_sync.SyncTests.test_pronunciations_leave_budget_for_news) ... ok
+test_removed_task_is_cancelled_in_memory_and_engine_queue (test_sync.SyncTests.test_removed_task_is_cancelled_in_memory_and_engine_queue) ... ok
+test_running_station_cleans_expired_cache_without_a_restart (test_sync.SyncTests.test_running_station_cleans_expired_cache_without_a_restart) ... ok
+test_source_outage_keeps_the_last_valid_reminder (test_sync.SyncTests.test_source_outage_keeps_the_last_valid_reminder) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/threading.py:597: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107033920>
+  self._cond = Condition(Lock())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+23:23:32 reminders todoist: OSError
+ok
+test_task_changes_update_pending_notice (test_sync.SyncTests.test_task_changes_update_pending_notice) ... ok
+test_worker_rollback_cannot_erase_another_workers_item (test_sync.SyncTests.test_worker_rollback_cannot_erase_another_workers_item) ... ok
+test_restarts_stay_in_activity_and_do_not_displace_aired_history (test_timeline_history_ui.TimelineHistoryTests.test_restarts_stay_in_activity_and_do_not_displace_aired_history) ... ok
+test_api_needs_the_token_and_a_local_host (test_ui.PageServerTests.test_api_needs_the_token_and_a_local_host) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tempfile.py:538: ResourceWarning: Implicitly cleaning up <HTTPError 403: 'Forbidden'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+ok
+test_capabilities_reuses_the_shared_registry_and_requires_auth (test_ui.PageServerTests.test_capabilities_reuses_the_shared_registry_and_requires_auth) ... ok
+test_connecting_youtube_does_not_enable_the_integration (test_ui.PageServerTests.test_connecting_youtube_does_not_enable_the_integration) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107033220>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x107033060>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 56676)>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed <socket.socket fd=10, family=2, type=1, proto=0, laddr=('127.0.0.1', 56685)>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_music_source_choice_is_independent_of_the_integration_switch (test_ui.PageServerTests.test_music_source_choice_is_independent_of_the_integration_switch) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/tempfile.py:538: ResourceWarning: Implicitly cleaning up <HTTPError 400: 'Bad Request'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+ok
+test_news_sources_save_through_the_ui_api (test_ui.PageServerTests.test_news_sources_save_through_the_ui_api) ... ok
+test_reddit_rss_check_preserves_saved_lists_on_error (test_ui.PageServerTests.test_reddit_rss_check_preserves_saved_lists_on_error) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 56690)>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 56700)>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_subreddits_are_added_and_removed_individually (test_ui.PageServerTests.test_subreddits_are_added_and_removed_individually) ... ok
+test_telegram_channels_are_added_individually_with_public_preview_check (test_ui.PageServerTests.test_telegram_channels_are_added_individually_with_public_preview_check) ... ok
+test_only_the_edges_are_trimmed (test_ui.QwenTrimTests.test_only_the_edges_are_trimmed) ... ok
+test_preferences_preview_contrast_and_storage_failures (test_ui_appearance.AppearanceTests.test_preferences_preview_contrast_and_storage_failures) ... ok
+test_presets_keep_text_and_status_contrast (test_ui_appearance.AppearanceTests.test_presets_keep_text_and_status_contrast) ... ok
+test_status_uses_aired_kind_and_stops_when_not_playing (test_ui_terminal.TerminalTests.test_status_uses_aired_kind_and_stops_when_not_playing) ... ok
+test_current_row_keeps_now_label_without_a_separate_editor_boundary (test_ui_title.TitleAnimationTests.test_current_row_keeps_now_label_without_a_separate_editor_boundary) ... ok
+test_editor_hour_groups_and_autosave_rollback (test_ui_title.TitleAnimationTests.test_editor_hour_groups_and_autosave_rollback) ... ok
+test_gap_opens_form_in_place_and_uses_latest_version_on_submit (test_ui_title.TitleAnimationTests.test_gap_opens_form_in_place_and_uses_latest_version_on_submit) ... ok
+test_gap_times_stay_between_future_neighbors (test_ui_title.TitleAnimationTests.test_gap_times_stay_between_future_neighbors) ... ok
+test_history_rejects_drop_and_arrows_follow_upward_time (test_ui_title.TitleAnimationTests.test_history_rejects_drop_and_arrows_follow_upward_time) ... ok
+test_music_source_label_distinguishes_configuration_from_playback (test_ui_title.TitleAnimationTests.test_music_source_label_distinguishes_configuration_from_playback) ... ok
+test_next_keeps_stream_open_and_seeks_only_inside_buffered_audio (test_ui_title.TitleAnimationTests.test_next_keeps_stream_open_and_seeks_only_inside_buffered_audio) ... ok
+test_typing_preserves_prefix_and_follows_transition_duration (test_ui_title.TitleAnimationTests.test_typing_preserves_prefix_and_follows_transition_duration) ... ok
+test_modes_audio_decay_storage_resize_and_motion (test_ui_visualizer.VisualizerTests.test_modes_audio_decay_storage_resize_and_motion) ... ok
+test_healthy_voice_preserves_unrelated_error_and_retry (test_voice_recovery.VoiceRecoveryTests.test_healthy_voice_preserves_unrelated_error_and_retry) ... ok
+test_recovery_clears_outage_and_retries_pending_speech_now (test_voice_recovery.VoiceRecoveryTests.test_recovery_clears_outage_and_retries_pending_speech_now) ... ok
+test_local_songs_cover_loading_and_a_bad_song_does_not_switch_the_source (test_ytmusic.LiquidsoapSkipTests.test_local_songs_cover_loading_and_a_bad_song_does_not_switch_the_source) ... ok
+test_auth_validation_and_private_storage (test_ytmusic.YouTubeMusicTests.test_auth_validation_and_private_storage) ... ok
+test_corrupt_manifest_does_not_break_local_radio (test_ytmusic.YouTubeMusicTests.test_corrupt_manifest_does_not_break_local_radio) ... /opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/unittest/mock.py:2259: ResourceWarning: unclosed <socket.socket fd=6, family=2, type=1, proto=0, laddr=('127.0.0.1', 56716)>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_downloaded_artist_is_displayed_and_survives_playlist_reload (test_ytmusic.YouTubeMusicTests.test_downloaded_artist_is_displayed_and_survives_playlist_reload) ... ok
+test_feature_can_be_enabled_before_connecting_in_settings (test_ytmusic.YouTubeMusicTests.test_feature_can_be_enabled_before_connecting_in_settings) ... ok
+test_playlist_metadata_and_resolver_boundary (test_ytmusic.YouTubeMusicTests.test_playlist_metadata_and_resolver_boundary) ... ok
+test_remote_track_duration_timeline_and_replay (test_ytmusic.YouTubeMusicTests.test_remote_track_duration_timeline_and_replay) ... 23:23:47 music: ytmusic:dQw4w9WgXcQ
+23:23:47 replay queued: music ytmusic:dQw4w9WgXcQ
+ok
+test_unavailable_song_is_distinct_from_network_failure (test_ytmusic.YouTubeMusicTests.test_unavailable_song_is_distinct_from_network_failure) ... ok
+test_untrusted_playlist_and_entries (test_ytmusic.YouTubeMusicTests.test_untrusted_playlist_and_entries) ... ok
+test_yt_dlp_failure_does_not_expose_credentials (test_ytmusic.YouTubeMusicTests.test_yt_dlp_failure_does_not_expose_credentials) ... ok
+
+----------------------------------------------------------------------
+Ran 425 tests in 248.661s
+
+OK

@@ -28,3 +28,9 @@ Appearance lives at the top of Settings and belongs to the current browser, inde
 Keep custom accent controls in a disclosure. Valid colours preview immediately; Apply saves, Cancel, Escape or closing the disclosure restores the saved appearance. Require at least 4.5:1 against both page and raised surfaces. An incompatible saved accent falls back to the chosen palette with an explicit status message and remains saved for compatible modes. Custom accents never recolour warning or success roles. Reset restores System + Ember + the theme accent.
 
 Use the existing semantic CSS variables for text, surfaces, controls, focus, links, selection and visualization. Palette choices use native radio buttons, labelled previews and a selected outline. Keep typography, spacing, playback, timeline editing and the audio analyser unchanged.
+
+### Calm and Terminal
+
+Player style is a browser-local Appearance preference. Calm is the default and keeps the existing player. Terminal adds a compact ASCII transmitting mast, the configured station name, and a status line based on the displayed broadcast frame. MUSIC, HOST, WEATHER, REMINDER, STATION ID and PREVIEW describe the actual block; unknown content reads CONNECTING. Pause, automatic standby, startup, shutdown and off-air states stop the mast motion. Monitor status distinguishes station playback from listening on this device.
+
+Keep the single decorative wave loop confined to the mast; stop it when the page is hidden and under prefers-reduced-motion. Collapse the identity while editing the program. Retain the existing audio-driven visualizer and title animation; no extra requests, scheduling changes or playback commands belong to this preference.

@@ -19,7 +19,7 @@ function setup(saved=null,dark=false,blocked=false){
   for(const kind of ['mode','palette'])radios[kind]=(kind==='mode'?['system','light','dark']:['ember','forest','ocean']).map(value=>({value,checked:false}));
   function node(id){return nodes[id]||(nodes[id]={value:'',disabled:false,textContent:'',style:{setProperty(){}},setAttribute(k,v){this[k]=v},addEventListener(k,f){this[k]=f},querySelector(){return{focus(){}}}})}
   const media={matches:dark,addEventListener(k,f){listeners[k]=f}};
-  const c={document:{documentElement:root,getElementById:node,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
+  const c={player(){},document:{documentElement:root,getElementById:node,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
     localStorage:{getItem(){if(blocked)throw Error('blocked');return value},setItem(k,v){if(blocked)throw Error('blocked');value=v;writes++}}};
   vm.createContext(c);vm.runInContext(SCRIPT,c);
   const beforeMount={...styles};c.appearance.mount();
@@ -27,6 +27,8 @@ function setup(saved=null,dark=false,blocked=false){
     input(value){node('accent-hex').value=value;node('accent-hex').oninput()},apply(){node('accent-form').onsubmit({preventDefault(){}})},
     system(dark){media.matches=dark;listeners.change()},get saved(){return value},get writes(){return writes}};
 }
+let terminal=setup(JSON.stringify({presentation:'terminal'}));assert.equal(terminal.root.dataset.presentation,'terminal');
+terminal.nodes['appearance-presentation'].value='calm';terminal.nodes['appearance-presentation'].onchange();assert.equal(terminal.root.dataset.presentation,'calm');assert.equal(JSON.parse(terminal.saved).presentation,'calm');
 let t=setup(JSON.stringify({mode:'dark',palette:'ocean',accent:'#80bce7'}));
 assert.equal(t.beforeMount['--bg'],'#111c27','saved theme must apply before controls mount');
 assert.equal(t.styles['--accent'],'#80bce7');assert.equal(t.writes,0,'reading a page must not write a preference');
@@ -44,7 +46,7 @@ let reopened=setup(t.saved);assert.equal(reopened.styles['--accent'],'#154f84');
 t.select('mode','dark');assert.equal(t.styles['--accent'],'#93cba5','incompatible saved accent falls back');
 assert.match(t.nodes['appearance-status'].textContent,/needs more contrast/);
 t.select('mode','light');assert.equal(t.styles['--accent'],'#154f84','custom accent survives fallback');
-t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:''});
+t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:'',presentation:'calm'});
 t=setup(null,false,true);t.select('palette','ocean');assert.equal(t.styles['--bg'],'#edf3f6');assert.match(t.nodes['appearance-status'].textContent,/could not save/);
 t=setup(JSON.stringify({mode:'invalid',palette:'__proto__',accent:'red'}));assert.equal(t.styles['--bg'],'#f2f2ee');
 """
