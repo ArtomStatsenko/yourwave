@@ -29,6 +29,22 @@ class HookTests(unittest.TestCase):
             stream.setparams((2,2,44100,0,'NONE','not compressed'))
             stream.writeframes(b'\xe8\x03\xe8\x03' * int(44100*seconds))
 
+    def test_join_keeps_stereo_music_after_mono_voice(self):
+        voice = self.root / 'mono-voice.wav'
+        with wave.open(str(voice), 'wb') as stream:
+            stream.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+            stream.writeframes(b'\x00\x00' * 24000)
+        hook = self.root / 'stereo-hook.wav'
+        with wave.open(str(hook), 'wb') as stream:
+            stream.setparams((2, 2, 44100, 0, 'NONE', 'not compressed'))
+            # Opposite channels cancel if the music is accidentally downmixed.
+            stream.writeframes(b'\xe8\x03\x18\xfc' * 44100)
+        joined = previews.audio.join_packages([voice, hook], self.root / 'joined.wav')
+        with wave.open(str(joined)) as stream:
+            self.assertEqual((stream.getframerate(), stream.getnchannels()), (44100, 2))
+            stream.setpos(66150)
+            self.assertEqual(stream.readframes(1), b'\xe8\x03\x18\xfc')
+
     def test_global_alignment_keeps_intro_repetition_outside_the_chorus(self):
         text='[Verse]\nverse opens here\n[Pre-Chorus]\nextra line\n[Chorus 2]\nwe are stars\nwe are stars'
         heard=tokens('we are stars we are stars verse opens here extra line we are stars we are stars')
@@ -80,20 +96,43 @@ class HookTests(unittest.TestCase):
                 self.assertEqual(hooks.songle(self.db,ref),[])
             self.assertEqual(self.db.execute('SELECT outcome FROM hook_lookups WHERE lookup_key=?',(ref,)).fetchone()[0],outcome)
 
-    def test_montage_voice_fallback_and_duration_cap(self):
+    def test_set_preview_uses_only_later_hook_and_ends_with_first_song_intro(self):
         voice=self.root/'voice.wav';self.wav(voice,3)
         snapshot=[{'ref':'one','path':str(self.song)},{'ref':'two','path':str(self.song)}]
         digest=hooks.pcm_hash(self.song)
         for ref in ('one','two'):
             hooks.save(self.db,ref,self.song,digest,{'start':1,'end':12},'test',{},'APPROVED')
-        result=previews.render(self.db,snapshot,['One','Two'],lambda text:voice)
+        said=[]
+        def say(text):
+            said.append(text)
+            return voice
+        result=previews.render(self.db,snapshot,['One','Two'],say)
         self.assertLessEqual(result['duration_sec'],25)
         self.assertEqual(result['speech_sec'],6)
-        self.assertEqual(len(result['hook_ids']),1,'Keep a whole phrase; omit the second hook if it cannot fit')
+        later=hooks.ready(self.db,'two',self.song)
+        self.assertEqual(result['hook_ids'],[later['id']])
+        self.assertEqual(result['announced_refs'],['one','two'])
+        self.assertEqual(said,['А сейчас — One.','Позже в этом музыкальном блоке — Two.'])
+        with wave.open(result['audio_path']) as stream:
+            self.assertEqual((stream.getframerate(),stream.getnchannels()),(44100,2))
+            self.assertAlmostEqual(stream.getnframes()/44100,17,places=1)
         self.db.execute("UPDATE track_hooks SET review='CANDIDATE'")
+        said.clear()
         result=previews.render(self.db,snapshot,['One','Two'],lambda text:voice)
         self.assertEqual(result['hook_ids'],[])
-        self.assertAlmostEqual(result['duration_sec'],6,places=1)
+        self.assertEqual(result['announced_refs'],['one'])
+        self.assertEqual(result['announced_titles'],['One'])
+        self.assertAlmostEqual(result['duration_sec'],3,places=1)
+
+    def test_set_preview_omits_later_hook_that_exceeds_the_budget(self):
+        voice=self.root/'long-voice.wav';self.wav(voice,9)
+        hooks.save(self.db,'two',self.song,hooks.pcm_hash(self.song),{'start':1,'end':12},'test',{},'APPROVED')
+        snapshot=[{'ref':ref,'path':str(self.song)} for ref in ('one','two')]
+        result=previews.render(self.db,snapshot,['One','Two'],lambda text:voice)
+        self.assertEqual(result['hook_ids'],[])
+        self.assertEqual(result['announced_refs'],['one'])
+        self.assertEqual(result['speech_sec'],9)
+        self.assertAlmostEqual(result['duration_sec'],9,places=1)
 
     def test_import_approval_requires_trial_hash_and_same_pcm(self):
         trial=self.root/'results/0/input.wav';self.wav(trial,20)

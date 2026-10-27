@@ -40,6 +40,17 @@ class EditorialTests(unittest.TestCase):
                     self.assertEqual(editor.REACTION_RULES in ask.call_args.args[0], active)
                     self.assertEqual(ask.call_args.kwargs.get('reactions', False), active)
 
+    def test_reactions_follow_voice_engine_without_losing_saved_preference(self):
+        from radio import settings
+        plugins.set_plugin('news_reactions', True)
+        for engine, active in [('voicestudio', True), ('qwen3', False), ('voicestudio', True)]:
+            settings.set_setting('voice_engine', engine)
+            entry = next(p for p in plugins.listing(self.cfg) if p['name'] == 'news_reactions')
+            self.assertEqual(entry['on'], active)
+            self.assertEqual(entry['available'], active)
+            self.assertEqual(bool(entry['unavailable_reason']), not active)
+            self.assertEqual(editor.reactions_enabled(self.cfg), active)
+
     def test_reactions_use_one_editor_call_and_separate_cache_from_neutral(self):
         self.cfg['editor']['llm_enabled'] = True
         self.cfg['voice']['engine'] = 'voicestudio'

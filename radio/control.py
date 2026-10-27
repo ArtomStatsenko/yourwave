@@ -1,12 +1,13 @@
 """Shared validated operations for the browser API and the native radio CLI."""
 import time
-from . import chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, store, telegram, tts, ytmusic
+from . import catchup, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, store, telegram, tts, ytmusic
 from .timeline import timeline
 
 VOICE_SAMPLE = "Добрый вечер! Вы слушаете Персональное радио. Сейчас — коротко о новостях, а потом снова музыка."
 COMMANDS = {"pause", "resume", "next", "skip-news", "stop"}
 # name -> fields accepted by the existing API; daemon validation owns planning semantics.
 OPERATIONS = {
+    'catchup': [],
     'play': [], 'pause': [], 'resume': [], 'stop': [], 'next': [], 'skip-news': [],
     'plugin': ['name', 'on'], 'setting': ['key', 'value'], 'settings_reset': ['key'],
     'audio_preset': ['name'], 'reddit_community': ['action', 'value'], 'telegram_channel': ['action', 'value'],
@@ -57,6 +58,13 @@ def read(name, *, sender=None, hours=12, limit=120):
     if result is not None and not result.get('ok'):
         return result
     status = result['status'] if result else {'state': 'STOPPED'}
+    if not result:
+        db=store.connect()
+        try:
+            off=[s for s,p in plugins.SOURCE_PLUGIN.items() if not plugins.on(cfg,p)]
+            status['catchup']={'state':'idle','available':len(catchup.candidates(db,store.now(),off)),'error':'','hours':48}
+        finally:
+            db.close()
     if name == 'status':
         return {'ok': True, 'status': status}
     if name == 'queue':
@@ -199,6 +207,8 @@ def execute(body, *, sender=None, starter=None, port=8765):
         resp = send(cmd, timeout=10, **{k: v for k, v in body.items() if k != "cmd"})
     elif cmd in ("replay", "unqueue"):
         resp = send(cmd, timeout=10, kind=str(body.get("kind", "")), ref=str(body.get("ref", "")))
+    elif cmd == 'catchup':
+        resp = send(cmd,timeout=10)
     elif cmd in COMMANDS:
         resp = send(cmd, timeout=45 if cmd == 'next' else 10)
     else:

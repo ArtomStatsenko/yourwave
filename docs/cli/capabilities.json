@@ -15,6 +15,9 @@
     "capabilities"
   ],
   "operations": {
+    "catchup": {
+      "fields": []
+    },
     "play": {
       "fields": []
     },

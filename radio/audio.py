@@ -30,8 +30,9 @@ def join_packages(paths: list[Path], out: Path) -> Path:
     if len(paths) == 1:
         return paths[0]
     inputs = [arg for path in paths for arg in ('-i', str(path))]
-    streams = ''.join(f'[{i}:a]' for i in range(len(paths)))
-    _ffmpeg('-y', *inputs, '-filter_complex', f'{streams}concat=n={len(paths)}:v=0:a=1[a]',
+    formats = ''.join(f'[{i}:a]{FMT}[p{i}];' for i in range(len(paths)))
+    streams = ''.join(f'[p{i}]' for i in range(len(paths)))
+    _ffmpeg('-y', *inputs, '-filter_complex', f'{formats}{streams}concat=n={len(paths)}:v=0:a=1[a]',
             '-map', '[a]', '-c:a', 'pcm_s16le', str(out))
     return out
 

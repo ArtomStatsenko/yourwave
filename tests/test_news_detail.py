@@ -66,6 +66,27 @@ class NewsDetailTests(unittest.TestCase):
                     self.assertEqual('Мнение обозначь как мнение' in prompt, level == 2)
                     self.assertNotIn('без домыслов и своих оценок', prompt)
 
+    def test_roundup_uses_one_editor_call_with_shared_context_and_date_semantics(self):
+        stories=[{'title':'MLX-Serve','source':'reddit','date':'2026-10-27','date_kind':'publication',
+                  'text':'Сервер для запуска языковых моделей на Apple Silicon.'},
+                 {'title':'Подборка','source':'horizon','date':'2026-10-26','date_kind':'selection','text':'Вторая история.'}]
+        with patch.object(self.writer,'_complete',return_value='Сегодня несколько находок для разработчиков. MLX-Serve запускает языковые модели на Apple Silicon.') as call:
+            text=self.writer.retell_roundup(stories,'2026-10-27',1800)
+            self.assertIn('MLX-Serve',text)
+            call.assert_called_once()
+            prompt=call.call_args.args[0]
+            self.assertIn('одну связную радиосводку',prompt)
+            self.assertIn('не выдумывай связь',prompt)
+            self.assertIn('один раз для группы',prompt)
+            self.assertIn('"date_kind": "selection"',prompt)
+            self.assertIn('MLX-Serve',prompt)
+            self.assertIn('Вторая история.',prompt)
+            self.assertEqual(self.writer.retell_roundup(stories,'2026-10-27',1800),text)
+            call.assert_called_once()
+        with patch.object(self.writer,'_ask',return_value='а'*201):
+            with self.assertRaisesRegex(ValueError,'speech budget'):
+                self.writer.retell_roundup(stories,'2026-10-27',200)
+
     def test_slider_has_names_description_and_updates_accessible_value(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
         helper = source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]

@@ -5,14 +5,47 @@ from pathlib import Path
 
 
 class SourceSettingsUiTests(unittest.TestCase):
+    def test_source_manager_groups_news_controls_and_keeps_editing_state(self):
+        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        script = source[source.index('function isNewsSource('):source.index('function settingValue(')]
+        script += source[source.index('function pluginsView()'):source.index("['integrations','experiments','features'].forEach(function(section){$(section).onclick")]
+        result=subprocess.run(['node','-e',script+r'''
+const assert=require('node:assert/strict');
+var document={activeElement:null,querySelector:()=>null},sourceOpen={},nodes={},st={sources:{reddit:'2 new'}},stg=[{key:'reddit_communities',value:['python']}];
+function $(id){return nodes[id]||(nodes[id]={innerHTML:'',contains:()=>false,querySelectorAll:()=>[]})}
+function esc(s){return String(s)}function sourceSettingView(){return '<input id="source-reddit_communities">'}
+var pls=[{name:'horizon',title:'Horizon',on:false,section:'integrations',description:'General news'},
+ {name:'reddit',title:'Reddit',on:true,section:'experiments',description:'Public posts'},
+ {name:'news_reactions',title:'Reactions',on:false,section:'experiments',description:'Voice'},
+ {name:'weather',title:'Weather',on:true,section:'integrations',description:'Forecast'}];
+pluginsView();
+assert($('news-source-list').innerHTML.includes('Technology news · Horizon'));
+assert($('news-source-list').innerHTML.includes('aria-pressed="false"'));
+assert($('news-source-list').innerHTML.includes('Subreddits (1)'));
+assert($('news-source-list').innerHTML.includes('2 new'));
+assert(!$('experiment-plugins').innerHTML.includes('data-pl="reddit"'));
+assert($('experiment-plugins').innerHTML.includes('news_reactions'));
+assert(!$('integration-plugins').innerHTML.includes('horizon'));
+assert($('integration-plugins').innerHTML.includes('weather'));
+const saved=$('news-source-list').innerHTML;
+$('news-source-list').contains=()=>true;document.activeElement={matches:()=>true};
+stg[0].value.push('programming');sourceManagerView();
+assert.equal($('news-source-list').innerHTML,saved,'Polling must not replace an active draft');
+document.activeElement=null;$('news-source-list').contains=()=>false;
+$('news-source-list').querySelectorAll=()=>[{dataset:{sourceKey:'reddit_communities'},open:true}];
+sourceManagerView();assert($('news-source-list').innerHTML.includes('data-source-key="reddit_communities" open'));
+assert($('news-source-list').innerHTML.includes('Subreddits (2)'));
+'''],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+
     def test_single_source_controls_for_reddit_and_telegram(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
         editor = source[source.index('var sourceDrafts='):source.index('function settingsView(')]
         subprocess.run(['node', '-e', editor + r'''
 const assert=require('node:assert/strict');
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-let lastBody,stg=[],result={ok:true,settings:[]},focused=0;
-let field={value:'r/python',reportValidity:()=>true,focus:()=>focused++};
+let lastBody,stg=[],pls=[],st={},document={activeElement:null},result={ok:true,settings:[]},focused=0;
+let field={value:'r/python',contains:()=>false,querySelectorAll:()=>[],reportValidity:()=>true,focus:()=>focused++};
 const $=()=>field,settingsView=()=>{},api=(url,body)=>{lastBody=body;return Promise.resolve(result)};
 const reddit={key:'reddit_communities',title:'Reddit · Subreddits',hint:'One at a time',value:['python']};
 const telegram={key:'telegram_channels',title:'Telegram · Channels',hint:'Public only',value:['example']};

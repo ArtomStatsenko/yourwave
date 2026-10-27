@@ -55,7 +55,7 @@ class TestCLISubprocess(unittest.TestCase):
         try:
             os.chdir(self.root)
             data = self.run_cli('capabilities')
-            self.assertEqual(len(data['operations']), 24)
+            self.assertEqual(len(data['operations']), 25)
             self.assertEqual(self.run_cli('status')['status']['state'], 'STOPPED')
         finally:
             os.chdir(previous)

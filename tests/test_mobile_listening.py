@@ -8,7 +8,7 @@ import urllib.request
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from radio import config, ui
+from radio import config, control, ui
 
 
 class MobileControlTests(unittest.TestCase):
@@ -100,7 +100,7 @@ class MobileControlTests(unittest.TestCase):
 
     def test_phone_status_keeps_the_existing_token_guard(self):
         self.assertEqual(self.request('/api/status')[0], 403)
-        with patch.object(ui, 'timeline', return_value=[]), patch.object(ui.plugins, 'listing', return_value=[]), patch.object(ui.settings, 'listing', return_value=[]), patch.object(ui.ytmusic, 'status', return_value={}):
+        with patch.object(control, 'timeline', return_value=[]), patch.object(control.plugins, 'listing', return_value=[]), patch.object(control.settings, 'listing', return_value=[]), patch.object(control.ytmusic, 'status', return_value={}):
             code, body, _ = self.request('/api/status', token=self.server.token)
         self.assertEqual(code, 200)
         self.assertEqual(json.loads(body)['status']['state'], 'PLAYING')

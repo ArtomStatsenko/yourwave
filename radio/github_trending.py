@@ -3,6 +3,7 @@ GitHub has no official Trending API, so this parses HTML; on markup changes it r
 and the daemon marks the source degraded while the music keeps playing."""
 import hashlib
 import html
+import json
 import re
 import urllib.error
 import urllib.parse
@@ -74,6 +75,46 @@ def fetch_readme(owner: str, repo: str, limit: int = 1500, timeout: int = 15) ->
     text = speakable(md).replace(SEP, "").replace(BREAK, "")
     text = " ".join(p for p in text.split("\n\n") if len(p) > 25)  # drop crumbs: lone words, menu items
     return text[:limit].rsplit(" ", 1)[0] if len(text) > limit else text
+
+
+def fetch_release(t: dict, at, max_age_hours: float = 24, timeout=15):
+    """Only a dated, published stable release is news; popularity is just discovery."""
+    from .content import is_fresh, parse_time
+    # shortcut: inspect five recent releases; paginate if release-heavy projects are missed.
+    url = f"https://api.github.com/repos/{urllib.parse.quote(t['owner'],safe='')}/{urllib.parse.quote(t['repo'],safe='')}/releases?per_page=5"
+    req = urllib.request.Request(url, headers={'User-Agent':USER_AGENT,'Accept':'application/vnd.github+json'})
+    try:
+        with urllib.request.urlopen(req,timeout=timeout) as response:
+            releases = json.loads(response.read(1_000_000))
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            error.close()
+            return None
+        if error.code in (403,429):
+            retry = float(error.headers.get('Retry-After') or 3600)
+            error.close()
+            raise RateLimited(retry) from None
+        raise
+    valid = [r for r in releases if not r.get('draft') and not r.get('prerelease')
+             and r.get('id') and r.get('body') and is_fresh(parse_time(r.get('published_at')),max_age_hours,at)]
+    return max(valid,key=lambda r:parse_time(r['published_at'])) if valid else None
+
+
+def dated_event(origin_json):
+    from .content import parse_time
+    try:
+        return any(o.get('event_type') in ('release','created') and parse_time(o.get('published_at'))
+                   for o in json.loads(origin_json or '[]'))
+    except (ValueError,TypeError,AttributeError):
+        return False
+
+
+def retire_undated(db):
+    from .content import finish_item_if_done
+    for row in db.execute("SELECT id,origin_json FROM items WHERE source IN ('github_trending','github_new') AND state='NEW'").fetchall():
+        if not dated_event(row['origin_json']):
+            db.execute("UPDATE packages SET status='SKIPPED',error='Release or project creation date required' WHERE item_id=? AND status IN ('PENDING','READY')",(row['id'],))
+            finish_item_if_done(db,row['id'])
 
 
 def parse_list(page: str, n: int = 3) -> list[dict]:
@@ -171,6 +212,7 @@ def _say_name(name: str) -> str:
 # Lead-in before the retelling (the topic itself is not spoken when the section intro plays).
 # (with the name, without it): the second is used when the retelling already starts with the name.
 LEADS = {
+    "release": [("Новый релиз {name}.", "Новый релиз.")],
     "top": [("В трендах GitHub сегодня — {name}.", "В трендах GitHub сегодня."),
             ("Сегодня на первых строчках GitHub — {name}.", "Сегодня на первых строчках GitHub."),
             ("Главный тренд дня на GitHub — {name}.", "Главный тренд дня на GitHub.")],
@@ -191,7 +233,7 @@ def lead_in(role: str, repo: str, summary: str) -> str:
     return without if names_it else with_name.format(name=_say_name(repo))
 
 
-TOPICS = {"top": "GitHub, тренд дня", "indie": "GitHub, находка дня", "new": "GitHub, новинка недели"}
+TOPICS = {"top": "GitHub, тренд дня", "indie": "GitHub, находка дня", "new": "GitHub, новый проект", "release": "GitHub, новый релиз"}
 
 
 def to_item(t: dict, summary: str | None, role: str, daily_min: int = 1000,
@@ -202,8 +244,8 @@ def to_item(t: dict, summary: str | None, role: str, daily_min: int = 1000,
     if not summary:
         return None
     total, today = t.get("stars_total") or 0, t.get("stars_today") or 0
-    if role == "new":
-        stars = f" Проекту меньше недели, а у него уже {_stars_phrase(total)}." if total else ""
+    if role in ('new','release'):
+        stars = ''
     elif role == "indie":
         stars = f" Пока у него {_stars_phrase(total)}, но он уже в трендах дня." if total else ""
     elif today >= daily_min:

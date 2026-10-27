@@ -9,6 +9,7 @@ class PlaybackControlsTests(unittest.TestCase):
         page = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
         audio = page[page.index('var nextBusy=false;'):page.index('function fitTitle(')]
         player = page[page.index('function terminalState('):page.index('var keyFb=')]
+        player = page[page.index('function backgroundError('):page.index('function hostHistory(')] + player
         handlers = page[page.index("$('pp').onclick="):page.index('// 2-second refresh:')]
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
@@ -30,12 +31,12 @@ const c={$ ,Audio,window:{AudioContext,addEventListener(){}},navigator:{mediaSes
   LOCAL_CONTROL:true,titleIsTrack:false,cmd:(...args)=>{commands.push(args);return Promise.resolve()},
   rerollNext(){},Date,console};
 vm.createContext(c);vm.runInContext(AUDIO+'\n'+PLAYER+'\n'+HANDLERS,c);
-c.player();assert.equal($('so').textContent,'Start radio');assert.equal($('pp').disabled,true);
+c.player();assert.equal($('so')['aria-label'],'Start radio');assert.equal($('pp').disabled,true);
 assert.equal($('station-controls').hidden,false);
 c.listen();media.actions.play();$('pp').onclick();assert.equal(audioCount,0);assert.deepEqual(commands,[]);
 $('so').onclick();assert.deepEqual(commands,[['play']]);assert.equal(audioCount,0);
 commands=[];c.st.state='PLAYING';c.player();
-assert.equal($('so').textContent,'Stop radio');assert.equal($('pp').disabled,false);
+assert.equal($('so')['aria-label'],'Stop radio');assert.equal($('pp').disabled,false);
 $('pp').onclick();assert.equal(audioCount,1);assert.equal(c.listening,true);assert.deepEqual(commands,[]);
 $('pp').onclick();assert.equal(c.listening,false);assert.deepEqual(commands,[]);
 $('so').onclick();assert.deepEqual(commands,[['stop']]);

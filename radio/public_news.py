@@ -116,7 +116,7 @@ def item(source, community, key, url, published, text):
 def take(db, cfg, items):
     added = []
     for it in items:
-        if not it["body"] or not content.is_fresh(it["published_at"], cfg["sources"]["max_age_hours"]):
+        if not it["body"] or not content.is_fresh(it["published_at"], max(48,cfg["sources"]["max_age_hours"])):
             continue
         if any(w.casefold() in it["body"].casefold() for w in cfg["sources"]["blocked_words"]):
             continue

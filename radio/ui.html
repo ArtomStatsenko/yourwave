@@ -75,6 +75,9 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #air.off{color:var(--muted)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #station-controls[hidden]{display:none}
+.air-heading{display:flex;align-items:center;gap:12px}.air-caption{flex:1;min-width:0}
+#station-controls{margin-left:auto}#so{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;color:var(--muted)}#so:hover{color:var(--ink)}#so[aria-busy="true"] svg{opacity:.4}
+#pp{display:grid;place-items:center;width:48px;min-height:44px;padding:8px}#pp .pause-icon{display:none}#pp[data-playing="true"] .play-icon{display:none}#pp[data-playing="true"] .pause-icon{display:inline}
 .player-controls{display:grid;grid-template-columns:auto auto 112px minmax(100px,1fr) auto auto;gap:12px}
 .player-controls .bar{min-width:0}
 #nx{width:3.25em;padding-inline:0}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
@@ -133,15 +136,19 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .k{display:none}
 
 .tx{position:relative;padding-left:22px;min-width:0;overflow-wrap:anywhere;flex:1;font-size:18px}  /* a 22px gutter: markers hang in it, every title starts on one line */
-.ex{margin:0 0 8px 74px;padding:2px 0 6px;color:var(--muted);display:grid;gap:8px;font-size:16px;line-height:24px}
+.ex{margin:0 0 8px 74px;padding:2px 0 6px;color:var(--muted);display:grid;grid-template-columns:minmax(0,1fr);overflow-wrap:anywhere;gap:8px;font-size:16px;line-height:24px}
 .ex p{margin:0}.ex .pt{margin-top:8px;font-weight:600;color:var(--muted)}.ex a{color:var(--accent)}
 @media (max-width:480px){.tm{width:48px}.ex{margin-left:66px}}
+:root[data-time-format="12"] .tm:not(.ch){width:88px;white-space:nowrap}
+:root[data-time-format="12"] .ex{margin-left:106px}
+:root[data-time-format="12"] #direction-list{--plan-time:96px}
 .sub{white-space:pre-wrap}
 .q{color:var(--ok)}
 .err{color:var(--warn)}
 .pl{display:flex;gap:12px;align-items:baseline;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);
   padding:12px 0;border-radius:0}
 .pl:hover{border:0;border-bottom:1px solid var(--line);background:var(--surface)}
+.pl:disabled{opacity:1;cursor:default;color:var(--muted);background:transparent}
 .pl .sw{flex:none;width:72px;font-size:16px;color:var(--muted)}.pl[aria-pressed="true"] .sw{color:var(--accent)}
 .pl .nm{flex:none;min-width:320px}.pl .ds{color:var(--muted);font-size:16px;flex:1;min-width:0}
 @media(max-width:640px){.pl{display:grid;grid-template-columns:72px minmax(0,1fr)}.pl .nm{min-width:0;overflow-wrap:anywhere}.pl .ds{grid-column:2}}
@@ -160,6 +167,8 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 @media(pointer:coarse){#viz-controls button{min-width:44px;min-height:44px}}
 .tabbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 12px;border-bottom:1px solid var(--line)}
 .tabs{display:flex;flex-wrap:wrap;gap:0 24px;flex:1;min-width:0}   /* tabs wrap onto a second line, never scroll or hide */
+#catchup-controls{min-width:0;max-width:100%}#catchup-status{overflow-wrap:anywhere}
+#catchup-build{border:0;background:none;padding:8px 0 10px;font-size:16px;color:var(--muted)}#catchup-build:hover{border:0;color:var(--accent)}
 #plan-edit{flex:none;margin-left:auto;border:0;background:none;min-height:36px;padding:8px 12px 10px;font-size:16px;color:var(--muted)}#plan-edit:hover{border:0;color:var(--accent)}#plan-edit[hidden],#plan-edit[data-off]{display:none}
 .tabs button{flex:none}
 #activity{position:relative;flex:none;color:var(--muted);font-size:16px}
@@ -200,6 +209,12 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .st textarea{resize:vertical;min-height:96px}.st textarea[aria-invalid="true"]{border-color:var(--warn)}
 .community-list{list-style:none;margin:0;padding:0}.community-list:empty{display:none}
 .st input.source-name-input{flex:1;min-width:min(100%,220px);width:auto}.st input.source-name-input[aria-invalid="true"]{border-color:var(--warn)}
+.source-config{margin:8px 0 0}.source-config summary{cursor:pointer;color:var(--ink)}
+.source-config .st{margin-top:8px;padding:0;border-bottom:0}#news-source-list>section{min-width:0;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}#news-source-list .l{overflow-wrap:anywhere}
+#news-source-list .pl{border-bottom:0;padding-bottom:4px}#news-source-list>section>p{margin:0 0 0 84px}
+.source-editor{display:grid;gap:12px}.source-editor .community-list li{justify-content:space-between;border-bottom:1px solid var(--line);gap:16px;min-height:44px}
+.source-editor .community-list a{min-width:0;overflow-wrap:anywhere}.source-remove{flex:none;border:0;background:none;color:var(--muted);font-size:14px;padding:8px;min-height:44px}.source-remove:hover{border:0;color:var(--ink)}
+.source-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.source-add input.source-name-input{width:100%;min-width:0}.source-add button{font-size:16px;min-height:44px;padding:8px 16px}.source-feedback:empty{display:none}
 .st .rs{border:0;padding:0 4px;font-size:16px;color:var(--accent);text-decoration:underline}.st .rs:hover{border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .tabs button:hover{border:0;border-bottom:2px solid var(--muted)}
@@ -226,7 +241,9 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .program-editing #tl-panel:not([hidden]){display:flex;flex-direction:column;min-height:0;flex:1}
 .program-editing #broadcast-timeline{flex:1;max-height:none;min-height:0;padding-right:92px}
 #direction-list{overflow:visible}
-#direction-list .plan-hour{margin:4px 0}
+#direction-list .plan-hour{margin:4px 0;display:flex;flex-direction:column}
+#direction-list .plan-hour>summary{order:1}
+#direction-list .plan-hour[open]>summary::marker{content:"▴ "}
 #direction-list .plan-hour>summary{padding:4px 8px;color:var(--muted);list-style-position:inside}
 #direction-list .plan-detail{grid-column:2 / -1;white-space:normal;line-height:22px;padding:0 0 0 22px}
 #plan-later,#history-more{font-size:16px;padding:6px 10px;margin:8px 0}
@@ -311,7 +328,7 @@ var appearance=(function(){
       ember:{light:['#f2f2ee','#e7e7e1','#17170f','#5f5f55','#cfcfc5','#c2410c','#ffffff'],dark:['#121210','#1b1a17','#ece8dc','#9a968a','#2e2d27','#ff6a3d','#121210']},
       forest:{light:['#f1f3eb','#e3e8d9','#20271e','#56624f','#c8d1bf','#346347','#ffffff'],dark:['#131b17','#1c2821','#e5eee4','#a0b3a4','#34463b','#93cba5','#132319']},
       ocean:{light:['#edf3f6','#dfe8ee','#192b36','#506575','#c3d1dc','#185e91','#ffffff'],dark:['#111c27','#1b2b3b','#e4edf4','#9db0c2','#334b60','#80bce7','#14283a']}
-    },state={mode:'system',palette:'ember',accent:'',presentation:'calm'},mounted=false,saveError=false;
+    },state={mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24'},mounted=false,saveError=false;
   function hex(value){return typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)}
   function luminance(color){var c=[1,3,5].map(function(i){var v=parseInt(color.slice(i,i+2),16)/255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)});return c[0]*.2126+c[1]*.7152+c[2]*.0722}
   function contrast(a,b){var x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
@@ -319,7 +336,7 @@ var appearance=(function(){
   function colors(){return palettes[state.palette][mode()]}
   function readable(value){var c=colors();return hex(value)&&Math.min(contrast(value,c[0]),contrast(value,c[1]))>=4.5}
   function accent(value){root.style.setProperty('--accent',value);root.style.setProperty('--accent-ink',contrast('#ffffff',value)>=contrast('#121210',value)?'#ffffff':'#121210')}
-  function apply(){root.dataset.presentation=state.presentation;var c=colors();tokens.forEach(function(t,i){root.style.setProperty('--'+t,c[i])});root.dataset.theme=mode();root.style.colorScheme=mode();
+  function apply(){root.dataset.timeFormat=state.timeFormat;root.dataset.timelineEffect=state.timelineEffect;root.dataset.presentation=state.presentation;var c=colors();tokens.forEach(function(t,i){root.style.setProperty('--'+t,c[i])});root.dataset.theme=mode();root.style.colorScheme=mode();
     if(readable(state.accent))accent(state.accent);
   }
   function save(){try{localStorage.setItem(key,JSON.stringify(state));saveError=false}catch(e){saveError=true}}
@@ -327,6 +344,8 @@ var appearance=(function(){
   function message(text){el('appearance-status').textContent=text||''}
   function render(){if(!mounted)return;
     el('appearance-presentation').value=state.presentation;
+    el('appearance-time-format').value=state.timeFormat;
+    el('appearance-timeline-effect').value=state.timelineEffect;
     document.querySelectorAll('[name="appearance-mode"]').forEach(function(n){n.checked=n.value===state.mode});
     document.querySelectorAll('[name="appearance-palette"]').forEach(function(n){n.checked=n.value===state.palette});
     Object.keys(palettes).forEach(function(name){var p=palettes[name][mode()],n=el('palette-'+name);n.style.setProperty('--sample-bg',p[0]);n.style.setProperty('--sample-ink',p[2]);n.style.setProperty('--sample-accent',p[5])});
@@ -346,11 +365,18 @@ var appearance=(function(){
     if(['system','light','dark'].indexOf(saved.mode)>=0)state.mode=saved.mode;
     if(Object.prototype.hasOwnProperty.call(palettes,saved.palette))state.palette=saved.palette;
     if(hex(saved.accent))state.accent=saved.accent;
+    if(saved.timeFormat==='12')state.timeFormat='12';
     if(saved.presentation==='terminal')state.presentation='terminal';
+    if(['off','fade','line'].indexOf(saved.timelineEffect)>=0)state.timelineEffect=saved.timelineEffect;
   }}catch(e){}
   apply();
   system.addEventListener('change',function(){if(state.mode==='system'){apply();render()}});
-  return {mount:function(){mounted=true;
+  return {formatTime:function(value){
+    if(state.timeFormat!=='12'||!/^\d{2}:\d{2}$/.test(value))return value;
+    var hour=+value.slice(0,2);return String(hour%12||12).padStart(2,'0')+value.slice(2)+(hour<12?' AM':' PM');
+  },mount:function(){mounted=true;
+    el('appearance-time-format').onchange=function(){state.timeFormat=this.value;change();timeline();directionView(true)};
+    el('appearance-timeline-effect').onchange=function(){state.timelineEffect=this.value;change();el('tl').getAnimations({subtree:true}).forEach(function(a){a.cancel()})};
     el('appearance-presentation').onchange=function(){state.presentation=this.value;change();player()};
     document.querySelectorAll('[name="appearance-mode"]').forEach(function(n){n.onchange=function(){state.mode=n.value;change()}});
     document.querySelectorAll('[name="appearance-palette"]').forEach(function(n){n.onchange=function(){state.palette=n.value;change()}});
@@ -358,7 +384,7 @@ var appearance=(function(){
     el('accent-hex').oninput=function(){preview(this.value.trim())};
     el('accent-form').onsubmit=function(e){e.preventDefault();var value=el('accent-hex').value.trim();if(!readable(value))return;state.accent=value.toLowerCase();change()};
     el('accent-default').onclick=function(){state.accent='';change()};
-    el('appearance-reset').onclick=function(){state={mode:'system',palette:'ember',accent:'',presentation:'calm'};change()};
+    el('appearance-reset').onclick=function(){state={mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24'};change();timeline();directionView(true)};
     el('accent-cancel').onclick=function(){apply();render()};
     el('appearance-custom').addEventListener('toggle',function(){if(!this.open){apply();render()}});
     el('accent-form').onkeydown=function(e){if(e.key==='Escape'){apply();render();el('appearance-custom').open=false;el('appearance-custom').querySelector('summary').focus()}};
@@ -380,25 +406,28 @@ var appearance=(function(){
       <h1><span id="air">●</span> <span id="airtxt">on air</span></h1>
       <span id="terminal-monitor" aria-hidden="true"></span>
     </div>
+    <div id="station-controls" role="group" aria-label="Station" hidden><button id="so" aria-label="Start radio" title="Start radio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9M6.2 5.8a8 8 0 1 0 11.6 0"/></svg></button></div>
   </div>
   <div class="title"><span id="ttl" aria-hidden="true"></span><span id="caret" class="caret" aria-hidden="true" hidden></span></div>
   <span id="ttl-sr" class="sr" aria-live="polite"></span>
   <div class="strip"><pre id="viz" aria-hidden="true"></pre></div><span id="ruler" aria-hidden="true">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</span>
-  <div class="row player-controls"><button id="pp" aria-label="Listen" disabled>▶ listen</button><button id="nx" aria-label="Next">▶▶</button>
+  <div class="row player-controls"><button id="pp" aria-label="Listen" title="Listen" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path class="play-icon" d="m8 4 12 8-12 8z"/><path class="pause-icon" d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg></button><button id="nx" aria-label="Next">▶▶</button>
     <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
     <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span><div id="viz-controls" role="group" aria-label="Visualizer"><button id="vzprev" aria-label="Previous visual" title="Previous visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m8 2-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button><button id="vzb" aria-label="Enable visualizer" aria-pressed="true"></button><button id="vznext" aria-label="Next visual" title="Next visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
   <div class="l" id="music-source" role="status" aria-live="polite"></div>
-  <div class="row" id="station-controls" role="group" aria-label="Station" hidden><button id="so" aria-label="Start radio">Start radio</button></div>
   <div class="row"><button id="sk" aria-label="Skip bulletin">skip bulletin</button>
     <span class="l err" id="er"></span></div>
 </section>
 <section>
   <div class="tabbar"><div class="tabs" role="tablist" aria-label="Radio controls">
     <button role="tab" id="tab-tl" aria-controls="tl-panel" aria-selected="true" data-tab="tl">timeline</button>
-    <button role="tab" id="tab-in" aria-controls="integrations" aria-selected="false" tabindex="-1" data-tab="in">integrations</button>
+    <button role="tab" id="tab-in" aria-controls="integrations" aria-selected="false" tabindex="-1" data-tab="in">sources</button>
     <button role="tab" id="tab-ex" aria-controls="experiments" aria-selected="false" tabindex="-1" data-tab="ex">experiments</button>
     <button role="tab" id="tab-st" aria-controls="stg" aria-selected="false" tabindex="-1" data-tab="st">settings</button>
-  </div><details id="activity" hidden><summary>Activity</summary><div id="activity-log" aria-label="Radio activity"></div></details><button id="plan-edit">Edit</button><button id="plan-undo" hidden>Undo</button><button id="plan-done" hidden>Done</button></div>
+  </div><div id="catchup-controls" class="row" hidden>
+      <button id="catchup-build" type="button">More news</button>
+      <span id="catchup-status" class="l" role="status" aria-live="polite"></span>
+    </div><details id="activity" hidden><summary>Activity</summary><div id="activity-log" aria-label="Radio activity"></div></details><button id="plan-edit">Edit</button><button id="plan-undo" hidden>Undo</button><button id="plan-done" hidden>Done</button></div>
   <div id="tl-panel" role="tabpanel" aria-labelledby="tab-tl">
     <p id="plan-pause" class="l" role="status" hidden>Paused · timing will update on resume</p>
     <p id="direction-message" class="l" role="status" aria-live="polite"></p>
@@ -419,6 +448,12 @@ var appearance=(function(){
       </div>
   </div>
   <div id="integrations" role="tabpanel" aria-labelledby="tab-in" hidden>
+    <section aria-labelledby="news-sources-heading">
+      <h2 id="news-sources-heading">News sources</h2>
+      <p class="l">Choose what feeds news editions and catch-up. Changes need no restart; saved channels stay when a source is off.</p>
+      <div id="news-source-list"></div>
+    </section>
+    <h2>Weather, reminders &amp; music</h2>
     <div id="integration-plugins"></div>
 
   </div>
@@ -436,9 +471,14 @@ var appearance=(function(){
   <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
     <section class="st" id="appearance" aria-labelledby="appearance-heading">
       <div class="row appearance-heading"><h2 id="appearance-heading">Appearance</h2><button id="appearance-reset" type="button">Reset</button></div>
+      <label for="appearance-time-format">Time format</label>
+      <select id="appearance-time-format"><option value="24">24-hour · 14:30</option><option value="12">12-hour · 02:30 PM</option></select>
       <label for="appearance-presentation">Player style</label>
       <select id="appearance-presentation" aria-describedby="presentation-hint"><option value="calm">Calm</option><option value="terminal">Terminal</option></select>
       <p id="presentation-hint" class="l">Terminal adds an ASCII callsign and live broadcast status. Motion follows your device preference.</p>
+      <label for="appearance-timeline-effect">Timeline effect</label>
+      <select id="appearance-timeline-effect" aria-describedby="timeline-effect-hint"><option value="off">Off</option><option value="fade">Fade</option><option value="line" selected>Terminal line print</option></select>
+      <p id="timeline-effect-hint" class="l">New broadcast rows only. Saved in this browser; reduced motion disables animation.</p>
       <fieldset class="appearance-mode"><legend>Mode</legend><div class="row">
         <label><input type="radio" name="appearance-mode" value="system" checked> System</label>
         <label><input type="radio" name="appearance-mode" value="light"> Light</label>
@@ -510,7 +550,7 @@ function linkedText(s){return esc(s).replace(/https?:\/\/[^\s]+/gi,function(url)
   var u=url.replace(/[.,;!?)]+$/,'');
   return '<a href="'+u+'" target="_blank" rel="noopener">'+u+'</a>'+url.slice(u.length);
 })}
-function entryTitle(kind,title){if(kind==='news'||kind==='host')return 'Host edition';return kind!=='music'&&/[А-Яа-яЁё]/.test(title)?({news:'Host edition',host:'Announcement',reminder:'Reminder',weather:'Local forecast',id:'Station ID',jingle:'Jingle'}[kind]||title):title}
+function entryTitle(kind,title){if(kind==='news'||kind==='host')return 'Host edition';return kind!=='music'&&/[А-Яа-яЁё]/.test(title)?({reminder:'Reminder',weather:'Local forecast',id:'Station ID',jingle:'Jingle'}[kind]||title):title}
 function f(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
 function num(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n)}
 function api(path,body){return fetch(path,{method:body?'POST':'GET',headers:{'X-Radio-Token':TOKEN,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}).then(function(r){return r.json()})}
@@ -574,13 +614,18 @@ function fitTitle(){
   if(over<2)return;
   box.style.setProperty('--mq',-over+'px');box.style.setProperty('--dur',Math.min(60,Math.max(8,over/12))+'s');
   box.classList.add('mq')}
-/* Keep the shared prefix; scale the typing rhythm to this audio transition. */
+/* Keep the shared prefix; start halfway into the crossfade, closer to the incoming track. */
 function titleFrame(oldT,newT,ms,duration){
   var o=Array.from(oldT),n=Array.from(newT),keep=0;
   while(keep<o.length&&keep<n.length&&o[keep]===n[keep])keep++;
   var prefix=o.slice(0,keep).join('');o=o.slice(keep);n=n.slice(keep);
   var A=80,De=Math.min(50*o.length,450),Dt=Math.min(32*n.length,600),H=100,t,total=A+De+Dt+H;
-  if(Number.isFinite(duration)){if(duration<=0)return{text:newT,caret:false,done:true};ms=ms*total/duration}
+  if(Number.isFinite(duration)){
+    if(duration<=0)return{text:newT,caret:false,done:true};
+    ms-=duration/2;
+    if(ms<0)return{text:oldT,caret:false,done:false};
+    ms=ms*total/duration;
+  }
   if(ms>=total)return{text:newT,caret:false,done:true};
   if(ms<A)return{text:oldT,caret:true,done:false};
   t=ms-A;
@@ -602,7 +647,7 @@ function setTitle(text,instant,duration){
   box.classList.remove('mq');box.classList.add('typing');car.hidden=false;
   (function step(){
     var f=titleFrame(tfx.from,tfx.to,performance.now()-tfx.t0,tfx.duration);
-    el.textContent=tfx.shown=f.text;
+    el.textContent=tfx.shown=f.text;car.hidden=!f.caret;
     box.scrollLeft=box.scrollWidth;                      // a long title scrolls along with the caret
     if(f.done){car.hidden=true;box.classList.remove('typing');box.scrollLeft=0;fitTitle();return}
     tfx.raf=requestAnimationFrame(step)})()}
@@ -626,7 +671,7 @@ function musicSourceLabel(status,enabled,yt,choice){
 function musicSourceOptions(enabled){return '<option value="local">Local</option>'+(enabled?'<option value="ytmusic">YouTube Music</option>':'')}
 function terminalState(live,heard){
   if(live.state==='PLAYING'){
-    var names={music:'MUSIC',news:'HOST',weather:'WEATHER',reminder:'REMINDER',id:'STATION ID',teaser:'PREVIEW',gap:'HOST'};
+    var names={music:'MUSIC',news:'HOST',weather:'WEATHER',reminder:'REMINDER',id:'STATION ID',teaser:'HOST',gap:'HOST'};
     return {text:'ON AIR · '+(names[heard.current_kind]||'CONNECTING'),active:!!names[heard.current_kind]};
   }
   return {text:live.auto_paused?'STANDBY · WAITING FOR A LISTENER':({PAUSED:'PAUSED',STARTING:'STARTING',STOPPING:'STOPPING'}[live.state]||'OFF AIR'),active:false};
@@ -647,7 +692,7 @@ function player(){
   $('airtxt').textContent=st.auto_paused?'waiting for a listener':on?(br&&!listening?'on air · not listening':'on air'):st.state==='PAUSED'?'paused':st.state==='STOPPING'?'stopping':'off air';
   stationTerminal(st,ds);
   var isTrack=run&&!!ds.current_title;   // only a track-to-track change is typed; messages and the first title appear at once
-  setTitle(run?(ds.current_title||'…'):st.state==='STOPPING'?'Stopping radio…':LOCAL_CONTROL?'Radio is off':'Start on your Mac',!(isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=isTrack;
+  setTitle(run?(ds.current_kind==='news'||ds.current_kind==='teaser'?'Host edition':ds.current_title||'…'):st.state==='STOPPING'?'Stopping radio…':LOCAL_CONTROL?'Radio is off':'Start on your Mac',!(isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=isTrack;
   var len=ds.duration_sec||0,pos=(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-lg*1000-d.t)/1000:0);
   if(len)pos=Math.min(pos,len);
   media(ds);
@@ -666,19 +711,19 @@ function player(){
   var vok=st.voicestudio==='ok';
   $('vd').style.background=!run?'var(--line)':!vok||near?'var(--warn)':'var(--ok)';
   $('vs').textContent=!run?'voice: off':!vok?'voice: unavailable':near?'voice: limit near':'voice: ready';
-  if(br){$('pp').textContent=listening?'❚❚ pause':'▶ listen';$('pp').setAttribute('aria-label',listening?'Pause listening':'Listen')}
-  else{$('pp').textContent=on?'❚❚':'▶';$('pp').setAttribute('aria-label',on?'Pause':'Play')}
+  var ppLabel=br?(listening?'Pause listening':'Listen'):(on?'Pause':'Play');
+  $('pp').dataset.playing=String(br?listening:on);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=ppLabel;
   $('vol').hidden=!br;
   $('pp').disabled=!run||(!br&&busy);
   $('station-controls').hidden=!LOCAL_CONTROL;
-  $('so').textContent=st.state==='STOPPING'?'Stopping…':run?'Stop radio':'Start radio';
-  $('so').setAttribute('aria-label',$('so').textContent);
+  var soLabel=st.state==='STOPPING'?'Stopping…':run?'Stop radio':'Start radio';
+  $('so').setAttribute('aria-label',soLabel);$('so').title=soLabel==='Stop radio'?'Stop radio for all listeners':soLabel;$('so').setAttribute('aria-busy',String(st.state==='STOPPING'));
   $('so').disabled=busy||st.state==='STOPPING';
   $('nx').disabled=!on||busy;
   $('nx').textContent=nextBusy?'…':'▶▶';$('nx').setAttribute('aria-busy',String(nextBusy));
   $('nx').setAttribute('aria-label',nextBusy?'Switching track':'Next');$('nx').title=nextBusy?'Preparing the next track; playback continues':st.state==='PAUSED'?'Resume the radio to skip tracks':'Next';
   $('sk').hidden=st.current_kind!=='news';
-  $('er').textContent=st.last_error||'';
+  $('er').textContent=backgroundError(st.last_error)?'':st.last_error||'';
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
 var TODO={no_key:{key:'add your API key below',sign:'sign in below'},bad_key:'replace the API key',unreachable:'check the connection',no_model:'choose another model below'};
@@ -742,24 +787,39 @@ function playSample(){
     sampleAudio=new Audio(d.url);sampleAudio.onended=function(){sampleState('idle')};
     return sampleAudio.play().then(function(){sampleState('playing')})})
   .catch(function(e){sampleState('error',(e&&e.message)||'the voice engine did not answer')})}
-var sourceDrafts={},sourceFeedback={};
+var sourceDrafts={},sourceFeedback={},sourceOpen={};
 function sourceSettingView(s){
   var reddit=s.key==='reddit_communities',fb=sourceFeedback[s.key]||{},disabled=fb.state==='saving'?' disabled':'',prefix=reddit?'r/':'@',base=reddit?'https://www.reddit.com/r/':'https://t.me/',label=reddit?'Add subreddit':'Add channel';
-  return '<div class="st"><div class="hd2">'+esc(s.title)+'</div>'
-    +'<ul class="community-list" aria-label="'+(reddit?'Added subreddits':'Added public channels')+'">'+s.value.map(function(name){return '<li class="row"><a href="'+base+esc(name)+'" target="_blank" rel="noopener noreferrer">'+prefix+esc(name)+'</a><button type="button" class="rs" data-source-remove="'+s.key+'" data-name="'+esc(name)+'" aria-label="Remove '+prefix+esc(name)+'"'+disabled+'>Remove</button></li>'}).join('')+'</ul>'
-    +'<div class="row"><input type="text" class="source-name-input" id="source-'+s.key+'" data-source-input="'+s.key+'" aria-label="'+label+'" maxlength="512" placeholder="'+(reddit?'r/python':'@telegram')+'" value="'+esc(sourceDrafts[s.key]||'')+'" aria-describedby="sh-'+s.key+' sf-'+s.key+'" aria-invalid="'+(fb.state==='error')+'"'+disabled+'><button type="button" data-source-add="'+s.key+'"'+disabled+'>'+(disabled?'Checking…':label)+'</button></div>'
-    +'<div class="l" id="sh-'+s.key+'">'+esc(s.hint)+'</div><div class="l" id="sf-'+s.key+'" role="status" aria-live="polite">'+esc(fb.text||'')+'</div></div>';
+  return '<div class="st source-editor">'
+    +'<ul class="community-list" aria-label="'+(reddit?'Added subreddits':'Added public channels')+'">'+s.value.map(function(name){return '<li class="row"><a href="'+base+esc(name)+'" target="_blank" rel="noopener noreferrer">'+prefix+esc(name)+'</a><button type="button" class="source-remove" data-source-remove="'+s.key+'" data-name="'+esc(name)+'" aria-label="Remove '+prefix+esc(name)+'"'+disabled+'>Remove</button></li>'}).join('')+'</ul>'
+    +'<div class="source-add"><input type="text" class="source-name-input" id="source-'+s.key+'" data-source-input="'+s.key+'" aria-label="'+label+'" maxlength="512" placeholder="'+(reddit?'Subreddit name or URL':'Public channel name or URL')+'" value="'+esc(sourceDrafts[s.key]||'')+'" aria-describedby="sf-'+s.key+'" aria-invalid="'+(fb.state==='error')+'"'+disabled+'><button type="button" data-source-add="'+s.key+'" aria-label="'+label+'"'+disabled+'>'+(disabled?'Checking…':'Add')+'</button></div>'
+    +'<div class="l source-feedback" id="sf-'+s.key+'" role="status" aria-live="polite">'+esc(fb.text||'')+'</div></div>';
 }
 function editSourceName(key,remove){
   var field=$('source-'+key);
   if(sourceFeedback[key]&&sourceFeedback[key].state==='saving')return;
   if(!remove&&(!field||!field.value.trim()||!field.reportValidity()))return;
   var value=remove||field.value;sourceDrafts[key]=field?field.value:'';
-  sourceFeedback[key]={state:'saving',text:remove?'Removing…':'Checking public source…'};settingsView(true);
+  sourceFeedback[key]={state:'saving',text:remove?'Removing…':'Checking public source…'};sourceManagerView(true);
   api('/api/cmd',{cmd:key==='reddit_communities'?'reddit_community':'telegram_channel',action:remove?'remove':'add',value:value}).then(function(d){
     if(!d||!d.ok)throw Error(d&&d.error||'Could not update sources. Try again.');
     stg=d.settings;if(!remove)delete sourceDrafts[key];sourceFeedback[key]={state:'saved',text:remove?'Removed':'Added'};
-  }).catch(function(e){sourceFeedback[key]={state:'error',text:e.message}}).finally(function(){settingsView(true);var f=$('source-'+key);if(f)f.focus()});
+  }).catch(function(e){sourceFeedback[key]={state:'error',text:e.message}}).finally(function(){sourceManagerView(true);var f=$('source-'+key);if(f)f.focus()});
+}
+function isNewsSource(p){return ['horizon','github_trending','github_new','reddit','telegram'].includes(p.name)}
+function pluginButton(p){return '<button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'"'+(p.available===false?' disabled':'')+'><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.name==='horizon'?'Technology news · Horizon':p.title)+'</span><span class="ds">'+esc(p.unavailable_reason||p.description)+'</span></button>'}
+function sourceManagerView(force){
+  var box=$('news-source-list'),f=document.activeElement;
+  if(!force&&box.contains(f)&&(f.matches('input,textarea')||f.closest('[data-source-add],[data-source-remove]')))return;
+  box.querySelectorAll('details[data-source-key]').forEach(function(d){sourceOpen[d.dataset.sourceKey]=d.open});
+  box.innerHTML=pls.filter(isNewsSource).map(function(p){
+    var key=p.name==='reddit'?'reddit_communities':p.name==='telegram'?'telegram_channels':null,s=stg.find(s=>s.key===key);
+    var description=p.name==='reddit'?'Read selected subreddits through RSS. Experimental; RSS support ends November 13, 2026.':p.name==='telegram'?'Read selected public channels through web previews. Experimental.':p.description;
+    var status=p.on?(st.sources&&st.sources[p.name]||'On · waiting for the next source check'):'Off · excluded from news and catch-up';
+    return '<section aria-label="'+esc(p.title)+'">'+pluginButton(Object.assign({},p,{description:description}))
+      +(s?'<details class="source-config" data-source-key="'+s.key+'"'+(sourceOpen[s.key]?' open':'')+'><summary id="source-manage-'+p.name+'">'+(p.name==='reddit'?'Subreddits':'Channels')+' ('+s.value.length+')'+(p.on?' <span class="l">· '+esc(status)+'</span>':'')+'</summary>'+sourceSettingView(s)+'</details>':'<p class="l" role="status">'+esc(status)+'</p>')+'</section>';
+  }).join('');
+  if(f&&f.id&&$(f.id))$(f.id).focus({preventScroll:true});
 }
 function settingValue(s,value){return s.value_labels?s.value_labels[+value]:value+(s.unit?' '+s.unit:'')}
 function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
@@ -768,8 +828,7 @@ function settingsView(force){  // force: after this page saved a value; the poll
   if(!force&&(box.contains(f)&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
   var u=settingValue,prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
   var voice=stg.find(function(s){return s.voice_state});
-  var sources=stg.filter(function(s){return s.key==='reddit_communities'||s.key==='telegram_channels'});
-  box.innerHTML=(sources.length?'<section class="ai" aria-label="News sources"><div class="ai-h">News sources</div><div class="l">Changes apply to the next source check; no restart needed.</div>'+sources.map(sourceSettingView).join('')+'</section>':'')+stg.map(function(s){if(s.multiline)return '';if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
+  box.innerHTML=stg.map(function(s){if(s.multiline)return '';if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
     if(s.key==='music_shuffle')return '<div class="st"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label><div class="l" id="hint-music_shuffle">'+esc(s.hint)+'</div></div>';
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
@@ -804,13 +863,17 @@ $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
   var focused=document.activeElement&&document.activeElement.dataset.pl;
+  sourceManagerView();
   ['integrations','experiments','features'].forEach(function(section){
-    $(section==='integrations'?'integration-plugins':section==='experiments'?'experiment-plugins':section).innerHTML=pls.filter(function(p){return p.section===section}).map(function(p){return '<button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'"><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.title)+'</span><span class="ds">'+esc(p.description)+'</span></button>'}).join('') || (section==='experiments'?'<p class="l">No experiments yet.</p>':'')});
+    $(section==='integrations'?'integration-plugins':section==='experiments'?'experiment-plugins':section).innerHTML=pls.filter(function(p){return p.section===section&&!isNewsSource(p)}).map(pluginButton).join('') || (section==='experiments'?'<p class="l">No experiments yet.</p>':'')});
   if(focused){var b=document.querySelector('[data-pl="'+focused+'"]');if(b)b.focus({preventScroll:true})}}
 function togglePlugin(e){var b=e.target.closest('[data-pl]');if(!b)return;
-  var p=pls.find(function(x){return x.name===b.dataset.pl});if(!p)return;
+  var p=pls.find(function(x){return x.name===b.dataset.pl});if(!p||p.available===false)return;
   p.on=!p.on;pluginsView();directionView();cmd('plugin',{name:p.name,on:p.on})};
 ['integrations','experiments','features'].forEach(function(section){$(section).onclick=togglePlugin});
+$('integrations').oninput=$('stg').oninput;
+$('integrations').onkeydown=$('stg').onkeydown;
+$('integrations').onclick=function(e){var source=e.target.closest('[data-source-add],[data-source-remove]');if(source){editSourceName(source.dataset.sourceAdd||source.dataset.sourceRemove,source.dataset.name);return}togglePlugin(e)};
 var hookDataKey='',hookObjectUrl=null;
 function hooksView(data){
   $('hook-review').hidden=!data;if(!data)return;
@@ -888,22 +951,23 @@ function directionView(force){
   var anchor=resuming?Array.from(box.querySelectorAll('[data-plan-key]')).find(function(el){return el.getClientRects().length&&el.getBoundingClientRect().bottom>viewport.getBoundingClientRect().top}):null;
   var anchorKey=anchor&&anchor.dataset.planKey,anchorTop=anchor&&anchor.getBoundingClientRect().top;
   var focused=box.contains(document.activeElement)?document.activeElement:null,fr=focused&&focused.closest('[data-plan-index]'),focusId=fr&&fr.dataset.planKey,focusAction=focused&&focused.dataset.planAction,focusGap=focused&&focused.hasAttribute('data-plan-add')&&focused.parentNode.dataset.planGap,focusHour=focused&&focused.closest('summary')&&focused.closest('[data-hour]').dataset.hour;
-  function clock(at){return at?new Intl.DateTimeFormat(undefined,{timeZone:st.direction_timezone,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(at)):'—'}
+  function clock(at){return at?planDragClock(at):'—'}
   function render(entry){var r=entry.row,i=entry.index,title=r.title||r.kind;
+    if(r.edition)title='Host edition';
     if(r.kind==='music')return '<div class="it music" data-plan-key="'+esc(r.id)+'"'+(r.at?' data-plan-at="'+esc(r.at)+'"':'')+'><div class="hd"><div class="tg"><span class="tm plan-time">'+(r.at?'~':'')+esc(clock(r.at))+'</span><span class="tx" title="'+esc(title)+'">'+'<span class="track-title">'+esc(title)+'</span> <span class="l track-labels">'+(r.announced?'announced':'')+(r.set?(r.announced?' · ':'')+'set':'')+'</span></span></div></div></div>';
     var editable=!r.locked&&r.kind!=='music',skippable=['news','weather','reminder'].includes(r.kind),readiness=planReadiness(r)||(r.kind==='music'?'':'scheduled');
-    var detail=r.edition?(r.segments||[]).map(function(seg){return seg.title}).join(' · '):r.kind==='music'?'':r.content_title||'';
-    var expected=r.expected_at&&Math.abs(Date.parse(r.expected_at)-Date.parse(r.at))>=60000?' · expected ~'+clock(r.expected_at):'';
+    var detail=r.edition||r.kind==='music'?'':r.content_title||'';
+    var expected=r.expected_at&&Math.abs(Date.parse(r.expected_at)-Date.parse(r.at))>=60000?(detail?' · ':'')+'expected ~'+clock(r.expected_at):'';
     return '<div class="it '+esc(r.kind)+(r.skipped?' skipped':'')+'" data-plan-index="'+i+'" data-plan-key="'+esc(r.id)+'" data-plan-draggable="'+editable+'"><div class="hd"><div class="tg">'
       +(editable?'<button type="button" class="tm plan-time" data-plan-action="time" aria-label="Change time: '+esc(title)+'">':'<span class="tm plan-time">')+(r.estimated?'~':'')+esc(clock(r.at))+(editable?'</button>':'</span>')
-      +(r.edition?'<button type="button" class="tx edition-toggle" data-plan-action="segments" aria-expanded="'+!!planOpen[r.id]+'">':'<span class="tx">')+esc(title)+(r.edition?'</button>':'</span>')
-      +'<span class="l plan-readiness">'+esc(r.skipped?'skipped':readiness)+'</span>'+(detail||expected?'<span class="l plan-detail">'+esc(detail+expected)+'</span>':'')+'</div>'
+      +(r.edition?'<button type="button" class="tx edition-toggle" data-plan-action="segments" aria-expanded="'+!!planOpen[r.id]+'">':'<span class="tx">')+esc(title)+(r.edition&&expected?'<span class="l plan-expected"> · '+esc(expected)+'</span>':'')+(r.edition?'</button>':'</span>')
+      +'<span class="l plan-readiness">'+esc(r.skipped?'skipped':readiness)+'</span>'+(!r.edition&&(detail||expected)?'<span class="l plan-detail">'+esc(detail+expected)+'</span>':'')+'</div>'
       +(editable||skippable?'<div class="plan-inline">'+(editable?'<button type="button" data-plan-action="up" aria-label="Move later: '+esc(title)+'">↑</button><button type="button" data-plan-action="down" aria-label="Move earlier: '+esc(title)+'">↓</button>':'')+'<button type="button" data-plan-action="skip" aria-label="'+(r.skipped?'Restore block':planConfirm===r.id?'Confirm skip reminder':'Skip block')+'">'+(r.skipped?'↶':planConfirm===r.id?'Confirm skip':'×')+'</button></div>':'')+'</div>'
       +(editable&&planTimeId===r.id?'<div class="plan-actions"><label class="sr" for="plan-time-'+i+'">Play at or after</label><input type="datetime-local" id="plan-time-'+i+'" aria-label="Play at or after" value="'+localInput(r.at)+'"></div>':'')
       +(r.edition&&planOpen[r.id]?'<div class="ex edition-segments">'+(r.segments||[]).map(function(seg){return '<div class="edition-segment"><span>'+esc(seg.title)+'</span><span class="l">'+esc(planReadiness(seg))+'</span>'+((seg.items||[]).length?'<p class="l">'+seg.items.map(esc).join(' · ')+'</p>':'')+'</div>'}).join('')+'</div>':'')
       +(r.error?'<p class="l err">'+esc(r.error)+'</p>':'')+'</div>';
   }
-  var groups=planGroups(planDraft),nearest=groups.length&&groups[groups.length-1].key;
+  var groups=planGroups(planDraft);
   var ordered=groups.flatMap(function(g){return g.entries}).filter(function(e){return e.row.at});
   function gap(index){var at=planGapTime(ordered.map(function(e){return e.row}),index);if(!at)return '';
     var key=index<ordered.length?ordered[index].row.id:'now';
@@ -912,12 +976,19 @@ function directionView(force){
   }
   var add=$('plan-add');if(box.contains(add))$('tl-panel').appendChild(add);
 
-  box.innerHTML=groups.map(function(g){if(g.key==='pending')return g.entries.map(render).join('');var expanded=Object.prototype.hasOwnProperty.call(planHours,g.key)?planHours[g.key]:g.key===nearest,count=g.entries.length;
-    return gap(ordered.indexOf(g.entries[0]))+'<details class="plan-hour" data-hour="'+esc(g.key)+'"'+(expanded?' open':'')+'><summary data-plan-at="'+esc(g.entries[0].row.at)+'">'+esc(g.current?'This hour':clock(g.entries[g.entries.length-1].row.at).slice(0,2)+':00')+' <span class="l">· '+count+(count===1?' entry':' entries')+'</span></summary>'+g.entries.map(function(entry,index){return (index?gap(ordered.indexOf(entry)):'')+render(entry)}).join('')+'</details>'}).join('')||'<p class="l">No entries scheduled in the next '+planHorizon+' hours.</p>';
+  box.innerHTML=groups.map(function(g){if(g.key==='pending')return g.entries.map(render).join('');if(g.current)return g.entries.map(function(entry){return gap(ordered.indexOf(entry))+render(entry)}).join('');var expanded=!!planHours[g.key],count=g.entries.length;
+    return gap(ordered.indexOf(g.entries[0]))+'<details class="plan-hour" data-hour="'+esc(g.key)+'"'+(expanded?' open':'')+'><summary data-plan-at="'+esc(g.entries[0].row.at)+'">'+esc(clock(g.entries[g.entries.length-1].row.at).replace(/:\d{2}/,':00'))+' <span class="l">· '+count+(count===1?' entry':' entries')+'</span></summary>'+g.entries.map(function(entry,index){return (index?gap(ordered.indexOf(entry)):'')+render(entry)}).join('')+'</details>'}).join('')||'<p class="l">No entries scheduled in the next '+planHorizon+' hours.</p>';
   box.innerHTML+=gap(ordered.length);
   add.hidden=planInsertKey===null;
   if(planInsertKey!==null){var slot=findPlanGap(planInsertKey);if(slot)slot.appendChild(add);else{planInsertKey=null;add.hidden=true}}
-  box.querySelectorAll('details[data-hour]').forEach(function(el){el.ontoggle=function(){planHours[el.dataset.hour]=el.open}});
+  box.querySelectorAll('details[data-hour]').forEach(function(el){
+    el.ontoggle=function(){planHours[el.dataset.hour]=el.open};
+    el.querySelector('summary').onclick=function(e){
+      e.preventDefault();var top=this.getBoundingClientRect().top;
+      el.open=!el.open;planHours[el.dataset.hour]=el.open;
+      viewport.scrollTop+=this.getBoundingClientRect().top-top;
+    };
+  });
   box.querySelectorAll('button,input').forEach(function(el){el.disabled=dirBusy});$('direction-add').disabled=dirBusy;
   $('plan-later').hidden=!planDraft.filter(function(r){return r.kind!=='music'}).concat(st.upcoming_tracks||[]).some(function(r){return !r.placeholder&&Date.parse(r.at)>=planNow()+planHorizon*3600e3});
   if(anchorKey){var restored=Array.from(box.querySelectorAll('[data-plan-key]')).find(function(el){return el.dataset.planKey===anchorKey});if(restored){var hour=restored.closest('[data-hour]');if(hour){hour.open=true;planHours[hour.dataset.hour]=true}viewport.scrollTop+=restored.getBoundingClientRect().top-anchorTop}}
@@ -987,7 +1058,7 @@ function planStopPointer(){
   $('direction-list').querySelectorAll('.plan-drop-line,.plan-drag-lens').forEach(function(el){el.remove()});
   $('direction-list').querySelectorAll('.plan-dragging').forEach(function(el){el.classList.remove('plan-dragging')});
 }
-function planDragClock(at){return new Intl.DateTimeFormat(undefined,{timeZone:st.direction_timezone,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(at))}
+function planDragClock(at){return appearance.formatTime(new Intl.DateTimeFormat('en-GB',{timeZone:st.direction_timezone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(at)))}
 function planPaintDrag(){
   var p=planPointer,box=$('direction-list');if(!p||p.at===null)return;
   var source=box.querySelector('[data-plan-index="'+p.index+'"]');if(source)source.classList.add('plan-dragging');
@@ -1097,37 +1168,92 @@ function ytConnect(browser){if(ytBusy||!$('yt-form').reportValidity())return;ytB
   }).catch(function(e){$('yt-state').textContent=e.message}).finally(function(){ytBusy=false;$('yt-connect').disabled=$('yt-chrome').disabled=false})}
 $('yt-form').onsubmit=function(e){e.preventDefault();ytConnect('')};
 $('yt-chrome').onclick=function(){ytConnect('chrome')};
-function isCur(x){return running()&&x===items.find(function(i){return i.kind!=='session'})}
+function isCur(x){var current=items.find(function(i){return i.kind!=='session'});return running()&&(x===current||current&&(x.event_ids||[]).includes(current.id))}
 function rk(x){return 'music'}
 // queued comes from the daemon's real queue: it survives a reload, and a replay that went on air drops out
 function queued(x){return (st.replay_queue||[]).some(function(q){return q.kind===rk(x)&&q.ref===x.ref})}
+function sourceLabel(ln){
+  var label=ln.title,address=ln.url.replace(/^https?:\/\/(?:www\.)?/,''),post=address.match(/^reddit\.com\/r\/[^/]+\/comments\/[^/]+\/([^/?#]+)/);
+  if(post&&(!label||/^Reddit:/i.test(label)))label='Reddit · '+post[1].replace(/_/g,' ');
+  return !label||label.replace(/^https?:\/\/(?:www\.)?/,'')===address?'Source · '+address.split(/[/?#]/)[0]:label;
+}
+function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
+function newsText(p,used){
+  var text=p.text||'',spans=[],words=Array.from(text.matchAll(/[\p{L}\p{N}]+(?:[-.][\p{L}\p{N}]+)*/gu));
+  var normalize=s=>s.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
+  (p.links||[]).forEach(function(ln){
+    if(!/^https?:\/\//.test(ln.url))return;
+    var url;try{url=new URL(ln.url)}catch(_){return}
+    var slug=url.pathname.split('/').filter(Boolean).pop()||'';
+    var names=[ln.title||'',url.hostname.replace(/^www\./,'')];
+    if(/(^|\.)reddit\.com$/.test(url.hostname))names.push(slug.replace(/_/g,' '));
+    if(url.hostname==='github.com')names.push(url.pathname.split('/')[2]||'');
+    var best=null;
+    names.forEach(function(name){
+      var tokens=(name.match(/[\p{L}\p{N}]+(?:[-.][\p{L}\p{N}]+)*/gu)||[]).map(normalize);
+      for(var n=tokens.length;n>0;n--){
+        if(n===1&&(tokens[0].length<3||/^(the|new|how|why|news|reddit|github|новости|проект|обсуждение)$/.test(tokens[0])))continue;
+        for(var i=0;i<=words.length-n;i++){
+          if(!tokens.slice(0,n).every((token,k)=>token===normalize(words[i+k][0])))continue;
+          var start=words[i].index,end=words[i+n-1].index+words[i+n-1][0].length;
+          if(spans.some(s=>start<s.end&&end>s.start))continue;
+          if(!best||n>best.size)best={start,end,size:n,link:ln};
+        }
+      }
+    });
+    if(best){spans.push(best);used.add(ln.url)}
+  });
+  var at=0,html='';
+  spans.sort((a,b)=>a.start-b.start).forEach(function(s){html+=esc(text.slice(at,s.start))+sourceAnchor(s.link,text.slice(s.start,s.end));at=s.end});
+  return html+esc(text.slice(at));
+}
 function row(x){
   var P=x.parts||(x.kind==='reminder'?[{text:x.title,description:x.description,links:x.links||[]}]:[]),id=String(x.id),c=isCur(x),ex=P.some(function(p){return p.text||p.description||(p.links||[]).length}),o=ex&&!!open[id];
-  var inner='<span class="tm">'+(c?'now':esc(x.time))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+KIND[x.kind]+'</span><span class="tx">'+esc(entryTitle(x.kind,x.title))+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
-  var h='<div class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
+  var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+KIND[x.kind]+'</span><span class="tx">'+esc(entryTitle(x.kind,x.title))+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
+  var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
   if(x.kind==='music'&&x.replayable)
     h+=queued(x)?'<button class="rp on" data-dq="'+id+'" title="remove from the queue" aria-label="remove from the queue">queued ✕</button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
   h+='</div>';
   if(o){h+='<div class="ex">';
+    var used=new Set(),texts=P.map(p=>x.kind==='news'?newsText(p,used):esc(p.text));
     P.forEach(function(p,k){
-      if(P.length>1)h+='<p class="l pt">'+(k+1)+'. '+esc(p.title)+'</p>';  // one entry holds a whole break: tell the stories apart
-      if(p.text)h+='<p class="sub">'+esc(p.text)+'</p>';
+      if(P.length>1&&p.title&&!['news','host'].includes(x.kind))h+='<p class="l pt">'+(k+1)+'. '+esc(p.title)+'</p>';
+      if(p.text){
+        var sources=[];
+        if(x.kind==='news')(p.links||[]).forEach(function(ln){
+          if(/^https?:\/\//.test(ln.url)&&!used.has(ln.url)){sources.push(sourceAnchor(ln,sourceLabel(ln)));used.add(ln.url)}
+        });
+        h+='<p class="sub">'+texts[k]+(sources.length?' · '+sources.join(' · '):'')+'</p>';
+      }
       if(p.description)h+='<p class="sub">'+linkedText(p.description)+'</p>';
       var old=false;
       (p.links||[]).forEach(function(ln){
         if(!/^https?:\/\//.test(ln.url))return;
-        h+='<p><a href="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(x.kind==='reminder'?ln.url:ln.url.replace(/^https?:\/\//,''))+'</a></p>';
+        if(!used.has(ln.url)){h+='<p>'+sourceAnchor(ln,sourceLabel(ln))+'</p>';used.add(ln.url)}
         if(ln.stars_total)h+='<p class="l">★ '+esc(num(ln.stars_total))+(ln.stars_today?' (+'+esc(num(ln.stars_today))+' today)':'')+(ln.original?' · '+esc(ln.original):'')+'</p>';
         else if(p.source==='github_trending')old=true;
       });
       if(old)h+='<p class="l">stars and description were not saved for older bulletins</p>'});
     h+='</div>'}
   return h+'</div>'}
+function backgroundError(message){return /^(?:render |assembly |content:|reminders?:|VoiceStudio unavailable)/i.test(message||'')}
+function hostHistory(events){
+  var rows=[];
+  events.slice().reverse().forEach(function(event){
+    var previous=rows[rows.length-1];
+    if(previous&&((event.type==='MUSIC_TEASER'&&['PACKAGE_STARTED','REPLAY'].includes(previous.type))
+        ||event.type==='PACKAGE_STARTED'&&previous.type==='PACKAGE_STARTED')){
+      rows[rows.length-1]=Object.assign({},previous,{parts:(previous.parts||[]).concat(event.parts||[]),
+        kind:previous.kind==='news'||event.kind==='news'?'news':'host',event_ids:(previous.event_ids||[previous.id]).concat(event.id)});
+    }else rows.push(event);
+  });
+  return rows.reverse();
+}
 function timeline(){
   if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
   var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
   var tracks=st.upcoming_tracks||[],announced=(st.announced_tracks||[]).slice();
-  function trackLabels(x,isSet){if(!x||x.kind&&x.kind!=='music')return '';var i=announced.indexOf(x.ref),label='';if(i>=0){announced.splice(i,1);label='<span class="l announced-track"> · announced</span>'}return label+(isSet?'<span class="l"> · set</span>':'')}
+  function trackLabels(x,isSet){if(!x||x.kind&&x.kind!=='music')return '';var i=announced.indexOf(x.ref),label='',profile=tracks.find(function(t){return t.ref===x.ref});if(i>=0){announced.splice(i,1);label='<span class="l announced-track"> · announced</span>'}return label+(isSet?'<span class="l"> · set</span>':'')+(profile&&profile.energy?'<span class="l"> · energy '+esc(profile.energy)+'/5'+(profile.genre?' · '+esc(profile.genre):'')+'</span>':'')}
   var next=(st.upcoming||[]).find(function(x){return x.stage==='queued'})||(st.upcoming||[]).find(function(x){return x.stage==='next'})||(st.upcoming||[]).find(function(x){return x.stage==='music'});
   $('upcoming').hidden=!next||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;
@@ -1135,11 +1261,35 @@ function timeline(){
   $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':trackLabels(next,tracks.length&&tracks[0].ref===next.ref&&tracks[0].set))+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
-  var aired=items.filter(function(x){return x.kind!=='session'}),activity=items.filter(function(x){return x.kind==='session'});
-  $('activity').hidden=!activity.length;
-  $('activity-log').innerHTML=activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(x.time)+'</span><span class="tx">Radio started</span></div>'}).join('');
+  var aired=hostHistory(items).filter(function(x){return x.kind!=='session'}),activity=items.filter(function(x){return x.kind==='session'});
+  var background=backgroundError(st.last_error)?st.last_error:'';
+  if(background&&(!timeline.backgroundNotice||timeline.backgroundNotice.text!==background))timeline.backgroundNotice={text:background,
+    time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'})};
+  if(!background)timeline.backgroundNotice=null;
+  $('activity').hidden=!activity.length&&!background;
+  $('activity-log').innerHTML=(background?'<div class="tg"><span class="tm" title="First observed in this tab">'+esc(appearance.formatTime(timeline.backgroundNotice.time))+'</span><span class="tx">'+esc(background)+'</span></div>':'')+activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(appearance.formatTime(x.time))+'</span><span class="tx">Radio started</span></div>'}).join('');
   $('history-more').hidden=aired.length<=15;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
-  $('tl').innerHTML=aired.length?(historyExpanded?aired:aired.slice(0,15)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
+  var history=$('tl'),latest=aired.reduce(function(id,x){return Math.max(id,x.id)},0),previous=timeline.latest;
+  timeline.latest=latest;
+  var html=aired.length?(historyExpanded?aired:aired.slice(0,15)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
+  if(timeline.html!==html){
+    timeline.html=html;
+    var effect=document.documentElement.dataset.timelineEffect||'line';
+    var printing=effect!=='off'&&previous!==undefined&&latest>previous&&!planDraft&&!document.hidden&&!$('tl-panel').hidden&&!matchMedia('(prefers-reduced-motion:reduce)').matches;
+    var positions=new Map();
+    if(printing)Array.from(history.children).forEach(function(el){positions.set(el.dataset.historyId,el.getBoundingClientRect().top)});
+    history.innerHTML=html;
+    if(printing)Array.from(history.children).forEach(function(el){
+      var old=positions.get(el.dataset.historyId),fresh=+el.dataset.historyId>previous;
+      var offset=fresh?el.getBoundingClientRect().height:old===undefined?0:old-el.getBoundingClientRect().top;
+      if(effect==='fade'?fresh:offset){
+        el.style.overflow='clip';
+        var frames=effect==='fade'?[{opacity:0},{opacity:1}]:[{transform:'translateY('+offset+'px)',opacity:fresh?0:1},{transform:'translateY(0)',opacity:1}];
+        var animation=el.firstElementChild.animate(frames,{duration:240,easing:'cubic-bezier(.16,1,.3,1)'});
+        animation.onfinish=animation.oncancel=function(){el.style.removeProperty('overflow')};
+      }
+    });
+  }
   $('tl').scrollTop=sc;
   if(a){var e=$('tl').querySelector('[data-id="'+a+'"]');if(e)e.focus({preventScroll:true})}}
 
@@ -1159,6 +1309,26 @@ function replay(id){
   cmd('replay',{kind:rk(x),ref:x.ref})}
 function unqueue(id){
   var x=items.find(function(i){return String(i.id)===id});if(x)cmd('unqueue',{kind:rk(x),ref:x.ref})}
+var catchupBusy=false,catchupMessage='';
+function catchupView(info){
+  $('catchup-controls').hidden=!info;
+  if(!info)return;
+  var active=['preparing','pending','ready','queued','playing'].includes(info.state);
+  $('catchup-build').disabled=catchupBusy||!running()||active||!info.available;
+  $('catchup-build').title=info.available+' unplayed saved stories from the last 48 hours · up to 6 per edition';
+  var labels={preparing:'Preparing news…',pending:'Preparing audio…',ready:'Ready · waiting for a song boundary and speech budget',queued:'Queued · after the current song',playing:'Host edition is on air'};
+  $('catchup-status').textContent=info.error||labels[info.state]||catchupMessage||(running()?'':'Start the station to prepare news');
+}
+$('catchup-build').onclick=async function(){
+  catchupBusy=true;catchupMessage='';catchupView(st.catchup);
+  $('catchup-status').textContent='Preparing dated stories…';
+  try{
+    var result=await api('/api/cmd',{cmd:'catchup'});
+    if(!result.ok)throw Error(result.error||'Could not prepare catch-up');
+    st.catchup=result.catchup;catchupView(result.catchup);
+  }catch(error){catchupMessage=error.message;}
+  finally{catchupBusy=false;catchupView(st.catchup);}
+};
 function refresh(){
   var sequence=refresh.sequence=(refresh.sequence||0)+1;
   return api('/api/status').then(function(d){
@@ -1167,7 +1337,7 @@ function refresh(){
     refresh.applied=sequence;
     if(refresh.error&&$('er').textContent===refresh.error)$('er').textContent='';
     refresh.error='';
-    st=d.status;
+    st=d.status;catchupView(st.catchup);
     if(!running()&&listening)unlisten();
     if(d.audio_preset&&document.activeElement!==$('audio-preset')){
       $('audio-preset').value=d.audio_preset.selected;

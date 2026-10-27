@@ -93,9 +93,9 @@ class DirectionTests(unittest.TestCase):
         snap = self.svc._broadcast_plan()
         row = next(r for r in snap['rows'] if pid in r.get('content_members', []))
         self.save_plan(snap, [{'id': row['id'], 'at': row['at'], 'skipped': True}])
-        self.clock.return_value = self.AT + timedelta(minutes=14)
+        self.clock.return_value = self.AT + timedelta(minutes=24)
         self.assertTrue(any(r['skipped'] for r in self.svc._broadcast_plan()['rows']))
-        self.clock.return_value = self.AT + timedelta(minutes=15)
+        self.clock.return_value = self.AT + timedelta(minutes=25)
         self.assertFalse(any(r['skipped'] for r in self.svc._broadcast_plan()['rows']))
 
     def test_voice_waits_until_five_minutes_and_keeps_existing_material(self):
@@ -192,7 +192,7 @@ class DirectionTests(unittest.TestCase):
 
     def test_gap_never_pulls_a_future_clock_edition_forward(self):
         self.add_news('one')
-        self.clock.return_value = self.AT + timedelta(minutes=10)
+        self.clock.return_value = self.AT + timedelta(minutes=20)
         self.svc.current = {'kind': 'music', 'ref': 'ytmusic:a', 'started': 1000, 'duration': 200}
         self.svc.engine = Mock(push_news=AsyncMock())
         with patch('radio.daemon.time.time', return_value=1190):
@@ -225,7 +225,7 @@ class DirectionTests(unittest.TestCase):
             queued = [r for r in snap['rows'] if r['locked']]
             self.assertEqual(len(queued), 1)
             self.assertEqual(queued[0]['title'], 'Host edition · Weather')
-            self.assertEqual({seg['title'] for seg in queued[0]['segments']}, {'Weather', 'Tech news', 'GitHub trends'})
+            self.assertEqual({seg['title'] for seg in queued[0]['segments']}, {'Weather', 'Tech news', 'GitHub releases'})
             self.save_plan(snap, [{'id': queued[0]['id'], 'at': queued[0]['at'], 'skipped': True, 'skip_only': True}])
             self.svc.engine.remove.assert_awaited_once_with('51')
             self.assertIsNone(self.svc.queued_break)
@@ -328,6 +328,25 @@ class DirectionTests(unittest.TestCase):
         self.assertEqual(row['at'], store.iso(start - timedelta(minutes=self.cfg['reminders']['lead_min'])))
         self.assertEqual(row['content_title'], 'Созвон с командой')
         self.assertFalse(self.svc.reminders_due)                            # shown, not yet due
+
+    def test_todoist_own_offset_reaches_plan_queue_and_spoken_countdown(self):
+        from radio import reminders
+        row, start = self.task_reminder(60)
+        self.cfg['reminders']['todoist_token'] = 'test'
+        self.svc.todoist_tasks[0]['reminders'] = [{'type': 'relative', 'minute_offset': 60}]
+        task = self.svc.todoist_tasks[0]
+        with patch.object(reminders, 'fetch_todoist', return_value=[task]):
+            asyncio.run(self.svc._reminders_tick())
+        row = next(r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'reminder')
+        self.assertEqual(row['at'], store.iso(self.AT))
+        self.assertFalse(row['estimated'])
+        notice, = self.svc.reminders_due.values()
+        self.assertEqual(notice['start'], start)
+        self.svc.engine = Mock(push_replay=AsyncMock(return_value='81'))
+        with patch.object(self.svc, '_render_notice', return_value=Path('/tmp/notice.wav')) as render:
+            self.assertTrue(asyncio.run(self.svc._remind(20)))
+        self.assertIn('час', render.call_args.args[0])
+        self.assertIn(notice['key'], self.svc.queued_reminders)
 
     def test_reminder_moved_earlier_becomes_due(self):
         row, start = self.task_reminder(60)
@@ -1232,7 +1251,7 @@ class DirectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed again'):
             self.command(action='undo', token=token)
         self.svc.db.execute("UPDATE air_plan SET rank=0 WHERE id=?", (row['id'],))
-        self.clock.return_value = self.AT + timedelta(minutes=6)
+        self.clock.return_value = self.AT + timedelta(minutes=16)
         with self.assertRaisesRegex(ValueError, 'window has expired'):
             self.command(action='undo', token=token)
 
@@ -1251,6 +1270,23 @@ class DirectionTests(unittest.TestCase):
             row = next(r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'news')
         self.assertEqual(row['at'], store.iso(self.AT))
         self.assertEqual(row['expected_at'], store.iso(self.AT + timedelta(minutes=3)))
+
+    def test_reminder_keeps_exact_due_time_separate_from_expected_playback(self):
+        plugins.set_plugin('reminders_todoist', True)
+        self.svc.current = {'kind': 'music', 'ref': 'song', 'started': 1000, 'duration': 180}
+        lead = timedelta(minutes=self.cfg['reminders']['lead_min'])
+        for kind in ('task', 'event'):
+            plugins.set_plugin('reminders_calendar', True)
+            for waiting in (False, True):
+                with self.subTest(kind=kind, waiting=waiting):
+                    notice = {'key': 'test:reminder', 'kind': kind, 'title': 'Standup',
+                              'start': self.AT + lead, 'end': self.AT + lead + timedelta(hours=1)}
+                    self.svc.reminders_due = {notice['key']: notice} if waiting else {}
+                    with patch.object(self.svc, '_reminder_candidates', return_value=[notice]), patch('radio.daemon.time.time', return_value=1000):
+                        row = next(r for r in self.svc._broadcast_plan()['rows'] if r['kind'] == 'reminder')
+                    self.assertEqual(row['at'], store.iso(self.AT))
+                    self.assertFalse(row['estimated'])
+                    self.assertEqual(row['expected_at'], store.iso(self.AT + timedelta(minutes=3)))
 
     def test_next_track_estimate_includes_the_pending_host_edition(self):
         self.svc.current = {'kind': 'music', 'ref': 'current', 'started': self.AT.timestamp(), 'duration': 180}

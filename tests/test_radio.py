@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -225,7 +226,7 @@ class TrendingTests(unittest.TestCase):
         self.assertEqual(g.to_item(small, "Ракеты.", "indie")["topic"], "GitHub, находка дня")
         self.assertIn("Пока у него более восьмисот звёзд, но он уже в трендах дня.",
                       g.to_item(small, "Ракеты.", "indie")["body"])
-        self.assertIn("Проекту меньше недели", g.to_item(small, "Ракеты.", "new", source="github_new")["body"])
+        self.assertNotIn("Проекту меньше недели", g.to_item(small, "Ракеты.", "new", source="github_new")["body"])
         self.assertIsNone(g.to_item(t, None, "top"))
 
     def test_llm_output_check(self):
@@ -239,33 +240,38 @@ class TrendingTests(unittest.TestCase):
         self.assertIsNone(check("Да."))
         self.assertIsNone(check(" ".join(["слово"] * 60)))
 
-    def test_github_mix_never_repeats(self):
+    @patch('radio.github_trending.fetch_release')
+    def test_github_mix_never_repeats(self, release):
+        release.side_effect=lambda t,*a: {'id':t['repo'],'body':'Описание релиза.','published_at':store.iso(store.now()),'name':'v1','tag_name':'v1'}
         svc = Service(config.load(), tts=MockTTS(), output="x")
         calls = []
         svc.editor.retell = lambda name, desc, readme="": calls.append(name) or "Проект про ракеты."
+        svc.editor.retell_news = lambda name, desc: calls.append(name.split(" — ")[0]) or "Проект про ракеты."
         r = lambda rank, repo, total: {"owner": "acme", "repo": repo, "rank": rank, "description": "Rockets.",
-                                        "language": "", "stars_total": total, "stars_today": 900}
+                                        "language": "", "stars_total": total, "stars_today": 900,"created_at":store.iso(store.now())}
         main = [r(1, "big", 90000), r(2, "huge", 80000)]
         langs = [r(1, "tiny", 500), r(2, "small", 2000), r(3, "mini", 100)]
         new = [r(1, "fresh", 300)]
         self.assertEqual(svc._take_github(main, langs, new),
-                         "top acme/big, indie acme/tiny, indie acme/small, new acme/fresh new")
+                         "top acme/big, indie acme/tiny, indie acme/small, new acme/fresh")
         n = svc.db.execute("SELECT COUNT(*) FROM packages WHERE item_id LIKE 'github:acme/%'").fetchone()[0]
         self.assertEqual(n, 4)  # one short bulletin per repo
-        origin = json.loads(svc.db.execute("SELECT origin_json FROM items WHERE id='github:acme/tiny'").fetchone()[0])
-        self.assertEqual((origin[0]["role"], origin[0]["description"]), ("indie", "Rockets."))
-        self.assertEqual(svc._take_github(main, langs, new), "top acme/huge, indie acme/mini new")
+        origin = json.loads(svc.db.execute("SELECT origin_json FROM items WHERE id='github:acme/tiny:release:tiny'").fetchone()[0])
+        self.assertEqual((origin[0]["role"], origin[0]["description"]), ("release", "Описание релиза."))
+        self.assertEqual(svc._take_github(main, langs, new), "top acme/huge, indie acme/mini")
         self.assertEqual(svc._take_github(main, langs, new), "nothing new")
         self.assertEqual(calls, ["big", "tiny", "small", "fresh", "huge", "mini"])  # repeats never reach the LLM
 
 
-    def test_failed_retelling_gives_slot_to_next(self):
+    @patch('radio.github_trending.fetch_release')
+    def test_failed_retelling_gives_slot_to_next(self, release):
+        release.side_effect=lambda t,*a: {'id':t['repo'],'body':'Описание релиза.','published_at':store.iso(store.now()),'name':'v1'}
         svc = Service(config.load(), tts=MockTTS(), output="x")
-        svc.editor.retell = lambda name, desc, readme="": None if name == "lost" else "Маленький проект."
+        svc.editor.retell_news = lambda name, desc: None if name.startswith("lost") else "Маленький проект."
         r = lambda rank, repo: {"owner": "zeta", "repo": repo, "rank": rank, "description": "Tool.",
                                 "language": "", "stars_total": 400, "stars_today": 10}
         self.assertEqual(svc._take_github([], [r(1, "lost"), r(2, "kept"), r(3, "also")], []),
-                         "indie zeta/kept, indie zeta/also new")
+                         "indie zeta/kept, indie zeta/also")
 
 
 class SchedulingTests(unittest.TestCase):
@@ -444,7 +450,7 @@ class SchedulingTests(unittest.TestCase):
         self.fake_engine(pushed)
         self.cfg['broadcast']['station_id_every_songs'] = 3
         self.svc.defaults = radio_settings.base(self.cfg)
-        self.clock.return_value += timedelta(minutes=10)
+        self.clock.return_value += timedelta(minutes=16)
         for i in range(10):
             self.svc.on_event({'kind': 'music', 'ref': f'/m/{i}.mp3'})
             asyncio.run(self.svc.schedule())
@@ -1094,7 +1100,7 @@ class SchedulingTests(unittest.TestCase):
         self.assertNotIn("voicestudio", grouped)
         self.assertNotIn("voice_over", grouped)
         self.assertNotIn("reroll_next", grouped)
-        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "gap_filler", "duo_hosts", "reddit", "telegram", "news_reactions", "track_previews"})
+        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "gap_filler", "duo_hosts", "reddit", "telegram", "news_reactions", "track_previews", "energy_wave", "holiday_previews"})
         self.assertEqual({n for n, p in grouped.items() if p["section"] == "features"},
                          {"station_ids", "host_links", "new_tracks"})
         self.assertTrue(grouped["horizon"]["on"])  # grouping preserves the existing saved switches
@@ -1348,6 +1354,8 @@ class SchedulingTests(unittest.TestCase):
             entry = next(e for e in timeline._build(db, 12, 50) if e["kind"] == "host")
             self.assertIn(facts["text"], entry["parts"][0]["text"])
             self.assertEqual(entry["parts"][0]["links"][0]["url"], facts["urls"][0])
+            slot = svc._clock_slot()
+            db.execute("INSERT INTO air_plan(id,kind,status) VALUES(?,'news','PLAYED')", (slot["id"],))
             self.clock.return_value += timedelta(minutes=10)
             asyncio.run(svc._maybe_music_link())
             self.assertEqual(fetch.call_count, 1)  # next clock edition is outside the preparation window

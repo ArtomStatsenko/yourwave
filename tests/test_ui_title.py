@@ -1,3 +1,4 @@
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -10,18 +11,23 @@ class TitleAnimationTests(unittest.TestCase):
         subprocess.run(['node', '-e', frame + r"""
 const assert = require('node:assert/strict');
 for (const duration of [100, 3000]) {
+  const delay = duration / 2;
+  for (let ms = 0; ms < delay; ms += 5) {
+    assert.deepEqual(titleFrame('Carbonara - Yesterday', 'Carbonara - Tomorrow', ms, duration),
+                     {text:'Carbonara - Yesterday',caret:false,done:false});
+  }
   for (let ms = 0; ms < duration; ms += 5) {
-    const f = titleFrame('Carbonara - Yesterday', 'Carbonara - Tomorrow', ms, duration);
+    const f = titleFrame('Carbonara - Yesterday', 'Carbonara - Tomorrow', delay + ms, duration);
     assert.ok(f.text.startsWith('Carbonara - '));
     assert.equal(f.done, false);
   }
-  assert.deepEqual(titleFrame('Carbonara - Yesterday', 'Carbonara - Tomorrow', duration, duration),
+  assert.deepEqual(titleFrame('Carbonara - Yesterday', 'Carbonara - Tomorrow', delay + duration, duration),
                    {text:'Carbonara - Tomorrow',caret:false,done:true});
 }
 assert.equal(titleFrame('ab', 'ac', 0, 0).text, 'ac');
 assert.equal(titleFrame('ab', 'ac', 4000, NaN).done, true);
 assert.equal(titleFrame('😀 old', '😀 new', 50, 100).text.startsWith('😀 '), true);
-assert.equal(titleFrame('Long title', 'Long', 100, 100).text, 'Long');
+assert.equal(titleFrame('Long title', 'Long', 150, 100).text, 'Long');
 """], check=True, capture_output=True, text=True)
 
     def test_next_keeps_stream_open_and_seeks_only_inside_buffered_audio(self):
@@ -71,7 +77,7 @@ assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:null,
 
     def test_editor_hour_groups_and_autosave_rollback(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
-        code = source[source.index('function planGroups('):source.index('function planMove(')]
+        code = "var appearance={formatTime:value=>value};\n" + re.search(r'function planDragClock\(at\)\{[^\n]+', source).group(0) + '\n' + source[source.index('function planGroups('):source.index('function planMove(')]
         result = subprocess.run(['node', '-e', code + r"""
 const assert=require('node:assert/strict');
 const at=Date.parse('2026-10-24T06:00:00Z');Date.now=()=>at;
@@ -86,15 +92,43 @@ var esc=s=>String(s),planReadiness=()=>'',localInput=s=>s;
 var requests=[],response;function api(path,body){requests.push(body);return Promise.resolve(response)}
 (async()=>{
  const groups=planGroups(planDraft);assert.equal(groups.length,3);assert.equal(groups[0].entries[0].row.id,'clock:5');
- directionView();var html=$('direction-list').innerHTML;
+ planDraft[0].title='Host edition · Weather';planDraft[0].expected_at=new Date(at+120e3).toISOString();
+ st.broadcast_plan.rows[0].expected_at=planDraft[0].expected_at;
+ directionView();var html=$('direction-list').innerHTML;planDraft[0].title='Host edition';delete planDraft[0].expected_at;delete st.broadcast_plan.rows[0].expected_at;
+ assert(html.includes('Host edition<span class="l plan-expected"> · expected ~06:02</span></button>'));
+ assert(!html.includes('class="l plan-detail"'),'An edition with expected time uses no detail row');
+ planDraft.push({id:'reminder:test',kind:'reminder',title:'Reminder',content_title:'Standup',estimated:false,
+   at:new Date(at).toISOString(),expected_at:new Date(at+120e3).toISOString()});
+ st.broadcast_plan.rows=structuredClone(planDraft);directionView();
+ const reminder=$('direction-list').innerHTML.split('data-plan-key="reminder:test"')[1].split('class="plan-inline"')[0];
+ assert(reminder.includes('>06:00</button>'));assert(!reminder.includes('>~06:00'));
+ assert(reminder.includes('Standup · expected ~06:02'));
+ planDraft.pop();st.broadcast_plan.rows=structuredClone(planDraft);directionView();
  assert.ok(!html.includes('data-plan-key="music-between"'),'Music filler is hidden from the program');
  assert.ok(html.includes('data-plan-index="2" data-plan-key="clock:1"'),'Visible rows retain their original edit indices');
- assert.equal((html.match(/ open>/g)||[]).length,1);assert.ok(html.indexOf('clock:5')<html.indexOf('clock:0'));
+ assert.equal((html.match(/ open>/g)||[]).length,0);assert.ok(html.indexOf('clock:5')<html.indexOf('clock:0'));
  assert.ok(html.indexOf('data-plan-add=')<html.indexOf('<details'),'Collapsed hours must still expose their insertion gaps');
- assert.ok(html.includes('Weather'));assert.ok(html.includes('data-plan-action="segments"'));
- assert.ok(html.includes('This hour'),'The current hour must not look like a past block');
- planHours[groups[0].key]=true;directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,2);
- planHours={};directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,1);
+ assert.ok(!html.includes('Weather'),'Collapsed editions hide their categories and title suffix');
+ assert.ok(html.includes('data-plan-action="segments"'));
+ planOpen['clock:0']=true;directionView();
+ assert.ok($('direction-list').innerHTML.includes('<span>Weather</span>'),'The expanded edition keeps its composition');
+ planOpen={};directionView();
+ assert.ok(!html.includes('This hour'),'Current-hour entries stay directly above now without a heading');
+ assert.equal((html.match(/class="plan-hour"/g)||[]).length,2,'Only later hours are collapsible');
+ assert.ok(html.lastIndexOf('</details>')<html.indexOf('data-plan-key="clock:1"'),'Current-hour entries remain outside the later groups');
+ planHours[groups[0].key]=true;directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,1);
+ planHours={};directionView();assert.equal(($('direction-list').innerHTML.match(/ open>/g)||[]).length,0);
+ // Expanding an hour compensates the scroll without changing the current-hour rows.
+ const folded={open:false,dataset:{hour:groups[0].key},querySelector(){return summary}};
+ const summary={getBoundingClientRect:()=>({top:folded.open?200:80})};
+ $('direction-list').querySelectorAll=selector=>selector==='details[data-hour]'?[folded]:[];
+ $('broadcast-timeline').scrollTop=40;directionView();
+ let prevented=false;summary.onclick.call(summary,{preventDefault(){prevented=true}});
+ assert(prevented);assert.equal(folded.open,true);assert.equal(planHours[folded.dataset.hour],true);
+ assert.equal($('broadcast-timeline').scrollTop,160);
+ summary.onclick.call(summary,{preventDefault(){}});
+ assert.equal(folded.open,false);assert.equal($('broadcast-timeline').scrollTop,40);
+ $('direction-list').querySelectorAll=()=>[];
  st.upcoming_tracks=[{ref:'first',title:'First song',at:new Date(at+600e3).toISOString(),set:true},
  {ref:'later',title:'Later song',at:new Date(at+2400e3).toISOString()},
  {ref:'future',title:'Future song',at:new Date(at+4*3600e3).toISOString()},
@@ -189,15 +223,27 @@ assert.equal(planDraft.length,0,'Changing insertion time must not edit an existi
 
     def test_current_row_keeps_now_label_without_a_separate_editor_boundary(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
-        render = source[source.index('function row('):source.index('function timeline(')]
+        render = source[source.index('function sourceLabel('):source.index('function timeline(')]
         subprocess.run(['node', '-e', render + r"""
-const assert=require('node:assert/strict');var current=true,st={state:'PLAYING'},open={},KIND={music:'music'};
+const assert=require('node:assert/strict');var appearance={formatTime:value=>value};var current=true,st={state:'PLAYING'},open={},KIND={music:'music'};
 function isCur(){return current}function esc(s){return String(s)}function entryTitle(k,t){return t}
 const track={id:1,kind:'music',title:'Track',time:'15:00'};
 assert.ok(row(track).includes('<span class="tm">now</span>'));
 st.state='PAUSED';assert.ok(row(track).includes('cur paused'));
 current=false;assert.ok(row(track).includes('<span class="tm">15:00</span>'));
 assert(!row(track).includes('cur paused'));
+open['2']=true;
+const url='https://example.com/a-long-article?ref=radio';
+const news={id:2,kind:'news',title:'Edition',time:'15:00',parts:[{links:[{url,title:'A clear article title'}]}]};
+let html=row(news);
+assert(html.includes('>A clear article title</a>'));
+assert(html.includes('href="'+url+'" title="'+url+'"'));
+news.parts[0].links[0].title='example.com/a-long-article?ref=radio';
+assert(row(news).includes('>Source · example.com</a>'));
+delete news.parts[0].links[0].title;
+assert(row(news).includes('>Source · example.com</a>'));
+news.parts[0].links=[{url:'https://www.reddit.com/r/BestGitHubRepos/comments/abc/mlxserve_native_llm/',title:'Reddit: bestgithubrepos · 2026-10-27'}];
+assert(row(news).includes('>Reddit · mlxserve native llm</a>'));
 """], check=True, capture_output=True, text=True)
         self.assertNotIn('id="plan-history"', source)
         self.assertNotIn('<summary>Add block</summary>', source)

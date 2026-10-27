@@ -31,6 +31,7 @@ def timeline(hours=12, limit=120) -> list[dict]:
 
 # What the page shows for the spoken topic names (the bulletin text itself stays as it was said).
 TOPICS = {"GitHub, тренд дня": "GitHub: trend of the day", "GitHub, находка дня": "GitHub: find of the day",
+          "GitHub, новый проект": "GitHub: new project", "GitHub, новый релиз": "GitHub: release",
           "GitHub, новинка недели": "GitHub: new of the week", "Новости технологий": "Tech news",
           "Сводка новостей": "News digest", "GitHub Trending за сутки": "GitHub Trending, today", "Музыкальная пауза": "Music break"}
 
@@ -41,6 +42,8 @@ def topic_name(topic: str | None) -> str:
 
 def edition_title(sources) -> str:
     sources = set(sources)
+    if sources == {'catchup'}:
+        return 'What I missed · 48h'
     if 'weather' in sources:
         return 'Host edition · Weather'
     if sources == {'music_facts'}:

@@ -34,4 +34,6 @@ Audio has been removed from the published Git history. Base is installed from a 
 
 ## Tools and external services
 
+The optional offline Energy wave analyzer uses separately installed [librosa 0.11.0](https://github.com/librosa/librosa/tree/0.11.0), licensed under ISC. Its installation retains the upstream copyright notice and license in the Python distribution; no librosa source or model is bundled here. See [Energy wave](docs/energy-wave.md).
+
 Yourwave uses separately installed Python, Liquidsoap, FFmpeg, VoiceStudio, Ollama, and optionally yt-dlp. Enabled integrations may contact GitHub, Horizon, iCal sources, Todoist, Open-Meteo, YouTube Music, LRCLIB, MusicBrainz, and Wikidata. Their software, services, and retrieved content retain their own licenses and terms.

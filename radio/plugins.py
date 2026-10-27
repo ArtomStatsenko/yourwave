@@ -6,12 +6,14 @@ from . import config
 
 # name -> (title, what it does, default from the config)
 PLUGINS = {
-    "track_previews": ("Coming up", 'About once an hour: introduce two queued songs with short hooks, up to 25 seconds. Missing hooks use voice only. Analyzes the library in the background.', lambda c: False),
+    "holiday_previews": ("Upcoming holidays", 'One short calendar preview per day, 3–5 days before annual all-day events or entries tagged Holiday. Birthdays and family holidays may get an eve reminder. Requires Calendar and Host links. Restart after installation.', lambda c: False),
+    "energy_wave": ("Energy wave", 'Local music rises and eases smoothly with listening time, across set boundaries. All energy levels participate; prefer smooth transitions and similar genres. Keeps unplayed-track priority. Analyze the library before first use; restart once after installation.', lambda c: False),
+    "track_previews": ("Coming up", 'Close host editions with one later song hook, then introduce the first song. No standalone announcements between songs. Missing hooks use a short first-song introduction. Restart after installation.', lambda c: False),
     "ytmusic": ("YouTube Music", 'Make YouTube Music available as a music source. Select the active source in Settings.',
                 lambda c: False),
-    "github_trending": ("GitHub: trending", 'Pick top trending repositories and smaller projects from GitHub Trending.',
+    "github_trending": ("GitHub: releases", 'Recent stable releases from projects discovered through GitHub Trending. Popularity alone is not news.',
                         lambda c: c["sources"]["github_trending"]["enabled"]),
-    "github_new": ("GitHub: new this week", 'Pick popular repositories created in the past week.',
+    "github_new": ("GitHub: new projects", 'Newly created public projects, dated by creation time rather than discovery time.',
                    lambda c: c["sources"]["github_new"]["enabled"]),
     "horizon": ("Horizon", 'Select technology news from Hacker News and RSS feeds. Requires a configured Horizon installation.',
                 lambda c: c["sources"]["horizon"]["enabled"]),
@@ -23,7 +25,7 @@ PLUGINS = {
                    lambda c: False),
     "duo_hosts": ("Two hosts", 'Alternate stories between two voices in each host edition. Preparing the second voice may take longer.',
                   lambda c: False),
-    "news_reactions": ("News reactions", 'Let the editor choose one subtle reaction for new news text. VoiceStudio only. No extra AI requests; prepared audio stays unchanged. Restart after installing this experiment.', lambda c: False),
+    "news_reactions": ("News reactions", 'Let the editor choose one subtle reaction for new news text. OmniVoice only. No extra AI requests; prepared audio stays unchanged.', lambda c: False),
     "music_facts": ("Music stories", 'Add short music stories between sets independently of news availability.', lambda c: False),
     "station_ids": ("Station IDs", 'Play the station call sign between songs.',
                     lambda c: c["broadcast"]["station_id_every_songs"] > 0),
@@ -39,7 +41,7 @@ PLUGINS = {
 SOURCE_PLUGIN = {"reddit": "reddit", "telegram": "telegram", "weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
 INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction", "reddit", "telegram"}
 
-EXPERIMENTS = {"reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "track_previews"}
+EXPERIMENTS = {"holiday_previews", "reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "track_previews", "energy_wave"}
 
 
 def _path():
@@ -61,6 +63,7 @@ def state(cfg: dict) -> dict[str, bool]:
     saved = _saved()
     result = {name: saved.get(name, bool(default(cfg))) for name, (_, _, default) in PLUGINS.items()}
     result['new_tracks'] = result['new_tracks'] and settings._saved().get('new_every_sets', cfg['broadcast']['new_every_sets']) > 0
+    result['news_reactions'] = result['news_reactions'] and settings._saved().get('voice_engine', cfg['voice']['engine']) == 'voicestudio'
     return result
 
 
@@ -84,7 +87,12 @@ def set_plugin(name: str, enabled: bool) -> None:
 
 
 def listing(cfg: dict) -> list[dict]:
+    from . import energy, settings
     st = state(cfg)
-    return [{"name": n, "title": t, "description": d, "on": st[n],
+    analyzed = len(energy.cached())
+    reactions_available = settings._saved().get('voice_engine', cfg['voice']['engine']) == 'voicestudio'
+    return [{"name": n, "title": t, "description": d + (f' Cached analysis: {analyzed} tracks.' if n == 'energy_wave' else ''), "on": st[n],
+             "available": n != 'news_reactions' or reactions_available,
+             "unavailable_reason": 'Select VoiceStudio · OmniVoice in Settings → Voice engine. Qwen3 does not support reaction tags.' if n == 'news_reactions' and not reactions_available else '',
              "section": "integrations" if n in INTEGRATIONS else "experiments" if n in EXPERIMENTS else "features"}
             for n, (t, d, _) in PLUGINS.items()]

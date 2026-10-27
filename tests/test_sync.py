@@ -104,6 +104,21 @@ class SyncTests(unittest.TestCase):
             asyncio.run(self.svc._reminders_tick())
         self.assertEqual(next(iter(self.svc.reminders_due.values()))['title'], 'Keep this task')
 
+    def test_changed_todoist_offset_removes_queued_notice_and_waits_for_new_time(self):
+        plugins.set_plugin('reminders_todoist', True)
+        task = {'id': 'one', 'content': 'Meeting', 'due': {'date': store.iso(self.AT + timedelta(minutes=10))},
+                'reminders': [{'type': 'relative', 'minute_offset': 15}]}
+        self.svc.todoist_tasks = [task]
+        notice, = self.svc._reminder_candidates(self.AT, timedelta(hours=12))
+        self.svc.queued_reminders[notice['key']] = ('77', notice)
+        self.svc.engine = Mock(remove=AsyncMock(), push_replay=AsyncMock())
+        task['reminders'][0]['minute_offset'] = 0
+        asyncio.run(self.svc._sync_reminders('task'))
+        self.svc.engine.remove.assert_awaited_once_with('77')
+        self.assertFalse(self.svc.queued_reminders)
+        self.assertFalse(asyncio.run(self.svc._remind(20)))
+        self.svc.engine.push_replay.assert_not_awaited()
+
     def test_engine_reset_discards_old_request_ids_and_unlocks_plan(self):
         self.svc.db.execute("INSERT INTO air_plan(id,kind,status,rid) VALUES('direction:one','news','QUEUED','77')")
         self.svc.queued_break = ('77', ['one'])

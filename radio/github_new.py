@@ -28,4 +28,5 @@ def fetch_new(days: int = 7, n: int = 20, timeout: int = 20) -> list[dict]:
             out.append({"owner": owner, "repo": repo, "description": (r.get("description") or "").strip(),
                         "language": r.get("language") or "", "stars_total": r.get("stargazers_count"),
                         "stars_today": None, "rank": rank})
+            out[-1]['created_at'] = r.get('created_at')
     return out

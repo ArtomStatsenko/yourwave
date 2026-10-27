@@ -7,12 +7,12 @@ class RerollUiTests(unittest.TestCase):
     def test_confirmation_cancel_refresh_and_changed_track(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
         controls = source[source.index('function rerollButton('):source.index('function planReadiness(')]
-        render = source[source.index('function timeline('):source.index("$('history-more').onclick")]
+        render = source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
         events = source[source.index("$('upcoming').onclick="):source.index("$('music-source-select').onchange=")]
         harness = r'''
 const assert=require('node:assert/strict');
 var st={},rerollConfirm=null,rerollBusy=false,rerollError='',historyExpanded=false,planDraft=null,items=[],calls=[];
-var document={activeElement:null},nodes={};
+var document={documentElement:{dataset:{}},activeElement:null},nodes={};
 function $(id){return nodes[id]||(nodes[id]={scrollTop:0,contains:()=>false,innerHTML:''})}
 function esc(s){return String(s)}function entryTitle(k,t){return t}function directionView(){}function row(){return ''}
 function cmd(name,args){calls.push([name,args.ref]);return Promise.resolve({ok:true})}

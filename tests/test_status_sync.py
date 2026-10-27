@@ -43,7 +43,7 @@ let pending=[],stops=0;const noop=()=>{},nodes={};
 const c={st:{state:'PLAYING',current_title:'Initial'},listening:true,running:()=>c.st.state==='PLAYING',
  api:()=>new Promise(resolve=>pending.push(resolve)),$:id=>nodes[id]||(nodes[id]={}),
  document:{activeElement:null},hist:[],Date,unlisten:()=>stops++,watchdog:noop,player:noop,
- timeline:noop,pluginsView:noop,settingsView:noop,directionView:noop,hooksView:noop};
+ timeline:noop,pluginsView:noop,settingsView:noop,directionView:noop,hooksView:noop,catchupView:noop};
 vm.createContext(c);vm.runInContext(SOURCE,c);
 (async()=>{
  const old=c.refresh(),fresh=c.refresh();

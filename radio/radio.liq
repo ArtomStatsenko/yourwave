@@ -186,6 +186,8 @@ fresh = request.queue(id="fresh")
 previews_enabled = ref(false)
 cancelled_previews = ref([])
 aired_requests = ref([])
+last_track_kind = ref("")
+last_track_ref = ref("")
 def future_requests(s) =
   current = s.current()
   # Resolving requests are temporarily outside the source queue, but retain their original queue tag.
@@ -257,11 +259,12 @@ server.register("previews.prepare", fun (_) -> begin
 end)
 server.register("previews.push", fun (arg) -> begin
   let json.parse (p : {refs: [string], files: [{ref:string,path:string,modified:int,size:int}], uri: string}) = arg
-  if previews_enabled() and p.refs == preview_refs() and p.files == preview_files() and list.length(p.refs) == 2 and list.is_empty(news.queue()) then
+  if previews_enabled() and last_track_kind() == "news" and p.refs == preview_refs() and p.files == preview_files() and list.length(p.refs) == 2 and list.is_empty(news.queue()) then
     r = request.create(p.uri)
     resolved = request.resolve(timeout=3., r)
     m = request.metadata(r)
-    if resolved and p.refs == preview_refs() and p.files == preview_files() and not list.mem(m["ref"], cancelled_previews()) then news.push(r); "#{request.id(r)}"
+    if resolved and last_track_kind() == "news" and m["preview_after"] == last_track_ref() and
+       p.refs == preview_refs() and p.files == preview_files() and not list.mem(m["ref"], cancelled_previews()) then news.push(r); "#{request.id(r)}"
     else request.destroy(r); "STALE" end
   else "STALE" end
 end)
@@ -300,6 +303,8 @@ server.register("fresh.pending", fun (_) -> pending_requests(fresh))
 # Events go to a file the daemon tails: stdout is block-buffered when piped.
 events_path = environment.get("RADIO_EVENTS")
 def emit_track(m) =
+  last_track_kind := m["kind"]
+  last_track_ref := m["ref"]
   rid = int_of_string(default=-1,m["rid"])
   if rid >= 0 then aired_requests := [rid, ...list.prefix(127,aired_requests())] end
   file.write(append=true, data=json.stringify(compact=true, {kind=m["kind"], ref=m["ref"], filename=m["filename"], replay_id=m["replay_id"]}) ^ "\n", events_path)
@@ -317,7 +322,8 @@ def news_eligible() =
     valid = if m["kind"] == "teaser" then
       let json.parse (expected : [string]) = m["preview_refs"]
       let json.parse (files : [{ref:string,path:string,modified:int,size:int}]) = m["preview_files"]
-      previews_enabled() and not list.mem(m["ref"], cancelled_previews()) and expected == preview_refs() and files == preview_files()
+      previews_enabled() and last_track_kind() == "news" and m["preview_after"] == last_track_ref() and
+      not list.mem(m["ref"], cancelled_previews()) and expected == preview_refs() and files == preview_files()
     else true end
     valid and (until == 0. or time() < until)
   end
@@ -340,6 +346,12 @@ def transition(a, b) =
     cross.simple(fade_in=0.1, fade_out=0.1,
                  initial_fade_in_metadata=[("liq_fade_in", "0.1"), ("liq_fade_in_delay", "0.")],
                  initial_fade_out_metadata=[("liq_fade_out", "0.1"), ("liq_fade_out_delay", "0.")], ending, b.source)
+  elsif b.metadata["kind"] == "teaser" then
+    # The set preview continues the edition; finish the host's words before its hook.
+    t = max(0., source.duration(a.source) - 0.1)
+    cross.simple(fade_in=0.03, fade_out=0.1,
+      initial_fade_in_metadata=[("liq_fade_in", "0.03"), ("liq_fade_in_delay", "#{t}")],
+      initial_fade_out_metadata=[("liq_fade_out", "0.1"), ("liq_fade_out_delay", "#{t}")], a.source, b.source)
   else
     da = source.duration(a.source)
     d = da - source.duration(b.source)

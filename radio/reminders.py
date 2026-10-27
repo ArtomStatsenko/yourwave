@@ -62,15 +62,46 @@ def _when(value: str, params: dict, local: ZoneInfo | timezone):
     return naive, local
 
 
+def _duration(value):
+    match = re.fullmatch(r'([+-]?)P(?:(\d+)W|(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?)', value)
+    if not match or not any(part is not None for part in match.groups()[1:]):
+        return None
+    sign, weeks, days, hours, minutes, seconds = match.groups()
+    try:
+        return timedelta(weeks=int(weeks or 0), days=int(days or 0), hours=int(hours or 0),
+                         minutes=int(minutes or 0), seconds=int(seconds or 0)) * (-1 if sign == '-' else 1)
+    except (OverflowError, ValueError):
+        return None
+
+
 def parse_events(ics: str, local=None) -> list[dict]:
     """VEVENTs, including all-day dates; cancelled overrides remove occurrences of their series."""
     local = local or datetime.now().astimezone().tzinfo
-    events, cur = [], None
+    events, cur, alarm = [], None, None
     for line in _unfold(ics):
         if line == "BEGIN:VEVENT":
             cur = {"exdates": [], "rrule": None, "recurrence_id": None, "title": "", "uid": "", "cancelled": False,
-                   "all_day": False, "description": ""}
+                   "all_day": False, "description": "", "alarms": []}
+        elif line == "BEGIN:VALARM" and cur is not None:
+            alarm = {}
+        elif line == "END:VALARM" and cur is not None:
+            if alarm and 'trigger' in alarm:
+                cur['alarms'].append(alarm)
+            alarm = None
+        elif alarm is not None:
+            name, params, value = _prop(line)
+            if name == 'TRIGGER':
+                try:
+                    if params.get('VALUE') == 'DATE-TIME':
+                        at, tz = _when(value, params, local)
+                        alarm['trigger'] = at.replace(tzinfo=tz)
+                    elif (offset := _duration(value)) is not None:
+                        alarm.update(trigger=offset, related=params.get('RELATED', 'START'))
+                except ValueError:
+                    pass
         elif line == "END:VEVENT" and cur is not None:
+            if cur.get('duration') is not None and cur.get('start') and not cur.get('end'):
+                cur['end'] = cur['start'] + cur['duration']
             if cur.get("start") and (not cur["cancelled"] or cur["recurrence_id"]):
                 events.append(cur)  # a cancelled override is kept: it removes that occurrence of its series
             cur = None
@@ -81,10 +112,14 @@ def parse_events(ics: str, local=None) -> list[dict]:
                 cur["all_day"] = params.get("VALUE") == "DATE" or len(value) == 8
             elif name == "DTEND" and (w := _when(value, params, local)):
                 cur["end"] = w[0]
+            elif name == "DURATION":
+                cur["duration"] = _duration(value)
             elif name == "DESCRIPTION":
                 cur["description"] = _unescape(value)
             elif name == "SUMMARY":
                 cur["title"] = _unescape(value)
+            elif name == "CATEGORIES":
+                cur["categories"] = [_unescape(v).casefold().strip() for v in value.split(",")]
             elif name == "UID":
                 cur["uid"] = value
             elif name == "STATUS" and value.upper() == "CANCELLED":
@@ -191,20 +226,40 @@ def unsupported(events: list[dict]) -> list[str]:
     return bad
 
 
-def calendar_due(events: list[dict], now: datetime, lead: timedelta) -> list[dict]:
-    """Events starting within `lead` from now: {key, title, start, kind}. A moved occurrence replaces the
-    original one; an unsupported rule skips that event."""
+def calendar_due(events: list[dict], now: datetime, lead: timedelta, *, horizon=timedelta()) -> list[dict]:
+    """Timed events use their earliest alarm, or the same fallback lead as Todoist."""
     moved = {(e["uid"], e["recurrence_id"]) for e in events if e["recurrence_id"]}
     out = []
     for ev in events:
         if ev["cancelled"] or ev.get("all_day"):
             continue
+        duration = ev.get('end', ev['start']) - ev['start']
+        offsets, absolute = [], []
+        for alarm in ev.get('alarms', []):
+            trigger = alarm['trigger']
+            if isinstance(trigger, timedelta):
+                if alarm.get('related') == 'END':
+                    if not ev.get('end'):
+                        continue
+                    trigger += duration
+                offsets.append(trigger)
+            else:
+                absolute.append(trigger)
+        advance = max([lead, *[-offset for offset in offsets],
+                       *[ev['start'].replace(tzinfo=ev['tz']) - at for at in absolute]])
         try:
-            for occ in occurrences(ev, now, now + lead + timedelta(seconds=1)):  # exactly `lead` away counts
-                if ev["recurrence_id"] or (ev["uid"], occ.replace(tzinfo=None)) not in moved:
+            for occ in occurrences(ev, now, now + horizon + advance + timedelta(seconds=1)):
+                if not ev["recurrence_id"] and (ev["uid"], occ.replace(tzinfo=None)) in moved:
+                    continue
+                times = [occ + offset for offset in offsets]
+                if occ == ev['start'].replace(tzinfo=ev['tz']):
+                    times += absolute
+                remind_at = min(times) if times else occ - lead
+                if remind_at <= now + horizon:
                     out.append({"key": f"cal:{ev['uid']}:{occ.astimezone(timezone.utc):%Y%m%dT%H%M}",
                                 "title": ev["title"], "start": occ, "kind": "event",
-                                "end": occ + (ev["end"] - ev["start"]) if ev.get("end") else occ})
+                                "end": occ + duration, "remind_at": remind_at,
+                                "description": ev.get('description', '')})
         except ValueError:
             continue
     return sorted(out, key=lambda r: r["start"])
@@ -242,6 +297,46 @@ def day_due(events: list[dict], at: datetime, history: list) -> dict | None:
     return min(candidates.values(), key=lambda r: (r["count"], r["key"]), default=None)
 
 
+def holiday_due(events: list[dict], at: datetime, history: list) -> dict | None:
+    """One preview a day, once 3–5 days ahead and optionally once on the eve of a selected holiday."""
+    if any(datetime.fromisoformat(row[1]).astimezone(at.tzinfo).date() == at.date() for row in history):
+        return None
+    midnight = at.replace(hour=0, minute=0, second=0, microsecond=0)
+    moved = {(e['uid'], e['recurrence_id']) for e in events if e['recurrence_id']}
+    candidates = []
+    selected_uids = {e['uid'] for e in events if (e.get('rrule') or {}).get('FREQ') == 'YEARLY' or
+                     {'holiday', 'holidays', 'праздник', 'праздники'} & set(e.get('categories', []))}
+    for ev in events:
+        if ev['cancelled'] or not ev.get('all_day'):
+            continue
+        selected = ev['uid'] in selected_uids
+        title = clean_title(ev['title'])
+        if not selected or not title:
+            continue
+        try:
+            for occ in occurrences({**ev, 'tz': at.tzinfo}, midnight + timedelta(days=1), midnight + timedelta(days=6)):
+                if not ev['recurrence_id'] and (ev['uid'], occ.replace(tzinfo=None)) in moved:
+                    continue
+                days = (occ.date() - at.date()).days
+                greeting = bool(re.search(r'день рожд|birthday|день матери|день отца|mother.?s day|father.?s day', title, re.I))
+                if days == 2 or days == 1 and not greeting:
+                    continue
+                phase = 'eve' if days == 1 else 'early'
+                uid = hashlib.sha256((ev['uid'] or ev['title']).encode()).hexdigest()[:16]
+                key = f'holiday:{uid}:{occ.date()}:{phase}'
+                if any(row[0] == key for row in history):
+                    continue
+                when = {1: 'Завтра', 3: 'Через три дня', 4: 'Через четыре дня', 5: 'Через пять дней'}[days]
+                text = f'{when} — {title}.'
+                if greeting:
+                    text += ' Ещё есть время придумать поздравление.' if phase == 'early' else 'Можно подготовить пару тёплых слов.'
+                candidates.append({'key': key, 'title': title, 'description': '', 'count': 0, 'kind': 'day',
+                                   'start': midnight, 'holiday_preview': True, 'text': text, 'holiday_date': occ.date()})
+        except ValueError:
+            continue
+    return min(candidates, key=lambda r: (r['holiday_date'], r['key']), default=None)
+
+
 def clean_title(title: str) -> str:
     title = re.sub(r"https?://\S+", "", title)
     title = re.sub(r"[←-⯿\U0001f000-\U0001faff️]", "", title)
@@ -250,37 +345,62 @@ def clean_title(title: str) -> str:
 
 # ---------------------------------------------------------------------------------------------------- Todoist
 def fetch_todoist(token: str) -> list[dict]:
-    """Active tasks (all pages). Auth: the personal API token."""
-    tasks, cursor = [], None
-    for _ in range(10):
-        q = {"limit": 200, **({"cursor": cursor} if cursor else {})}
-        data = json.loads(_get(f"{TODOIST_URL}?{urllib.parse.urlencode(q)}", {"Authorization": f"Bearer {token}"}))
-        tasks += data["results"] if isinstance(data, dict) else data
-        cursor = data.get("next_cursor") if isinstance(data, dict) else None
-        if not cursor:
-            break
+    """Active tasks and their reminders (all pages). Auth: the personal API token."""
+    def pages(url):
+        rows, cursor = [], None
+        for _ in range(10):
+            q = {"limit": 200, **({"cursor": cursor} if cursor else {})}
+            data = json.loads(_get(f"{url}?{urllib.parse.urlencode(q)}", {"Authorization": f"Bearer {token}"}))
+            rows += data["results"] if isinstance(data, dict) else data
+            cursor = data.get("next_cursor") if isinstance(data, dict) else None
+            if not cursor:
+                return rows
+        raise ValueError("Todoist pagination limit exceeded")
+
+    tasks = pages(TODOIST_URL)
+    notices = pages("https://api.todoist.com/api/v1/reminders")
+    for task in tasks:
+        task["reminders"] = [r for r in notices if str(r.get("item_id")) == str(task["id"]) and not r.get("is_deleted")]
     return tasks
 
 
-def todoist_due(tasks: list[dict], now: datetime, lead: timedelta, local=None) -> list[dict]:
-    """Tasks with a time that fall within `lead` from now. due.date is YYYY-MM-DD (all day: no reminder),
-    YYYY-MM-DDTHH:MM:SS (floating: local time) or ...Z (UTC)."""
+def todoist_due(tasks: list[dict], now: datetime, lead: timedelta, local=None, *, horizon=timedelta()) -> list[dict]:
+    """Timed tasks whose reminder is due by now + horizon; lead is the fallback offset."""
     local = local or datetime.now().astimezone().tzinfo
     out = []
-    for t in tasks:
-        d = ((t.get("due") or {}).get("date") or "")
+
+    def timestamp(due):
+        d = (due or {}).get("date") or ""
         if "T" not in d:
-            continue
+            return None
         try:
             at = datetime.fromisoformat(d.replace("Z", "+00:00"))
-            if at.tzinfo is None:
-                at = at.replace(tzinfo=ZoneInfo(t["due"]["timezone"]) if t["due"].get("timezone") else local)
+            return at if at.tzinfo else at.replace(tzinfo=ZoneInfo(due["timezone"]) if due.get("timezone") else local)
         except (ValueError, ZoneInfoNotFoundError):
+            return None
+
+    for t in tasks:
+        at = timestamp(t.get("due"))
+        if at is None:
             continue
-        if now <= at <= now + lead:
+        times = []
+        for notice in t.get("reminders", []):
+            if notice.get("is_deleted"):
+                continue
+            if notice.get("type") == "relative":
+                offset = notice.get("minute_offset")
+                if isinstance(offset, int) and not isinstance(offset, bool) and offset >= 0:
+                    times.append(at - timedelta(minutes=offset))
+            elif notice.get("type") == "absolute":
+                when = timestamp(notice.get("due"))
+                if when is not None:
+                    times.append(when)
+        # shortcut: one announcement per task occurrence; support each reminder if repeated announcements are needed.
+        remind_at = min(times) if times else at - lead
+        if now <= at and remind_at <= now + horizon:
             out.append({"key": f"todoist:{t['id']}:{at.astimezone(timezone.utc):%Y%m%dT%H%M}",
                         "title": t.get("content", ""), "start": at, "kind": "task", "end": at,
-                        "description": t.get("description") or ""})
+                        "remind_at": remind_at, "description": t.get("description") or ""})
     return sorted(out, key=lambda r: r["start"])
 
 

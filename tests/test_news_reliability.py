@@ -56,7 +56,7 @@ class NewsReliabilityTests(unittest.TestCase):
 
     def test_failed_github_retellings_are_not_reported_as_success(self):
         repo = {'owner': 'audit', 'repo': 'tool', 'description': 'A useful tool.',
-                'stars_total': 10, 'stars_today': None, 'rank': 1}
+                'stars_total': 10, 'stars_today': None, 'rank': 1,'created_at':store.iso(store.now())}
         with patch.object(daemon.github_new, 'fetch_new', return_value=[repo]), \
              patch.object(daemon.github_trending, 'fetch_readme', return_value=''), \
              patch.object(self.svc.editor, 'retell', side_effect=ValueError('empty reply')):

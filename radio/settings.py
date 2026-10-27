@@ -38,15 +38,15 @@ SETTINGS = {
                           "Length of a new-tracks selection. Host editions follow the clock at :00 and :30.",
                           5, 90, 5, "min"),
     "max_break_speech_sec": ("broadcast", "max_break_speech_sec", "Speech per edition",
-                             "Maximum speech length when enough prepared stories are available.", 30, 600, 10, "s"),
+                             "Full edition length when enough stories are ready; short editions scale with it.", 30, 600, 10, "s"),
     "max_spoken_seconds_per_rolling_hour": ("broadcast", "max_spoken_seconds_per_rolling_hour", "Speech per hour",
                                             "Total speech allowed in any 60-minute window. Further speech waits when the limit is reached.", 60, 900, 30, "s"),
     "new_every_sets": ("broadcast", "new_every_sets", "Unplayed tracks first",
                        "1 prioritizes unplayed tracks from the active music source; 0 disables priority.", 0, 1, 1, ""),
     "station_id_every_songs": ("broadcast", "station_id_every_songs", "Station ID opportunities",
                                "0 disables; positive values allow a clock ID after 30 minutes without branding.", 0, 10, 1, ""),
-    "lead_min": ("reminders", "lead_min", "Reminder lead time",
-                 "How far ahead to announce timed calendar events and Todoist tasks.", 1, 60, 1, "min"),
+    "lead_min": ("reminders", "lead_min", "Default reminder lead time",
+                 "Used when a calendar event or Todoist task has no time reminder in the source data. Its own reminder time takes priority.", 1, 60, 1, "min"),
 }
 
 SOURCE_LISTS = {

@@ -5,7 +5,7 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import test_direction
-from radio import broadcast_clock, plugins, store
+from radio import broadcast_clock, plugins, settings, store
 from radio.daemon import Service
 from radio.tts import MockTTS
 
@@ -34,11 +34,11 @@ class ClockPlayoutTests(unittest.TestCase):
 
     def test_late_start_and_sleep_join_current_grid_without_catchup(self):
         key = self.svc._clock_rows()[0]['id']
-        self.clock.return_value = self.at + timedelta(minutes=4, seconds=59)
+        self.clock.return_value = self.at + timedelta(minutes=14, seconds=59)
         self.assertEqual(self.svc._clock_slot()['id'], key)
-        self.clock.return_value = self.at + timedelta(minutes=5)
+        self.clock.return_value = self.at + timedelta(minutes=15)
         self.assertIsNone(self.svc._clock_slot())
-        self.clock.return_value = self.at + timedelta(hours=9, minutes=10)
+        self.clock.return_value = self.at + timedelta(hours=9, minutes=20)
         self.assertIsNone(self.svc._clock_slot())
         self.assertTrue(all(r['at'] > store.iso(self.clock.return_value) for r in self.svc._clock_rows()))
 
@@ -63,7 +63,7 @@ class ClockPlayoutTests(unittest.TestCase):
         self.queue()
         with patch('radio.daemon.time.time', return_value=1000):
             asyncio.run(self.svc._pause())
-        self.clock.return_value = self.at + timedelta(minutes=40)
+        self.clock.return_value = self.at + timedelta(minutes=50)
         with patch('radio.daemon.time.time', return_value=3400):
             asyncio.run(self.svc._resume())
         self.svc.engine.remove.assert_awaited_once_with('42')
@@ -72,11 +72,25 @@ class ClockPlayoutTests(unittest.TestCase):
 
     def test_queued_audio_is_removed_when_its_window_expires(self):
         slot = self.queue()
-        self.clock.return_value = self.at + timedelta(minutes=5)
+        self.clock.return_value = self.at + timedelta(minutes=15)
         with patch('radio.daemon.time.time', return_value=1000):
             asyncio.run(self.svc.schedule())
         self.svc.engine.remove.assert_awaited_once_with('42')
         self.assertEqual(self.svc.db.execute('SELECT status FROM air_plan WHERE id=?', (slot['id'],)).fetchone()[0], 'EXPIRED')
+
+    def test_ready_news_can_start_six_minutes_late_but_not_after_fifteen(self):
+        pid=self.fixture.add_news('late')
+        self.clock.return_value=self.at+timedelta(minutes=6)
+        with patch('radio.daemon.time.time',return_value=1175):
+            asyncio.run(self.svc.schedule())
+        self.svc.engine.push_news.assert_awaited_once()
+        self.assertEqual(self.svc.engine.push_news.call_args.kwargs['expires'],(self.at+timedelta(minutes=15)).timestamp())
+        self.clock.return_value=self.at+timedelta(minutes=16)
+        self.svc.engine.push_news.reset_mock()
+        with patch('radio.daemon.time.time',return_value=1175):
+            asyncio.run(self.svc.schedule())
+        self.svc.engine.push_news.assert_not_awaited()
+        self.assertEqual(self.svc.db.execute('SELECT status FROM packages WHERE id=?',(pid,)).fetchone()[0],'READY')
 
     def test_confirmed_start_is_never_replayed_even_after_clock_moves_back(self):
         slot = self.queue()
@@ -133,6 +147,80 @@ class ClockPlayoutTests(unittest.TestCase):
         light = self.svc._pick_break()
         self.assertEqual(len(main), 3)
         self.assertEqual(len(light), 1)
+
+    def test_larger_editions_pick_more_stories_and_keep_the_hourly_limit(self):
+        self.svc.cfg['broadcast']['max_break_speech_sec']=240
+        self.svc.cfg['broadcast']['max_spoken_seconds_per_rolling_hour']=600
+        for n in range(8):
+            self.fixture.add_news(str(n))
+        self.svc.db.execute('UPDATE packages SET speech_sec=30')
+        self.assertEqual([r['duration'] for r in self.svc._clock_rows()[:2]],[240,90])
+        self.assertEqual(len(self.svc._pick_break()),7)
+        self.clock.return_value=self.at+timedelta(minutes=30)
+        self.assertEqual(len(self.svc._pick_break()),2)
+        with patch('radio.daemon.store.spoken_last_hour',return_value=570):
+            self.assertEqual(len(self.svc._pick_break()),1)
+
+    def test_preparation_continues_past_two_stories_until_the_edition_is_full(self):
+        settings.set_setting('max_break_speech_sec',240)
+        for n in range(8):
+            self.fixture.add_news(str(n))
+        self.svc.db.execute('UPDATE packages SET speech_sec=30')
+        self.svc.db.execute("UPDATE packages SET status='PENDING' WHERE id NOT IN ('0#1','1#1')")
+        async def tick():
+            await self.svc.content_tick()
+            await asyncio.sleep(0)
+        with patch.object(self.svc,'schedule',new_callable=AsyncMock), \
+                patch.object(self.svc,'_render_task',new_callable=AsyncMock) as render:
+            asyncio.run(tick())
+            render.assert_awaited_once()
+            self.svc.rendering=False
+            self.svc.db.execute("UPDATE packages SET status='READY' WHERE id!='7#1'")
+            render.reset_mock()
+            asyncio.run(tick())
+            self.assertTrue(render.await_count,'Seven 30-second stories still leave room in a 228-second content budget')
+            self.svc.rendering=False
+            self.svc.db.execute("UPDATE packages SET status='READY'")
+            render.reset_mock()
+            asyncio.run(tick())
+            render.assert_not_awaited()
+
+    def test_preparation_skips_news_that_expires_before_its_edition(self):
+        expiring=self.fixture.add_news('expiring')
+        fresh=self.fixture.add_news('fresh')
+        self.svc.db.execute("UPDATE packages SET status='PENDING'")
+        self.svc.db.execute("UPDATE items SET published_at=? WHERE id='expiring'",
+                            (store.iso(self.at-timedelta(hours=23,minutes=33)),))
+        self.clock.return_value=self.at+timedelta(minutes=25)
+        async def tick():
+            await self.svc.content_tick()
+            await asyncio.sleep(0)
+        with patch.object(self.svc,'schedule',new_callable=AsyncMock), \
+                patch.object(self.svc,'_render_task',new_callable=AsyncMock) as render:
+            asyncio.run(tick())
+            self.assertEqual(render.call_args.args[0]['id'],fresh)
+            self.svc.rendering=False
+            self.svc.db.execute("INSERT INTO air_plan(id,kind,not_before,status) VALUES(?,'news',?,'PENDING')",
+                                (expiring,store.iso(self.at+timedelta(minutes=30))))
+            render.reset_mock()
+            asyncio.run(tick())
+            self.assertEqual(render.call_args.args[0]['id'],expiring,'Keep an explicit scheduled override')
+        self.assertEqual(self.svc.db.execute('SELECT status FROM packages WHERE id=?',(expiring,)).fetchone()[0],'PENDING')
+
+    def test_larger_editions_start_voice_preparation_earlier(self):
+        self.fixture.add_news('one')
+        self.svc.db.execute("UPDATE packages SET status='PENDING'")
+        self.clock.return_value=self.at+timedelta(minutes=20)
+        async def tick():
+            await self.svc.content_tick()
+            await asyncio.sleep(0)
+        with patch.object(self.svc,'schedule',new_callable=AsyncMock), \
+                patch.object(self.svc,'_render_task',new_callable=AsyncMock) as render:
+            asyncio.run(tick())
+            render.assert_not_awaited()
+            settings.set_setting('max_break_speech_sec',240)
+            asyncio.run(tick())
+            render.assert_awaited_once()
 
     def test_silence_alarm_does_not_change_the_program_or_track(self):
         before = dict(self.svc.current)

@@ -266,6 +266,9 @@ def cached_synthesize(tts, text: str, check=None) -> Path:
     """TTS with a cache keyed by the text. `check(path) -> error|None` rejects broken audio: with a fixed seed the
     engine is deterministic, so a text that came out as noise is retried with other punctuation (same words, same
     voice), then with neighbouring seeds. The first good take is cached under the original text."""
+    # OmniVoice reaction tags are spoken literally by Qwen3; strip before cache lookup too.
+    if not isinstance(tts, VoiceStudio):
+        text = re.sub(r"\[(?:laughter|surprise-ah|sigh)\]\s*", "", text, flags=re.I)
     text = pronounce(re.sub(r"https?://\S+", "", text, flags=re.I), phonemes=isinstance(tts, VoiceStudio)).strip()
     # The voice turns "Далат: плюс 16" into noise (measured: weather and reminders); a dash reads the same pause.
     text = re.sub(r"(?<=\w):\s+", " — ", text)

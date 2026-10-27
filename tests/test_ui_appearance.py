@@ -17,16 +17,26 @@ function setup(saved=null,dark=false,blocked=false){
   const styles={},nodes={},radios={},listeners={};let value=saved,writes=0;
   const root={dataset:{},style:{setProperty(k,v){styles[k]=v}}};
   for(const kind of ['mode','palette'])radios[kind]=(kind==='mode'?['system','light','dark']:['ember','forest','ocean']).map(value=>({value,checked:false}));
-  function node(id){return nodes[id]||(nodes[id]={value:'',disabled:false,textContent:'',style:{setProperty(){}},setAttribute(k,v){this[k]=v},addEventListener(k,f){this[k]=f},querySelector(){return{focus(){}}}})}
+  function node(id){return nodes[id]||(nodes[id]={value:'',disabled:false,textContent:'',style:{setProperty(){}},setAttribute(k,v){this[k]=v},addEventListener(k,f){this[k]=f},getAnimations(){return[]},querySelector(){return{focus(){}}}})}
   const media={matches:dark,addEventListener(k,f){listeners[k]=f}};
-  const c={player(){},document:{documentElement:root,getElementById:node,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
+  const c={timeline(){},directionView(){},player(){},document:{documentElement:root,getElementById:node,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
     localStorage:{getItem(){if(blocked)throw Error('blocked');return value},setItem(k,v){if(blocked)throw Error('blocked');value=v;writes++}}};
   vm.createContext(c);vm.runInContext(SCRIPT,c);
   const beforeMount={...styles};c.appearance.mount();
-  return {styles,nodes,beforeMount,root,select(kind,value){const n=radios[kind].find(n=>n.value===value);n.onchange()},
+  return {styles,nodes,beforeMount,root,formatTime:c.appearance.formatTime,select(kind,value){const n=radios[kind].find(n=>n.value===value);n.onchange()},
     input(value){node('accent-hex').value=value;node('accent-hex').oninput()},apply(){node('accent-form').onsubmit({preventDefault(){}})},
     system(dark){media.matches=dark;listeners.change()},get saved(){return value},get writes(){return writes}};
 }
+let clock=setup();assert.equal(clock.formatTime('00:05'),'00:05');
+clock.nodes['appearance-time-format'].value='12';clock.nodes['appearance-time-format'].onchange();
+for(const [input,expected] of [['00:05','12:05 AM'],['12:00','12:00 PM'],['13:30','01:30 PM'],['23:59','11:59 PM'],['—','—']])assert.equal(clock.formatTime(input),expected);
+assert.equal(JSON.parse(clock.saved).timeFormat,'12');assert.equal(setup(clock.saved).formatTime('13:30'),'01:30 PM');
+assert.equal(clock.root.dataset.timeFormat,'12');assert.equal(setup(JSON.stringify({timeFormat:'invalid'})).formatTime('13:30'),'13:30');
+clock.nodes['appearance-reset'].onclick();assert.equal(clock.formatTime('13:30'),'13:30');
+let effect=setup(JSON.stringify({timelineEffect:'off'}));assert.equal(effect.root.dataset.timelineEffect,'off');
+assert.equal(effect.nodes['appearance-timeline-effect'].value,'off');
+for(const value of ['fade','line','off']){effect.nodes['appearance-timeline-effect'].value=value;effect.nodes['appearance-timeline-effect'].onchange();assert.equal(effect.root.dataset.timelineEffect,value);assert.equal(JSON.parse(effect.saved).timelineEffect,value);assert.equal(setup(effect.saved).root.dataset.timelineEffect,value)}
+assert.equal(setup(JSON.stringify({timelineEffect:'invalid'})).root.dataset.timelineEffect,'line');
 let terminal=setup(JSON.stringify({presentation:'terminal'}));assert.equal(terminal.root.dataset.presentation,'terminal');
 terminal.nodes['appearance-presentation'].value='calm';terminal.nodes['appearance-presentation'].onchange();assert.equal(terminal.root.dataset.presentation,'calm');assert.equal(JSON.parse(terminal.saved).presentation,'calm');
 let t=setup(JSON.stringify({mode:'dark',palette:'ocean',accent:'#80bce7'}));
@@ -46,7 +56,7 @@ let reopened=setup(t.saved);assert.equal(reopened.styles['--accent'],'#154f84');
 t.select('mode','dark');assert.equal(t.styles['--accent'],'#93cba5','incompatible saved accent falls back');
 assert.match(t.nodes['appearance-status'].textContent,/needs more contrast/);
 t.select('mode','light');assert.equal(t.styles['--accent'],'#154f84','custom accent survives fallback');
-t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:'',presentation:'calm'});
+t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24'});
 t=setup(null,false,true);t.select('palette','ocean');assert.equal(t.styles['--bg'],'#edf3f6');assert.match(t.nodes['appearance-status'].textContent,/could not save/);
 t=setup(JSON.stringify({mode:'invalid',palette:'__proto__',accent:'red'}));assert.equal(t.styles['--bg'],'#f2f2ee');
 """
