@@ -247,7 +247,7 @@ function isNewsSource(p){return ['horizon','github_trending','github_new','reddi
 function helpText(id,text,label,content){
   if(!text)return '';
   helpText.open=helpText.open||{};
-  return '<details class="control-help" id="help-'+esc(id)+'"'+(helpText.open[id]?' open':'')+' ontoggle="helpText.open[this.id.slice(5)]=this.open"><summary id="help-toggle-'+esc(id)+'" aria-label="Details about '+esc(label)+'">Details</summary><div class="l" id="hint-'+esc(id)+'">'+esc(text)+'</div>'+(content||'')+'</details>';
+  return '<details class="control-help" id="help-'+esc(id)+'"'+(helpText.open[id]?' open':'')+'><summary id="help-toggle-'+esc(id)+'" aria-label="Details about '+esc(label)+'">Details</summary><div class="l" id="hint-'+esc(id)+'">'+esc(text)+'</div>'+(content||'')+'</details>';
 }
 function pluginButton(p,source){
   var warning=p.unavailable_reason||({holiday_previews:'Requires Calendar and Host links · restart after installation',energy_wave:'Analyze the library first · restart after installation',track_previews:'Restart after installation',reddit:'Experimental · RSS support ends November 13, 2026',telegram:'Experimental · public channels only'})[p.name]||'';
@@ -737,6 +737,8 @@ $('sk').onclick=function(){cmd('skip-news')};
 $('so').onclick=function(){if(LOCAL_CONTROL&&!busy&&st.state!=='STOPPING')cmd(running()?'stop':'play')};
 // 2-second refresh: re-renders from state, so expanded rows (open) stay open
 setInterval(player,250);
+// a Details box stays open across redraws (toggle does not bubble: caught on the way down)
+root.addEventListener('toggle',function(e){var d=e.target;if(d.classList&&d.classList.contains('control-help'))(helpText.open=helpText.open||{})[d.id.slice(5)]=d.open},true);
 core.start();
 /* ---- visualizer: audio-driven braille patterns under the title.
    Feed: radioViz.set(32 spectrum values 0..1, dw() waveform values 0..1). No feed (no sound): it settles into a flat

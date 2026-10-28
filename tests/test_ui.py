@@ -56,6 +56,14 @@ class PageServerTests(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(json.loads(raw), {**control.capabilities(), 'themes': ['terminal']})
 
+    def test_theme_markup_has_no_inline_handlers(self):
+        """A theme lives inside mount(core, root): an inline on...="" handler cannot see its functions."""
+        import re
+        from radio import ui
+        for f in (ui.WEB / 'themes').glob('*/*'):
+            if f.suffix in ('.html', '.js'):
+                self.assertEqual(re.findall(r'\son[a-z]+=\\?["\']', f.read_text()), [], f)
+
     def test_theme_files_are_served_and_nothing_outside_them(self):
         from radio import ui
         code, css = self.get('/ui/themes/terminal/theme.css')
