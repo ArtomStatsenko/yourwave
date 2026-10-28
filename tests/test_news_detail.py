@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from radio import config, editor, settings
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class NewsDetailTests(unittest.TestCase):
@@ -89,7 +89,7 @@ class NewsDetailTests(unittest.TestCase):
                 self.writer.retell_roundup(stories,'2026-10-27',200)
 
     def test_slider_has_names_description_and_updates_accessible_value(self):
-        source = page_source()
+        source = theme_source()  # theme functions; the core and model run first
         helper = source[source.index('function helpText('):source.index('function pluginButton(')] + source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
         handler = source[source.index("$('stg').oninput="):source.index("$('stg').onchange=")]
         script = r"""
@@ -110,5 +110,5 @@ assert.equal($('sv-news_detail').textContent,'Discussion');
 assert.equal(field.attributes['aria-valuetext'],'Discussion');
 assert.equal(settingValue({unit:'s'},120),'120 s');
 """
-        result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+        result = subprocess.run(['node', '-e', core_source() + script], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

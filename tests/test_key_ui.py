@@ -1,12 +1,12 @@
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class KeyUiTests(unittest.TestCase):
     def test_empty_save_and_enter_do_not_remove_a_saved_key(self):
-        source = page_source()
+        source = theme_source()  # theme functions; the core and model run first
         save = source[source.index('function saveKey('):source.index('function aiView(')]
         events = source[source.index("$('stg').onkeydown="):source.index('function pluginsView(')]
         harness = r'''
@@ -32,5 +32,5 @@ click({keyRm:'openrouter'});assert.deepEqual(calls[1],{cmd:'llm_key',provider:'o
 await new Promise(resolve=>setImmediate(resolve));assert.equal(keyFb.text,'Key removed.');
 })().catch(e=>{console.error(e);process.exitCode=1});
 '''
-        result = subprocess.run(['node', '-e', harness + save + events + checks], capture_output=True, text=True)
+        result = subprocess.run(['node', '-e', core_source() + harness + save + events + checks], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -2,15 +2,15 @@
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class SourceSettingsUiTests(unittest.TestCase):
     def test_source_manager_groups_news_controls_and_keeps_editing_state(self):
-        source = page_source()
+        source = theme_source()  # theme functions; the core and model run first
         script = source[source.index('function isNewsSource('):source.index('function settingValue(')]
         script += source[source.index('function pluginsView()'):source.index("['integrations','experiments','features'].forEach(function(section){$(section).onclick")]
-        result=subprocess.run(['node','-e',script+r'''
+        result=subprocess.run(['node','-e',core_source()+script+r'''
 const assert=require('node:assert/strict');
 var document={activeElement:null,querySelector:()=>null},sourceOpen={},nodes={},st={sources:{reddit:'2 new'}},stg=[{key:'reddit_communities',value:['python']}];
 function $(id){return nodes[id]||(nodes[id]={innerHTML:'',contains:()=>false,querySelectorAll:()=>[]})}
@@ -54,9 +54,9 @@ assert($('news-source-list').innerHTML.includes('Subreddits (2)'));
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_single_source_controls_for_reddit_and_telegram(self):
-        source = page_source()
+        source = theme_source()  # theme functions; the core and model run first
         editor = source[source.index('var sourceDrafts='):source.index('function settingsView(')]
-        subprocess.run(['node', '-e', editor + r'''
+        subprocess.run(['node', '-e', core_source() + editor + r'''
 const assert=require('node:assert/strict');
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 let lastBody,stg=[],pls=[],st={},document={activeElement:null},result={ok:true,settings:[]},focused=0;

@@ -163,22 +163,19 @@ function player(){
   $('er').textContent=backgroundError(st.last_error)?'':st.last_error||'';
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
-var TODO={no_key:{key:'add your API key below',sign:'sign in below'},bad_key:'replace the API key',unreachable:'check the connection',no_model:'choose another model below'};
 function saveKey(provider,key,remove){
-  if(!remove&&!key.trim()){keyFb={cls:'bad',text:'Enter an API key.',invalid:true};settingsView(true);$('llm-key').focus();return}
+  if(!remove&&!key.trim()){keyFb=Object.assign({},RadioModel.KEY_EMPTY);settingsView(true);$('llm-key').focus();return}
   keyBusy=true;settingsView(true);
   api('/api/cmd',{cmd:'llm_key',provider:provider,key:key}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;
-    keyFb=key?{cls:'ok',text:'Key saved. Checking it now…',checking:true}:{cls:'',text:'Key removed.'};$('llm-key').value=''})
+    keyFb=RadioModel.keySaved(key);$('llm-key').value=''})
   .catch(function(e){keyFb={cls:'bad',text:(e.message||'Could not save the key')+'.',invalid:true}}).finally(function(){keyBusy=false;settingsView(true);
     var f=$('llm-key');if(f&&keyFb.invalid&&key){f.value=key;f.focus();f.select()}})}  // a failed key stays, selected: a paste replaces it
 function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model (design system: AiSettings)
-  var c=p.connection,st=c.state,known=st==='ok'||st==='no_model',parts=c.detail.split(' · ');
-  if(keyFb.checking&&st!=='checking')keyFb=st==='bad_key'?{cls:'bad',text:'The provider rejected the API key. Copy it again from your account.',invalid:true}:{cls:'ok',text:'Key saved.'};
-  var todo=TODO[st];if(st==='no_key')todo=p.key_field?todo.key:todo.sign;
-  var g=st==='ok'?['ok','●']:st==='checking'?['wait','○']:['bad','▲'];
+  var a=RadioModel.ai(p),st=a.state,g=a.tone;
+  if(keyFb.checking&&st!=='checking')keyFb=RadioModel.keyChecked(st);
   var h='<section class="ai" aria-label="AI"><div class="ai-h">AI</div>'
-    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(p.active.provider_title)+(known?' · '+esc(st==='no_model'?'no model':p.active.model):'')+'</div>'
-    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(parts[0])+(st==='ok'&&parts[1]?' <span class="d">· '+esc(parts[1])+'</span>':todo?' <span class="d">· '+esc(todo)+'</span>':'')+'</span></div></div>'
+    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(a.name)+'</div>'
+    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(a.status)+(a.note?' <span class="d">· '+esc(a.note)+'</span>':'')+'</span></div></div>'
     +'<div class="st"><label for="st-llm_provider">'+esc(p.title)+'</label><select id="st-llm_provider" data-st="llm_provider">'
     +p.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===p.value?' selected':'')+'>'+esc(p.labels[o]||o)+'</option>'}).join('')+'</select>'
     +(p.value!==p.default?'<div class="l">Default: '+esc(p.labels[p.default]||p.default)+' <button class="rs" data-rs="llm_provider">Reset</button></div>':'')
@@ -191,27 +188,20 @@ function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model
   if(m)h+='<div class="st"><label for="st-'+m.key+'">Model</label>'
     +(m.options?'<select id="st-'+m.key+'" data-st="'+m.key+'">'+(st==='no_model'?'<option value="" selected disabled>Choose a model</option>':'')+m.options.map(function(o){return '<option'+(o===m.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>'
       :'<input type="text" id="st-'+m.key+'" data-st="'+m.key+'" minlength="'+m.min+'" maxlength="'+m.max+'" value="'+esc(m.value)+'">')
-    +(st==='no_model'?'<div class="l pick-hint">'+esc(c.detail)+'. Choose another model.</div>':(m.hint?'<div class="l">'+esc(m.hint)+'</div>':''))+'</div>';
+    +(a.modelHint?'<div class="l pick-hint">'+esc(a.modelHint)+'</div>':(m.hint?'<div class="l">'+esc(m.hint)+'</div>':''))+'</div>';
   return h+'</section>'}
 var sample={st:'idle',err:'',t0:0},sampleTick=null,sampleAudio=null,voicePending=null;  // VoiceSettings: idle|busy|playing|error
-function sampleFb(){  // the feedback line under the sample button (never the player's #er)
-  if(sample.st==='busy'){var s=Math.floor((Date.now()-sample.t0)/1000),vs=stg.find(function(x){return x.voice_state});
-    return ['wait','Preparing sample · '+s+' s'+(s>20||(vs&&vs.voice_state.state!=='ready')?' (startup can take about a minute)':'')]}
-  if(sample.st==='playing')return ['ok','Playing the sample…'];
-  if(sample.st==='error')return ['bad','Could not make a sample: '+sample.err+'. Try again in a minute.'];
-  return ['',''] }
+function sampleFb(){return RadioModel.sampleFeedback(sample,stg.find(function(x){return x.voice_state}))}  // under the sample button (never the player's #er)
 function voiceView(s){  // design system: VoiceSettings
-  var vs=voicePending?{state:'starting',detail:'Starting…'}:s.voice_state;
-  var g=vs.state==='ready'?['ok','●']:vs.state==='starting'?['wait','○']:['bad','▲'],parts=vs.detail.split(' · '),fb=sampleFb();
-  var label=function(o){return s.labels[o]||o};
+  var v=RadioModel.voice(s,voicePending,sample),g=v.tone,fb=v.feedback,label=v.label;
   return '<section class="ai" aria-label="Voice"><div class="ai-h">Voice</div>'
-    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(label(s.value))+'</div>'
-    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(parts[0])+(parts[1]?' <span class="d">· '+esc(parts[1])+'</span>':'')+'</span></div></div>'
+    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(v.name)+'</div>'
+    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(v.status)+(v.note?' <span class="d">· '+esc(v.note)+'</span>':'')+'</span></div></div>'
     +'<div class="st"><label for="st-voice_engine">'+esc(s.title)+'</label><select id="st-voice_engine" data-st="voice_engine">'
     +s.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===s.value?' selected':'')+'>'+esc(label(o))+'</option>'}).join('')+'</select>'
     +'<div class="l">'+esc(s.hint)+(s.value!==s.default?' · Default: '+esc(label(s.default)):'')+'</div></div>'
     +'<div class="st"><div class="act"><button type="button" class="ab" id="voice-sample"'+(sample.st==='busy'?' disabled aria-busy="true"':'')+'>'
-    +(sample.st==='busy'?'Preparing…':sample.st==='playing'?'■ Stop':'Play a sample')+'</button></div>'
+    +v.sampleLabel+'</button></div>'
     +'<div class="fb '+fb[0]+'" id="voice-fb" role="status" aria-live="polite">'+esc(fb[1])+'</div></div></section>'}
 function sampleState(st,err){sample.st=st;sample.err=err||'';clearInterval(sampleTick);
   if(st==='busy'){sample.t0=Date.now();sampleTick=setInterval(function(){var f=$('voice-fb'),t=sampleFb();if(f){f.textContent=t[1]}},1000)}
@@ -266,20 +256,19 @@ function sourceManagerView(force){
   }).join('');
   if(f&&f.id&&$(f.id))$(f.id).focus({preventScroll:true});
 }
-function settingValue(s,value){return s.value_labels?s.value_labels[+value]:value+(s.unit?' '+s.unit:'')}
+function settingValue(s,value){return RadioModel.settingValue(s,value)}
 function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
   var box=$('settings'),f=document.activeElement;
   if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // preserve a sample in progress
   if(!force&&(box.contains(f)&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
-  var u=settingValue,prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
-  var voice=stg.find(function(s){return s.voice_state});
-  box.innerHTML=stg.map(function(s){if(s.multiline)return '';if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
-    if(s.key==='music_shuffle')return '<div class="st"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label>'+helpText(s.key,s.hint,s.title)+'</div>';
-    return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
-    +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
-      :'<input type="range"'+(s.value_labels?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(u(s,s.value))+'" aria-describedby="hint-'+s.key+'">')
+  var m=RadioModel.settings(stg),prov=m.provider,model=m.model,voice=m.voice;
+  box.innerHTML=m.rows.map(function(s){if(s.type==='ai')return aiView(prov,model)+(voice?voiceView(voice):'');
+    if(s.type==='switch')return '<div class="st"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label>'+helpText(s.key,s.hint,s.title)+'</div>';
+    return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(s.valueText)+'</span>')+'</div>'
+    +(s.type==='select'?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.type==='text'?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
+      :'<input type="range"'+(s.type==='stepped'?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(s.valueText)+'" aria-describedby="hint-'+s.key+'">')
     +(s.value_labels?'<div class="range-labels" aria-hidden="true">'+s.value_labels.map(function(label){return '<span>'+esc(label)+'</span>'}).join('')+'</div>':'')
-    +helpText(s.key,s.hint,s.title)+(s.value!==s.default?'<div class="l">Default: '+esc(u(s,s.default))+' <button class="rs" data-rs="'+s.key+'">Reset</button></div>':'')+'</div>'}).join('');
+    +helpText(s.key,s.hint,s.title)+(s.changed?'<div class="l">Default: '+esc(s.defaultText)+' <button class="rs" data-rs="'+s.key+'">Reset</button></div>':'')+'</div>'}).join('');
   if(f&&f.id&&(force||f.id.startsWith('help-toggle-'))&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){

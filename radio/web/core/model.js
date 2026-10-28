@@ -181,7 +181,59 @@ var RadioModel=(function(){
       editable:!r.locked&&!music,skippable:['news','weather','reminder'].includes(r.kind)};
   }
 
-  return {KINDS:KINDS,num:num,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,hostHistory:hostHistory,
+  // ---- settings: the station's adjustable values, the AI provider and the voice
+
+  // A setting's value as read: its label on a stepped scale, else the number with its unit.
+  function settingValue(s,value){return s.value_labels?s.value_labels[+value]:value+(s.unit?' '+s.unit:'')}
+  // What control a setting needs: switch, select, text, stepped (a slider with named steps) or slider.
+  function settingType(s){return s.key==='music_shuffle'?'switch':s.options?'select':s.step===null?'text':s.value_labels?'stepped':'slider'}
+  // The Settings tab: the plain settings in order, each with type, valueText, defaultText and changed (it differs
+  // from config.toml and can be reset); the AI provider, its model row and the voice row come out as their own
+  // blocks (ai, voice); source lists (multiline) are edited with their sources.
+  function settings(rows){
+    var provider=rows.find(function(s){return s.connection}),model=rows.find(function(s){return /_model$/.test(s.key)}),voice=rows.find(function(s){return s.voice_state});
+    return {provider:provider||null,model:model||null,voice:voice||null,
+      rows:rows.filter(function(s){return !s.multiline&&s!==model&&s!==voice}).map(function(s){
+        return s===provider?{key:s.key,type:'ai'}:Object.assign({},s,{type:settingType(s),valueText:settingValue(s,s.value),
+          defaultText:settingValue(s,s.default),changed:s.value!==s.default})})};
+  }
+
+  // What to do next when the AI provider is not usable, by connection state.
+  var AI_TODO={no_key:{key:'add your API key below',sign:'sign in below'},bad_key:'replace the API key',unreachable:'check the connection',no_model:'choose another model below'};
+  var STATE_MARK={ok:['ok','●'],wait:['wait','○'],bad:['bad','▲']};  // tone (ok/wait/bad) and its glyph
+  // The AI block's summary: provider · model, the connection in a few words and what to do next.
+  function ai(provider){
+    var c=provider.connection,state=c.state,known=state==='ok'||state==='no_model',parts=c.detail.split(' · ');
+    var todo=AI_TODO[state];if(state==='no_key')todo=provider.key_field?todo.key:todo.sign;
+    return {name:provider.active.provider_title+(known?' · '+(state==='no_model'?'no model':provider.active.model):''),
+      tone:STATE_MARK[state==='ok'?'ok':state==='checking'?'wait':'bad'],status:parts[0],
+      note:state==='ok'?parts[1]||'':todo||'',state:state,
+      providerLabel:function(o){return provider.labels[o]||o},
+      modelHint:state==='no_model'?c.detail+'. Choose another model.':''};
+  }
+  // Feedback under the API key field once the provider was asked about a just-saved key.
+  function keyChecked(state){return state==='bad_key'?{cls:'bad',text:'The provider rejected the API key. Copy it again from your account.',invalid:true}:{cls:'ok',text:'Key saved.'}}
+  function keySaved(key){return key?{cls:'ok',text:'Key saved. Checking it now…',checking:true}:{cls:'',text:'Key removed.'}}
+  var KEY_EMPTY={cls:'bad',text:'Enter an API key.',invalid:true};
+
+  // The Voice block's summary: the engine, its server state, and the sample's feedback.
+  // pending: the engine was just switched (its server is starting); sample: {st: idle|busy|playing|error, err, t0}.
+  function voice(row,pending,sample){
+    var vs=pending?{state:'starting',detail:'Starting…'}:row.voice_state,parts=vs.detail.split(' · ');
+    return {name:row.labels[row.value]||row.value,tone:STATE_MARK[vs.state==='ready'?'ok':vs.state==='starting'?'wait':'bad'],
+      status:parts[0],note:parts[1]||'',label:function(o){return row.labels[o]||o},
+      sampleLabel:sample.st==='busy'?'Preparing…':sample.st==='playing'?'■ Stop':'Play a sample',feedback:sampleFeedback(sample,row)};
+  }
+  // [tone, text] under the sample button.
+  function sampleFeedback(sample,row){
+    if(sample.st==='busy'){var s=Math.floor((Date.now()-sample.t0)/1000);
+      return ['wait','Preparing sample · '+s+' s'+(s>20||(row&&row.voice_state.state!=='ready')?' (startup can take about a minute)':'')]}
+    if(sample.st==='playing')return ['ok','Playing the sample…'];
+    if(sample.st==='error')return ['bad','Could not make a sample: '+sample.err+'. Try again in a minute.'];
+    return ['','']}
+
+  return {KINDS:KINDS,num:num,settingValue:settingValue,settingType:settingType,settings:settings,ai:ai,keyChecked:keyChecked,
+    keySaved:keySaved,KEY_EMPTY:KEY_EMPTY,voice:voice,sampleFeedback:sampleFeedback,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,hostHistory:hostHistory,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,sourceLabel:sourceLabel,newsSegments:newsSegments,starsText:starsText,
     OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};

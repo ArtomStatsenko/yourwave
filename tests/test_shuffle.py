@@ -11,7 +11,7 @@ from radio import config, settings
 from radio.daemon import Service
 from radio.engine import Liquidsoap
 from radio.tts import MockTTS
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class ShuffleTests(unittest.TestCase):
@@ -55,7 +55,7 @@ class ShuffleTests(unittest.TestCase):
         self.assertEqual([c.args[0] for c in svc.engine.command.await_args_list], ['music.shuffle 0'] * 2)
 
     def test_ui_switch_renders_and_saves_unchecked_as_zero(self):
-        source = page_source()
+        source = theme_source()  # theme functions; the core and model run first
         view = source[source.index('function helpText('):source.index('function pluginButton(')] + source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
         handlers = source[source.index("$('stg').oninput="):source.index("$('stg').onkeydown=")]
         harness = r'''
@@ -75,7 +75,7 @@ nodes.stg.onchange({target:input});
 assert.deepEqual(sent,{cmd:'setting',key:'music_shuffle',value:0});
 settingsView(true);assert(!nodes.settings.innerHTML.includes(' checked'));
 '''
-        result = subprocess.run(['node', '-e', harness.replace('/* FUNCTIONS */', view + '\n' + handlers)], capture_output=True, text=True)
+        result = subprocess.run(['node', '-e', core_source() + harness.replace('/* FUNCTIONS */', view + '\n' + handlers)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_plan_keeps_engine_order_and_set_membership_and_accounts_for_voice(self):
