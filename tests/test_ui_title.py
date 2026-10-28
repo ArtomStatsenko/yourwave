@@ -2,11 +2,12 @@ import re
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class TitleAnimationTests(unittest.TestCase):
     def test_typing_preserves_prefix_and_follows_transition_duration(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         frame = source[source.index('function titleFrame('):source.index('var tfx=')]
         subprocess.run(['node', '-e', frame + r"""
 const assert = require('node:assert/strict');
@@ -31,7 +32,7 @@ assert.equal(titleFrame('Long title', 'Long', 150, 100).text, 'Long');
 """], check=True, capture_output=True, text=True)
 
     def test_next_keeps_stream_open_and_seeks_only_inside_buffered_audio(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         catch_up = source[source.index('function catchUp('):source.index('function listen(')]
         command = source[source.index('function cmd('):source.index('function replay(')]
         subprocess.run(['node', '-e', catch_up + command + r"""
@@ -57,7 +58,7 @@ const api=()=>Promise.resolve(result),refresh=()=>{},player=()=>{},setTimeout=()
 """], check=True, capture_output=True, text=True)
 
     def test_music_source_label_distinguishes_configuration_from_playback(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         helper = source[source.index('function musicSourceLabel('):source.index('function player(')]
         subprocess.run(['node', '-e', helper + r"""
 const assert = require('node:assert/strict');
@@ -76,7 +77,7 @@ assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:null,
 """], check=True, capture_output=True, text=True)
 
     def test_editor_hour_groups_and_autosave_rollback(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         code = "var appearance={formatTime:value=>value};\n" + re.search(r'function planDragClock\(at\)\{[^\n]+', source).group(0) + '\n' + source[source.index('function planGroups('):source.index('function planMove(')]
         result = subprocess.run(['node', '-e', code + r"""
 const assert=require('node:assert/strict');
@@ -171,7 +172,7 @@ var requests=[],response;function api(path,body){requests.push(body);return Prom
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_history_rejects_drop_and_arrows_follow_upward_time(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         handlers = source[source.index("$('tl').ondragover="):source.index('function cmd(')]
         subprocess.run(['node', '-e', "var nodes={};" + handlers + r"""
 const assert=require('node:assert/strict');var planDrag=3;function $(id){return nodes[id]||(nodes[id]={})}
@@ -182,7 +183,7 @@ $('tl').ondragover(e);assert.equal(e.dataTransfer.dropEffect,'none');$('tl').ond
         self.assertIn('aired.slice(0,15)', source)
 
     def test_gap_times_stay_between_future_neighbors(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         helper = source[source.index('function planGapTime('):source.index('function findPlanGap(')]
         subprocess.run(['node', '-e', helper + r"""
 const assert=require('node:assert/strict');const at=Date.parse('2026-10-24T06:00:00Z');Date.now=()=>at;
@@ -196,7 +197,7 @@ assert.equal(planGapTime([rows[0],rows[0]],1),null);
 """], check=True, capture_output=True, text=True)
 
     def test_gap_opens_form_in_place_and_uses_latest_version_on_submit(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         helpers = source[source.index('function findPlanGap('):source.index('function planSave(')]
         local_input = source[source.index('function localInput('):source.index('function directionType(')]
         submit = source[source.index("$('direction-form').onsubmit="):source.index("$('direction-list').onclick=")]
@@ -222,7 +223,7 @@ assert.equal(planDraft.length,0,'Changing insertion time must not edit an existi
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_current_row_keeps_now_label_without_a_separate_editor_boundary(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         render = source[source.index('function sourceLabel('):source.index('function timeline(')]
         subprocess.run(['node', '-e', render + r"""
 const assert=require('node:assert/strict');var appearance={formatTime:value=>value};var current=true,st={state:'PLAYING'},open={},KIND={music:'music'};

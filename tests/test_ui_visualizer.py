@@ -2,11 +2,12 @@ import json
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class VisualizerTests(unittest.TestCase):
     def test_modes_audio_decay_storage_resize_and_motion(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         visualizer = source[source.index('var radioViz='):source.rindex('</script>')]
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');

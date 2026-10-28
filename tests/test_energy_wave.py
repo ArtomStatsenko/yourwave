@@ -15,6 +15,7 @@ from radio import config, energy, music, plugins, settings, store
 from radio.daemon import Service
 from radio.engine import Liquidsoap
 from radio.tts import MockTTS
+from tests.ui_page import page_source
 
 
 class EnergyWaveTests(unittest.TestCase):
@@ -242,7 +243,7 @@ class EnergyWaveTests(unittest.TestCase):
         plugins.set_plugin('energy_wave', True)
         row = self.svc._music_plan_rows([{'ref': str(self.files[0]), 'kind': 'music', 'duration': 180}])[0]
         self.assertEqual((row['energy'], row['genre'], row['genre_source']), (1, 'rock', 'tag'))
-        source = (config.PKG_DIR/'ui.html').read_text()
+        source = page_source()
         function = source[source.index('  function trackLabels('):source.index('\n  var next=', source.index('  function trackLabels('))]
         harness = '''const assert=require('node:assert/strict');
 const tracks=[{ref:'song',energy:3,genre:'<rock>'}],announced=[];

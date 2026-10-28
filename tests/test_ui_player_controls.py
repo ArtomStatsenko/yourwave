@@ -1,11 +1,12 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class PlayerControlsTests(unittest.TestCase):
     def test_monitor_and_station_icons_keep_their_distinct_actions(self):
-        source=(Path(__file__).resolve().parents[1]/'radio/ui.html').read_text()
+        source=page_source()
         monitor=source[source.index('  var ppLabel='):source.index("  $('vol').hidden=")]
         station=source[source.index('  var soLabel='):source.index("  $('nx').disabled=")]
         result=subprocess.run(['node','-e',r'''

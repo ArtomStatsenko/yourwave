@@ -1,11 +1,12 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class EditorDragTests(unittest.TestCase):
     def run_js(self, checks):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         helpers = source[source.index('function planSnap('):source.index("$('plan-edit').onclick=")]
         setup = r'''
 const assert = require('node:assert/strict');

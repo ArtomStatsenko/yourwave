@@ -2,11 +2,12 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class SourceSettingsUiTests(unittest.TestCase):
     def test_source_manager_groups_news_controls_and_keeps_editing_state(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         script = source[source.index('function isNewsSource('):source.index('function settingValue(')]
         script += source[source.index('function pluginsView()'):source.index("['integrations','experiments','features'].forEach(function(section){$(section).onclick")]
         result=subprocess.run(['node','-e',script+r'''
@@ -53,7 +54,7 @@ assert($('news-source-list').innerHTML.includes('Subreddits (2)'));
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_single_source_controls_for_reddit_and_telegram(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         editor = source[source.index('var sourceDrafts='):source.index('function settingsView(')]
         subprocess.run(['node', '-e', editor + r'''
 const assert=require('node:assert/strict');

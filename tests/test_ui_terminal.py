@@ -3,8 +3,9 @@ import json
 from pathlib import Path
 import subprocess
 import unittest
+from tests.ui_page import page_source
 
-PAGE = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+PAGE = page_source()
 SCRIPT = 'function terminalState' + PAGE.split('function terminalState', 1)[1].split('function player()', 1)[0]
 
 

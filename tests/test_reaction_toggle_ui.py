@@ -1,11 +1,12 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class ReactionToggleUiTests(unittest.TestCase):
     def test_unavailable_flag_cannot_toggle_and_recovers_when_engine_changes(self):
-        page = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        page = page_source()
         script = page[page.index('function isNewsSource('):page.index('function sourceManagerView(')] + page[page.index('function pluginsView()'):page.index("['integrations','experiments','features'].forEach(function(section){$(section).onclick")]
         harness = r'''
 const assert=require('node:assert/strict');

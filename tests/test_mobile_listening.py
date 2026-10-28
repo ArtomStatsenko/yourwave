@@ -53,7 +53,7 @@ class MobileControlTests(unittest.TestCase):
     def test_phone_receives_the_desktop_ui_and_uncached_token(self):
         code, body, headers = self.request('/')
         self.assertEqual(code, 200)
-        expected = (ui.PAGE.read_text().replace('__TOKEN__', self.server.token)
+        expected = ((ui.WEB / 'themes/terminal/index.html').read_text().replace('__TOKEN__', self.server.token)
                     .replace('__LOCAL_CONTROL__', 'false').encode())
         self.assertEqual(body, expected)
         self.assertEqual(headers['Cache-Control'], 'no-store')

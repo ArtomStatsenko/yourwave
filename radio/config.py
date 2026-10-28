@@ -46,6 +46,9 @@ max_boost_db = 4.0          # cap for quiet tracks
 [hooks]
 analyzer_python = ""        # optional Python with allin1 installed; never installs or downloads models on air
 
+[ui]
+theme = "terminal"          # the page's look: a folder in radio/web/themes; a page may also ask for ?theme=<name>
+
 [output]
 mode = "browser"            # speakers | browser | both. browser = the page plays the live stream (radio ui)
 stream_port = 8767          # local UDP port: the audio sink sends the mp3 stream to the UI server on it

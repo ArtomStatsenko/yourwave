@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from radio import config, ui
+from tests.ui_page import page_source
 
 
 class StatusSyncTests(unittest.TestCase):
@@ -35,7 +36,7 @@ class StatusSyncTests(unittest.TestCase):
                     server.server_close()
 
     def test_old_responses_and_timeouts_do_not_overwrite_current_playback(self):
-        source = ui.PAGE.read_text()
+        source = page_source()
         source = source[source.index('function refresh(){'):source.index('function selectTab(')]
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');

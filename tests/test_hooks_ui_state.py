@@ -2,11 +2,12 @@ import json
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class HookReviewStateTests(unittest.TestCase):
     def test_review_removes_candidate_stops_preview_and_confirms_result(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         script = source[source.index("var hookDataKey="):source.index('function localInput(')]
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');

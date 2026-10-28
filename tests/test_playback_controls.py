@@ -2,11 +2,12 @@ import json
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class PlaybackControlsTests(unittest.TestCase):
     def test_station_power_and_device_listening_are_independent(self):
-        page = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        page = page_source()
         audio = page[page.index('var nextBusy=false;'):page.index('function fitTitle(')]
         player = page[page.index('function terminalState('):page.index('var keyFb=')]
         player = page[page.index('function backgroundError('):page.index('function hostHistory(')] + player
@@ -65,7 +66,7 @@ c.st.state='PLAYING';c.player();assert.equal($('nx').disabled,false,'Other liste
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_reroll_button_needs_no_plugin_switch(self):
-        page = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        page = page_source()
         button = page[page.index('function rerollButton()'):page.index('function rerollNext(')]
         harness = r"""
 const assert=require('node:assert/strict');

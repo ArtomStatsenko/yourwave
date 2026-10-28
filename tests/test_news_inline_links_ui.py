@@ -1,11 +1,12 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class NewsInlineLinksTests(unittest.TestCase):
     def test_mentions_link_to_their_own_sources_without_changing_the_transcript(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         helpers = source[source.index('function sourceLabel('):source.index('function timeline(')]
         escape = next(line for line in source.splitlines() if line.startswith('function esc('))
         result = subprocess.run(['node', '-e', escape + '\n' + helpers + r'''

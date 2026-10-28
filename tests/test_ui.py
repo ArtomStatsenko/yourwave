@@ -54,7 +54,21 @@ class PageServerTests(unittest.TestCase):
         self.assertEqual(self.get('/api/capabilities')[0], 403)
         code, raw = self.get('/api/capabilities', {'X-Radio-Token': self.server.token})
         self.assertEqual(code, 200)
-        self.assertEqual(json.loads(raw), control.capabilities())
+        self.assertEqual(json.loads(raw), {**control.capabilities(), 'themes': ['terminal']})
+
+    def test_theme_files_are_served_and_nothing_outside_them(self):
+        from radio import ui
+        code, css = self.get('/ui/themes/terminal/theme.css')
+        self.assertEqual((code, css), (200, (ui.WEB / 'themes/terminal/theme.css').read_bytes()))
+        for path in ('/ui/themes/terminal/../../../ui.py', '/ui/themes/terminal/%2e%2e/%2e%2e/%2e%2e/callback.html',
+                     '/ui/themes/terminal/..%2f..%2f..%2fconfig.py', '/ui/../ui.py', '/ui/core/', '/ui/web.py',
+                     '/ui/themes/terminal/index.html%00.css'):
+            self.assertIn(self.get(path)[0], (400, 404), path)               # no way out of radio/web
+        self.assertEqual(self.get('/ui/themes/terminal/theme.css', {'Host': 'evil.example:80'})[0], 403)
+        status, page = self.get('/?theme=../../../etc')                      # unknown theme: the default one
+        self.assertEqual(status, 200)
+        self.assertIn(b'/ui/themes/terminal/view.js', page)
+        self.assertIn(self.server.token.encode(), page)
 
     def test_news_sources_save_through_the_ui_api(self):
         from radio import plugins, settings

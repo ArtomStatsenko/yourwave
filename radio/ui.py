@@ -15,8 +15,33 @@ from pathlib import Path
 from . import chatgpt, config, openrouter
 from . import hooks, store, control
 
-PAGE = Path(__file__).with_name("ui.html")
+WEB = Path(__file__).with_name("web")  # core/ (no look) and themes/<name>/ (index.html, theme.css, view.js)
+STATIC_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
+                ".js": "text/javascript; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml",
+                ".png": "image/png", ".woff2": "font/woff2"}
 CALLBACK = Path(__file__).with_name("callback.html")  # the page the browser lands on after OpenRouter sign-in
+
+
+def themes() -> list[str]:
+    return sorted(p.parent.name for p in (WEB / "themes").glob("*/index.html"))
+
+
+def theme_name(requested: str, cfg: dict) -> str:
+    """?theme=<name>, else [ui] theme, else terminal; only a theme folder that exists."""
+    available = themes()
+    return next((n for n in (requested, cfg.get("ui", {}).get("theme", "")) if n in available), "terminal")
+
+
+def static_file(url_path: str) -> Path | None:
+    """/ui/core/... and /ui/themes/<name>/...: a file inside radio/web of a known type, never outside it."""
+    rel = urllib.parse.unquote(url_path).removeprefix("/ui/")
+    if not rel.startswith(("core/", "themes/")):
+        return None
+    try:
+        f = (WEB / rel).resolve()
+        return f if f.is_relative_to(WEB.resolve()) and f.suffix in STATIC_TYPES and f.is_file() else None
+    except (OSError, ValueError):  # a NUL byte, a name too long
+        return None
 
 
 class Stream:
@@ -124,12 +149,25 @@ def make_server(port: int) -> ThreadingHTTPServer:
         def do_GET(self):
             if not self._trusted_host():
                 return self._json({"error": "forbidden"}, 403)
-            if self.path in ("/", "/index.html"):
-                body = (PAGE.read_text(encoding="utf-8").replace("__TOKEN__", token)
+            path, _, query = self.path.partition("?")
+            if path in ("/", "/index.html"):
+                theme = theme_name(urllib.parse.parse_qs(query).get("theme", [""])[0], cfg)
+                body = ((WEB / "themes" / theme / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", token)
                         .replace("__LOCAL_CONTROL__", str(self.server is server).lower()).encode())
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            elif path.startswith("/ui/"):
+                f = static_file(path)
+                if not f:
+                    return self._json({"error": "not found"}, 404)
+                body = f.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", STATIC_TYPES[f.suffix])
+                self.send_header("Cache-Control", "no-cache")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -199,7 +237,7 @@ def make_server(port: int) -> ThreadingHTTPServer:
             elif self.path == '/api/capabilities':
                 if not self._authorized():
                     return self._json({'error': 'forbidden'}, 403)
-                self._json(control.capabilities())
+                self._json({**control.capabilities(), "themes": themes()})
             else:
                 self._json({"error": "not found"}, 404)
 

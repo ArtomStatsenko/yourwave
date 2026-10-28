@@ -4,8 +4,9 @@ from pathlib import Path
 import re
 import subprocess
 import unittest
+from tests.ui_page import page_source
 
-PAGE = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+PAGE = page_source()
 SCRIPT = re.search(r'<script id="appearance-script">(.*?)</script>', PAGE, re.S).group(1)
 
 

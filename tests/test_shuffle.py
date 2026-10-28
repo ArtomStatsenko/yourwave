@@ -11,6 +11,7 @@ from radio import config, settings
 from radio.daemon import Service
 from radio.engine import Liquidsoap
 from radio.tts import MockTTS
+from tests.ui_page import page_source
 
 
 class ShuffleTests(unittest.TestCase):
@@ -54,7 +55,7 @@ class ShuffleTests(unittest.TestCase):
         self.assertEqual([c.args[0] for c in svc.engine.command.await_args_list], ['music.shuffle 0'] * 2)
 
     def test_ui_switch_renders_and_saves_unchecked_as_zero(self):
-        source = (config.PKG_DIR / 'ui.html').read_text()
+        source = page_source()
         view = source[source.index('function helpText('):source.index('function pluginButton(')] + source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
         handlers = source[source.index("$('stg').oninput="):source.index("$('stg').onkeydown=")]
         harness = r'''

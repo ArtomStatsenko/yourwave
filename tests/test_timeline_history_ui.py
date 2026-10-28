@@ -1,11 +1,12 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class TimelineHistoryTests(unittest.TestCase):
     def test_background_errors_live_in_activity_without_replacing_on_air_history(self):
-        source=(Path(__file__).resolve().parents[1]/'radio/ui.html').read_text()
+        source=page_source()
         script=next(line for line in source.splitlines() if line.startswith('function esc('))+'\n'
         script+=source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
         result=subprocess.run(['node','-e',script+r'''
@@ -33,7 +34,7 @@ assert.equal($('activity-log').innerHTML,'');
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_announcements_are_part_of_the_same_host_appearance(self):
-        source=(Path(__file__).resolve().parents[1]/'radio/ui.html').read_text()
+        source=page_source()
         script=source[source.index('function hostHistory('):source.index('function timeline(')]
         script+=source[source.index('function isCur('):source.index('function rk(')]
         result=subprocess.run(['node','-e',script+r'''
@@ -62,7 +63,7 @@ assert.deepEqual(rows[0].event_ids,[4,3,1,2]);
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_only_new_broadcast_rows_animate(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         render = source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
         result = subprocess.run(['node', '-e', render + r"""
 const assert=require('node:assert/strict');
@@ -102,7 +103,7 @@ assert.deepEqual(animations[0].frames,[{opacity:0},{opacity:1}]);
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_restarts_stay_in_activity_and_do_not_displace_aired_history(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         render = source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
         result = subprocess.run(['node', '-e', render + r'''
 const assert = require('node:assert/strict');

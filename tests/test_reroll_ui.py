@@ -1,11 +1,12 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.ui_page import page_source
 
 
 class RerollUiTests(unittest.TestCase):
     def test_confirmation_cancel_refresh_and_changed_track(self):
-        source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
+        source = page_source()
         controls = source[source.index('function rerollButton('):source.index('function planReadiness(')]
         render = source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
         events = source[source.index("$('upcoming').onclick="):source.index("$('music-source-select').onchange=")]
