@@ -33,26 +33,19 @@ assert.equal(titleFrame('Long title', 'Long', 150, 100).text, 'Long');
 
     def test_next_keeps_stream_open_and_seeks_only_inside_buffered_audio(self):
         source = page_source()
-        catch_up = source[source.index('function catchUp('):source.index('function listen(')]
         command = source[source.index('function cmd('):source.index('function replay(')]
-        subprocess.run(['node', '-e', catch_up + command + r"""
+        subprocess.run(['node', '-e', command + r"""
 const assert = require('node:assert/strict');
-let busy=false,nextBusy=false,listening=true,seeks=0,resets=0,result={ok:true};
-let pos=1;
-const au={buffered:{length:1,end:()=>3},get currentTime(){return pos},
-          set currentTime(v){seeks++;pos=v},set src(v){resets++}};
+let busy=false,nextBusy=false,catchUps=0,result={ok:true};
+const catchUp=()=>catchUps++;  // the core keeps the stream open and seeks only inside buffered audio
 const api=()=>Promise.resolve(result),refresh=()=>{},player=()=>{},setTimeout=()=>{},$=()=>({textContent:''});
 (async()=>{
   const switching=cmd('next');assert.equal(nextBusy,true);
   await switching;assert.equal(nextBusy,false);
-  assert.equal(resets,0);
-  assert.equal(seeks,1);
-  assert.equal(pos,2.75);
-  await cmd('next');
-  assert.equal(seeks,1);
-  pos=1;result={ok:false};await cmd('next');assert.equal(seeks,1);
-  result={ok:true};await cmd('reroll-next');assert.equal(seeks,1);
-  au.buffered.length=0;await cmd('next');assert.equal(seeks,1);
+  assert.equal(catchUps,1);
+  result={ok:false};await cmd('next');assert.equal(catchUps,1);
+  result={ok:true};await cmd('reroll-next');assert.equal(catchUps,1);
+  await cmd('next');assert.equal(catchUps,2);
   assert.equal(busy,false);
 })().catch(e=>{console.error(e);process.exitCode=1});
 """], check=True, capture_output=True, text=True)

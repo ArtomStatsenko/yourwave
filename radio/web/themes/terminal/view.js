@@ -4,7 +4,7 @@ var RadioTheme=(function(){
 function mount(core,root){
 var LOCAL_CONTROL=core.localControl;
 var planOpen={},planHours={},planHorizon=3,planUndo=null,planInsertKey=null,historyExpanded=false,rerollBusy=false,rerollError='',rerollConfirm=null;
-var KIND={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
+var KIND=core.kinds;
 var dirBlocks=[],dirLoaded=false,dirBusy=false,planDraft=null,planVersion=null,planDrag=null,planTimeId=null,planConfirm=null;
 var planPointer=null,planExpandTimer=null,planFineTimer=null,planSuppressClick=false;
 var items=[],st={state:'STOPPED'},open={},busy=false,pls=[],stg=[],ytStatus={},musicChoice='local';
@@ -18,55 +18,28 @@ function entryTitle(kind,title){if(kind==='news'||kind==='host')return 'Host edi
 function f(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
 function num(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n)}
 function api(path,body){return core.api(path,body)}
-// ---- listening: the station plays one live stream (/stream, same origin so Web Audio can read it). Pause and
-// volume are this page's own; next / skip / stop / replay are station commands for every listener.
+// ---- listening: the core plays the live stream on this device (core.audio); this theme draws its spectrum.
 var nextBusy=false;
-var hist=[],listening=false,au=null,ac=null,an=null,gn=null,fb=null,tb=null,lastT=-1,stuck=0,mtitle=null;
+var hist=[],listening=false;  // listening mirrors core.audio.listening
 function browser(){return st.output!=='speakers'}
-function lag(){if(!listening||!au||!au.buffered.length)return 0;return Math.max(0,au.buffered.end(au.buffered.length-1)-au.currentTime)}
-function connect(){au.src='/stream?'+Date.now();au.play().catch(function(){});lastT=-1;stuck=0}
-function catchUp(){
-  if(!listening||!au||!au.buffered.length)return;
-  var end=au.buffered.end(au.buffered.length-1);
-  // Keep a small playable reserve instead of reopening and buffering the live stream.
-  if(end-au.currentTime>.5){try{au.currentTime=end-.25}catch(e){}}
-}
+function lag(){return core.audio.lag()}
+function catchUp(){core.audio.catchUp()}
 function listen(){
   if(!running())return;
-  var was=listening;listening=true;
-  if(!au){au=new Audio();ac=new (window.AudioContext||window.webkitAudioContext)();
-    var src=ac.createMediaElementSource(au);an=ac.createAnalyser();an.fftSize=2048;an.smoothingTimeConstant=.6;an.maxDecibels=-10;
-    gn=ac.createGain();src.connect(an);an.connect(gn);gn.connect(ac.destination);fb=new Uint8Array(an.frequencyBinCount);tb=new Uint8Array(an.fftSize);
-    vol()}
-  if(!was)requestAnimationFrame(feed);
-  ac.resume();
-  connect();
+  core.audio.listen();
   player()}
-function unlisten(){listening=false;au.pause();au.removeAttribute('src');au.load();player()}
-// a stream that stopped moving (station restarted, network hiccup) is reopened: it rejoins the live air
-function watchdog(){if(!listening||!running())return;
-  if(au.currentTime===lastT){if(++stuck>=2)connect()}else{lastT=au.currentTime;stuck=0}}
-function vol(){var v=+$('vol').value;if(gn)gn.gain.value=v;try{localStorage.setItem('vol',v)}catch(e){}}
-try{var sv=localStorage.getItem('vol');if(sv!==null)$('vol').value=sv}catch(e){}
+function unlisten(){core.audio.unlisten()}
+function vol(){core.audio.setVolume(+$('vol').value)}
+$('vol').value=core.audio.volume;
 $('vol').oninput=vol;
-// 32 log-spaced bands, 40 Hz .. 16 kHz, 0..1 for radioViz
+// the spectrum for radioViz while this device listens
 function feed(){
-  if(listening&&!au.paused&&au.readyState>=3){an.getByteFrequencyData(fb);var a=[],ny=ac.sampleRate/2,n=fb.length;
-    for(var i=0;i<32;i++){var lo=Math.floor(40*Math.pow(400,i/32)/ny*n),hi=Math.max(lo+1,Math.floor(40*Math.pow(400,(i+1)/32)/ny*n)),m=0;
-      for(var j=lo;j<hi&&j<n;j++)m=Math.max(m,fb[j]);a.push(m/255)}
-    an.getByteTimeDomainData(tb);var w=[],dw=radioViz.dw();
-    for(var x=0;x<dw;x++)w.push(tb[Math.floor(x/dw*tb.length)]/255);
-    radioViz.set(a,w)}
-  if(listening)requestAnimationFrame(feed)}
-function media(ds){
-  if(!('mediaSession' in navigator))return;
-  var t=running()?(ds.current_title||''):'';if(t===mtitle)return;mtitle=t;
-  var p=t.split(' - '),music=ds.current_kind==='music'&&p.length>1;
-  navigator.mediaSession.metadata=new MediaMetadata({title:music?p.slice(1).join(' - '):t||'Yourwave',
-    artist:music?p[0]:KIND[ds.current_kind]||'',album:'Yourwave'})}
-if('mediaSession' in navigator){var ms=navigator.mediaSession;
-  ms.setActionHandler('play',function(){if(!listening)listen()});ms.setActionHandler('pause',function(){if(listening)unlisten()});
-  try{ms.setActionHandler('stop',function(){if(listening)unlisten()});ms.setActionHandler('nexttrack',function(){cmd('next')})}catch(e){}}
+  var heard=core.audio.read(radioViz.dw());
+  if(heard)radioViz.set(heard.bands,heard.wave);
+  if(core.audio.listening)requestAnimationFrame(feed)}
+function media(ds){core.audio.media(ds)}
+core.audio.onnext=function(){cmd('next')};
+core.subscribe(function(core,change){if(change==='listening'){listening=core.audio.listening;if(listening)requestAnimationFrame(feed);player()}});
 function running(){return st.state==='PLAYING'||st.state==='PAUSED'}
 
 // The title line: text that fits stays still, a longer one scrolls to its end and back (no scrolling with reduced motion).
@@ -818,7 +791,7 @@ function applySnapshot(d){
       if(!ytLoaded&&document.activeElement!==$('yt-playlist')){$('yt-playlist').value=d.ytmusic.playlist;ytLoaded=true}
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
-    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();watchdog();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)
+    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)
 }
 core.subscribe(function(core,change){
   if(change==='snapshot')applySnapshot(core.snapshot);

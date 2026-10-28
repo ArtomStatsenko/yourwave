@@ -31,7 +31,7 @@ const c={$ ,Audio,window:{AudioContext,addEventListener(){}},navigator:{mediaSes
   st:{state:'STOPPED',output:'browser'},pls:[],ytStatus:{},musicChoice:'local',busy:false,
   LOCAL_CONTROL:true,titleIsTrack:false,cmd:(...args)=>{commands.push(args);return Promise.resolve()},
   rerollNext(){},Date,console};
-vm.createContext(c);vm.runInContext(AUDIO+'\n'+PLAYER+'\n'+HANDLERS,c);
+vm.createContext(c);vm.runInContext(CORE+'\nvar core=RadioCore.create({localControl:true});\n'+AUDIO+'\n'+PLAYER+'\n'+HANDLERS,c);
 c.player();assert.equal($('so')['aria-label'],'Start radio');assert.equal($('pp').disabled,true);
 assert.equal($('station-controls').hidden,false);
 c.listen();media.actions.play();$('pp').onclick();assert.equal(audioCount,0);assert.deepEqual(commands,[]);
@@ -60,7 +60,8 @@ c.busy=false;c.st={state:'PAUSED',output:'browser',auto_paused:true};c.player();
 assert.equal($('nx').disabled,true,'Next must not promise a skip while the radio is paused');
 c.st.state='PLAYING';c.player();assert.equal($('nx').disabled,false,'Other listeners can keep the station playing');
 """
-        result = subprocess.run(['node', '-e', 'const AUDIO=' + json.dumps(audio) + ';\nconst PLAYER=' +
+        core = (Path(__file__).resolve().parents[1] / 'radio/web/core/core.js').read_text()
+        result = subprocess.run(['node', '-e', 'const CORE=' + json.dumps(core) + ';\nconst AUDIO=' + json.dumps(audio) + ';\nconst PLAYER=' +
                                 json.dumps(player) + ';\nconst HANDLERS=' + json.dumps(handlers) + ';\n' + harness],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
