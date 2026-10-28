@@ -232,7 +232,63 @@ var RadioModel=(function(){
     if(sample.st==='error')return ['bad','Could not make a sample: '+sample.err+'. Try again in a minute.'];
     return ['','']}
 
-  return {KINDS:KINDS,num:num,settingValue:settingValue,settingType:settingType,settings:settings,ai:ai,keyChecked:keyChecked,
+  // ---- the player: the air, the title, the position and the controls
+
+  function clockText(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
+  // What the player shows. status: the station now; heard: core.heard() (what this device hears, a buffer behind);
+  // o: {listening, localControl (false on the phone port), busy (a station command is on its way), nextBusy, lag, now}.
+  function player(status,heard,o){
+    var on=status.state==='PLAYING',run=on||status.state==='PAUSED',br=status.output!=='speakers',ds=heard.s,now=o.now||Date.now();
+    var len=ds.duration_sec||0,pos=(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-(o.lag||0)*1000-heard.t)/1000:0);
+    if(len)pos=Math.min(pos,len);
+    var sp=(status.spoken_last_hour_sec||0)/60,lim=(status.speech_limit_sec||300)/60,near=sp>lim*0.8,vok=status.voicestudio==='ok';
+    var stopping=status.state==='STOPPING',listen=br?(o.listening?'Pause listening':'Listen'):(on?'Pause':'Play');
+    var station=stopping?'Stopping…':run?'Stop radio':'Start radio';
+    return {on:on,running:run,browser:br,frame:ds,
+      airGlyph:on?'●':status.state==='PAUSED'?'❚❚':'○',
+      airText:status.auto_paused?'waiting for a listener':on?(br&&!o.listening?'on air · not listening':'on air'):status.state==='PAUSED'?'paused':stopping?'stopping':'off air',
+      // only a track-to-track change is a track title (a theme may animate it); messages appear at once
+      title:run?(ds.current_kind==='news'||ds.current_kind==='teaser'?'Host edition':ds.current_title||'…'):stopping?'Stopping radio…':o.localControl?'Radio is off':'Start on your Mac',
+      isTrack:run&&!!ds.current_title,
+      position:pos,duration:len,progress:run&&len?Math.min(100,pos/len*100):0,timeText:run?(clockText(pos)+(len?' / '+clockText(len):'')):'',
+      speech:{minutes:sp,limit:lim,near:near},
+      voiceTone:!run?'off':!vok||near?'warn':'ok',voiceText:!run?'voice: off':!vok?'voice: unavailable':near?'voice: limit near':'voice: ready',
+      listen:{label:listen,playing:br?!!o.listening:on,disabled:!run||(!br&&!!o.busy)},  // this device's listening, or the station's pause
+      station:{hidden:!o.localControl,label:station,title:station==='Stop radio'?'Stop radio for all listeners':station,busy:stopping,disabled:!!o.busy||stopping},
+      next:{disabled:!on||!!o.busy,busy:!!o.nextBusy,text:o.nextBusy?'…':'▶▶',label:o.nextBusy?'Switching track':'Next',
+        title:o.nextBusy?'Preparing the next track; playback continues':status.state==='PAUSED'?'Resume the radio to skip tracks':'Next'},
+      skipNewsHidden:status.current_kind!=='news',
+      error:backgroundError(status.last_error)?'':status.last_error||''};
+  }
+  // Where the music comes from now, in a few words (switching between YouTube Music and local files included).
+  function musicSourceLabel(status,enabled,yt,choice){
+    var source=status.music_source_state;
+    if(source&&status.state!=='STOPPED'){
+      var name=function(s){return s==='ytmusic'?'YouTube Music':'Local music'},current=source.current?name(source.current):'Host on air';
+      if(source.phase==='error')return current+' · '+source.error;
+      if(source.phase==='crossfade')return name(source.from)+' → '+current+' · crossfading';
+      if(source.phase==='loading')return current+' · loading '+name(source.target);
+      if(source.phase==='waiting')return current+' → '+name(source.target)+' · '+(status.state==='PAUSED'?'after this track resumes':source.current?'after this track':'after the host');
+      return current;
+    }
+    if(status.music_source==='ytmusic')return 'YouTube Music';
+    if(status.state==='STOPPED')return enabled&&choice==='ytmusic'?'YouTube Music · '+(yt.connected?'configured':'not connected'):'Local music';
+    if(choice==='local')return 'Local music';
+    return 'Local music · YouTube Music '+(!enabled?'off':status.ytmusic_active?'fallback':'not active');
+  }
+  // "What I missed": whether it can be asked for now, why not (title) and how far it got (status).
+  // info: status.catchup; busy: this page's request is on its way; message: that request's own error.
+  function catchup(info,running,busy,message){
+    if(!info)return null;
+    var active=['preparing','pending','ready','queued','playing'].includes(info.state);
+    var labels={preparing:'Preparing news…',pending:'Preparing audio…',ready:'Ready · waiting for a song boundary and speech budget',queued:'Queued · after the current song',playing:'Host edition is on air'};
+    return {disabled:busy||!running||active||!info.available,
+      title:(running?'':'Start the station to prepare news · ')+info.available+' unplayed saved stories from the last 48 hours · up to 6 per edition',
+      status:info.error||labels[info.state]||message||''};
+  }
+  var CATCHUP_PREPARING='Preparing dated stories…';
+
+  return {KINDS:KINDS,num:num,clockText:clockText,player:player,musicSourceLabel:musicSourceLabel,catchup:catchup,CATCHUP_PREPARING:CATCHUP_PREPARING,settingValue:settingValue,settingType:settingType,settings:settings,ai:ai,keyChecked:keyChecked,
     keySaved:keySaved,KEY_EMPTY:KEY_EMPTY,voice:voice,sampleFeedback:sampleFeedback,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,hostHistory:hostHistory,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,sourceLabel:sourceLabel,newsSegments:newsSegments,starsText:starsText,

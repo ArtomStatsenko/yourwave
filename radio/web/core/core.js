@@ -63,7 +63,7 @@ var RadioCore=(function(){
   function create(options){
     options=options||{};
     var token=options.token||'',fetchImpl=options.fetch||function(url,init){return fetch(url,init)};
-    var listeners=[],sequence=0,applied=0,timer=null;
+    var listeners=[],sequence=0,applied=0,timer=null,history=[];  // history: recent statuses, about 30 s
     var core={
       localControl:!!options.localControl,  // false on the phone port: play and stop belong to the Mac
       snapshot:null,      // the last /api/status answer: {status, timeline, plugins, settings, ...}
@@ -102,10 +102,16 @@ var RadioCore=(function(){
       return core.api('/api/status').then(function(d){
         if(mine<applied)return;
         if(!d.status)throw Error(d.error||'the page cannot reach the radio');
-        applied=mine;core.error='';core.snapshot=d;core.audio.watchdog();emit('snapshot')})
+        applied=mine;core.error='';core.snapshot=d;
+        history.push({t:Date.now(),s:d.status});while(history.length>2&&history[1].t<Date.now()-30000)history.shift();
+        core.audio.watchdog();emit('snapshot')})
       .catch(function(error){if(mine>=applied){core.error=error.message||'the page cannot reach the radio';emit('error')}})};
 
     core.audio=createAudio(core,emit);
+    // What this device hears now, {t: when it was the air, s: the status then}: a listener's buffer is a few
+    // seconds behind the station, so the page shows the air that late. fallback: the status before any poll.
+    core.heard=function(fallback){var now=Date.now(),lg=core.audio.lag(),h=history.filter(function(e){return e.t<=now-lg*1000});
+      return h[h.length-1]||history[0]||{t:now,s:fallback||(core.snapshot&&core.snapshot.status)||{state:'STOPPED'}}};
 
     core.loadCapabilities=function(){
       return core.api('/api/capabilities').then(function(c){

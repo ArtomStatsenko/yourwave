@@ -2,7 +2,7 @@ import json
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class PlaybackControlsTests(unittest.TestCase):
@@ -60,7 +60,7 @@ c.busy=false;c.st={state:'PAUSED',output:'browser',auto_paused:true};c.player();
 assert.equal($('nx').disabled,true,'Next must not promise a skip while the radio is paused');
 c.st.state='PLAYING';c.player();assert.equal($('nx').disabled,false,'Other listeners can keep the station playing');
 """
-        core = (Path(__file__).resolve().parents[1] / 'radio/web/core/core.js').read_text()
+        core = core_source()  # the theme's player renders RadioModel.player() from core.heard()
         result = subprocess.run(['node', '-e', 'const CORE=' + json.dumps(core) + ';\nconst AUDIO=' + json.dumps(audio) + ';\nconst PLAYER=' +
                                 json.dumps(player) + ';\nconst HANDLERS=' + json.dumps(handlers) + ';\n' + harness],
                                 capture_output=True, text=True)

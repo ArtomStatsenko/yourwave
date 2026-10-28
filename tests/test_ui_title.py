@@ -52,7 +52,8 @@ const api=()=>Promise.resolve(result),refresh=()=>{},player=()=>{},setTimeout=()
 
     def test_music_source_label_distinguishes_configuration_from_playback(self):
         source = page_source()
-        helper = source[source.index('function musicSourceLabel('):source.index('function player(')]
+        theme = theme_source()
+        helper = core_source() + theme[theme.index('function musicSourceLabel('):theme.index('function terminalState(')]
         subprocess.run(['node', '-e', helper + r"""
 const assert = require('node:assert/strict');
 assert.equal(musicSourceLabel({state:'STOPPED'},true,{connected:true},'local'), 'Local music');

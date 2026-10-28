@@ -15,12 +15,12 @@ function linkedText(s){return esc(s).replace(/https?:\/\/[^\s]+/gi,function(url)
   return '<a href="'+u+'" target="_blank" rel="noopener">'+u+'</a>'+url.slice(u.length);
 })}
 function entryTitle(kind,title){return RadioModel.entryTitle(kind,title)}
-function f(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
+function f(s){return RadioModel.clockText(s)}
 function num(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n)}
 function api(path,body){return core.api(path,body)}
 // ---- listening: the core plays the live stream on this device (core.audio); this theme draws its spectrum.
 var nextBusy=false;
-var hist=[],listening=false;  // listening mirrors core.audio.listening
+var listening=false;  // mirrors core.audio.listening
 function browser(){return st.output!=='speakers'}
 function lag(){return core.audio.lag()}
 function catchUp(){core.audio.catchUp()}
@@ -90,21 +90,7 @@ function setTitle(text,instant,duration){
     tfx.raf=requestAnimationFrame(step)})()}
 window.addEventListener('resize',function(){if(tfx.target!==null)fitTitle()});
 var titleIsTrack=false;
-function musicSourceLabel(status,enabled,yt,choice){
-  var source=status.music_source_state;
-  if(source&&status.state!=='STOPPED'){
-    var name=function(s){return s==='ytmusic'?'YouTube Music':'Local music'},current=source.current?name(source.current):'Host on air';
-    if(source.phase==='error')return current+' · '+source.error;
-    if(source.phase==='crossfade')return name(source.from)+' → '+current+' · crossfading';
-    if(source.phase==='loading')return current+' · loading '+name(source.target);
-    if(source.phase==='waiting')return current+' → '+name(source.target)+' · '+(status.state==='PAUSED'?'after this track resumes':source.current?'after this track':'after the host');
-    return current;
-  }
-  if(status.music_source==='ytmusic')return 'YouTube Music';
-  if(status.state==='STOPPED')return enabled&&choice==='ytmusic'?'YouTube Music · '+(yt.connected?'configured':'not connected'):'Local music';
-  if(choice==='local')return 'Local music';
-  return 'Local music · YouTube Music '+(!enabled?'off':status.ytmusic_active?'fallback':'not active');
-}
+function musicSourceLabel(status,enabled,yt,choice){return RadioModel.musicSourceLabel(status,enabled,yt,choice)}
 function musicSourceOptions(enabled){return '<option value="local">Local</option>'+(enabled?'<option value="ytmusic">YouTube Music</option>':'')}
 function terminalState(live,heard){
   if(live.state==='PLAYING'){
@@ -122,19 +108,14 @@ function stationTerminal(live,heard){
   $('terminal-monitor').textContent=browser()?(listening?'MONITOR / LISTENING':'MONITOR / OFF'):'OUTPUT / LOCAL';
 }
 function player(){
-  var on=st.state==='PLAYING',run=running(),br=browser(),now=Date.now(),lg=lag(),
-    h=hist.filter(function(e){return e.t<=now-lg*1000}),d=(h[h.length-1]||hist[0]||{t:now,s:st});
-  var ds=d.s;
-  $('air').className=on?'':'off';$('air').textContent=on?'●':st.state==='PAUSED'?'❚❚':'○';
-  $('airtxt').textContent=st.auto_paused?'waiting for a listener':on?(br&&!listening?'on air · not listening':'on air'):st.state==='PAUSED'?'paused':st.state==='STOPPING'?'stopping':'off air';
+  var p=RadioModel.player(st,core.heard(st),{listening:listening,localControl:LOCAL_CONTROL,busy:busy,nextBusy:nextBusy,lag:lag()}),ds=p.frame;
+  $('air').className=p.on?'':'off';$('air').textContent=p.airGlyph;
+  $('airtxt').textContent=p.airText;
   stationTerminal(st,ds);
-  var isTrack=run&&!!ds.current_title;   // only a track-to-track change is typed; messages and the first title appear at once
-  setTitle(run?(ds.current_kind==='news'||ds.current_kind==='teaser'?'Host edition':ds.current_title||'…'):st.state==='STOPPING'?'Stopping radio…':LOCAL_CONTROL?'Radio is off':'Start on your Mac',!(isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=isTrack;
-  var len=ds.duration_sec||0,pos=(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-lg*1000-d.t)/1000:0);
-  if(len)pos=Math.min(pos,len);
+  setTitle(p.title,!(p.isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=p.isTrack;  // only a track-to-track change is typed
   media(ds);
-  $('fill').style.width=(run&&len?Math.min(100,pos/len*100):0)+'%';
-  $('time').textContent=run?(f(pos)+(len?' / '+f(len):'')):'';
+  $('fill').style.width=p.progress+'%';
+  $('time').textContent=p.timeText;
   var ytEnabled=pls.some(function(p){return p.name==='ytmusic'&&p.on});
   $('music-source').textContent=musicSourceLabel(ds,ytEnabled,ytStatus,musicChoice);
   var select=$('music-source-select');
@@ -142,25 +123,24 @@ function player(){
   if(!ytEnabled||document.activeElement!==select)select.value=ytEnabled?musicChoice:'local';
   $('music-source-select').disabled=busy;
   $('yt-summary').textContent='YouTube Music: '+(ytEnabled?'on':'off')+' · '+(ytStatus.connected?ytStatus.tracks+' tracks configured':'not connected');
-  var sp=(st.spoken_last_hour_sec||0)/60,lim=(st.speech_limit_sec||300)/60,near=sp>lim*0.8;
+  var sp=p.speech.minutes,lim=p.speech.limit;
   $('sp').textContent=sp.toFixed(1);$('splim').textContent=lim%1?lim.toFixed(1):lim;
-  $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=near?'var(--warn)':'var(--ok)';
-  var vok=st.voicestudio==='ok';
-  $('vd').style.background=!run?'var(--line)':!vok||near?'var(--warn)':'var(--ok)';
-  $('vs').textContent=!run?'voice: off':!vok?'voice: unavailable':near?'voice: limit near':'voice: ready';
-  var ppLabel=br?(listening?'Pause listening':'Listen'):(on?'Pause':'Play');
-  $('pp').dataset.playing=String(br?listening:on);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=ppLabel;
-  $('vol').hidden=!br;
-  $('pp').disabled=!run||(!br&&busy);
-  $('station-controls').hidden=!LOCAL_CONTROL;
-  var soLabel=st.state==='STOPPING'?'Stopping…':run?'Stop radio':'Start radio';
-  $('so').setAttribute('aria-label',soLabel);$('so').title=soLabel==='Stop radio'?'Stop radio for all listeners':soLabel;$('so').setAttribute('aria-busy',String(st.state==='STOPPING'));
-  $('so').disabled=busy||st.state==='STOPPING';
-  $('nx').disabled=!on||busy;
-  $('nx').textContent=nextBusy?'…':'▶▶';$('nx').setAttribute('aria-busy',String(nextBusy));
-  $('nx').setAttribute('aria-label',nextBusy?'Switching track':'Next');$('nx').title=nextBusy?'Preparing the next track; playback continues':st.state==='PAUSED'?'Resume the radio to skip tracks':'Next';
-  $('sk').hidden=st.current_kind!=='news';
-  $('er').textContent=backgroundError(st.last_error)?'':st.last_error||'';
+  $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=p.speech.near?'var(--warn)':'var(--ok)';
+  $('vd').style.background={off:'var(--line)',warn:'var(--warn)',ok:'var(--ok)'}[p.voiceTone];
+  $('vs').textContent=p.voiceText;
+  var ppLabel=p.listen.label;
+  $('pp').dataset.playing=String(p.listen.playing);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=ppLabel;
+  $('vol').hidden=!p.browser;
+  $('pp').disabled=p.listen.disabled;
+  $('station-controls').hidden=p.station.hidden;
+  var soLabel=p.station.label;
+  $('so').setAttribute('aria-label',soLabel);$('so').title=p.station.title;$('so').setAttribute('aria-busy',String(p.station.busy));
+  $('so').disabled=p.station.disabled;
+  $('nx').disabled=p.next.disabled;
+  $('nx').textContent=p.next.text;$('nx').setAttribute('aria-busy',String(p.next.busy));
+  $('nx').setAttribute('aria-label',p.next.label);$('nx').title=p.next.title;
+  $('sk').hidden=p.skipNewsHidden;
+  $('er').textContent=p.error;
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
 function saveKey(provider,key,remove){
@@ -661,17 +641,16 @@ function unqueue(id){
   var x=items.find(function(i){return String(i.id)===id});if(x)cmd('unqueue',{kind:rk(x),ref:x.ref})}
 var catchupBusy=false,catchupMessage='';
 function catchupView(info){
-  $('catchup-controls').hidden=!info;
-  if(!info)return;
-  var active=['preparing','pending','ready','queued','playing'].includes(info.state);
-  $('catchup-build').disabled=catchupBusy||!running()||active||!info.available;
-  $('catchup-build').title=(running()?'':'Start the station to prepare news · ')+info.available+' unplayed saved stories from the last 48 hours · up to 6 per edition';
-  var labels={preparing:'Preparing news…',pending:'Preparing audio…',ready:'Ready · waiting for a song boundary and speech budget',queued:'Queued · after the current song',playing:'Host edition is on air'};
-  $('catchup-status').textContent=info.error||labels[info.state]||catchupMessage||'';
+  var c=RadioModel.catchup(info,running(),catchupBusy,catchupMessage);
+  $('catchup-controls').hidden=!c;
+  if(!c)return;
+  $('catchup-build').disabled=c.disabled;
+  $('catchup-build').title=c.title;
+  $('catchup-status').textContent=c.status;
 }
 $('catchup-build').onclick=async function(){
   catchupBusy=true;catchupMessage='';catchupView(st.catchup);
-  $('catchup-status').textContent='Preparing dated stories…';
+  $('catchup-status').textContent=RadioModel.CATCHUP_PREPARING;
   try{
     var result=await api('/api/cmd',{cmd:'catchup'});
     if(!result.ok)throw Error(result.error||'Could not prepare catch-up');
@@ -695,7 +674,7 @@ function applySnapshot(d){
       if(!ytLoaded&&document.activeElement!==$('yt-playlist')){$('yt-playlist').value=d.ytmusic.playlist;ytLoaded=true}
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
-    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)
+    items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)
 }
 core.subscribe(function(core,change){
   if(change==='snapshot')applySnapshot(core.snapshot);
