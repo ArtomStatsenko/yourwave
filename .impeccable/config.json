@@ -19,6 +19,15 @@
         ],
         "createdAt": "2026-10-25T14:49:04.112Z",
         "reason": "Agent: intentional Hallmark theme comparison prototype; Instrument Sans is the Ribbon theme face, isolated from production UI."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "radio/ui.html"
+        ],
+        "createdAt": "2026-10-27T14:47:08.650Z",
+        "reason": "Agent: rendered tab labels already have 8px vertical padding; the active tab underline intentionally meets the shared bottom border, not a boxed text container."
       }
     ]
   }

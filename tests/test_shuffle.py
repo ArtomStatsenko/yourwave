@@ -55,7 +55,7 @@ class ShuffleTests(unittest.TestCase):
 
     def test_ui_switch_renders_and_saves_unchecked_as_zero(self):
         source = (config.PKG_DIR / 'ui.html').read_text()
-        view = source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
+        view = source[source.index('function helpText('):source.index('function pluginButton(')] + source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
         handlers = source[source.index("$('stg').oninput="):source.index("$('stg').onkeydown=")]
         harness = r'''
 const assert=require('node:assert/strict');

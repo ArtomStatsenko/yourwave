@@ -89,7 +89,7 @@ class NewsDetailTests(unittest.TestCase):
 
     def test_slider_has_names_description_and_updates_accessible_value(self):
         source = (Path(__file__).resolve().parents[1] / 'radio/ui.html').read_text()
-        helper = source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
+        helper = source[source.index('function helpText('):source.index('function pluginButton(')] + source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
         handler = source[source.index("$('stg').oninput="):source.index("$('stg').onchange=")]
         script = r"""
 const assert=require('node:assert/strict');

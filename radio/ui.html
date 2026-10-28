@@ -77,10 +77,10 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #station-controls[hidden]{display:none}
 .air-heading{display:flex;align-items:center;gap:12px}.air-caption{flex:1;min-width:0}
 #station-controls{margin-left:auto}#so{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;color:var(--muted)}#so:hover{color:var(--ink)}#so[aria-busy="true"] svg{opacity:.4}
-#pp{display:grid;place-items:center;width:48px;min-height:44px;padding:8px}#pp .pause-icon{display:none}#pp[data-playing="true"] .play-icon{display:none}#pp[data-playing="true"] .pause-icon{display:inline}
+#pp{display:grid;place-items:center;width:48px;height:44px;min-height:44px;padding:8px}#pp .pause-icon{display:none}#pp[data-playing="true"] .play-icon{display:none}#pp[data-playing="true"] .pause-icon{display:inline}
 .player-controls{display:grid;grid-template-columns:auto auto 112px minmax(100px,1fr) auto auto;gap:12px}
 .player-controls .bar{min-width:0}
-#nx{width:3.25em;padding-inline:0}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
+#nx{width:48px;height:44px;min-height:44px;padding:8px}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
 #time{white-space:nowrap;font-variant-numeric:tabular-nums}
 .player-status{gap:12px}
 .voice-state{margin-left:auto;white-space:nowrap}
@@ -150,8 +150,13 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .pl:hover{border:0;border-bottom:1px solid var(--line);background:var(--surface)}
 .pl:disabled{opacity:1;cursor:default;color:var(--muted);background:transparent}
 .pl .sw{flex:none;width:72px;font-size:16px;color:var(--muted)}.pl[aria-pressed="true"] .sw{color:var(--accent)}
-.pl .nm{flex:none;min-width:320px}.pl .ds{color:var(--muted);font-size:16px;flex:1;min-width:0}
+.pl .nm{flex:1;min-width:0;overflow-wrap:anywhere}.pl .ds{color:var(--muted);font-size:16px;flex:1;min-width:0}
 @media(max-width:640px){.pl{display:grid;grid-template-columns:72px minmax(0,1fr)}.pl .nm{min-width:0;overflow-wrap:anywhere}.pl .ds{grid-column:2}}
+.control-help{color:var(--muted);font-size:16px;line-height:24px}.control-help summary{cursor:pointer;min-height:36px;padding:6px 0}.control-help .l{margin:4px 0 8px;line-height:24px}
+.plugin-row{position:relative;border-bottom:1px solid var(--line)}
+.plugin-row>.pl,.plugin-row>.pl:hover{border:0;padding-right:100px}.plugin-row>.control-help>summary{position:absolute;right:0;top:6px}.plugin-row>.control-help>.l{margin-left:84px}
+.plugin-warning{padding:0 0 8px 84px}
+#news-source-list .plugin-row{border:0}
 #vol{width:112px;accent-color:var(--accent)}
 /* visualizer strip: a fixed 36px box, so whatever it draws (or off) never moves the layout */
 .strip{height:36px;overflow:hidden;contain:size layout paint}
@@ -165,9 +170,12 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #viz-controls button:hover{color:var(--accent);background:var(--surface)}
 #viz-controls button:active{background:var(--line)}
 @media(pointer:coarse){#viz-controls button{min-width:44px;min-height:44px}}
-.tabbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 12px;border-bottom:1px solid var(--line)}
-.tabs{display:flex;flex-wrap:wrap;gap:0 24px;flex:1;min-width:0}   /* tabs wrap onto a second line, never scroll or hide */
-#catchup-controls{min-width:0;max-width:100%}#catchup-status{overflow-wrap:anywhere}
+.tabbar{border-bottom:1px solid var(--line)}
+.timeline-tools{display:flex;flex-wrap:wrap;align-items:center;gap:0 16px;margin-bottom:8px}
+.timeline-tools[hidden]{display:none}
+.tabs{display:flex;flex-wrap:wrap;gap:0 24px;min-width:0}
+#catchup-controls{flex:1;min-width:0;max-width:100%;gap:0 12px}#catchup-status{overflow-wrap:anywhere}
+#catchup-status:empty{display:none}
 #catchup-build{border:0;background:none;padding:8px 0 10px;font-size:16px;color:var(--muted)}#catchup-build:hover{border:0;color:var(--accent)}
 #plan-edit{flex:none;margin-left:auto;border:0;background:none;min-height:36px;padding:8px 12px 10px;font-size:16px;color:var(--muted)}#plan-edit:hover{border:0;color:var(--accent)}#plan-edit[hidden],#plan-edit[data-off]{display:none}
 .tabs button{flex:none}
@@ -176,7 +184,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #activity summary::-webkit-details-marker{display:none}
 #activity-log{position:absolute;z-index:5;top:100%;right:0;width:min(340px,calc(100vw - 32px));max-height:280px;overflow:auto;padding:12px;background:var(--bg);border:1px solid var(--line)}
 #activity-log .tx{font-size:16px;padding-left:0}
-@media(max-width:640px){#activity{order:-1}#activity-log{left:0;right:auto}}
+@media(max-width:640px){#catchup-controls{flex-basis:100%}#catchup-status{flex:1;min-width:0}#activity-log{left:0;right:auto}}
 @media(pointer:coarse){#activity summary{min-height:44px}}
 [role="tabpanel"]{padding-top:16px}
 
@@ -209,8 +217,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .st textarea{resize:vertical;min-height:96px}.st textarea[aria-invalid="true"]{border-color:var(--warn)}
 .community-list{list-style:none;margin:0;padding:0}.community-list:empty{display:none}
 .st input.source-name-input{flex:1;min-width:min(100%,220px);width:auto}.st input.source-name-input[aria-invalid="true"]{border-color:var(--warn)}
-.source-config{margin:8px 0 0}.source-config summary{cursor:pointer;color:var(--ink)}
-.source-config .st{margin-top:8px;padding:0;border-bottom:0}#news-source-list>section{min-width:0;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}#news-source-list .l{overflow-wrap:anywhere}
+.plugin-row .source-editor{margin-top:8px;padding:0;border-bottom:0}#news-source-list>section{min-width:0;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}#news-source-list .l{overflow-wrap:anywhere}
 #news-source-list .pl{border-bottom:0;padding-bottom:4px}#news-source-list>section>p{margin:0 0 0 84px}
 .source-editor{display:grid;gap:12px}.source-editor .community-list li{justify-content:space-between;border-bottom:1px solid var(--line);gap:16px;min-height:44px}
 .source-editor .community-list a{min-width:0;overflow-wrap:anywhere}.source-remove{flex:none;border:0;background:none;color:var(--muted);font-size:14px;padding:8px;min-height:44px}.source-remove:hover{border:0;color:var(--ink)}
@@ -219,7 +226,8 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 0;font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .tabs button:hover{border:0;border-bottom:2px solid var(--muted)}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom:2px solid var(--accent)}
-@media(max-width:640px){#vol{display:none}.tabs{gap:0 16px;flex-basis:100%}#plan-edit{order:-1;padding-top:0;min-height:0}.tabs button{font-size:16px;letter-spacing:.04em}}
+@media(max-width:640px){#vol{display:none}.tabs{gap:0 16px}.tabs button{font-size:16px;letter-spacing:.04em}}
+@media(max-width:420px){.tabs{display:grid;grid-template-columns:1fr 1fr}.tabs button{text-align:left;justify-self:start}}
 @media(pointer:coarse) and (max-width:640px){#direction-list .plan-inline button{width:44px}}
 .tl{min-width:0}
 #tl-panel:not([hidden]){display:block}
@@ -424,11 +432,13 @@ var appearance=(function(){
     <button role="tab" id="tab-in" aria-controls="integrations" aria-selected="false" tabindex="-1" data-tab="in">sources</button>
     <button role="tab" id="tab-ex" aria-controls="experiments" aria-selected="false" tabindex="-1" data-tab="ex">experiments</button>
     <button role="tab" id="tab-st" aria-controls="stg" aria-selected="false" tabindex="-1" data-tab="st">settings</button>
-  </div><div id="catchup-controls" class="row" hidden>
+  </div></div>
+  <div id="tl-panel" role="tabpanel" aria-labelledby="tab-tl">
+    <div class="timeline-tools">
+    <div id="catchup-controls" class="row" hidden>
       <button id="catchup-build" type="button">More news</button>
       <span id="catchup-status" class="l" role="status" aria-live="polite"></span>
     </div><details id="activity" hidden><summary>Activity</summary><div id="activity-log" aria-label="Radio activity"></div></details><button id="plan-edit">Edit</button><button id="plan-undo" hidden>Undo</button><button id="plan-done" hidden>Done</button></div>
-  <div id="tl-panel" role="tabpanel" aria-labelledby="tab-tl">
     <p id="plan-pause" class="l" role="status" hidden>Paused · timing will update on resume</p>
     <p id="direction-message" class="l" role="status" aria-live="polite"></p>
     <div id="broadcast-timeline">
@@ -450,7 +460,7 @@ var appearance=(function(){
   <div id="integrations" role="tabpanel" aria-labelledby="tab-in" hidden>
     <section aria-labelledby="news-sources-heading">
       <h2 id="news-sources-heading">News sources</h2>
-      <p class="l">Choose what feeds news editions and catch-up. Changes need no restart; saved channels stay when a source is off.</p>
+
       <div id="news-source-list"></div>
     </section>
     <h2>Weather, reminders &amp; music</h2>
@@ -475,10 +485,13 @@ var appearance=(function(){
       <select id="appearance-time-format"><option value="24">24-hour · 14:30</option><option value="12">12-hour · 02:30 PM</option></select>
       <label for="appearance-presentation">Player style</label>
       <select id="appearance-presentation" aria-describedby="presentation-hint"><option value="calm">Calm</option><option value="terminal">Terminal</option></select>
-      <p id="presentation-hint" class="l">Terminal adds an ASCII callsign and live broadcast status. Motion follows your device preference.</p>
+
       <label for="appearance-timeline-effect">Timeline effect</label>
       <select id="appearance-timeline-effect" aria-describedby="timeline-effect-hint"><option value="off">Off</option><option value="fade">Fade</option><option value="line" selected>Terminal line print</option></select>
-      <p id="timeline-effect-hint" class="l">New broadcast rows only. Saved in this browser; reduced motion disables animation.</p>
+      <details class="control-help"><summary>About appearance</summary>
+        <p id="presentation-hint" class="l">Terminal adds an ASCII callsign and live broadcast status.</p>
+        <p id="timeline-effect-hint" class="l">Effects apply to new broadcast rows. Saved in this browser; reduced motion disables animation.</p>
+      </details>
       <fieldset class="appearance-mode"><legend>Mode</legend><div class="row">
         <label><input type="radio" name="appearance-mode" value="system" checked> System</label>
         <label><input type="radio" name="appearance-mode" value="light"> Light</label>
@@ -507,7 +520,7 @@ var appearance=(function(){
     <div class="st">
       <label for="audio-preset">Audio preset</label>
       <select id="audio-preset"><option value="base">Base</option><option value="personal" disabled>Personal</option></select>
-      <div class="l" id="audio-preset-hint" role="status">Stop and start the station to apply. Personal audio stays on this Mac.</div>
+      <div class="l" id="audio-preset-hint" role="status">Restart the station to apply.</div>
       <p class="l" id="base-audio-credit">Base audio: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700030" target="_blank" rel="noopener">Tech Live — Kevin MacLeod</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> · edited excerpts.</p>
     </div>
     <form id="yt-form" class="st" hidden>
@@ -521,7 +534,8 @@ var appearance=(function(){
       <div id="yt-help" class="l">In browser developer tools, copy only the Cookie header from a signed-in music.youtube.com request. Leave blank to refresh a saved connection; cookies stay on this Mac.</div>
       <div class="row"><button id="yt-connect" type="submit">Connect or refresh</button></div>
       </details>
-      <div class="l">Stop and start the station to apply. Imports up to 500 songs; unavailable songs are skipped. Local music plays if the playlist cannot play.</div>
+      <div class="l">Restart the station to apply.</div>
+      <details class="control-help"><summary>Import details</summary><p class="l">Imports up to 500 songs; unavailable songs are skipped. Local music plays if the playlist cannot play.</p></details>
     </form>
     <details class="st" id="playback-status"><summary>Playback status</summary>
   <div class="l row player-status"><span>speech <span id="sp"></span>/<span id="splim"></span> min this hour</span><div class="lim"><i id="spb"></i></div>
@@ -744,7 +758,7 @@ function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model
     +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(parts[0])+(st==='ok'&&parts[1]?' <span class="d">· '+esc(parts[1])+'</span>':todo?' <span class="d">· '+esc(todo)+'</span>':'')+'</span></div></div>'
     +'<div class="st"><label for="st-llm_provider">'+esc(p.title)+'</label><select id="st-llm_provider" data-st="llm_provider">'
     +p.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===p.value?' selected':'')+'>'+esc(p.labels[o]||o)+'</option>'}).join('')+'</select>'
-    +'<div class="l">'+esc(p.hint)+(p.value!==p.default?' · Default: '+esc(p.labels[p.default]||p.default)+' <button class="rs" data-rs="llm_provider">Reset</button>':'')+'</div>'
+    +(p.value!==p.default?'<div class="l">Default: '+esc(p.labels[p.default]||p.default)+' <button class="rs" data-rs="llm_provider">Reset</button></div>':'')
     +(p.action?'<div class="row"><button type="button" class="ab" data-act="'+esc(p.action.cmd)+'">'+esc(p.action.label)+'</button></div>':'')+'</div>';
   if(p.key_field)h+='<div class="st"><label for="llm-key">API key</label><div class="keyrow">'
     +'<input type="password" id="llm-key" autocomplete="off" spellcheck="false" maxlength="300" aria-describedby="llm-key-fb" aria-invalid="'+!!keyFb.invalid+'" placeholder="'+(p.key_field.saved?'Key saved; paste a replacement':'Paste your API key')+'">'
@@ -787,7 +801,7 @@ function playSample(){
     sampleAudio=new Audio(d.url);sampleAudio.onended=function(){sampleState('idle')};
     return sampleAudio.play().then(function(){sampleState('playing')})})
   .catch(function(e){sampleState('error',(e&&e.message)||'the voice engine did not answer')})}
-var sourceDrafts={},sourceFeedback={},sourceOpen={};
+var sourceDrafts={},sourceFeedback={};
 function sourceSettingView(s){
   var reddit=s.key==='reddit_communities',fb=sourceFeedback[s.key]||{},disabled=fb.state==='saving'?' disabled':'',prefix=reddit?'r/':'@',base=reddit?'https://www.reddit.com/r/':'https://t.me/',label=reddit?'Add subreddit':'Add channel';
   return '<div class="st source-editor">'
@@ -807,17 +821,25 @@ function editSourceName(key,remove){
   }).catch(function(e){sourceFeedback[key]={state:'error',text:e.message}}).finally(function(){sourceManagerView(true);var f=$('source-'+key);if(f)f.focus()});
 }
 function isNewsSource(p){return ['horizon','github_trending','github_new','reddit','telegram'].includes(p.name)}
-function pluginButton(p){return '<button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'"'+(p.available===false?' disabled':'')+'><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.name==='horizon'?'Technology news · Horizon':p.title)+'</span><span class="ds">'+esc(p.unavailable_reason||p.description)+'</span></button>'}
+function helpText(id,text,label,content){
+  if(!text)return '';
+  helpText.open=helpText.open||{};
+  return '<details class="control-help" id="help-'+esc(id)+'"'+(helpText.open[id]?' open':'')+' ontoggle="helpText.open[this.id.slice(5)]=this.open"><summary id="help-toggle-'+esc(id)+'" aria-label="Details about '+esc(label)+'">Details</summary><div class="l" id="hint-'+esc(id)+'">'+esc(text)+'</div>'+(content||'')+'</details>';
+}
+function pluginButton(p,source){
+  var warning=p.unavailable_reason||({holiday_previews:'Requires Calendar and Host links · restart after installation',energy_wave:'Analyze the library first · restart after installation',track_previews:'Restart after installation',reddit:'Experimental · RSS support ends November 13, 2026',telegram:'Experimental · public channels only'})[p.name]||'';
+  return '<div class="plugin-row"><button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'" aria-describedby="hint-plugin-'+esc(p.name)+'" title="'+esc(p.description)+'"'+(p.available===false?' disabled':'')+'><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.name==='horizon'?'Technology news · Horizon':p.title)+'</span></button>'
+    +helpText('plugin-'+p.name,p.description,p.title,source?'<p class="l">'+(p.name==='reddit'?'Subreddits':'Channels')+' ('+source.value.length+')</p>'+sourceSettingView(source):'')+(warning?'<div class="l plugin-warning">'+esc(warning)+'</div>':'')+'</div>';
+}
 function sourceManagerView(force){
   var box=$('news-source-list'),f=document.activeElement;
   if(!force&&box.contains(f)&&(f.matches('input,textarea')||f.closest('[data-source-add],[data-source-remove]')))return;
-  box.querySelectorAll('details[data-source-key]').forEach(function(d){sourceOpen[d.dataset.sourceKey]=d.open});
   box.innerHTML=pls.filter(isNewsSource).map(function(p){
     var key=p.name==='reddit'?'reddit_communities':p.name==='telegram'?'telegram_channels':null,s=stg.find(s=>s.key===key);
-    var description=p.name==='reddit'?'Read selected subreddits through RSS. Experimental; RSS support ends November 13, 2026.':p.name==='telegram'?'Read selected public channels through web previews. Experimental.':p.description;
-    var status=p.on?(st.sources&&st.sources[p.name]||'On · waiting for the next source check'):'Off · excluded from news and catch-up';
-    return '<section aria-label="'+esc(p.title)+'">'+pluginButton(Object.assign({},p,{description:description}))
-      +(s?'<details class="source-config" data-source-key="'+s.key+'"'+(sourceOpen[s.key]?' open':'')+'><summary id="source-manage-'+p.name+'">'+(p.name==='reddit'?'Subreddits':'Channels')+' ('+s.value.length+')'+(p.on?' <span class="l">· '+esc(status)+'</span>':'')+'</summary>'+sourceSettingView(s)+'</details>':'<p class="l" role="status">'+esc(status)+'</p>')+'</section>';
+    var description=p.name==='reddit'?'Read selected subreddits through RSS.':p.name==='telegram'?'Read selected public channels through web previews.':p.description;
+    var status=p.on?(st.sources&&st.sources[p.name]||''):'';
+    return '<section aria-label="'+esc(p.title)+'">'+pluginButton(Object.assign({},p,{description:description}),s)
+      +(status?'<p class="l" role="status">'+esc(status)+'</p>':'')+'</section>';
   }).join('');
   if(f&&f.id&&$(f.id))$(f.id).focus({preventScroll:true});
 }
@@ -829,16 +851,16 @@ function settingsView(force){  // force: after this page saved a value; the poll
   var u=settingValue,prov=stg.find(function(s){return s.connection}),model=stg.find(function(s){return /_model$/.test(s.key)});
   var voice=stg.find(function(s){return s.voice_state});
   box.innerHTML=stg.map(function(s){if(s.multiline)return '';if(s===prov)return aiView(prov,model)+(voice?voiceView(voice):'');if(s===model||s===voice)return '';
-    if(s.key==='music_shuffle')return '<div class="st"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label><div class="l" id="hint-music_shuffle">'+esc(s.hint)+'</div></div>';
+    if(s.key==='music_shuffle')return '<div class="st"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label>'+helpText(s.key,s.hint,s.title)+'</div>';
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(u(s,s.value))+'</span>')+'</div>'
     +(s.options?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.step===null?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range"'+(s.value_labels?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(u(s,s.value))+'" aria-describedby="hint-'+s.key+'">')
     +(s.value_labels?'<div class="range-labels" aria-hidden="true">'+s.value_labels.map(function(label){return '<span>'+esc(label)+'</span>'}).join('')+'</div>':'')
-    +'<div class="l" id="hint-'+s.key+'">'+esc(s.hint)+(s.value!==s.default?' · Default: '+esc(u(s,s.default))+' <button class="rs" data-rs="'+s.key+'">Reset</button>':'')+'</div></div>'}).join('');
-  if(force&&f&&f.id&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
+    +helpText(s.key,s.hint,s.title)+(s.value!==s.default?'<div class="l">Default: '+esc(u(s,s.default))+' <button class="rs" data-rs="'+s.key+'">Reset</button></div>':'')+'</div>'}).join('');
+  if(f&&f.id&&(force||f.id.startsWith('help-toggle-'))&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
-    $('audio-preset-hint').textContent=d.ok===false?d.error:'Stop and start the station to apply. Personal audio stays on this Mac.';
+    $('audio-preset-hint').textContent=d.ok===false?d.error:'Restart the station to apply.';
     refresh();
   }).catch(function(){$('audio-preset-hint').textContent='Could not save the audio preset. Try again.'})
 };
@@ -862,11 +884,12 @@ $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();
   api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true)}).catch(function(e){sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
-  var focused=document.activeElement&&document.activeElement.dataset.pl;
+  var focused=document.activeElement&&document.activeElement.dataset.pl,helpFocus=document.activeElement&&document.activeElement.id;
   sourceManagerView();
   ['integrations','experiments','features'].forEach(function(section){
-    $(section==='integrations'?'integration-plugins':section==='experiments'?'experiment-plugins':section).innerHTML=pls.filter(function(p){return p.section===section&&!isNewsSource(p)}).map(pluginButton).join('') || (section==='experiments'?'<p class="l">No experiments yet.</p>':'')});
-  if(focused){var b=document.querySelector('[data-pl="'+focused+'"]');if(b)b.focus({preventScroll:true})}}
+    $(section==='integrations'?'integration-plugins':section==='experiments'?'experiment-plugins':section).innerHTML=pls.filter(function(p){return p.section===section&&!isNewsSource(p)}).map(function(p){return pluginButton(p)}).join('') || (section==='experiments'?'<p class="l">No experiments yet.</p>':'')});
+  if(focused){var b=document.querySelector('[data-pl="'+focused+'"]');if(b)b.focus({preventScroll:true})}
+  if(helpFocus&&helpFocus.startsWith('help-toggle-')&&$(helpFocus))$(helpFocus).focus({preventScroll:true})}
 function togglePlugin(e){var b=e.target.closest('[data-pl]');if(!b)return;
   var p=pls.find(function(x){return x.name===b.dataset.pl});if(!p||p.available===false)return;
   p.on=!p.on;pluginsView();directionView();cmd('plugin',{name:p.name,on:p.on})};
@@ -1315,9 +1338,9 @@ function catchupView(info){
   if(!info)return;
   var active=['preparing','pending','ready','queued','playing'].includes(info.state);
   $('catchup-build').disabled=catchupBusy||!running()||active||!info.available;
-  $('catchup-build').title=info.available+' unplayed saved stories from the last 48 hours · up to 6 per edition';
+  $('catchup-build').title=(running()?'':'Start the station to prepare news · ')+info.available+' unplayed saved stories from the last 48 hours · up to 6 per edition';
   var labels={preparing:'Preparing news…',pending:'Preparing audio…',ready:'Ready · waiting for a song boundary and speech budget',queued:'Queued · after the current song',playing:'Host edition is on air'};
-  $('catchup-status').textContent=info.error||labels[info.state]||catchupMessage||(running()?'':'Start the station to prepare news');
+  $('catchup-status').textContent=info.error||labels[info.state]||catchupMessage||'';
 }
 $('catchup-build').onclick=async function(){
   catchupBusy=true;catchupMessage='';catchupView(st.catchup);

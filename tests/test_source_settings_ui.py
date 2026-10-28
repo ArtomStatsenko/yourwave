@@ -17,12 +17,22 @@ function esc(s){return String(s)}function sourceSettingView(){return '<input id=
 var pls=[{name:'horizon',title:'Horizon',on:false,section:'integrations',description:'General news'},
  {name:'reddit',title:'Reddit',on:true,section:'experiments',description:'Public posts'},
  {name:'news_reactions',title:'Reactions',on:false,section:'experiments',description:'Voice'},
- {name:'weather',title:'Weather',on:true,section:'integrations',description:'Forecast'}];
+ {name:'weather',title:'Weather',on:true,section:'integrations',description:'Forecast'},
+ {name:'ytmusic',title:'YouTube Music',on:true,section:'integrations',description:'Music source'}];
 pluginsView();
 assert($('news-source-list').innerHTML.includes('Technology news · Horizon'));
 assert($('news-source-list').innerHTML.includes('aria-pressed="false"'));
 assert($('news-source-list').innerHTML.includes('Subreddits (1)'));
 assert($('news-source-list').innerHTML.includes('2 new'));
+assert(!$('news-source-list').innerHTML.includes('waiting for the next source check'));
+assert(!$('news-source-list').innerHTML.includes('Off · excluded'));
+assert(!$('news-source-list').innerHTML.includes('id="help-plugin-github_new" open'));
+helpText.open['plugin-horizon']=true;
+pluginsView();
+assert($('news-source-list').innerHTML.includes('id="help-plugin-horizon" open'));
+assert($('news-source-list').innerHTML.includes('Details about Horizon'));
+assert($('news-source-list').innerHTML.includes('Experimental'));
+assert.equal(helpText('empty','','Empty'),'');
 assert(!$('experiment-plugins').innerHTML.includes('data-pl="reddit"'));
 assert($('experiment-plugins').innerHTML.includes('news_reactions'));
 assert(!$('integration-plugins').innerHTML.includes('horizon'));
@@ -32,8 +42,12 @@ $('news-source-list').contains=()=>true;document.activeElement={matches:()=>true
 stg[0].value.push('programming');sourceManagerView();
 assert.equal($('news-source-list').innerHTML,saved,'Polling must not replace an active draft');
 document.activeElement=null;$('news-source-list').contains=()=>false;
-$('news-source-list').querySelectorAll=()=>[{dataset:{sourceKey:'reddit_communities'},open:true}];
-sourceManagerView();assert($('news-source-list').innerHTML.includes('data-source-key="reddit_communities" open'));
+helpText.open['plugin-reddit']=true;
+sourceManagerView();assert($('news-source-list').innerHTML.includes('id="help-plugin-reddit" open'));
+const redditBlock=$('news-source-list').innerHTML.match(/<section aria-label="Reddit">([\s\S]*?)<\/section>/)[1];
+assert.equal((redditBlock.match(/<details/g)||[]).length,1);
+assert(redditBlock.indexOf('id="source-reddit_communities"')<redditBlock.indexOf('</details>'));
+assert(!redditBlock.includes('source-manage-reddit'));
 assert($('news-source-list').innerHTML.includes('Subreddits (2)'));
 '''],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)

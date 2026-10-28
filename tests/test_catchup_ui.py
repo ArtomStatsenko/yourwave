@@ -11,7 +11,7 @@ class CatchupUiTests(unittest.TestCase):
         harness=r'''
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const nodes={};const $=id=>nodes[id]||(nodes[id]={hidden:false,disabled:false,textContent:''});
-let finish;const c={$,st:{state:'PLAYING',catchup:{state:'idle',available:8,error:''}},running:()=>true,
+let finish;const c={$,st:{state:'PLAYING',catchup:{state:'idle',available:8,error:''}},running:()=>c.st.state==='PLAYING',
 api:(path,body)=>{assert.equal(path,'/api/cmd');assert.equal(body.cmd,'catchup');return new Promise(r=>finish=r)}};
 vm.createContext(c);vm.runInContext(SOURCE,c);
 assert.equal(c.entryTitle('news','What I missed · 48h'),'Host edition');
@@ -27,6 +27,9 @@ assert.equal($('catchup-build').disabled,false);assert.equal($('catchup-status')
 pending=$('catchup-build').onclick();finish({ok:true,catchup:{state:'preparing',available:8,error:''}});await pending;
 assert.equal($('catchup-build').disabled,true);assert.match($('catchup-status').textContent,/Preparing/);
 c.catchupView({state:'idle',available:0,error:''});assert.equal($('catchup-build').disabled,true);
+c.st.state='STOPPED';c.catchupView({state:'idle',available:8,error:''});
+assert.equal($('catchup-status').textContent,'');assert.equal($('catchup-build').disabled,true);
+assert.match($('catchup-build').title,/Start the station to prepare news/);
 c.catchupView(undefined);assert.equal($('catchup-controls').hidden,true);
 })().catch(e=>{console.error(e);process.exitCode=1});
 '''
