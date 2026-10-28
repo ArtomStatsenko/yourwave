@@ -120,5 +120,5 @@ var RadioCore=(function(){
     return core;
   }
 
-  return {create:create};
+  return {create:create,KINDS:KINDS};
 })();

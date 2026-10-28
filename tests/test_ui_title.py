@@ -2,7 +2,7 @@ import re
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class TitleAnimationTests(unittest.TestCase):
@@ -173,7 +173,8 @@ var prevented=0,e={preventDefault(){prevented++},dataTransfer:{}};
 $('tl').ondragover(e);assert.equal(e.dataTransfer.dropEffect,'none');$('tl').ondrop(e);assert.equal(planDrag,null);assert.equal(prevented,2);
 """], check=True, capture_output=True, text=True)
         self.assertIn("button.dataset.planAction==='up'?1:-1", source)
-        self.assertIn('aired.slice(0,15)', source)
+        self.assertIn('aired.slice(0,tl.shown)', source)
+        self.assertIn('var HISTORY_SHOWN=15;', source)
 
     def test_gap_times_stay_between_future_neighbors(self):
         source = page_source()
@@ -217,10 +218,11 @@ assert.equal(planDraft.length,0,'Changing insertion time must not edit an existi
 
     def test_current_row_keeps_now_label_without_a_separate_editor_boundary(self):
         source = page_source()
-        render = source[source.index('function sourceLabel('):source.index('function timeline(')]
-        subprocess.run(['node', '-e', render + r"""
-const assert=require('node:assert/strict');var appearance={formatTime:value=>value};var current=true,st={state:'PLAYING'},open={},KIND={music:'music'};
-function isCur(){return current}function esc(s){return String(s)}function entryTitle(k,t){return t}
+        render = theme_source()[theme_source().index('function sourceAnchor('):theme_source().index('function timeline(')]
+        subprocess.run(['node', '-e', core_source() + render + r"""
+const assert=require('node:assert/strict');var appearance={formatTime:value=>value};var current=true,st={state:'PLAYING'},open={};
+function esc(s){return String(s)}function linkedText(s){return s}
+const draw=row;row=x=>draw(RadioModel.entry(x,[x],current,st));  // the theme renders the model's entries
 const track={id:1,kind:'music',title:'Track',time:'15:00'};
 assert.ok(row(track).includes('<span class="tm">now</span>'));
 st.state='PAUSED';assert.ok(row(track).includes('cur paused'));

@@ -1,18 +1,18 @@
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class NewsInlineLinksTests(unittest.TestCase):
     def test_mentions_link_to_their_own_sources_without_changing_the_transcript(self):
         source = page_source()
-        helpers = source[source.index('function sourceLabel('):source.index('function timeline(')]
+        helpers = theme_source()[theme_source().index('function sourceAnchor('):theme_source().index('function timeline(')]
         escape = next(line for line in source.splitlines() if line.startswith('function esc('))
-        result = subprocess.run(['node', '-e', escape + '\n' + helpers + r'''
+        result = subprocess.run(['node', '-e', core_source() + escape + '\n' + helpers + r'''
 const assert=require('node:assert/strict');
-var st={},open={'1':true},KIND={news:'News'},appearance={formatTime:x=>x};
-function isCur(){return false}function entryTitle(k,t){return t}
+var st={},open={'1':true},appearance={formatTime:x=>x};function linkedText(s){return esc(s)}
+const draw=row;row=x=>draw(RadioModel.entry(x,[x],false,st));  // the theme renders the model's entries
 const mlx={title:'Reddit: bestgithubrepos',url:'https://www.reddit.com/r/test/comments/a/mlxserve_native_llm_inference/'};
 const tools={title:'Reddit: bestgithubrepos',url:'https://www.reddit.com/r/test/comments/b/it_tools_collection_of_handy_tools/'};
 const text='На Reddit обсуждают MLX-Serve.\n\nЕщё один проект — IT Tools.';

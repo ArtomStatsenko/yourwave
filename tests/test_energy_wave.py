@@ -15,7 +15,7 @@ from radio import config, energy, music, plugins, settings, store
 from radio.daemon import Service
 from radio.engine import Liquidsoap
 from radio.tts import MockTTS
-from tests.ui_page import page_source
+from tests.ui_page import page_source, core_source
 
 
 class EnergyWaveTests(unittest.TestCase):
@@ -244,15 +244,16 @@ class EnergyWaveTests(unittest.TestCase):
         row = self.svc._music_plan_rows([{'ref': str(self.files[0]), 'kind': 'music', 'duration': 180}])[0]
         self.assertEqual((row['energy'], row['genre'], row['genre_source']), (1, 'rock', 'tag'))
         source = page_source()
-        function = source[source.index('  function trackLabels('):source.index('\n  var next=', source.index('  function trackLabels('))]
-        harness = '''const assert=require('node:assert/strict');
-const tracks=[{ref:'song',energy:3,genre:'<rock>'}],announced=[];
+        function = source[source.index('  function trackLabels('):source.index('\n  var up=', source.index('  function trackLabels('))]
+        harness = core_source() + '''const assert=require('node:assert/strict');
+const status={upcoming_tracks:[{ref:'song',energy:3,genre:'<rock>'}],announced_tracks:[]};
 const esc=s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;');
 FUNCTION
-assert(trackLabels({ref:'song'},true).includes('energy 3/5'));
-assert(trackLabels({ref:'song'},true).includes('&lt;rock&gt;'));
-assert(!trackLabels({ref:'song'},true).includes('<rock>'));
-assert.equal(trackLabels({kind:'news',ref:'song'},true),'');
+const labels=x=>trackLabels(RadioModel.trackTags(x,status,true));
+assert(labels({ref:'song'}).includes('energy 3/5'));
+assert(labels({ref:'song'}).includes('&lt;rock&gt;'));
+assert(!labels({ref:'song'}).includes('<rock>'));
+assert.equal(labels({kind:'news',ref:'song'}),'');
 '''
         result = subprocess.run(['node', '-e', harness.replace('FUNCTION', function)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

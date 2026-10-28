@@ -1,14 +1,14 @@
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class RerollUiTests(unittest.TestCase):
     def test_confirmation_cancel_refresh_and_changed_track(self):
         source = page_source()
         controls = source[source.index('function rerollButton('):source.index('function planReadiness(')]
-        render = source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
+        render = theme_source()[theme_source().index('function backgroundError('):theme_source().index("$('history-more').onclick")]
         events = source[source.index("$('upcoming').onclick="):source.index("$('music-source-select').onchange=")]
         harness = r'''
 const assert=require('node:assert/strict');
@@ -35,5 +35,5 @@ await new Promise(resolve=>setImmediate(resolve));assert.equal(rerollBusy,false)
 state('ordinary',false);click();assert.deepEqual(calls[1],['reroll-next','ordinary']);
 })().catch(e=>{console.error(e);process.exitCode=1});
 '''
-        result = subprocess.run(['node', '-e', controls + render + harness.replace('(async function(){', events + '(async function(){')], capture_output=True, text=True)
+        result = subprocess.run(['node', '-e', core_source() + '\nfunction running(){return false}\n' + controls + render + harness.replace('(async function(){', events + '(async function(){')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

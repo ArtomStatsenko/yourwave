@@ -2,13 +2,13 @@ import json
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import page_source, core_source
 
 
 class CatchupUiTests(unittest.TestCase):
     def test_pending_empty_failure_and_success_states_use_native_command(self):
         source=page_source()
-        script=next(line for line in source.splitlines() if line.startswith('function entryTitle('))+'\n'+source[source.index('var catchupBusy='):source.index('function refresh(){')]
+        script=core_source()+'\n'+next(line for line in source.splitlines() if line.startswith('function entryTitle('))+'\n'+source[source.index('var catchupBusy='):source.index('function refresh(){')]
         harness=r'''
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const nodes={};const $=id=>nodes[id]||(nodes[id]={hidden:false,disabled:false,textContent:''});

@@ -12,3 +12,13 @@ def page_source(theme: str = "terminal") -> str:
     html = (WEB / "themes" / theme / "index.html").read_text()
     html = re.sub(r'<link rel="stylesheet" href="([^"]+)">', lambda m: f"<style>\n{file(m[1])}</style>", html)
     return re.sub(r'<script src="([^"]+)"></script>', lambda m: f"<script>\n{file(m[1])}</script>", html)
+
+
+def core_source() -> str:
+    """The page core and model (radio/web/core), for harnesses that run theme code on top of them."""
+    return (WEB / "core/core.js").read_text() + "\n" + (WEB / "core/model.js").read_text()
+
+
+def theme_source(theme: str = "terminal") -> str:
+    """The theme's own script, for slicing a theme function out by name (the core has functions of the same name)."""
+    return (WEB / "themes" / theme / "view.js").read_text()

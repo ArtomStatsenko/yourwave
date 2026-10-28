@@ -14,7 +14,7 @@ function linkedText(s){return esc(s).replace(/https?:\/\/[^\s]+/gi,function(url)
   var u=url.replace(/[.,;!?)]+$/,'');
   return '<a href="'+u+'" target="_blank" rel="noopener">'+u+'</a>'+url.slice(u.length);
 })}
-function entryTitle(kind,title){if(kind==='news'||kind==='host')return 'Host edition';return kind!=='music'&&/[А-Яа-яЁё]/.test(title)?({reminder:'Reminder',weather:'Local forecast',id:'Station ID',jingle:'Jingle'}[kind]||title):title}
+function entryTitle(kind,title){return RadioModel.entryTitle(kind,title)}
 function f(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
 function num(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n)}
 function api(path,body){return core.api(path,body)}
@@ -614,110 +614,48 @@ function ytConnect(browser){if(ytBusy||!$('yt-form').reportValidity())return;ytB
   }).catch(function(e){$('yt-state').textContent=e.message}).finally(function(){ytBusy=false;$('yt-connect').disabled=$('yt-chrome').disabled=false})}
 $('yt-form').onsubmit=function(e){e.preventDefault();ytConnect('')};
 $('yt-chrome').onclick=function(){ytConnect('chrome')};
-function isCur(x){var current=items.find(function(i){return i.kind!=='session'});return running()&&(x===current||current&&(x.event_ids||[]).includes(current.id))}
-function rk(x){return 'music'}
-// queued comes from the daemon's real queue: it survives a reload, and a replay that went on air drops out
-function queued(x){return (st.replay_queue||[]).some(function(q){return q.kind===rk(x)&&q.ref===x.ref})}
-function sourceLabel(ln){
-  var label=ln.title,address=ln.url.replace(/^https?:\/\/(?:www\.)?/,''),post=address.match(/^reddit\.com\/r\/[^/]+\/comments\/[^/]+\/([^/?#]+)/);
-  if(post&&(!label||/^Reddit:/i.test(label)))label='Reddit · '+post[1].replace(/_/g,' ');
-  return !label||label.replace(/^https?:\/\/(?:www\.)?/,'')===address?'Source · '+address.split(/[/?#]/)[0]:label;
-}
+function rk(x){return RadioModel.replayKind(x)}
 function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
-function newsText(p,used){
-  var text=p.text||'',spans=[],words=Array.from(text.matchAll(/[\p{L}\p{N}]+(?:[-.][\p{L}\p{N}]+)*/gu));
-  var normalize=s=>s.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
-  (p.links||[]).forEach(function(ln){
-    if(!/^https?:\/\//.test(ln.url))return;
-    var url;try{url=new URL(ln.url)}catch(_){return}
-    var slug=url.pathname.split('/').filter(Boolean).pop()||'';
-    var names=[ln.title||'',url.hostname.replace(/^www\./,'')];
-    if(/(^|\.)reddit\.com$/.test(url.hostname))names.push(slug.replace(/_/g,' '));
-    if(url.hostname==='github.com')names.push(url.pathname.split('/')[2]||'');
-    var best=null;
-    names.forEach(function(name){
-      var tokens=(name.match(/[\p{L}\p{N}]+(?:[-.][\p{L}\p{N}]+)*/gu)||[]).map(normalize);
-      for(var n=tokens.length;n>0;n--){
-        if(n===1&&(tokens[0].length<3||/^(the|new|how|why|news|reddit|github|новости|проект|обсуждение)$/.test(tokens[0])))continue;
-        for(var i=0;i<=words.length-n;i++){
-          if(!tokens.slice(0,n).every((token,k)=>token===normalize(words[i+k][0])))continue;
-          var start=words[i].index,end=words[i+n-1].index+words[i+n-1][0].length;
-          if(spans.some(s=>start<s.end&&end>s.start))continue;
-          if(!best||n>best.size)best={start,end,size:n,link:ln};
-        }
-      }
-    });
-    if(best){spans.push(best);used.add(ln.url)}
-  });
-  var at=0,html='';
-  spans.sort((a,b)=>a.start-b.start).forEach(function(s){html+=esc(text.slice(at,s.start))+sourceAnchor(s.link,text.slice(s.start,s.end));at=s.end});
-  return html+esc(text.slice(at));
-}
+function segmentHtml(s){return s.link?sourceAnchor(s.link,s.text):esc(s.text)}
+function newsText(p,used){return RadioModel.newsSegments(p,used).map(segmentHtml).join('')}
+// one timeline entry from RadioModel.timeline(): kind, time, title, now, replay button, unfolded details
 function row(x){
-  var P=x.parts||(x.kind==='reminder'?[{text:x.title,description:x.description,links:x.links||[]}]:[]),id=String(x.id),c=isCur(x),ex=P.some(function(p){return p.text||p.description||(p.links||[]).length}),o=ex&&!!open[id];
-  var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+KIND[x.kind]+'</span><span class="tx">'+esc(entryTitle(x.kind,x.title))+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
+  var id=String(x.id),c=x.current,ex=x.expandable,o=ex&&!!open[id];
+  var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+x.kindLabel+'</span><span class="tx">'+esc(x.text)+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
   var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
   if(x.kind==='music'&&x.replayable)
-    h+=queued(x)?'<button class="rp on" data-dq="'+id+'" title="remove from the queue" aria-label="remove from the queue">queued ✕</button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
+    h+=x.queued?'<button class="rp on" data-dq="'+id+'" title="remove from the queue" aria-label="remove from the queue">queued ✕</button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
   h+='</div>';
   if(o){h+='<div class="ex">';
-    var used=new Set(),texts=P.map(p=>x.kind==='news'?newsText(p,used):esc(p.text));
-    P.forEach(function(p,k){
-      if(P.length>1&&p.title&&!['news','host'].includes(x.kind))h+='<p class="l pt">'+(k+1)+'. '+esc(p.title)+'</p>';
-      if(p.text){
-        var sources=[];
-        if(x.kind==='news')(p.links||[]).forEach(function(ln){
-          if(/^https?:\/\//.test(ln.url)&&!used.has(ln.url)){sources.push(sourceAnchor(ln,sourceLabel(ln)));used.add(ln.url)}
-        });
-        h+='<p class="sub">'+texts[k]+(sources.length?' · '+sources.join(' · '):'')+'</p>';
-      }
-      if(p.description)h+='<p class="sub">'+linkedText(p.description)+'</p>';
-      var old=false;
-      (p.links||[]).forEach(function(ln){
-        if(!/^https?:\/\//.test(ln.url))return;
-        if(!used.has(ln.url)){h+='<p>'+sourceAnchor(ln,sourceLabel(ln))+'</p>';used.add(ln.url)}
-        if(ln.stars_total)h+='<p class="l">★ '+esc(num(ln.stars_total))+(ln.stars_today?' (+'+esc(num(ln.stars_today))+' today)':'')+(ln.original?' · '+esc(ln.original):'')+'</p>';
-        else if(p.source==='github_trending')old=true;
-      });
-      if(old)h+='<p class="l">stars and description were not saved for older bulletins</p>'});
+    RadioModel.entryDetails(x).forEach(function(d){
+      if(d.title)h+='<p class="l pt">'+esc(d.title)+'</p>';
+      if(d.segments)h+='<p class="sub">'+d.segments.map(segmentHtml).join('')+(d.sources.length?' · '+d.sources.map(function(s){return sourceAnchor(s,s.label)}).join(' · '):'')+'</p>';
+      if(d.description)h+='<p class="sub">'+linkedText(d.description)+'</p>';
+      d.links.forEach(function(ln){if(ln.label)h+='<p>'+sourceAnchor(ln,ln.label)+'</p>';if(ln.stars)h+='<p class="l">'+esc(ln.stars)+'</p>'});
+      if(d.oldStars)h+='<p class="l">'+esc(RadioModel.OLD_STARS_NOTE)+'</p>'});
     h+='</div>'}
   return h+'</div>'}
-function backgroundError(message){return /^(?:render |assembly |content:|reminders?:|VoiceStudio unavailable)/i.test(message||'')}
-function hostHistory(events){
-  var rows=[];
-  events.slice().reverse().forEach(function(event){
-    var previous=rows[rows.length-1];
-    if(previous&&((event.type==='MUSIC_TEASER'&&['PACKAGE_STARTED','REPLAY'].includes(previous.type))
-        ||event.type==='PACKAGE_STARTED'&&previous.type==='PACKAGE_STARTED')){
-      rows[rows.length-1]=Object.assign({},previous,{parts:(previous.parts||[]).concat(event.parts||[]),
-        kind:previous.kind==='news'||event.kind==='news'?'news':'host',event_ids:(previous.event_ids||[previous.id]).concat(event.id)});
-    }else rows.push(event);
-  });
-  return rows.reverse();
-}
+function backgroundError(message){return RadioModel.backgroundError(message)}
 function timeline(){
   if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
   var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
-  var tracks=st.upcoming_tracks||[],announced=(st.announced_tracks||[]).slice();
-  function trackLabels(x,isSet){if(!x||x.kind&&x.kind!=='music')return '';var i=announced.indexOf(x.ref),label='',profile=tracks.find(function(t){return t.ref===x.ref});if(i>=0){announced.splice(i,1);label='<span class="l announced-track"> · announced</span>'}return label+(isSet?'<span class="l"> · set</span>':'')+(profile&&profile.energy?'<span class="l"> · energy '+esc(profile.energy)+'/5'+(profile.genre?' · '+esc(profile.genre):'')+'</span>':'')}
-  var next=(st.upcoming||[]).find(function(x){return x.stage==='queued'})||(st.upcoming||[]).find(function(x){return x.stage==='next'})||(st.upcoming||[]).find(function(x){return x.stage==='music'});
+  function trackLabels(tags){if(!tags)return '';return (tags.announced?'<span class="l announced-track"> · announced</span>':'')+(tags.set?'<span class="l"> · set</span>':'')+(tags.energy?'<span class="l"> · energy '+esc(tags.energy)+'/5'+(tags.genre?' · '+esc(tags.genre):'')+'</span>':'')}
+  var up=RadioModel.upcoming(st,rerollError),next=up.next;
   $('upcoming').hidden=!next||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;
-  var nr=st.next_reroll||{},pend=nr.pending,nextTitle=pend?pend.title:entryTitle(next&&next.kind,next&&next.title),rerr=rerollError||nr.error||'';
-  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(pend?' pend':'')+'" title="'+esc(nextTitle)+'">'+esc(nextTitle)+(pend?' <span class="l">· loading…</span>':trackLabels(next,tracks.length&&tracks[0].ref===next.ref&&tracks[0].set))+'</span>'+(next.kind==='music'&&st.next_reroll&&next.ref===st.next_reroll.ref?rerollButton():'')+'</div>'+(rerr?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(rerr)+'</span></div>':''):'';
+  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(up.pending?' pend':'')+'" title="'+esc(up.title)+'">'+esc(up.title)+(up.pending?' <span class="l">· loading…</span>':trackLabels(up.tags))+'</span>'+(up.reroll?rerollButton():'')+'</div>'+(up.error?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(up.error)+'</span></div>':''):'';
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
-  var aired=hostHistory(items).filter(function(x){return x.kind!=='session'}),activity=items.filter(function(x){return x.kind==='session'});
-  var background=backgroundError(st.last_error)?st.last_error:'';
+  var tl=RadioModel.timeline({timeline:items,status:st},running()),aired=tl.entries,activity=tl.activity,background=tl.background;
   if(background&&(!timeline.backgroundNotice||timeline.backgroundNotice.text!==background))timeline.backgroundNotice={text:background,
     time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'})};
   if(!background)timeline.backgroundNotice=null;
   $('activity').hidden=!activity.length&&!background;
   $('activity-log').innerHTML=(background?'<div class="tg"><span class="tm" title="First observed in this tab">'+esc(appearance.formatTime(timeline.backgroundNotice.time))+'</span><span class="tx">'+esc(background)+'</span></div>':'')+activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(appearance.formatTime(x.time))+'</span><span class="tx">Radio started</span></div>'}).join('');
-  $('history-more').hidden=aired.length<=15;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
+  $('history-more').hidden=aired.length<=tl.shown;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
   var history=$('tl'),latest=aired.reduce(function(id,x){return Math.max(id,x.id)},0),previous=timeline.latest;
   timeline.latest=latest;
-  var html=aired.length?(historyExpanded?aired:aired.slice(0,15)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
+  var html=aired.length?(historyExpanded?aired:aired.slice(0,tl.shown)).map(row).join(''):'<p class="l">nothing has aired yet</p>';
   if(timeline.html!==html){
     timeline.html=html;
     var effect=document.documentElement.dataset.timelineEffect||'line';

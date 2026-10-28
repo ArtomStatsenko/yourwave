@@ -1,15 +1,15 @@
 import subprocess
 import unittest
 from pathlib import Path
-from tests.ui_page import page_source
+from tests.ui_page import core_source, page_source, theme_source
 
 
 class TimelineHistoryTests(unittest.TestCase):
     def test_background_errors_live_in_activity_without_replacing_on_air_history(self):
         source=page_source()
         script=next(line for line in source.splitlines() if line.startswith('function esc('))+'\n'
-        script+=source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
-        result=subprocess.run(['node','-e',script+r'''
+        script+=theme_source()[theme_source().index('function backgroundError('):theme_source().index("$('history-more').onclick")]
+        result=subprocess.run(['node','-e',core_source() + '\nfunction running(){return false}\n' + script+r'''
 const assert=require('node:assert/strict');
 var appearance={formatTime:x=>x},document={activeElement:null,documentElement:{dataset:{timelineEffect:'off'}}},nodes={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false;
 function $(id){return nodes[id]||(nodes[id]={scrollTop:0,contains:()=>false,innerHTML:''})}
@@ -35,10 +35,8 @@ assert.equal($('activity-log').innerHTML,'');
 
     def test_announcements_are_part_of_the_same_host_appearance(self):
         source=page_source()
-        script=source[source.index('function hostHistory('):source.index('function timeline(')]
-        script+=source[source.index('function isCur('):source.index('function rk(')]
-        result=subprocess.run(['node','-e',script+r'''
-const assert=require('node:assert/strict');
+        result=subprocess.run(['node','-e',core_source()+r'''
+const assert=require('node:assert/strict');const hostHistory=RadioModel.hostHistory,isCur=x=>RadioModel.isCurrent(x,items,true);
 const news={id:1,kind:'news',type:'PACKAGE_STARTED',parts:[{text:'News',links:[{url:'https://example.com'}]}]};
 const teaser={id:2,kind:'host',type:'MUSIC_TEASER',parts:[{text:'Next song'}]};
 var items=[teaser,news];function running(){return true}
@@ -64,8 +62,8 @@ assert.deepEqual(rows[0].event_ids,[4,3,1,2]);
 
     def test_only_new_broadcast_rows_animate(self):
         source = page_source()
-        render = source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
-        result = subprocess.run(['node', '-e', render + r"""
+        render = theme_source()[theme_source().index('function backgroundError('):theme_source().index("$('history-more').onclick")]
+        result = subprocess.run(['node', '-e', core_source() + '\nfunction running(){return false}\n' + render + r"""
 const assert=require('node:assert/strict');
 var appearance={formatTime:value=>value};
 var st={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false,items=[];
@@ -104,8 +102,8 @@ assert.deepEqual(animations[0].frames,[{opacity:0},{opacity:1}]);
 
     def test_restarts_stay_in_activity_and_do_not_displace_aired_history(self):
         source = page_source()
-        render = source[source.index('function backgroundError('):source.index("$('history-more').onclick")]
-        result = subprocess.run(['node', '-e', render + r'''
+        render = theme_source()[theme_source().index('function backgroundError('):theme_source().index("$('history-more').onclick")]
+        result = subprocess.run(['node', '-e', core_source() + '\nfunction running(){return false}\n' + render + r'''
 const assert = require('node:assert/strict');
 var appearance={formatTime:value=>value};
 var st={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false;
@@ -117,7 +115,7 @@ const songs=Array.from({length:16},(_,i)=>({id:i,kind:'music',title:'Song '+i}))
 const restarts=Array.from({length:4},(_,i)=>({id:10+i,kind:'session',time:'15:20',title:'broadcast started'}));
 var items=[songs[0],...restarts,...songs.slice(1)];
 timeline();
-assert.equal($('tl').innerHTML,songs.slice(0,15).map(row).join(''));
+assert.equal($('tl').innerHTML,songs.slice(0,15).map(x=>row(x)).join(''));
 assert.equal($('history-more').hidden,false);
 assert.equal($('activity').hidden,false);
 assert.equal(($('activity-log').innerHTML.match(/15:20/g)||[]).length,4);
