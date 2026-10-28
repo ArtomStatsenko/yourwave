@@ -61,7 +61,7 @@ The stream watchdog and the Media Session handlers run inside the core.
 | --- | --- |
 | `player(status, core.heard(status), {listening, localControl, busy, nextBusy, lag})` | Air line, title (and whether it is a track title), position, time text, progress, speech budget, voice line, and label, state and title of Listen, Start/Stop, Next |
 | `timeline(snapshot, running)` | `entries` (each with `current`, `queued`, `kindLabel`, `text`, `expandable`), `shown` (entries before "Show earlier"), `activity`, `background` |
-| `entryDetails(entry)` | An unfolded entry part by part: `title`, `segments` (text; mentions of a source carry its `link`), `sources`, `description`, `links` (with `label` and `stars`), `oldStars` |
+| `entryDetails(entry)` | An unfolded entry part by part: `title`, `segments` (text; a mention of a source carries its `url`), `sources`, `description`, `links` (with `label` and `stars`), `oldStars` |
 | `upcoming(status, localRerollError)` | The next block: `next`, `title`, `pending` (a reroll still loading), `tags` (`announced`, `set`, `energy`, `genre`), `reroll` (the dice applies), `error` |
 | `planGroups(rows, status, hours)`, `planRow(row)`, `planGapTime(rows, i)`, `planNow(status)` | The Air direction plan: hours to fold, each block's title, readiness, detail and allowed actions, insertion times |
 | `settings(rows)` | Each setting with `type` (`switch`, `select`, `text`, `stepped`, `slider`), `valueText`, `defaultText`, `changed`; the AI provider, model and voice rows as blocks |

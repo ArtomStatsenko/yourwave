@@ -3,6 +3,7 @@ import json
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from . import music, store, ytmusic
 
@@ -120,4 +121,99 @@ def _build(db, hours: int, limit: int) -> list[dict]:
             e['title'] = edition_title(part['source'] for part in e['parts'])
         e.pop("_at", None)
         e.pop("_topics", None)
+    out = fold_host_appearances(out)
+    for e in out:
+        link_sources(e)
     return out
+
+
+def fold_host_appearances(events: list[dict]) -> list[dict]:
+    """One host appearance is one entry: a teaser after its edition, or editions back to back, join it (parts in
+    the order they were said, event_ids of every event). A song or a session in between keeps them apart."""
+    rows = []
+    for event in reversed(events):  # oldest first
+        prev = rows[-1] if rows else None
+        if prev and ((event["type"] == "MUSIC_TEASER" and prev["type"] in ("PACKAGE_STARTED", "REPLAY"))
+                     or event["type"] == "PACKAGE_STARTED" and prev["type"] == "PACKAGE_STARTED"):
+            rows[-1] = {**prev, "parts": prev.get("parts", []) + event.get("parts", []),
+                        "kind": "news" if "news" in (prev["kind"], event["kind"]) else "host",
+                        "event_ids": prev.get("event_ids", [prev["id"]]) + [event["id"]]}
+        else:
+            rows.append(event)
+    return rows[::-1]
+
+
+def source_label(link: dict) -> str:
+    """How a source link is named: its title, a Reddit post's slug, or the site."""
+    label, address = link.get("title") or "", re.sub(r"^https?://(?:www\.)?", "", link["url"])
+    post = re.match(r"reddit\.com/r/[^/]+/comments/[^/]+/([^/?#]+)", address)
+    if post and (not label or re.match(r"(?i)reddit:", label)):
+        label = "Reddit · " + post[1].replace("_", " ")
+    if not label or re.sub(r"^https?://(?:www\.)?", "", label) == address:
+        return "Source · " + re.split(r"[/?#]", address)[0]
+    return label
+
+
+WORD = re.compile(r"[^\W_]+(?:[-.][^\W_]+)*")  # letters and digits, joined by - or .
+GENERIC = re.compile(r"(the|new|how|why|news|reddit|github|новости|проект|обсуждение)")
+
+
+def _normal(word: str) -> str:
+    return "".join(c for c in word.lower() if c.isalnum())
+
+
+def mention_segments(part: dict, used: set) -> list[dict]:
+    """A story's text in pieces, in order: {text} or {text, url} where the words name one of its sources
+    ("MLX-Serve" -> the Reddit post about it, "Next.js" -> its GitHub repository). One link per source in an
+    entry: used holds the urls already linked. A name of one short or generic word does not count."""
+    text = part.get("text") or ""
+    words = list(WORD.finditer(text))
+    spans = []
+    for link in part.get("links") or []:
+        url = link.get("url") or ""
+        if not re.match(r"https?://", url):
+            continue
+        parts = urlsplit(url)
+        if not parts.hostname:
+            continue
+        slug = next((x for x in reversed(parts.path.split("/")) if x), "")
+        names = [link.get("title") or "", re.sub(r"^www\.", "", parts.hostname)]
+        if re.search(r"(^|\.)reddit\.com$", parts.hostname):
+            names.append(slug.replace("_", " "))
+        if parts.hostname == "github.com":
+            path = parts.path.split("/")
+            names.append(path[2] if len(path) > 2 else "")
+        best = None
+        for name in names:
+            tokens = [_normal(t) for t in WORD.findall(name)]
+            for n in range(len(tokens), 0, -1):
+                if n == 1 and (len(tokens[0]) < 3 or GENERIC.fullmatch(tokens[0])):
+                    continue
+                for i in range(len(words) - n + 1):
+                    if any(tokens[k] != _normal(words[i + k][0]) for k in range(n)):
+                        continue
+                    start, end = words[i].start(), words[i + n - 1].end()
+                    if any(start < s["end"] and end > s["start"] for s in spans):
+                        continue
+                    if not best or n > best["size"]:
+                        best = {"start": start, "end": end, "size": n, "url": url}
+        if best:
+            spans.append(best)
+            used.add(url)
+    out, at = [], 0
+    for span in sorted(spans, key=lambda x: x["start"]):
+        out += [{"text": text[at:span["start"]]}, {"text": text[span["start"]:span["end"]], "url": span["url"]}]
+        at = span["end"]
+    return out + [{"text": text[at:]}]
+
+
+def link_sources(entry: dict) -> None:
+    """Names every source link (label) and, in a host edition with news, splits each story into segments whose
+    mentions link to their sources."""
+    used = set()
+    for part in entry.get("parts") or []:
+        for link in part.get("links") or []:
+            if re.match(r"https?://", link.get("url") or ""):
+                link["label"] = source_label(link)
+        if entry.get("kind") == "news":
+            part["segments"] = mention_segments(part, used)

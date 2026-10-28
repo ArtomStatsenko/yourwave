@@ -562,8 +562,7 @@ $('yt-form').onsubmit=function(e){e.preventDefault();ytConnect('')};
 $('yt-chrome').onclick=function(){ytConnect('chrome')};
 function rk(x){return RadioModel.replayKind(x)}
 function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
-function segmentHtml(s){return s.link?sourceAnchor(s.link,s.text):esc(s.text)}
-function newsText(p,used){return RadioModel.newsSegments(p,used).map(segmentHtml).join('')}
+function segmentHtml(s){return s.url?sourceAnchor(s,s.text):esc(s.text)}
 // one timeline entry from RadioModel.timeline(): kind, time, title, now, replay button, unfolded details
 function row(x){
   var id=String(x.id),c=x.current,ex=x.expandable,o=ex&&!!open[id];

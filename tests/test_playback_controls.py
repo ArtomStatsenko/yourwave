@@ -10,7 +10,6 @@ class PlaybackControlsTests(unittest.TestCase):
         page = page_source()
         audio = page[page.index('var nextBusy=false;'):page.index('function fitTitle(')]
         player = page[page.index('function terminalState('):page.index('var keyFb=')]
-        player = page[page.index('function backgroundError('):page.index('function hostHistory(')] + player
         handlers = page[page.index("$('pp').onclick="):page.index('// 2-second refresh:')]
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');

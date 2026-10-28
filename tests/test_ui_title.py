@@ -231,16 +231,12 @@ current=false;assert.ok(row(track).includes('<span class="tm">15:00</span>'));
 assert(!row(track).includes('cur paused'));
 open['2']=true;
 const url='https://example.com/a-long-article?ref=radio';
-const news={id:2,kind:'news',title:'Edition',time:'15:00',parts:[{links:[{url,title:'A clear article title'}]}]};
+const news={id:2,kind:'news',title:'Edition',time:'15:00',parts:[{links:[{url,title:'A clear article title',label:'A clear article title'}]}]};
 let html=row(news);
 assert(html.includes('>A clear article title</a>'));
 assert(html.includes('href="'+url+'" title="'+url+'"'));
-news.parts[0].links[0].title='example.com/a-long-article?ref=radio';
+news.parts[0].links[0].label='Source · example.com';  // labels come from the server (test_news_inline_links_ui)
 assert(row(news).includes('>Source · example.com</a>'));
-delete news.parts[0].links[0].title;
-assert(row(news).includes('>Source · example.com</a>'));
-news.parts[0].links=[{url:'https://www.reddit.com/r/BestGitHubRepos/comments/abc/mlxserve_native_llm/',title:'Reddit: bestgithubrepos · 2026-10-27'}];
-assert(row(news).includes('>Reddit · mlxserve native llm</a>'));
 """], check=True, capture_output=True, text=True)
         self.assertNotIn('id="plan-history"', source)
         self.assertNotIn('<summary>Add block</summary>', source)

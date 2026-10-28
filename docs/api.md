@@ -39,7 +39,10 @@ music_source_choice, hooks}`:
   `music_source`, `music_source_state`, `ytmusic_active`, `catchup`, `spoken_last_hour_sec`, `speech_limit_sec`,
   `voicestudio`, `sources`, `last_error`, `news_ready`, `news_preparing`, `llm_calls`, `session`.
 - `timeline`: what aired in the last 12 hours, newest first: `{id, type, kind, time, title, ref, replayable,
-  replay, outcome, parts: [{title, text, description, links, source}]}`.
+  replay, outcome, parts: [{title, text, source, links: [{url, title, label, original, stars_total,
+  stars_today}], segments}]}`. One host appearance is one entry: a teaser or editions back to back are folded
+  into it, `event_ids` lists their events. In a host edition with news, `segments` is the story's text in pieces
+  (`{text}` or `{text, url}` where the words name one of its sources); `label` is how a link is named.
 - `plugins`: `{name, title, description, on, section, available, unavailable_reason}`.
 - `settings`: `{key, title, hint, value, default, min, max, step, unit, options, value_labels, multiline}`, and
   for the special rows `connection`, `active`, `labels`, `key_field`, `action` (AI provider) or `voice_state`

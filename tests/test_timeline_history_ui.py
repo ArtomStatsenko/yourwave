@@ -1,3 +1,4 @@
+import json
 import subprocess
 import unittest
 from pathlib import Path
@@ -34,31 +35,35 @@ assert.equal($('activity-log').innerHTML,'');
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_announcements_are_part_of_the_same_host_appearance(self):
-        source=page_source()
-        result=subprocess.run(['node','-e',core_source()+r'''
-const assert=require('node:assert/strict');const hostHistory=RadioModel.hostHistory,isCur=x=>RadioModel.isCurrent(x,items,true);
-const news={id:1,kind:'news',type:'PACKAGE_STARTED',parts:[{text:'News',links:[{url:'https://example.com'}]}]};
-const teaser={id:2,kind:'host',type:'MUSIC_TEASER',parts:[{text:'Next song'}]};
-var items=[teaser,news];function running(){return true}
-let rows=hostHistory(items);
-assert.equal(rows.length,1);assert.equal(rows[0].id,1,'Opening the edition remains stable when its outro airs');
-assert.deepEqual(rows[0].parts.map(p=>p.text),['News','Next song']);
-assert.equal(rows[0].parts[0].links[0].url,'https://example.com');
-assert(isCur(rows[0]),'The whole edition stays current during the announcement');
-assert.equal(news.parts.length,1,'Rendering must not mutate source history');
-assert.deepEqual(hostHistory([teaser,{id:3,kind:'music',type:'MUSIC_STARTED'},news]).map(e=>e.id),[2,3,1],
- 'A song boundary must never be folded into a host appearance');
-assert.equal(hostHistory([teaser]).length,1,'An orphan announcement remains inspectable');
-assert.equal(hostHistory([teaser,{id:3,kind:'session',type:'SESSION_STARTED'},news]).length,3);
-const musicStory={id:3,kind:'host',type:'PACKAGE_STARTED',parts:[{text:'Music story'}]};
-const weather={id:4,kind:'news',type:'PACKAGE_STARTED',parts:[{text:'Weather'}]};
-rows=hostHistory([teaser,news,musicStory,weather]);
-assert.equal(rows.length,1,'Weather, music stories, news and announcements share one host appearance');
-assert.equal(rows[0].kind,'news');
-assert.deepEqual(rows[0].parts.map(p=>p.text),['Weather','Music story','News','Next song']);
-assert.deepEqual(rows[0].event_ids,[4,3,1,2]);
-'''],capture_output=True,text=True)
-        self.assertEqual(result.returncode,0,result.stderr)
+        from radio.timeline import fold_host_appearances
+        news = {'id': 1, 'kind': 'news', 'type': 'PACKAGE_STARTED', 'parts': [{'text': 'News', 'links': [{'url': 'https://example.com'}]}]}
+        teaser = {'id': 2, 'kind': 'host', 'type': 'MUSIC_TEASER', 'parts': [{'text': 'Next song'}]}
+        rows = fold_host_appearances([teaser, news])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['id'], 1, 'Opening the edition remains stable when its outro airs')
+        self.assertEqual([p['text'] for p in rows[0]['parts']], ['News', 'Next song'])
+        self.assertEqual(rows[0]['parts'][0]['links'][0]['url'], 'https://example.com')
+        self.assertEqual(len(news['parts']), 1, 'Folding must not change the events it was given')
+        self.assertEqual([e['id'] for e in fold_host_appearances([teaser, {'id': 3, 'kind': 'music', 'type': 'MUSIC_STARTED'}, news])],
+                         [2, 3, 1], 'A song boundary must never be folded into a host appearance')
+        self.assertEqual(len(fold_host_appearances([teaser])), 1, 'An orphan announcement remains inspectable')
+        self.assertEqual(len(fold_host_appearances([teaser, {'id': 3, 'kind': 'session', 'type': 'SESSION_STARTED'}, news])), 3)
+        story = {'id': 3, 'kind': 'host', 'type': 'PACKAGE_STARTED', 'parts': [{'text': 'Music story'}]}
+        weather = {'id': 4, 'kind': 'news', 'type': 'PACKAGE_STARTED', 'parts': [{'text': 'Weather'}]}
+        rows = fold_host_appearances([teaser, news, story, weather])
+        self.assertEqual(len(rows), 1, 'Weather, music stories, news and announcements share one host appearance')
+        self.assertEqual(rows[0]['kind'], 'news')
+        self.assertEqual([p['text'] for p in rows[0]['parts']], ['Weather', 'Music story', 'News', 'Next song'])
+        self.assertEqual(rows[0]['event_ids'], [4, 3, 1, 2])
+        check = r"""
+const assert=require('node:assert/strict');
+assert(RadioModel.isCurrent(rows[0],rows,true),'The whole edition stays current during the announcement');
+assert(!RadioModel.isCurrent(rows[0],rows,false));
+assert(RadioModel.isCurrent({id:9,event_ids:[4,3]},[{id:3,kind:'host'}],true),'An entry holding the event on air is current');
+"""
+        result = subprocess.run(['node', '-e', core_source() + 'const rows=' + json.dumps(rows) + ';' + check],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_only_new_broadcast_rows_animate(self):
         source = page_source()
