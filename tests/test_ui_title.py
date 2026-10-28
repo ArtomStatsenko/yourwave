@@ -71,7 +71,7 @@ assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:null,
 
     def test_editor_hour_groups_and_autosave_rollback(self):
         source = page_source()
-        code = "var appearance={formatTime:value=>value};\n" + re.search(r'function planDragClock\(at\)\{[^\n]+', source).group(0) + '\n' + source[source.index('function planGroups('):source.index('function planMove(')]
+        code = core_source() + "var appearance={formatTime:value=>value};\n" + re.search(r'function planDragClock\(at\)\{[^\n]+', source).group(0) + '\n' + theme_source()[theme_source().index('function planGroups('):theme_source().index('function planMove(')]
         result = subprocess.run(['node', '-e', code + r"""
 const assert=require('node:assert/strict');
 const at=Date.parse('2026-10-24T06:00:00Z');Date.now=()=>at;
@@ -178,7 +178,7 @@ $('tl').ondragover(e);assert.equal(e.dataTransfer.dropEffect,'none');$('tl').ond
 
     def test_gap_times_stay_between_future_neighbors(self):
         source = page_source()
-        helper = source[source.index('function planGapTime('):source.index('function findPlanGap(')]
+        helper = core_source() + 'const planGapTime=RadioModel.planGapTime;'  # the model computes insertion times
         subprocess.run(['node', '-e', helper + r"""
 const assert=require('node:assert/strict');const at=Date.parse('2026-10-24T06:00:00Z');Date.now=()=>at;
 const rows=[{at:new Date(at+3600e3).toISOString()},{at:new Date(at+1800e3).toISOString()}];

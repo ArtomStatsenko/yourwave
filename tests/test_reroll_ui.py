@@ -7,7 +7,7 @@ from tests.ui_page import core_source, page_source, theme_source
 class RerollUiTests(unittest.TestCase):
     def test_confirmation_cancel_refresh_and_changed_track(self):
         source = page_source()
-        controls = source[source.index('function rerollButton('):source.index('function planReadiness(')]
+        controls = theme_source()[theme_source().index('function rerollButton('):theme_source().index('function planReadiness(')]
         render = theme_source()[theme_source().index('function backgroundError('):theme_source().index("$('history-more').onclick")]
         events = source[source.index("$('upcoming').onclick="):source.index("$('music-source-select').onchange=")]
         harness = r'''

@@ -362,26 +362,9 @@ function rerollNext(action,ref){
   rerollConfirm=null;rerollBusy=true;rerollError='';directionView();timeline();
   cmd('reroll-next',{ref:st.next_reroll.ref}).then(function(r){rerollError=r&&r.ok?'':r&&r.error||'Could not replace the next track. Try again.'}).finally(function(){rerollBusy=false;directionView();timeline()});
 }
-function planReadiness(r){
-  if(r.optional)return 'optional';
-  if(r.skipped||r.kind==='music'||r.preparation_started===false)return '';
-  if(r.status==='ERROR')return 'error';
-  if(r.status==='QUEUED')return 'queued';
-  if(r.voice_ready)return 'ready';
-  if(r.text_ready)return 'voice pending';
-  return typeof r.text_ready==='boolean'?'text pending':'';
-}
-function planGroups(rows){
-  var first=planNow(),end=first+planHorizon*3600e3,groups={};
-  var format=new Intl.DateTimeFormat('en-CA',{timeZone:st.direction_timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}),current=format.format(new Date(first));
-  var entries=rows.flatMap(function(r,i){return r.kind==='music'?[]:[{row:r,index:i}]}),announced=(st.announced_tracks||[]).slice();
-  (st.upcoming_tracks||[]).forEach(function(r,i){var mark=announced.indexOf(r.ref);if(mark>=0)announced.splice(mark,1);
-    entries.push({row:Object.assign({},r,{id:'track:'+i,kind:'music',announced:mark>=0}),index:null})});
-  entries.forEach(function(e){var at=Date.parse(e.row.at);if(at>=end)return;var hour=Number.isFinite(at)?format.format(new Date(at)):'pending';
-    (groups[hour]||(groups[hour]=[])).push(e)});
-  return Object.keys(groups).map(function(k){return {key:k,current:k===current,entries:groups[k].sort(function(a,b){return k==='pending'?b.row.id.slice(6)-a.row.id.slice(6):Date.parse(b.row.at)-Date.parse(a.row.at)})}}).sort(function(a,b){return a.key==='pending'?-1:b.key==='pending'?1:Date.parse(b.entries[0].row.at)-Date.parse(a.entries[0].row.at)});
-}
-function planNow(){return st.state==='PAUSED'&&st.paused_at?st.paused_at*1000:Date.now()}
+function planReadiness(r){return RadioModel.planReadiness(r)}
+function planGroups(rows){return RadioModel.planGroups(rows,st,planHorizon)}
+function planNow(){return RadioModel.planNow(st)}
 function directionView(force){
   var enabled=pls.some(function(p){return p.name==='air_direction'&&p.on});if(!enabled)planDraft=null;
   var editing=!!planDraft;$('plan-pause').hidden=!editing||st.state!=='PAUSED';$('direction-controls').hidden=!enabled;document.body.classList.toggle('program-editing',editing);
@@ -398,16 +381,14 @@ function directionView(force){
   var anchorKey=anchor&&anchor.dataset.planKey,anchorTop=anchor&&anchor.getBoundingClientRect().top;
   var focused=box.contains(document.activeElement)?document.activeElement:null,fr=focused&&focused.closest('[data-plan-index]'),focusId=fr&&fr.dataset.planKey,focusAction=focused&&focused.dataset.planAction,focusGap=focused&&focused.hasAttribute('data-plan-add')&&focused.parentNode.dataset.planGap,focusHour=focused&&focused.closest('summary')&&focused.closest('[data-hour]').dataset.hour;
   function clock(at){return at?planDragClock(at):'—'}
-  function render(entry){var r=entry.row,i=entry.index,title=r.title||r.kind;
-    if(r.edition)title='Host edition';
+  function render(entry){var r=entry.row,i=entry.index,p=RadioModel.planRow(r),title=p.title;
     if(r.kind==='music')return '<div class="it music" data-plan-key="'+esc(r.id)+'"'+(r.at?' data-plan-at="'+esc(r.at)+'"':'')+'><div class="hd"><div class="tg"><span class="tm plan-time">'+(r.at?'~':'')+esc(clock(r.at))+'</span><span class="tx" title="'+esc(title)+'">'+'<span class="track-title">'+esc(title)+'</span> <span class="l track-labels">'+(r.announced?'announced':'')+(r.set?(r.announced?' · ':'')+'set':'')+'</span></span></div></div></div>';
-    var editable=!r.locked&&r.kind!=='music',skippable=['news','weather','reminder'].includes(r.kind),readiness=planReadiness(r)||(r.kind==='music'?'':'scheduled');
-    var detail=r.edition||r.kind==='music'?'':r.content_title||'';
-    var expected=r.expected_at&&Math.abs(Date.parse(r.expected_at)-Date.parse(r.at))>=60000?(detail?' · ':'')+'expected ~'+clock(r.expected_at):'';
+    var editable=p.editable,skippable=p.skippable,detail=p.detail;
+    var expected=p.expectedAt?(detail?' · ':'')+'expected ~'+clock(p.expectedAt):'';
     return '<div class="it '+esc(r.kind)+(r.skipped?' skipped':'')+'" data-plan-index="'+i+'" data-plan-key="'+esc(r.id)+'" data-plan-draggable="'+editable+'"><div class="hd"><div class="tg">'
       +(editable?'<button type="button" class="tm plan-time" data-plan-action="time" aria-label="Change time: '+esc(title)+'">':'<span class="tm plan-time">')+(r.estimated?'~':'')+esc(clock(r.at))+(editable?'</button>':'</span>')
       +(r.edition?'<button type="button" class="tx edition-toggle" data-plan-action="segments" aria-expanded="'+!!planOpen[r.id]+'">':'<span class="tx">')+esc(title)+(r.edition&&expected?'<span class="l plan-expected"> · '+esc(expected)+'</span>':'')+(r.edition?'</button>':'</span>')
-      +'<span class="l plan-readiness">'+esc(r.skipped?'skipped':readiness)+'</span>'+(!r.edition&&(detail||expected)?'<span class="l plan-detail">'+esc(detail+expected)+'</span>':'')+'</div>'
+      +'<span class="l plan-readiness">'+esc(p.readiness)+'</span>'+(!r.edition&&(detail||expected)?'<span class="l plan-detail">'+esc(detail+expected)+'</span>':'')+'</div>'
       +(editable||skippable?'<div class="plan-inline">'+(editable?'<button type="button" data-plan-action="up" aria-label="Move later: '+esc(title)+'">↑</button><button type="button" data-plan-action="down" aria-label="Move earlier: '+esc(title)+'">↓</button>':'')+'<button type="button" data-plan-action="skip" aria-label="'+(r.skipped?'Restore block':planConfirm===r.id?'Confirm skip reminder':'Skip block')+'">'+(r.skipped?'↶':planConfirm===r.id?'Confirm skip':'×')+'</button></div>':'')+'</div>'
       +(editable&&planTimeId===r.id?'<div class="plan-actions"><label class="sr" for="plan-time-'+i+'">Play at or after</label><input type="datetime-local" id="plan-time-'+i+'" aria-label="Play at or after" value="'+localInput(r.at)+'"></div>':'')
       +(r.edition&&planOpen[r.id]?'<div class="ex edition-segments">'+(r.segments||[]).map(function(seg){return '<div class="edition-segment"><span>'+esc(seg.title)+'</span><span class="l">'+esc(planReadiness(seg))+'</span>'+((seg.items||[]).length?'<p class="l">'+seg.items.map(esc).join(' · ')+'</p>':'')+'</div>'}).join('')+'</div>':'')
@@ -442,11 +423,7 @@ function directionView(force){
   if(focusHour){var hour=Array.from(box.querySelectorAll('[data-hour]')).find(function(el){return el.dataset.hour===focusHour});if(hour)hour.querySelector('summary').focus({preventScroll:true})}
   if(focusId&&focusAction){var i=planDraft.findIndex(function(r){return r.id===focusId}),el=box.querySelector('[data-plan-index="'+i+'"] [data-plan-action="'+focusAction+'"]');if(el)el.focus({preventScroll:true})}
 }
-function planGapTime(rows,index){
-  var lower=index<rows.length?Date.parse(rows[index].at):Date.now(),upper=index?Date.parse(rows[index-1].at):lower+60000;
-  lower=Math.max(lower,Date.now());if(upper<=lower)return null;
-  return new Date(lower+(upper-lower)/2).toISOString();
-}
+function planGapTime(rows,index){return RadioModel.planGapTime(rows,index)}
 function findPlanGap(key){return Array.from($('direction-list').querySelectorAll('[data-plan-gap]')).find(function(el){return el.dataset.planGap===key})}
 function closePlanInsert(){var key=planInsertKey;planInsertKey=null;$('plan-add').hidden=true;directionView();var slot=findPlanGap(key);if(slot)slot.querySelector('button').focus({preventScroll:true})}
 function openPlanInsert(button){

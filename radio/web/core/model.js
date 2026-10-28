@@ -137,7 +137,51 @@ var RadioModel=(function(){
     return {announced:i>=0,set:!!isSet,energy:profile&&profile.energy?profile.energy:null,genre:profile&&profile.energy&&profile.genre?profile.genre:''};
   }
 
-  return {KINDS:KINDS,num:num,entryTitle:entryTitle,backgroundError:backgroundError,hostHistory:hostHistory,
+  // ---- the plan (Air direction): what is scheduled for the next hours
+
+  // How far a planned block is: optional, error, queued, ready, voice pending, text pending ('' when nothing to say).
+  function planReadiness(r){
+    if(r.optional)return 'optional';
+    if(r.skipped||r.kind==='music'||r.preparation_started===false)return '';
+    if(r.status==='ERROR')return 'error';
+    if(r.status==='QUEUED')return 'queued';
+    if(r.voice_ready)return 'ready';
+    if(r.text_ready)return 'voice pending';
+    return typeof r.text_ready==='boolean'?'text pending':'';
+  }
+  // "Now" for the plan, in ms: the moment of the pause while paused (the plan does not run on without the air).
+  function planNow(status){return status.state==='PAUSED'&&status.paused_at?status.paused_at*1000:Date.now()}
+  // The plan's blocks and the coming songs within horizonHours, grouped by hour of the station's time zone, newest
+  // hour first: [{key ('YYYY-MM-DD, HH' or 'pending' for blocks without a time), current (this hour),
+  // entries: [{row, index (in rows; null for a song)}] newest first}]. A song announced on air is marked announced.
+  function planGroups(rows,status,horizonHours){
+    var first=planNow(status),end=first+horizonHours*3600e3,groups={};
+    var format=new Intl.DateTimeFormat('en-CA',{timeZone:status.direction_timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}),current=format.format(new Date(first));
+    var entries=rows.flatMap(function(r,i){return r.kind==='music'?[]:[{row:r,index:i}]}),announced=(status.announced_tracks||[]).slice();
+    (status.upcoming_tracks||[]).forEach(function(r,i){var mark=announced.indexOf(r.ref);if(mark>=0)announced.splice(mark,1);
+      entries.push({row:Object.assign({},r,{id:'track:'+i,kind:'music',announced:mark>=0}),index:null})});
+    entries.forEach(function(e){var at=Date.parse(e.row.at);if(at>=end)return;var hour=Number.isFinite(at)?format.format(new Date(at)):'pending';
+      (groups[hour]||(groups[hour]=[])).push(e)});
+    return Object.keys(groups).map(function(k){return {key:k,current:k===current,entries:groups[k].sort(function(a,b){return k==='pending'?b.row.id.slice(6)-a.row.id.slice(6):Date.parse(b.row.at)-Date.parse(a.row.at)})}}).sort(function(a,b){return a.key==='pending'?-1:b.key==='pending'?1:Date.parse(b.entries[0].row.at)-Date.parse(a.entries[0].row.at)});
+  }
+  // A time for a block inserted before rows[index] (rows newest first): halfway to the next newer one, never in the
+  // past; null when there is no room.
+  function planGapTime(rows,index){
+    var lower=index<rows.length?Date.parse(rows[index].at):Date.now(),upper=index?Date.parse(rows[index-1].at):lower+60000;
+    lower=Math.max(lower,Date.now());if(upper<=lower)return null;
+    return new Date(lower+(upper-lower)/2).toISOString();
+  }
+  // One planned block as shown: title, readiness ('skipped', 'scheduled', ...), detail (what the block holds),
+  // expectedAt (when it will likely air, if a minute or more from its planned time), and what may be done with it.
+  function planRow(r){
+    var music=r.kind==='music';
+    var expected=!music&&r.expected_at&&Math.abs(Date.parse(r.expected_at)-Date.parse(r.at))>=60000?r.expected_at:null;
+    return {title:r.edition?'Host edition':r.title||r.kind,readiness:r.skipped?'skipped':planReadiness(r)||(music?'':'scheduled'),
+      detail:r.edition||music?'':r.content_title||'',expectedAt:expected,
+      editable:!r.locked&&!music,skippable:['news','weather','reminder'].includes(r.kind)};
+  }
+
+  return {KINDS:KINDS,num:num,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,hostHistory:hostHistory,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,sourceLabel:sourceLabel,newsSegments:newsSegments,starsText:starsText,
     OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
