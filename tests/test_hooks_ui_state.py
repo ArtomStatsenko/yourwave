@@ -17,7 +17,7 @@ async function review(approved){
     play:async()=>{},pause:()=>paused++,removeAttribute(k){this[k]=''},load(){}});
   const before={counts:{CANDIDATE:1},candidates:[{id:11,ref:'Dad, Look!',provider:'test',start:1,end:7}]};
   const after={counts:approved?{APPROVED:1}:{REJECTED:1},candidates:[]};
-  const c={$: $,esc:x=>x,TOKEN:'test',fetch:async()=>({ok:true,blob:async()=>({})}),
+  const c={$: $,esc:x=>x,core:{fetch:async()=>({ok:true,blob:async()=>({})})},
     URL:{createObjectURL:()=> 'blob:hook',revokeObjectURL:()=>revoked++},
     api:async()=>({ok:true,hooks:after})};
   vm.createContext(c);vm.runInContext(SOURCE,c);c.hooksView(before);

@@ -1,7 +1,8 @@
-// Data comes from the radio daemon via /api/status (status + 12 h timeline). Rendering is always from state,
-// so a row expanded by its id stays expanded across the 2-second refresh.
-var TOKEN=RADIO.token;
-var LOCAL_CONTROL=RADIO.localControl;
+// The terminal theme. RadioCore (radio/web/core) polls the radio and holds the data; this file renders it.
+// Rendering is always from state, so a row expanded by its id stays expanded across the 2-second refresh.
+var RadioTheme=(function(){
+function mount(core,root){
+var LOCAL_CONTROL=core.localControl;
 var planOpen={},planHours={},planHorizon=3,planUndo=null,planInsertKey=null,historyExpanded=false,rerollBusy=false,rerollError='',rerollConfirm=null;
 var KIND={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
 var dirBlocks=[],dirLoaded=false,dirBusy=false,planDraft=null,planVersion=null,planDrag=null,planTimeId=null,planConfirm=null;
@@ -16,7 +17,7 @@ function linkedText(s){return esc(s).replace(/https?:\/\/[^\s]+/gi,function(url)
 function entryTitle(kind,title){if(kind==='news'||kind==='host')return 'Host edition';return kind!=='music'&&/[А-Яа-яЁё]/.test(title)?({reminder:'Reminder',weather:'Local forecast',id:'Station ID',jingle:'Jingle'}[kind]||title):title}
 function f(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
 function num(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n)}
-function api(path,body){return fetch(path,{method:body?'POST':'GET',headers:{'X-Radio-Token':TOKEN,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}).then(function(r){return r.json()})}
+function api(path,body){return core.api(path,body)}
 // ---- listening: the station plays one live stream (/stream, same origin so Web Audio can read it). Pause and
 // volume are this page's own; next / skip / stop / replay are station commands for every listener.
 var nextBusy=false;
@@ -358,7 +359,7 @@ $('hook-review').onclick=async function(e){
   var play=e.target.closest('[data-hook-play]'),review=e.target.closest('[data-hook-review]');if(!play&&!review)return;
   var button=play||review;button.disabled=true;$('hook-feedback').textContent='';
   try{
-    if(play){var response=await fetch('/hook-preview.wav?id='+play.dataset.hookPlay,{headers:{'X-Radio-Token':TOKEN}});if(!response.ok)throw Error('Hook is unavailable.');
+    if(play){var response=await core.fetch('/hook-preview.wav?id='+play.dataset.hookPlay);if(!response.ok)throw Error('Hook is unavailable.');
       var blob=await response.blob();if(hookObjectUrl)URL.revokeObjectURL(hookObjectUrl);hookObjectUrl=URL.createObjectURL(blob);
       $('hook-audio').src=hookObjectUrl;$('hook-audio').hidden=false;await $('hook-audio').play();
     }else{var approved=review.dataset.approved==='true';
@@ -801,14 +802,11 @@ $('catchup-build').onclick=async function(){
   }catch(error){catchupMessage=error.message;}
   finally{catchupBusy=false;catchupView(st.catchup);}
 };
-function refresh(){
-  var sequence=refresh.sequence=(refresh.sequence||0)+1;
-  return api('/api/status').then(function(d){
-    if(sequence<(refresh.applied||0))return;
-    if(!d.status)throw Error(d.error||'the page cannot reach the radio');
-    refresh.applied=sequence;
-    if(refresh.error&&$('er').textContent===refresh.error)$('er').textContent='';
-    refresh.error='';
+function refresh(){return core.refresh()}
+var shownError='';  // the poll error this page put in #er, cleared when a poll works again
+function applySnapshot(d){
+    if(shownError&&$('er').textContent===shownError)$('er').textContent='';
+    shownError='';
     st=d.status;catchupView(st.catchup);
     if(!running()&&listening)unlisten();
     if(d.audio_preset&&document.activeElement!==$('audio-preset')){
@@ -820,8 +818,11 @@ function refresh(){
       if(!ytLoaded&&document.activeElement!==$('yt-playlist')){$('yt-playlist').value=d.ytmusic.playlist;ytLoaded=true}
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
-    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();watchdog();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)})
-    .catch(function(error){if(sequence>=(refresh.applied||0)){refresh.error=error.message||'the page cannot reach the radio';$('er').textContent=refresh.error}})}
+    hist.push({t:Date.now(),s:st});while(hist.length>2&&hist[1].t<Date.now()-30000)hist.shift();watchdog();items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)
+}
+core.subscribe(function(core,change){
+  if(change==='snapshot')applySnapshot(core.snapshot);
+  else if(change==='error'){shownError=core.error;$('er').textContent=shownError}});
 
 function selectTab(b){
   if(b.dataset.tab!=='tl'&&planDraft&&!dirBusy)$('plan-done').onclick();
@@ -847,9 +848,8 @@ $('nx').onclick=function(){cmd('next')};
 $('sk').onclick=function(){cmd('skip-news')};
 $('so').onclick=function(){if(LOCAL_CONTROL&&!busy&&st.state!=='STOPPING')cmd(running()?'stop':'play')};
 // 2-second refresh: re-renders from state, so expanded rows (open) stay open
-setInterval(refresh,2000);
 setInterval(player,250);
-refresh();
+core.start();
 /* ---- visualizer: audio-driven braille patterns under the title.
    Feed: radioViz.set(32 spectrum values 0..1, dw() waveform values 0..1). No feed (no sound): it settles into a flat
    muted line and the loop stops. ---- */
@@ -922,3 +922,6 @@ var radioViz=(function(){
   return{dw:function(){return DW},
     set:function(a,w){if(still||document.hidden||!enabled)return;fed=performance.now();for(var i=0;i<N;i++)spec[i]=a[i]||0;for(var j=0;j<DW;j++)wave[j]=w[j]==null?.5:w[j];
       if(!run){run=true;requestAnimationFrame(tick)}}}})();
+}
+return {mount:mount};
+})();

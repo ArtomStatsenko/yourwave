@@ -8,7 +8,8 @@ from tests.ui_page import page_source
 class VisualizerTests(unittest.TestCase):
     def test_modes_audio_decay_storage_resize_and_motion(self):
         source = page_source()
-        visualizer = source[source.index('var radioViz='):source.rindex('</script>')]
+        start = source.index('var radioViz=')
+        visualizer = source[start:source.index('\n}\nreturn {mount:mount};', start)]  # up to the end of the theme's mount()
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
 function setup(saved='pulse',reduced=false){
