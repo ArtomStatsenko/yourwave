@@ -79,9 +79,12 @@ assert.deepEqual(went.pop(),['assign','/?theme=synthwave']);
 
 class CoreThemeTests(unittest.TestCase):
     def test_every_soft_accent_reads_at_4_5_to_1_in_both_modes(self):
-        harness = CORE + r"""
+        presets = re.findall(r'data-accent="(#[0-9a-f]{6})"', (WEB / "themes/soft/index.html").read_text())
+        self.assertEqual(len(presets), 6)
+        harness = f"const PRESETS={json.dumps(presets)};" + CORE + r"""
 const assert=require('node:assert/strict');
-for(const accent of ['#5668f0','#ef5a6f','#139a92','#d98410','#9459ee','#2f9e55','#ffff00','#000080']){
+for(const accent of PRESETS)assert.ok(RadioCore.contrast(RadioCore.onFill(accent),accent)>=4.5,'preset '+accent+': its fill labels read without the bold fallback');
+for(const accent of PRESETS.concat(['#9459ee','#ffff00','#000080'])){
   for(const [ground,dark] of [['#e8ecf4',false],['#23262e',true]]){
     const text=RadioCore.textAccent(accent,ground,dark);
     assert.ok(RadioCore.contrast(text,ground)>=4.5,accent+' on '+ground+': '+text);
@@ -89,7 +92,25 @@ for(const accent of ['#5668f0','#ef5a6f','#139a92','#d98410','#9459ee','#2f9e55'
   const ink=RadioCore.onFill(accent),other=ink==='#ffffff'?'#111111':'#ffffff';
   assert.ok(RadioCore.contrast(ink,accent)>=RadioCore.contrast(other,accent),'the label colour that reads better on '+accent)}
 assert.equal(RadioCore.onFill('#5668f0'),'#ffffff');
-assert.ok(RadioCore.contrast(RadioCore.onFill('#9459ee'),'#9459ee')<4.5,'violet: a mid-tone fill (its labels are bold)');
+assert.ok(RadioCore.contrast(RadioCore.onFill('#9459ee'),'#9459ee')<4.5,'a custom mid-tone fill (its labels are bold)');
+"""
+        result = subprocess.run(["node", "-e", harness], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_soft_sliders_fill_up_to_the_knob(self):
+        harness = r"""
+const assert=require('node:assert/strict');
+var RadioBars={wrap:t=>t},RadioTheme={mount(){}};
+""" + (WEB / "themes/soft/view.js").read_text() + r"""
+const el=(min,max,value)=>({min,max,value,style:{setProperty(k,v){this[k]=v}}});
+const a=el('0','4','1');RadioTheme.fill(a);assert.equal(a.style['--value'],'25%');
+const b=el('','','100');RadioTheme.fill(b);assert.equal(b.style['--value'],'100%','the default range is 0 to 100');
+const c=el('5','5','5');RadioTheme.fill(c);assert.equal(c.style['--value'],'0%');
+const sliders=[el('0','10','5')],subs=[];let listener;
+RadioTheme.mount({subscribe:f=>subs.push(f)},{querySelectorAll:()=>sliders,addEventListener:(k,f)=>listener=f});
+assert.equal(sliders[0].style['--value'],'50%');
+sliders[0].value='10';subs.forEach(f=>f());assert.equal(sliders[0].style['--value'],'100%','after a redraw');
+sliders[0].value='0';sliders[0].type='range';listener({target:sliders[0]});assert.equal(sliders[0].style['--value'],'0%','as it moves');
 """
         result = subprocess.run(["node", "-e", harness], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
