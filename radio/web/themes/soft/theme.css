@@ -1,0 +1,40 @@
+/* Soft: light, raised and pressed surfaces, one periwinkle accent. The card layout is shared (themes/shared/cards.css).
+   Muted text and accent-coloured text are a shade darker than the design's #66709a and #5668f0, which reach 4.1:1
+   and 3.8:1 on the background; small text needs 4.5:1. Fills (the main button, switches) keep #5668f0. */
+@import url("/ui/themes/shared/cards.css");
+
+:root[data-skin="soft"]{color-scheme:light;--bg:#e8ecf4;--surface:#e8ecf4;--tile:#e8ecf4;--current:#e8ecf4;--current-line:transparent;--summary:#e8ecf4;
+  --ink:#2a3350;--muted:#5e678e;--line:#c5cad8;--accent:#5668f0;--accent-text:#4357ee;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
+  --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:linear-gradient(145deg,#c9d4ff,#f5d0ff);
+  --raised:5px 5px 10px #c5cad8,-5px -5px 10px #fff;--pressed:inset 4px 4px 8px #c5cad8,inset -4px -4px 8px #fff;
+  --r-panel:30px;--r-tile:16px;--r-button:999px;--r-tab:999px;--r-input:14px;--r-cover:22px;--title-size:26px;--title-weight:700;--title-track:0}
+
+/* raised: panels, buttons, the tabs not open; pressed: the open tab, the current row, fields, progress, switches */
+:root[data-skin="soft"] .panel{box-shadow:12px 12px 24px #c5cad8,-12px -12px 24px #fff}
+:root[data-skin="soft"] :is(#nx,#so,#sk,.ab,.tabs button,#yt-chrome,#yt-connect,#direction-form button,.source-add button){
+  border:0;background:var(--bg);box-shadow:var(--raised)}
+:root[data-skin="soft"] #pp{border:0;box-shadow:var(--raised)}
+:root[data-skin="soft"] #pp:disabled{background:var(--bg)}
+:root[data-skin="soft"] .tabs{gap:12px;padding:6px 6px 10px}
+:root[data-skin="soft"] .tabs button[aria-selected="true"]{background:var(--bg);color:var(--accent-text);box-shadow:var(--pressed)}
+:root[data-skin="soft"] .bar{height:8px;background:var(--bg);box-shadow:inset 2px 2px 4px #c5cad8,inset -2px -2px 4px #fff}
+:root[data-skin="soft"] .bar i{height:8px}
+:root[data-skin="soft"] .st input[type=url],:root[data-skin="soft"] .st input[type=password],:root[data-skin="soft"] .st input[type=text],
+:root[data-skin="soft"] .st select,:root[data-skin="soft"] .st textarea,:root[data-skin="soft"] #direction-controls input,
+:root[data-skin="soft"] #direction-controls select,:root[data-skin="soft"] #direction-controls textarea{border:0;background:var(--bg);box-shadow:var(--pressed)}
+:root[data-skin="soft"] :is(.pl .sw,input[role=switch]){border:0;background:var(--bg);box-shadow:var(--pressed)}
+:root[data-skin="soft"] :is(.pl[aria-pressed="true"] .sw,input[role=switch]:checked){background:var(--accent)}
+:root[data-skin="soft"] :is(.pl .sw,input[role=switch])::after{background:#fff;box-shadow:1px 1px 3px #b3bbd8}
+:root[data-skin="soft"] .sum{box-shadow:var(--pressed)}
+
+/* the cover: a soft gradient lit from inside; the bars sit on it in the accent */
+:root[data-skin="soft"] .cover{box-shadow:inset 6px 6px 14px rgba(255,255,255,.53),0 10px 24px #b3bbd8}
+:root[data-skin="soft"] #spectrum-bars i{border-radius:6px;opacity:.75}
+
+/* timeline: rows are cards with a soft shadow; the current one is pressed in */
+:root[data-skin="soft"] .it,:root[data-skin="soft"] #upcoming{padding:12px 14px;margin-bottom:8px;box-shadow:5px 5px 10px rgba(197,202,216,.33),-5px -5px 10px rgba(255,255,255,.6)}
+:root[data-skin="soft"] .it.cur{box-shadow:var(--pressed)}
+:root[data-skin="soft"] body:not(.program-editing) #broadcast-timeline{padding:6px 18px 12px 8px}  /* room for the shadows */
+
+/* accent-coloured text: the darker shade */
+:root[data-skin="soft"] :is(#np h1.live,#catchup-build,#plan-edit,#plan-done,#activity summary,.st .rs,a){color:var(--accent-text)}
