@@ -3122,8 +3122,10 @@ class Service:
             "state": self.state, "session": self.session, "current": cur,
             "paused_at": self.paused_at if self.state == "PAUSED" else None,
             "current_kind": self.current["kind"] if self.current else None, "current_title": title,
-            "elapsed_sec": round((self.paused_at if self.state == "PAUSED" else time.time()) - self.current["started"])
-            if self.current else 0,
+            # to the hundredth, with the server's clock: a page anchors the track's start on them (whole seconds plus
+            # the poll's network delay made the shown time jump back and forth)
+            "elapsed_sec": round((self.paused_at if self.state == "PAUSED" else time.time()) - self.current["started"], 2)
+            if self.current else 0, "server_time": round(time.time(), 3),
             "transition_sec": self.current.get('transition_sec', self.cfg['music']['crossfade_sec']) if self.current else 0,
             "duration_sec": round(self.current.get("duration") or 0) if self.current else 0,
             "news_ready": counts.get("READY", 0) + counts.get("QUEUED", 0), "news_preparing": counts.get("PENDING", 0),

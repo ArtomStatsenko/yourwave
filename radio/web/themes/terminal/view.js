@@ -109,7 +109,7 @@ function stationTerminal(live,heard){
   $('terminal-monitor').textContent=browser()?(listening?'MONITOR / LISTENING':'MONITOR / OFF'):'OUTPUT / LOCAL';
 }
 function player(){
-  var p=RadioModel.player(st,core.heard(st),{listening:listening,localControl:LOCAL_CONTROL,busy:busy,nextBusy:nextBusy,lag:lag()}),ds=p.frame;
+  var p=RadioModel.player(st,core.heard(st),{listening:listening,localControl:LOCAL_CONTROL,busy:busy,nextBusy:nextBusy,lag:lag(),position:core.position(st)}),ds=p.frame;
   $('air').className=p.on?'':'off';$('air').textContent=p.airGlyph;
   $('airtxt').textContent=p.airText;
   stationTerminal(st,ds);

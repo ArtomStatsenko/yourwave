@@ -17,6 +17,21 @@ var RadioCore=(function(){
     if(/[?&]theme=/.test(loc.search)||!saved||saved===current)return false;
     loc.replace('/?theme='+encodeURIComponent(saved)+loc.hash);return true}
 
+  // The play position this device shows, steady across polls; a pure step, the caller keeps the result for the next.
+  // prev: the last result or null; s: the status heard now (core.heard().s); o: {now and received (when that status
+  // arrived): ms on this clock; lag: seconds of stream buffered ahead}. The track's start is anchored on the server's
+  // clock (server_time − elapsed_sec), moved to this clock by the smallest arrival delay seen, and moved again only
+  // when it is off by more than 1.5 s (a seek, a new track, a resume). Within one anchor the position never goes back.
+  function playhead(prev,s,o){
+    var len=s.duration_sec||0,elapsed=s.elapsed_sec||0,lag=(o.lag||0)*1000,clamp=function(p){return Math.max(0,len?Math.min(p,len):p)};
+    if(s.state!=='PLAYING'||s.server_time==null)  // paused or stopped (the status as it is), or a server without its clock
+      return {offset:prev?prev.offset:null,start:null,shown:clamp(elapsed+(s.state==='PLAYING'?Math.max(0,o.now-lag-o.received)/1000:0))};
+    var arrival=o.received-s.server_time*1000,offset=prev&&prev.offset!=null?Math.min(prev.offset,arrival):arrival;
+    var start=(s.server_time-elapsed)*1000+offset+lag,keep=!!prev&&prev.start!=null&&Math.abs(start-prev.start)<=1500;
+    if(keep)start=prev.start;
+    var shown=clamp((o.now-start)/1000);
+    return {offset:offset,start:start,shown:keep?Math.max(shown,prev.shown):shown}}
+
   // Listening on this device: the station's live stream (/stream, same origin so Web Audio can read it) through
   // an analyser (the spectrum) and a gain (the volume). Pause and volume are this page's own; next / stop /
   // replay are station commands for every listener.
@@ -132,6 +147,10 @@ var RadioCore=(function(){
     // seconds behind the station, so the page shows the air that late. fallback: the status before any poll.
     core.heard=function(fallback){var now=Date.now(),lg=core.audio.lag(),h=history.filter(function(e){return e.t<=now-lg*1000});
       return h[h.length-1]||history[0]||{t:now,s:fallback||(core.snapshot&&core.snapshot.status)||{state:'STOPPED'}}};
+    // Seconds into the track this device hears, steady between polls (see playhead). fallback: as for heard().
+    var head=null;
+    core.position=function(fallback){var h=core.heard(fallback);
+      head=playhead(head,h.s,{now:Date.now(),received:h.t,lag:core.audio.lag()});return head.shown};
 
     core.loadCapabilities=function(){
       return core.api('/api/capabilities').then(function(c){
@@ -146,5 +165,5 @@ var RadioCore=(function(){
     return core;
   }
 
-  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme};
+  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead};
 })();

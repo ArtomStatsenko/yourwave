@@ -187,10 +187,11 @@ var RadioModel=(function(){
 
   function clockText(s){s=Math.max(0,s|0);return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2)}
   // What the player shows. status: the station now; heard: core.heard() (what this device hears, a buffer behind);
-  // o: {listening, localControl (false on the phone port), busy (a station command is on its way), nextBusy, lag, now}.
+  // o: {listening, localControl (false on the phone port), busy (a station command is on its way), nextBusy, lag, now,
+  //     position (core.position(): seconds into the heard track, steady between polls; without it, from the status)}.
   function player(status,heard,o){
     var on=status.state==='PLAYING',run=on||status.state==='PAUSED',br=status.output!=='speakers',ds=heard.s,now=o.now||Date.now();
-    var len=ds.duration_sec||0,pos=(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-(o.lag||0)*1000-heard.t)/1000:0);
+    var len=ds.duration_sec||0,pos=o.position!=null?o.position:(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-(o.lag||0)*1000-heard.t)/1000:0);
     if(len)pos=Math.min(pos,len);
     var sp=(status.spoken_last_hour_sec||0)/60,lim=(status.speech_limit_sec||300)/60,near=sp>lim*0.8,vok=status.voicestudio==='ok';
     var stopping=status.state==='STOPPING',listen=br?(o.listening?'Pause listening':'Listen'):(on?'Pause':'Play');
