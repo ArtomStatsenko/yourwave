@@ -67,6 +67,11 @@
 
 /* timeline: rows are tiles; time on the left, text after a 22px gutter for the marker (▶ now, ◆ reminder) */
 :root[data-skin="lime"] #broadcast-timeline{scrollbar-color:var(--line) var(--bg)}
+:root[data-skin="lime"] body:not(.program-editing) #broadcast-timeline{padding-right:6px}  /* tiles keep off the scrollbar */
+@media(max-width:640px){  /* More news, Activity and Edit on one line; the news status, when there is one, below them */
+  :root[data-skin="lime"] #catchup-controls{display:contents}
+  :root[data-skin="lime"] #catchup-status{order:9;flex-basis:100%}
+}
 :root[data-skin="lime"] .it{background:var(--tile);border-radius:12px;padding:10px 12px;margin-bottom:6px}
 :root[data-skin="lime"] .it.cur{background:var(--current);outline:1px solid rgba(200,255,61,.4);outline-offset:-1px}
 :root[data-skin="lime"] .tg{display:grid;grid-template-columns:56px minmax(0,1fr) auto;column-gap:12px;align-items:baseline;padding:0}
