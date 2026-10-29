@@ -66,6 +66,8 @@ voice_bed_gain_db = -23     # bed level under the voice, relative to the voice
 separator_heavy_chars = 350 # a digest paragraph longer than this (~25 s) gets a separator sound around it
 host_name = "Артём"         # plugin "Two hosts": the main voice and the co-host (voice.cohost_*) call each other by name
 cohost_name = "Маша"
+host_character = "Любознательный энтузиаст. Ценит новые идеи, творческую свободу и простые полезные решения; объясняет, какая возможность появилась и кому она нужна. Говорит тепло, конкретно, без восторженных штампов."
+cohost_character = "Доброжелательный скептик. Ценит надёжность, приватность и пользу в повседневной жизни; замечает ограничения и цену компромиссов. Говорит спокойно, с лёгкой иронией, без язвительности."
 station_name = "Yourwave"  # said in host links; a Latin name is voiced in «quotes» (reads as English)
 host_links = true           # news break: back-sell of the last songs, time check, ... set opener for the next music
 talkover_share = 0.5        # without lyrics: share of bulletins that end with the host talking over the next song's start
@@ -217,6 +219,9 @@ def load(*, audio_preset: str | None = None) -> dict:
             raise ValueError(f"no audio for jingles.{k}: {p}; install Base with python3 tools/install_base_audio.py or configure your own files")
         cfg["jingles"][k] = files
     b = cfg["broadcast"]
+    for key in ('host_character', 'cohost_character'):
+        if not isinstance(b[key], str) or len(b[key]) > 1200:
+            raise ValueError(f'broadcast.{key}: use up to 1200 characters')
     # The spec's 300 s is the default; the settings page may raise it (settings.py) when breaks are made longer.
     if not 0 < b["max_spoken_seconds_per_rolling_hour"] <= 900:
         raise ValueError("max_spoken_seconds_per_rolling_hour must be in 1..900")

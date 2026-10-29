@@ -26,6 +26,47 @@ class EditorialTests(unittest.TestCase):
         content.add_item(self.svc.db, self.cfg, item, kind)
         return dict(self.svc.db.execute('SELECT * FROM packages WHERE item_id=?', (source,)).fetchone())
 
+    def test_advertisements_are_rejected_at_input_output_and_cache(self):
+        self.cfg['editor']['llm_enabled'] = True
+        ads = [
+            'А вчера в одном из каналов появилась реклама игорного сайта Luckybear.net с промокодом и бонусами для новых игроков.',
+            'Для начала используй код: TLM44444. Играй сейчас в Luckybear.net! 200 000 ₽ + 250 FS.',
+            '#реклама Наш новый сервис. erid: abc123',
+            'Online casino welcome bonus: sign up today.',
+        ]
+        for ad in ads:
+            with self.subTest(ad=ad), patch.object(self.svc.editor, '_complete') as complete:
+                self.assertIsNone(editor.check(ad))
+                self.assertIsNone(self.svc.editor.retell_news('Пост из канала', ad))
+                self.assertIsNone(self.svc.editor.retell_roundup([{'title': 'Пост', 'text': ad}], '2026-10-29', 1000))
+                complete.assert_not_called()
+        for text in ('Регулятор закрыл нелегальное казино в городе.',
+                     'Вышла новая версия редактора кода.',
+                     'Опубликован обзор фильма «Казино Рояль».'):
+            self.assertIsNotNone(editor.check(text))
+        with patch.object(editor, 'target', return_value={'provider': 'ollama', 'model': 'test'}), \
+                patch.object(self.svc.editor, '_complete', return_value=ads[0]) as complete:
+            self.assertIsNone(self.svc.editor.retell_news('Релиз', 'Компания выпустила редактор.'))
+            self.assertIsNone(self.svc.editor.retell_news('Релиз', 'Компания выпустила редактор.'))
+            complete.assert_called_once()
+            cache = self.svc.editor._cache('legacy', editor.target(self.cfg))
+            cache.write_text(ads[0])
+            self.assertIsNone(self.svc.editor._ask('legacy'))
+
+    def test_prepared_ads_cannot_reach_tts_or_ready_breaks(self):
+        ad = 'Реклама игорного сайта с промокодом и бонусами для новых игроков.'
+        for source, kind in [('telegram', 'raw_post'), ('catchup', 'announcement')]:
+            p = self.package(source, kind, body=ad, text_prepared=True)
+            with patch.object(self.svc.tts, 'synthesize') as synth:
+                self.assertIsNone(self.svc._prepare_package(p))
+                synth.assert_not_called()
+            self.assertEqual(self.svc.db.execute('SELECT status FROM packages WHERE id=?', (p['id'],)).fetchone()[0], 'SKIPPED')
+            self.svc.db.execute("UPDATE packages SET status='READY',speech_sec=5 WHERE id=?", (p['id'],))
+            with self.assertRaisesRegex(ValueError, 'Advertising rejected'):
+                self.svc._body_segments(p, None)
+        self.svc._edition_speech_budget = lambda: 100
+        self.assertEqual(self.svc._pick_break(), [])
+
     def test_reactions_are_an_opt_in_experiment_for_voicestudio(self):
         entry = next(p for p in plugins.listing(self.cfg) if p['name'] == 'news_reactions')
         self.assertEqual(entry['section'], 'experiments')

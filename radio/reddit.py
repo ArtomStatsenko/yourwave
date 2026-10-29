@@ -8,7 +8,7 @@ import urllib.error
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 
-from . import config, public_news
+from . import config, editor, public_news
 
 # shortcut: public RSS ends November 13, 2026; replace only with an approved source when available.
 ATOM = {"a": "http://www.w3.org/2005/Atom"}
@@ -70,13 +70,18 @@ def parse(text, community, with_comments=False):
         if not key or not url.startswith("https://www.reddit.com/r/"):
             continue
         title = entry.findtext("a:title", "", ATOM)
+        if key.startswith('t1_') and not with_comments:
+            continue
+        body = entry.findtext("a:content", "", ATOM)
+        prose = re.search(r'<div\b[^>]*class=["\'][^"\']*\bmd\b[^"\']*["\'][^>]*>(.*?)</div>', body, re.S)
         if with_comments and key.startswith("t1_"):
-            body = entry.findtext("a:content", "", ATOM)
             # RSS wraps comment text in .md; the rest is navigation, not material for the host.
-            comment = re.search(r'<div class="md">(.*?)</div>', body, re.S)
-            if not comment:
+            if not prose:
                 continue
-            title = f"{title}. {public_news.plain(comment[1])}"
+        if prose:
+            title = public_news.plain(prose[1]) if key.startswith('t1_') else f"{title}. {public_news.plain(prose[1])}"
+        elif re.search(r'<(?:img|video)\b|(?:i\.redd\.it|v\.redd\.it|reddit\.com/gallery)/', body, re.I):
+            title += '. Вложение: изображение или видео; его содержание в тексте не раскрыто.'
         result.append(public_news.item("reddit", community, key, url,
                       entry.findtext("a:published", "", ATOM) or entry.findtext("a:updated", "", ATOM), html.escape(title)))
     return result
@@ -89,7 +94,48 @@ def fetch(community):
 
 def fetch_post(url):
     url = public_news.references([url], "reddit", "posts")[0]
-    return parse(_fetch(url + ".rss?sort=new&limit=25"), "Discussion", with_comments=True)
+    rows = parse(_fetch(url + ".rss?sort=top&limit=25"), "Discussion", with_comments=True)
+    thread = re.search(r'/comments/([^/]+)/', url)[1]
+    post = next((r for r in rows if not r['id'].startswith('reddit:t1_') and f'/comments/{thread}/' in r['url']), None)
+    return [_discussion(post, rows)] if post else []
+
+
+def _discussion(post, rows):
+    match = re.search(r'/comments/([^/]+)/', post['url'])
+    if not match:
+        raise ValueError('Reddit thread URL is missing')
+    thread = match[1]
+    comments, seen = [], set()
+    for row in rows:
+        if (not row['id'].startswith('reddit:t1_') or f'/comments/{thread}/' not in row['url']
+                or not row['body'] or row['published_at'] is None or len(row['body']) > 600 or editor.is_advertising(row['body'])
+                or row['body'].strip().casefold() in ('[deleted]', '[removed]')
+                or row['body'].casefold() in seen):
+            continue
+        comments.append(row)
+        seen.add(row['body'].casefold())
+        if len(comments) == 5:
+            break
+    origin = [dict(o) for o in post['origin']]
+    origin[0]['comments_status'] = 'available' if comments else 'none'
+    if not comments:
+        return {**post, 'origin': origin}
+    body = ('Текст поста (фрагмент):\n' + post['body'][:4000] +
+            '\n\nКомментарии отдельных участников (не проверенные факты и не мнение всего сообщества):\n' +
+            '\n'.join(f'{i + 1}. {r["body"]}' for i, r in enumerate(comments)))
+    origin[0]['description'] = body
+    origin.extend({**r['origin'][0], 'kind': 'comment', 'published_at': r['published_at'].isoformat()} for r in comments)
+    return {**post, 'body': body, 'origin': origin}
+
+
+def enrich(post):
+    """Only newly selected posts incur a thread request; failures retain the original news."""
+    try:
+        url = public_news.references([post['url']], 'reddit', 'posts')[0]
+        rows = parse(_fetch(url + '.rss?sort=top&limit=25'), '', with_comments=True)
+        return _discussion(post, rows)
+    except (OSError, ValueError):
+        return {**post, 'origin': [{**o, 'comments_status': 'unavailable'} for o in post['origin']]}
 
 
 def validate(values, kind):

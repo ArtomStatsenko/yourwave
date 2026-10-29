@@ -35,6 +35,15 @@ class CatchupTests(unittest.TestCase):
             'text_prepared':True,'origin':[{'repo':name,'url':'https://example.com/'+name,'description':'Описание новой версии инструмента.'}]},'raw_post')
         return name
 
+    def test_archived_ads_are_excluded_before_roundup_generation(self):
+        self.story('ad'); self.story('news')
+        self.svc.db.execute("UPDATE items SET origin_json=? WHERE id='ad'",
+                            (json.dumps([{'description': 'Играй сейчас в Luckybear.net! Код TLM44444.'}], ensure_ascii=False),))
+        self.assertEqual([r['id'] for r in catchup.prepare(self.svc.db, self.cfg, self.at)], ['news'])
+        self.svc._build_catchup()
+        stories = self.svc.editor.retell_roundup.call_args.args[0]
+        self.assertEqual([s['title'] for s in stories], ['news'])
+
     def test_archive_dates_and_unheard_filter_survive_reservation_and_completion(self):
         self.story('old',30);self.story('too-old',49);self.story('heard');self.story('new')
         self.svc.db.execute("UPDATE packages SET status='PLAYED' WHERE item_id='heard'")

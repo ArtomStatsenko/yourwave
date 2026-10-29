@@ -137,8 +137,8 @@ var RadioModel=(function(){
   // A setting's value as read: its label on a stepped scale, else the number with its unit.
   function settingValue(s,value){return s.value_labels?s.value_labels[+value]:value+(s.unit?' '+s.unit:'')}
   // What control a setting needs: switch, select, text, stepped (a slider with named steps) or slider.
-  function settingType(s){return s.key==='music_shuffle'?'switch':s.options?'select':s.step===null?'text':s.value_labels?'stepped':'slider'}
-  // The Settings tab: the plain settings in order, each with type, valueText, defaultText and changed (it differs
+  function settingType(s){return s.key==='music_shuffle'?'switch':s.options?'select':s.paragraph?'paragraph':s.step===null?'text':s.value_labels?'stepped':'slider'}
+  // The Settings tab: the plain settings in order, each with type, valueText and changed (it differs
   // from config.toml and can be reset); the AI provider, its model row and the voice row come out as their own
   // blocks (ai, voice); source lists (multiline) are edited with their sources.
   function settings(rows){
@@ -146,7 +146,7 @@ var RadioModel=(function(){
     return {provider:provider||null,model:model||null,voice:voice||null,
       rows:rows.filter(function(s){return !s.multiline&&s!==model&&s!==voice}).map(function(s){
         return s===provider?{key:s.key,type:'ai'}:Object.assign({},s,{type:settingType(s),valueText:settingValue(s,s.value),
-          defaultText:settingValue(s,s.default),changed:s.value!==s.default})})};
+          changed:s.value!==s.default})})};
   }
 
   // What to do next when the AI provider is not usable, by connection state.

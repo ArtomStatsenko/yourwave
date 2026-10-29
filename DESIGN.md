@@ -2,6 +2,12 @@
 
 This document records interaction conventions for the existing compact radio UI. [PRODUCT.md](PRODUCT.md) defines the product model; [docs/style.md](docs/style.md) governs repository presentation. Preserve the current typography, player and timeline when applying these conventions; the appearance controls below govern palette changes.
 
+## Settings reset
+
+Group each host's name and character together: keep the name visible and place its character editor inside that name's existing Details disclosure, with its hint and field-specific Reset. Details starts closed and preserves its open state while editing or polling; avoid a second nested disclosure for the character.
+
+Show only the current value. Omit `Default: …` labels and default-value previews throughout Settings, including characters, script providers, models and voices. When a value differs from its configured default, place a compact **Reset** button at the right of the field heading, beside the current slider value when present. Give it an accessible name identifying the field. Reset restores that field immediately and returns keyboard focus to it; the button disappears once the default is restored. Keep the existing Appearance section reset. Preserve hints, validation and error feedback.
+
 ## Inline confirmation
 
 Use confirmation when an accidental click would discard something difficult to recover, miss a reminder, interrupt the station, or contradict a track announcement already heard on air. Routine playback and easily reversible edits should stay direct; prefer the existing one-step Undo where it can restore the result.

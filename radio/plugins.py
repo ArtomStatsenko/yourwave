@@ -26,6 +26,7 @@ PLUGINS = {
     "duo_hosts": ("Two hosts", 'Alternate stories between two voices in each host edition. Preparing the second voice may take longer.',
                   lambda c: False),
     "news_reactions": ("News reactions", 'Let the editor choose one subtle reaction for new news text. OmniVoice only. No extra AI requests; prepared audio stays unchanged.', lambda c: False),
+    "host_opinions": ("Host opinions", 'Give new news scripts a short, source-grounded personal comment. Edit both characters in Settings. Two hosts gives each character its own voice. Prepared audio stays unchanged. Restart once after installation.', lambda c: False),
     "music_facts": ("Music stories", 'Add short music stories between sets independently of news availability.', lambda c: False),
     "station_ids": ("Station IDs", 'Play the station call sign between songs.',
                     lambda c: c["broadcast"]["station_id_every_songs"] > 0),
@@ -41,7 +42,7 @@ PLUGINS = {
 SOURCE_PLUGIN = {"reddit": "reddit", "telegram": "telegram", "weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
 INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction", "reddit", "telegram"}
 
-EXPERIMENTS = {"holiday_previews", "reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "track_previews", "energy_wave"}
+EXPERIMENTS = {"holiday_previews", "reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "host_opinions", "track_previews", "energy_wave"}
 
 
 def _path():

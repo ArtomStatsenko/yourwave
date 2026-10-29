@@ -343,9 +343,10 @@ def render_package(voices: list[Path], out_wav: Path, bed_gain_db: float, jingle
         f"{si_chain},{gain(si)},adelay={int(L * 1000)}:all=1[si];"
         + ("" if talkover else f"{so_chain},{gain(so)},adelay={int((t_out + L) * 1000)}:all=1[so];") +
         f"[body]adelay={int((t_body + L) * 1000)}:all=1[bd];"
-        + (f"[si][bd][b]{'[ld]' if lead else ''}amix=inputs={3 + bool(lead)}:duration=longest:normalize=0,"
+        # amix takes its timeline from the first input; keep the undelayed voice first or its start can be lost.
+        + (f"{'[ld]' if lead else ''}[si][bd][b]amix=inputs={3 + bool(lead)}:duration=longest:normalize=0,"
            f"atrim=0:{t_out + L:.3f},"
-           if talkover else f"[si][bd][b][so]{'[ld]' if lead else ''}amix=inputs={4 + bool(lead)}:duration=longest:normalize=0,") +
+           if talkover else f"{'[ld]' if lead else ''}[si][bd][b][so]amix=inputs={4 + bool(lead)}:duration=longest:normalize=0,") +
         f"loudnorm=I=-16:TP=-1.5:LRA=11,{FMT}[out]"
     )
     tmp = out_wav.with_suffix(".tmp.wav")

@@ -878,6 +878,13 @@ class Service:
                     break
                 try:
                     items = await asyncio.to_thread(fetch, name)
+                    if source == 'reddit' and fetch == adapter.fetch:
+                        candidates = public_news.select(self.db, self.cfg, items)
+                        items = []
+                        for it in candidates:
+                            if self.stopping or not plugins.on(self.cfg, source):
+                                break
+                            items.append(await asyncio.to_thread(reddit.enrich, it))
                     self._live_settings()
                     if self.stopping or not plugins.on(self.cfg, source):
                         break
@@ -975,10 +982,12 @@ class Service:
                 # Not stored on failure: the next hourly fetch may try it again while it is still listed.
                 # The README opening gives the retelling something to say beyond the one-line description.
                 readme = github_trending.fetch_readme(t["owner"], t["repo"]) if not release else ''
+                speaker = editor.host_for(self.cfg, iid)
+                character = {'speaker': speaker} if speaker else {}
                 try:
                     told = (self.editor.retell_news(t['repo']+' — '+(release.get('name') or release.get('tag_name') or ''),
-                                                   release['body'][:6000]) if release else
-                            self.editor.retell(t["repo"], t["description"], readme))
+                                                   release['body'][:6000], **character) if release else
+                            self.editor.retell(t["repo"], t["description"], readme, **character))
                 except Exception as e:  # one failed retelling must not lose the other picks of this hour
                     failures += 1
                     log("github retelling:", type(e).__name__)
@@ -992,6 +1001,7 @@ class Service:
                     item['origin'][0].update(url=item['url'],description=release['body'][:6000],release=release.get('tag_name'))
                 item['origin'][0].update(published_at=iso(published),event_type='release' if release else 'created')
                 item["text_prepared"] = True
+                item['editorial_host'] = speaker
                 item["speak_topic"] = not self.cfg["jingles"]["github_intro"]  # the section intro names it
                 content.add_item(self.db, self.cfg, item, kind="raw_post")
                 store.log_event(self.db, self.session, "ITEM_COLLECTED", item["id"])
@@ -1289,9 +1299,10 @@ class Service:
             return
         try:
             voices, sounds = [], []
+            speaker_voice = self._package_voice(p)
             for segment, sound in self._body_segments(p, None):
                 sounds.append(sound)
-                voices.append(self._segment_voice(p["id"], segment))
+                voices.append(self._segment_voice(p["id"], segment, speaker_voice))
             speech = sum(audio.duration(v) for v in voices)
             out = config.DATA_DIR / "cache/packages" / (hashlib.sha256(p["id"].encode()).hexdigest()[:16] + ".wav")
             jingles = self._jingles_for(p["id"])
@@ -1325,7 +1336,7 @@ class Service:
         return jingles
 
     def _prepare_package(self, p):
-        row = self.db.execute('SELECT p.prepared_text,i.kind,i.topic FROM packages p JOIN items i ON i.id=p.item_id '
+        row = self.db.execute('SELECT p.prepared_text,p.editorial_host,i.kind,i.topic FROM packages p JOIN items i ON i.id=p.item_id '
                               'WHERE p.id=?', (p['id'],)).fetchone()
         if row is None:
             raise ValueError('Unknown speech package')
@@ -1335,13 +1346,18 @@ class Service:
             policy = 'news' if row['kind'] in ('raw_post', 'ready_digest') else 'announcement'
             if policy == 'news' and not self.editor.enabled:
                 raise RuntimeError('News editor disabled; source withheld')
-            text = self.editor.prepare(original, policy, row['topic'] or '')
+            speaker = editor.host_for(self.cfg, p['item_id']) if policy == 'news' else None
+            text = self.editor.prepare(original, policy, row['topic'] or '', **({'speaker': speaker} if speaker else {}))
             if not text:
                 self.db.execute("UPDATE packages SET status='SKIPPED',error='Editorial rejection' WHERE id=? AND status='PENDING'", (p['id'],))
                 content.finish_item_if_done(self.db, p['item_id'])
                 return None
-            self.db.execute("UPDATE packages SET prepared_text=?,est_speech_sec=?,error=NULL WHERE id=? AND status='PENDING'",
-                            (text, len(text) / self.cfg['voice']['chars_per_sec'], p['id']))
+            self.db.execute("UPDATE packages SET prepared_text=?,editorial_host=?,est_speech_sec=?,error=NULL WHERE id=? AND status='PENDING'",
+                            (text, speaker, len(text) / self.cfg['voice']['chars_per_sec'], p['id']))
+        if editor.is_advertising(text):
+            self.db.execute("UPDATE packages SET status='SKIPPED',error='Advertising rejected' WHERE id=? AND status='PENDING'", (p['id'],))
+            content.finish_item_if_done(self.db, p['item_id'])
+            return None
         return {**dict(p), 'prepared_text': text}
 
     def _body_segments(self, p: dict, prev: str | None) -> list[tuple[str, bool]]:
@@ -1351,6 +1367,8 @@ class Service:
         if prepared and prepared['kind'] in ('raw_post', 'ready_digest') and prepared['prepared_text'] is None:
             raise ValueError('News text has not passed editorial preparation')
         script = prepared['prepared_text'] if prepared and prepared['prepared_text'] is not None else Path(p['script_path']).read_text(encoding='utf-8')
+        if editor.is_advertising(script):
+            raise ValueError('Advertising rejected before speech')
         segs = content.voice_segments(script)
         if prepared and prepared['kind'] in ('raw_post', 'ready_digest'):
             allow_reaction = editor.reactions_enabled(self.cfg)
@@ -1928,7 +1946,7 @@ class Service:
                     'description':'\n'.join(o.get('description','') for o in json.loads(r['origin_json'] or '[]')) or r['prepared'] or ''} for r in selected]
         with store.transaction(self.db):
             content.add_item(self.db,self.cfg,{'id':iid,'source':'catchup','topic':'What I missed · 48h',
-                             'published_at':now(),'url':'','body':body,'origin':origins,'text_prepared':True,
+                             'published_at':now(),'url':'','body':body,'origin':origins,'text_prepared':True,'editorial_host': 'host' if plugins.on(self.cfg, 'host_opinions') else None,
                              'speak_topic':False},kind='announcement')
             self.db.execute("INSERT INTO air_plan(id,kind,text,not_before,status) VALUES(?,'news','What I missed · 48h',?,'PENDING')",
                             ('section:news:'+iid,iso(now())))
@@ -1965,11 +1983,11 @@ class Service:
                          for p in candidates)], changes)
         section = self.db.execute('SELECT * FROM air_plan WHERE id=?', (self._news_section_id(),)).fetchone() if plugins.on(self.cfg, 'air_direction') else None
         reserved = catchup.reserved(self.db)
-        ready = [p for p in ready if p['item_id'] not in reserved]
+        ready = [p for p in ready if p['item_id'] not in reserved and not editor.is_advertising(p['prepared_text'] or '')]
         manual = catchup.active(self.db)
         if manual:
             parts = self.db.execute('SELECT * FROM packages WHERE item_id=? ORDER BY part',(manual['id'],)).fetchall()
-            if all(p['status']=='READY' for p in parts):
+            if all(p['status']=='READY' and not editor.is_advertising(p['prepared_text'] or '') for p in parts):
                 limit = min(b['max_break_speech_sec']-24,b['max_spoken_seconds_per_rolling_hour']-store.spoken_last_hour(self.db)-12)
                 if sum(p['speech_sec'] or 0 for p in parts)<=limit:
                     return parts
@@ -2019,7 +2037,7 @@ class Service:
                                              self.recent_jingles, seed, novelty), False))
                 owners.append(seed)
             speakers = [None] * len(segs)
-            if plugins.on(self.cfg, "duo_hosts") and len(pkgs) > 1:
+            if plugins.on(self.cfg, "duo_hosts"):
                 segs, owners, speakers = self._duo(segs, owners, pkgs)
             # Host links share the first bulletin's budget, but need the host's number-tolerant speech check.
             voices = [self._say(text, voice) if links and k in (0, len(segs) - 1) else self._segment_voice(owner, text, voice)
@@ -2046,9 +2064,19 @@ class Service:
             log(self.last_error, "- airing the first bulletin pre-rendered")
             return None
 
+    def _package_voice(self, p):
+        row = self.db.execute('SELECT editorial_host FROM packages WHERE id=?', (p['id'],)).fetchone()
+        return self.tts2 if row and row['editorial_host'] == 'cohost' and plugins.on(self.cfg, 'duo_hosts') else None
+
     def _duo(self, segs, owners, pkgs):
-        """Alternate bulletin voices without handoff or acknowledgement lines."""
-        turn = {p["id"]: (self.tts2 if k % 2 else None) for k, p in enumerate(pkgs)}
+        """Keep authored characters with their voices; legacy bulletins alternate."""
+        turn = {}
+        for k, p in enumerate(pkgs):
+            row = self.db.execute('SELECT editorial_host FROM packages WHERE id=?', (p['id'],)).fetchone()
+            if row and row['editorial_host']:
+                turn[p['id']] = self.tts2 if row['editorial_host'] == 'cohost' else None
+            else:
+                turn[p['id']] = self.tts2 if k % 2 else None
         return segs, owners, [turn.get(owner) for owner in owners]
 
     # ---- CLI ----

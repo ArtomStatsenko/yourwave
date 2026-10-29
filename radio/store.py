@@ -83,6 +83,8 @@ def connect() -> sqlite3.Connection:
         # Unaired legacy news must pass the same editorial gate as newly collected stories.
         db.execute("UPDATE packages SET status='PENDING' WHERE status='READY' AND item_id IN "
                    "(SELECT id FROM items WHERE kind IN ('raw_post','ready_digest') AND state='NEW')")
+    if "editorial_host" not in {r[1] for r in db.execute("PRAGMA table_info(packages)")}:
+        db.execute("ALTER TABLE packages ADD COLUMN editorial_host TEXT")
     return db
 
 

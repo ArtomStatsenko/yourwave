@@ -195,15 +195,16 @@ def add_item(db, cfg, item: dict, kind: str, file: str | None = None) -> str:
                     json.dumps(item["origin"], ensure_ascii=False) if item.get("origin") else None))
         if state != "NEW":
             return state
-        scripts = scripts_for(item, max_chars, cfg["broadcast"]["separator_heavy_chars"])
+        # Keep a Reddit post and its reactions together until the editor writes one bounded bulletin.
+        scripts = [item['body']] if kind == 'raw_post' and item['source'] == 'reddit' else scripts_for(item, max_chars, cfg["broadcast"]["separator_heavy_chars"])
         for i, script in enumerate(scripts):
             pid = f"{item['id']}#{i + 1}"
             sp = config.DATA_DIR / "cache/scripts" / (hashlib.sha256(pid.encode()).hexdigest()[:16] + ".txt")
             sp.write_text(script, encoding="utf-8")
             prepared = script if item.get("text_prepared") or kind not in ("raw_post", "ready_digest") else None
-            db.execute("INSERT INTO packages(id, item_id, part, parts, script_path, est_speech_sec, status,prepared_text) "
-                       "VALUES(?,?,?,?,?,?,'PENDING',?)",
-                       (pid, item["id"], i + 1, len(scripts), str(sp), len(script) / cfg["voice"]["chars_per_sec"], prepared))
+            db.execute("INSERT INTO packages(id, item_id, part, parts, script_path, est_speech_sec, status,prepared_text,editorial_host) "
+                       "VALUES(?,?,?,?,?,?,'PENDING',?,?)",
+                       (pid, item["id"], i + 1, len(scripts), str(sp), len(script) / cfg["voice"]["chars_per_sec"], prepared, item.get('editorial_host')))
         return state
     except Exception:
         db.execute("ROLLBACK TO add_item")

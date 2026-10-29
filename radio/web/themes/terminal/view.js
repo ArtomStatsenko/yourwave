@@ -156,16 +156,15 @@ function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model
   var h='<section class="ai" aria-label="AI"><div class="ai-h">AI</div>'
     +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(a.name)+'</div>'
     +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(a.status)+(a.note?' <span class="d">· '+esc(a.note)+'</span>':'')+'</span></div></div>'
-    +'<div class="st"><label for="st-llm_provider">'+esc(p.title)+'</label><select id="st-llm_provider" data-st="llm_provider">'
+    +'<div class="st"><div class="hd2"><label for="st-llm_provider">'+esc(p.title)+'</label>'+resetButton(p)+'</div><select id="st-llm_provider" data-st="llm_provider">'
     +p.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===p.value?' selected':'')+'>'+esc(p.labels[o]||o)+'</option>'}).join('')+'</select>'
-    +(p.value!==p.default?'<div class="l">Default: '+esc(p.labels[p.default]||p.default)+' <button class="rs" data-rs="llm_provider">Reset</button></div>':'')
     +(p.action?'<div class="row"><button type="button" class="ab" data-act="'+esc(p.action.cmd)+'">'+esc(p.action.label)+'</button></div>':'')+'</div>';
   if(p.key_field)h+='<div class="st"><label for="llm-key">API key</label><div class="keyrow">'
     +'<input type="password" id="llm-key" autocomplete="off" spellcheck="false" maxlength="300" aria-describedby="llm-key-fb" aria-invalid="'+!!keyFb.invalid+'" placeholder="'+(p.key_field.saved?'Key saved; paste a replacement':'Paste your API key')+'">'
     +'<button type="button" class="ab" data-key="'+esc(p.key_field.provider)+'"'+(keyBusy?' disabled':'')+'>'+(keyBusy?'Saving…':'Save key')+'</button>'
     +(p.key_field.saved?'<button type="button" class="rs" data-key-rm="'+esc(p.key_field.provider)+'">Remove key</button>':'')+'</div>'
     +'<div class="fb '+keyFb.cls+'" id="llm-key-fb" role="status" aria-live="polite">'+esc(keyFb.text)+'</div></div>';
-  if(m)h+='<div class="st"><label for="st-'+m.key+'">Model</label>'
+  if(m)h+='<div class="st"><div class="hd2"><label for="st-'+m.key+'">Model</label>'+resetButton(m)+'</div>'
     +(m.options?'<select id="st-'+m.key+'" data-st="'+m.key+'">'+(st==='no_model'?'<option value="" selected disabled>Choose a model</option>':'')+m.options.map(function(o){return '<option'+(o===m.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>'
       :'<input type="text" id="st-'+m.key+'" data-st="'+m.key+'" minlength="'+m.min+'" maxlength="'+m.max+'" value="'+esc(m.value)+'">')
     +(a.modelHint?'<div class="l pick-hint">'+esc(a.modelHint)+'</div>':(m.hint?'<div class="l">'+esc(m.hint)+'</div>':''))+'</div>';
@@ -177,9 +176,9 @@ function voiceView(s){  // design system: VoiceSettings
   return '<section class="ai" aria-label="Voice"><div class="ai-h">Voice</div>'
     +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(v.name)+'</div>'
     +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(v.status)+(v.note?' <span class="d">· '+esc(v.note)+'</span>':'')+'</span></div></div>'
-    +'<div class="st"><label for="st-voice_engine">'+esc(s.title)+'</label><select id="st-voice_engine" data-st="voice_engine">'
+    +'<div class="st"><div class="hd2"><label for="st-voice_engine">'+esc(s.title)+'</label>'+resetButton(s)+'</div><select id="st-voice_engine" data-st="voice_engine">'
     +s.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===s.value?' selected':'')+'>'+esc(label(o))+'</option>'}).join('')+'</select>'
-    +'<div class="l">'+esc(s.hint)+(s.value!==s.default?' · Default: '+esc(label(s.default)):'')+'</div></div>'
+    +'<div class="l">'+esc(s.hint)+'</div></div>'
     +'<div class="st"><div class="act"><button type="button" class="ab" id="voice-sample"'+(sample.st==='busy'?' disabled aria-busy="true"':'')+'>'
     +v.sampleLabel+'</button></div>'
     +'<div class="fb '+fb[0]+'" id="voice-fb" role="status" aria-live="polite">'+esc(fb[1])+'</div></div></section>'}
@@ -219,6 +218,8 @@ function helpText(id,text,label,content){
   helpText.open=helpText.open||{};
   return '<details class="control-help" id="help-'+esc(id)+'"'+(helpText.open[id]?' open':'')+'><summary id="help-toggle-'+esc(id)+'" aria-label="Details about '+esc(label)+'">Details</summary><div class="l" id="hint-'+esc(id)+'">'+esc(text)+'</div>'+(content||'')+'</details>';
 }
+function resetButton(s){return s.value!==s.default?'<button type="button" class="rs" data-rs="'+esc(s.key)+'" aria-label="Reset '+esc(s.title||s.key)+'">Reset</button>':''}
+function hostCharacterView(s){return '<div class="host-character"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+resetButton(s)+'</div><textarea rows="4" id="st-'+s.key+'" data-st="'+s.key+'" maxlength="'+s.max+'" aria-describedby="hint-'+s.key+'">'+esc(s.value)+'</textarea><div class="l" id="hint-'+s.key+'">'+esc(s.hint)+'</div></div>'}
 function pluginButton(p,source){
   var warning=p.unavailable_reason||({holiday_previews:'Requires Calendar and Host links · restart after installation',energy_wave:'Analyze the library first · restart after installation',track_previews:'Restart after installation',reddit:'Experimental · RSS support ends November 13, 2026',telegram:'Experimental · public channels only'})[p.name]||'';
   return '<div class="plugin-row"><button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'" aria-describedby="hint-plugin-'+esc(p.name)+'" title="'+esc(p.description)+'"'+(p.available===false?' disabled':'')+'><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.name==='horizon'?'Technology news · Horizon':p.title)+'</span></button>'
@@ -242,13 +243,14 @@ function settingsView(force){  // force: after this page saved a value; the poll
   if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // preserve a sample in progress
   if(!force&&(box.contains(f)&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
   var m=RadioModel.settings(stg),prov=m.provider,model=m.model,voice=m.voice;
-  box.innerHTML=m.rows.map(function(s){if(s.type==='ai')return aiView(prov,model)+(voice?voiceView(voice):'');
-    if(s.type==='switch')return '<div class="st"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label>'+helpText(s.key,s.hint,s.title)+'</div>';
-    return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(s.valueText)+'</span>')+'</div>'
-    +(s.type==='select'?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.type==='text'?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
+  box.innerHTML=m.rows.filter(s=>!['host_character','cohost_character'].includes(s.key)).map(function(s){if(s.type==='ai')return aiView(prov,model)+(voice?voiceView(voice):'');
+    var character=['host_name','cohost_name'].includes(s.key)?m.rows.find(c=>c.key===s.key.replace('_name','_character')):null;
+    if(s.type==='switch')return '<div class="st"><div class="hd2"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label>'+resetButton(s)+'</div>'+helpText(s.key,s.hint,s.title)+'</div>';
+    return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label><span class="setting-actions">'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(s.valueText)+'</span>')+resetButton(s)+'</span></div>'
+    +(s.type==='select'?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.type==='paragraph'?'<textarea rows="4" id="st-'+s.key+'" data-st="'+s.key+'" maxlength="'+s.max+'" aria-describedby="hint-'+s.key+'">'+esc(s.value)+'</textarea>':s.type==='text'?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range"'+(s.type==='stepped'?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(s.valueText)+'" aria-describedby="hint-'+s.key+'">')
     +(s.value_labels?'<div class="range-labels" aria-hidden="true">'+s.value_labels.map(function(label){return '<span>'+esc(label)+'</span>'}).join('')+'</div>':'')
-    +helpText(s.key,s.hint,s.title)+(s.changed?'<div class="l">Default: '+esc(s.defaultText)+' <button class="rs" data-rs="'+s.key+'">Reset</button></div>':'')+'</div>'}).join('');
+    +helpText(s.key,s.hint,s.title,character?hostCharacterView(character):'')+'</div>'}).join('');
   if(f&&f.id&&(force||f.id.startsWith('help-toggle-'))&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
@@ -273,7 +275,7 @@ $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();
       if(d.settings)stg=d.settings;settingsView(true)}).catch(function(){$('er').textContent='could not reach the radio'});return}
   var b=e.target.closest('[data-rs]');if(!b)return;
   var key=b.dataset.rs;
-  api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true)}).catch(function(e){sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
+  api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true);var field=$('st-'+key);if(field)field.focus({preventScroll:true})}).catch(function(e){$('er').textContent=e.message;sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
   var focused=document.activeElement&&document.activeElement.dataset.pl,helpFocus=document.activeElement&&document.activeElement.id;

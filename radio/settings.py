@@ -23,6 +23,8 @@ SETTINGS = {
     "host_name": ("broadcast", "host_name", "Host name", "How the co-host addresses the main host when Two hosts is enabled.",
                   1, 30, None, ""),
     "cohost_name": ("broadcast", "cohost_name", "Co-host name", "How the main host addresses the co-host when Two hosts is enabled.", 1, 30, None, ""),
+    "host_character": ("broadcast", "host_character", "Host character", "Values, interests and manner for Host opinions. Empty uses the usual editorial style. Applies to new scripts; prepared audio keeps its character.", 0, 1200, None, ""),
+    "cohost_character": ("broadcast", "cohost_character", "Co-host character", "Used with Host opinions and Two hosts. Describe a different perspective, without requiring disagreement. Applies to new scripts.", 0, 1200, None, ""),
     "station_name": ("broadcast", "station_name", "Station name",
                      "Used in spoken introductions. Names in Latin letters are pronounced in English.", 1, 40, None, ""),
     "voice_engine": ("voice", "engine", "Voice engine", "Applies to new speech. Prepared audio keeps its current voice.",
@@ -161,6 +163,8 @@ def listing(cfg: dict) -> list[dict]:
             row.update(multiline=True, placeholder=SOURCE_LISTS[k][2])
         if k == 'news_detail':
             row['value_labels'] = [level['label'] for level in editor.NEWS_DETAIL]
+        if k in ('host_character', 'cohost_character'):
+            row['paragraph'] = True
         if k == MODEL_ROWS[provider]:
             row["options"] = c["ids"] or None  # None: a text field (a ChatGPT sign-in lists no models)
         if k == "voice_engine":

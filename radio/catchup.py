@@ -4,7 +4,7 @@ from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import config, content, github_trending, store
+from . import config, content, editor, github_trending, store
 
 SOURCES = ('reddit','telegram','horizon','github_trending','github_new','inbox')
 
@@ -43,7 +43,7 @@ def candidates(db, at, off=()):
 def source_text(db, row):
     if row.get('prepared') and not row.get('unprepared'):
         return row['prepared'], True
-    descriptions = [o.get('description','') for o in json.loads(row['origin_json'] or '[]')]
+    descriptions = [o.get('description','') for o in json.loads(row['origin_json'] or '[]') if o.get('kind') != 'comment']
     if any(descriptions):
         return '\n'.join(descriptions), False
     scripts = []
@@ -59,6 +59,8 @@ def prepare(db, cfg, at, off=()):
     selected = []
     for row in candidates(db,at,off)[:12]:
         raw, _ = source_text(db,row)
+        if editor.is_advertising(raw + ' ' + (row['origin_json'] or '')):
+            continue
         if not raw or len(raw) > 8000 or sum(len(r['source_text']) for r in selected)+len(raw)>18000:
             continue
         published = content.parse_time(row['published_at']).astimezone(zone)

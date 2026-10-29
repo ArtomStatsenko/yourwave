@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
-from . import content
+from . import content, editor
 
 LIMIT = 2_000_000
 HOSTS = {"www.reddit.com", "reddit.com", "t.me"}
@@ -113,19 +113,33 @@ def item(source, community, key, url, published, text):
             "origin": [{"repo": f"{source.title()}: {community}", "url": url, "description": body}]}
 
 
-def take(db, cfg, items):
-    added = []
+def select(db, cfg, items):
+    selected, seen = [], set()
     for it in items:
         if not it["body"] or not content.is_fresh(it["published_at"], max(48,cfg["sources"]["max_age_hours"])):
+            continue
+        if editor.is_advertising(it['body']):
             continue
         if any(w.casefold() in it["body"].casefold() for w in cfg["sources"]["blocked_words"]):
             continue
         # Dedup survives restarts: source id, permalink, or identical normalized text across feeds.
         fingerprint = hashlib.sha256(" ".join(it["body"].casefold().split()).encode()).hexdigest()
         keys = [it["id"], "url:" + it["url"], "text:" + fingerprint]
-        if db.execute("SELECT 1 FROM items WHERE id=?", (it["id"],)).fetchone() or db.execute(
+        if seen.intersection(keys) or db.execute("SELECT 1 FROM items WHERE id=?", (it["id"],)).fetchone() or db.execute(
                 "SELECT 1 FROM public_news_seen WHERE key IN (?,?,?)", keys).fetchone():
             continue
+        selected.append(it)
+        seen.update(keys)
+        if len(selected) >= 3:
+            break
+    return selected
+
+
+def take(db, cfg, items):
+    added = []
+    for it in select(db, cfg, items):
+        fingerprint = hashlib.sha256(" ".join(it["body"].casefold().split()).encode()).hexdigest()
+        keys = [it["id"], "url:" + it["url"], "text:" + fingerprint]
         db.execute("SAVEPOINT public_news")
         try:
             content.add_item(db, cfg, it, kind="raw_post")

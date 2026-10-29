@@ -1100,7 +1100,7 @@ class SchedulingTests(unittest.TestCase):
         self.assertNotIn("voicestudio", grouped)
         self.assertNotIn("voice_over", grouped)
         self.assertNotIn("reroll_next", grouped)
-        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "gap_filler", "duo_hosts", "reddit", "telegram", "news_reactions", "track_previews", "energy_wave", "holiday_previews"})
+        self.assertEqual({n for n, p in grouped.items() if p["section"] == "experiments"}, {"air_direction", "gap_filler", "duo_hosts", "reddit", "telegram", "news_reactions", "host_opinions", "track_previews", "energy_wave", "holiday_previews"})
         self.assertEqual({n for n, p in grouped.items() if p["section"] == "features"},
                          {"station_ids", "host_links", "new_tracks"})
         self.assertTrue(grouped["horizon"]["on"])  # grouping preserves the existing saved switches

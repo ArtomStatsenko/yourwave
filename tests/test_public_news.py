@@ -47,6 +47,13 @@ class PublicNewsTests(unittest.TestCase):
         self.addCleanup(self.db.close)
         self.date = store.iso(store.now())
 
+    def test_advertisements_never_enter_the_news_archive(self):
+        posts = telegram.parse(preview(self.date, 'Играй сейчас в Luckybear.net! Используй код TLM44444.', 46), 'example')
+        posts += telegram.parse(preview(self.date, '#реклама erid: abc123 Новый сервис.', 47), 'example')
+        posts += telegram.parse(preview(self.date, 'Вышел новый компилятор.', 48), 'example')
+        self.assertEqual(public_news.take(self.db, self.cfg, posts), ['telegram:example/48'])
+        self.assertEqual(self.db.execute('SELECT count(*) FROM items').fetchone()[0], 1)
+
     def test_normalization_dates_and_durable_dedup(self):
         posts = telegram.parse(preview(self.date, 'Привет <b>мир</b>!<br>Новая &amp; версия.'), 'example')
         self.assertEqual(posts[0]['body'], 'Привет мир! Новая & версия.')
@@ -63,6 +70,16 @@ class PublicNewsTests(unittest.TestCase):
         self.assertEqual(public_news.take(db2, self.cfg, telegram.parse(preview(self.date, '', 44), 'example')), [])
         self.assertEqual(public_news.take(db2, self.cfg, telegram.parse(preview(self.date, 'nsfw', 45), 'example')), [])
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM packages').fetchone()[0], 1)
+
+    def test_reddit_retains_post_context_without_feed_navigation_or_image_guessing(self):
+        feed = atom(self.date, 'Что скажете?').replace('Never read feed chrome',
+            '&lt;div class="md"&gt;&lt;p&gt;Компания выпустила редактор с локальной обработкой данных.&lt;/p&gt;&lt;/div&gt; submitted by user [link] [comments]')
+        body = reddit.parse(feed, 'kafkafps')[0]['body']
+        self.assertIn('локальной обработкой', body)
+        self.assertNotIn('submitted', body)
+        feed = atom(self.date, 'Яма').replace('Never read feed chrome', '&lt;a href="https://i.redd.it/example.jpg"&gt;image&lt;/a&gt;')
+        body = reddit.parse(feed, 'kafkafps')[0]['body']
+        self.assertIn('содержание в тексте не раскрыто', body)
 
     def test_access_validation_and_experiment_listing(self):
         for source in ('reddit', 'telegram'):
@@ -175,14 +192,51 @@ class PublicNewsTests(unittest.TestCase):
         self.assertEqual(legacy['sources']['reddit']['posts'], ['https://www.reddit.com/comments/abc123/'])
 
     def test_specific_posts_and_thread_comment_text(self):
-        xml = atom(self.date).replace('</feed>', f'''<entry><id>t1_reply</id><title>A reply</title>
+        xml = atom(self.date, key='abc123').replace('</feed>', f'''<entry><id>t1_reply</id><title>A reply</title>
             <link href="https://www.reddit.com/r/python/comments/abc123/title/reply/"/>
             <published>{self.date}</published><content type="html">&lt;div class="md"&gt;&lt;p&gt;Actual comment&lt;/p&gt;&lt;/div&gt;RSS navigation</content></entry></feed>''')
         with patch.object(public_news, 'fetch', return_value=xml) as fetch:
             rows = reddit.fetch_post('https://www.reddit.com/r/python/comments/abc123/title/')
-        self.assertEqual(fetch.call_args.args[0], 'https://www.reddit.com/comments/abc123/.rss?sort=new&limit=25')
-        self.assertIn('Actual comment', rows[1]['body'])
-        self.assertNotIn('RSS navigation', rows[1]['body'])
+        self.assertEqual(fetch.call_args.args[0], 'https://www.reddit.com/comments/abc123/.rss?sort=top&limit=25')
+        self.assertEqual(len(rows), 1)
+        self.assertIn('Actual comment', rows[0]['body'])
+        self.assertNotIn('RSS navigation', rows[0]['body'])
+        self.assertEqual(rows[0]['origin'][1]['kind'], 'comment')
+        post = reddit.parse(atom(self.date, key='abc123'), 'python')[0]
+        with patch.object(reddit, '_fetch', return_value=xml) as fetch:
+            enriched = reddit.enrich(post)
+        self.assertEqual(fetch.call_args.args[0], 'https://www.reddit.com/comments/abc123/.rss?sort=top&limit=25')
+        self.assertIn('Actual comment', enriched['body'])
+
+    def test_comments_stay_with_the_post_are_bounded_and_keep_the_original_date(self):
+        post = reddit.parse(atom(self.date, key='abc123'), 'python')[0]
+        comments = [public_news.item('reddit', 'python', 't1_' + str(i),
+                    'https://www.reddit.com/r/python/comments/abc123/title/' + str(i) + '/', self.date,
+                    'Участник предлагает проверить ограничение номер ' + str(i)) for i in range(8)]
+        ad = {**comments[0], 'body': 'Играй сейчас в казино с промокодом'}
+        unrelated = {**comments[1], 'url': 'https://www.reddit.com/r/python/comments/other/title/1/'}
+        grouped = reddit._discussion(post, [ad, unrelated, comments[0], comments[0], *comments[1:]])
+        self.assertEqual(len(grouped['origin']), 6)
+        self.assertEqual(grouped['published_at'], post['published_at'])
+        self.assertIn('не проверенные факты', grouped['body'])
+        self.assertNotIn('промокодом', grouped['body'])
+        self.assertNotIn('номер 5', grouped['body'])
+        public_news.take(self.db, self.cfg, [grouped])
+        self.assertEqual(self.db.execute('SELECT count(*) FROM packages').fetchone()[0], 1)
+        row = dict(self.db.execute('SELECT *,NULL AS prepared,1 AS unprepared FROM items').fetchone())
+        from radio import catchup
+        source, _ = catchup.source_text(self.db, row)
+        self.assertEqual(source.count('ограничение номер 0'), 1)
+
+    def test_comment_failure_keeps_the_post_and_dedup_avoids_more_thread_requests(self):
+        post = reddit.parse(atom(self.date, key='abc123'), 'python')[0]
+        with patch.object(reddit, '_fetch', side_effect=OSError('unavailable')) as fetch:
+            enriched = [reddit.enrich(it) for it in public_news.select(self.db, self.cfg, [post])]
+            self.assertEqual(enriched[0]['body'], post['body'])
+            self.assertEqual(enriched[0]['origin'][0]['comments_status'], 'unavailable')
+            public_news.take(self.db, self.cfg, enriched)
+            self.assertEqual(public_news.select(self.db, self.cfg, [post]), [])
+            fetch.assert_called_once()
         with patch.object(public_news, 'fetch', return_value=preview(self.date, number=42) + preview(self.date, number=43)) as fetch:
             rows = telegram.fetch_post('https://t.me/example/42')
             self.assertEqual([r['id'] for r in rows], ['telegram:example/42'])
@@ -226,7 +280,7 @@ class PublicNewsTests(unittest.TestCase):
         svc = daemon.Service(self.cfg, tts=MockTTS(), output=str(out))
         self.addCleanup(svc.db.close)
         def get(url):
-            return atom(self.date) if 'reddit.com' in url else preview(self.date)
+            return atom(self.date, key='abc123') if 'reddit.com' in url else preview(self.date)
 
         from radio import broadcast_clock
         def edition_now():
