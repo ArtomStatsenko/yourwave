@@ -20,7 +20,7 @@ document.documentElement.dataset.presentation='calm';document.documentElement.da
 <main>
 <section id="np" class="panel" aria-label="Now playing">
   <div class="np-head"><span class="brand">Yourwave</span><h1 class="live"><span id="air" aria-hidden="true">●</span> <span id="airtxt">on air</span></h1></div>
-  <div class="cover" aria-hidden="true"><div id="lime-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+  <div class="cover" aria-hidden="true"><div id="spectrum-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
   <div class="title"><span id="ttl" aria-hidden="true"></span><span id="caret" class="caret" aria-hidden="true" hidden></span></div>
   <span id="ttl-sr" class="sr" aria-live="polite"></span>
   <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span>
@@ -129,6 +129,7 @@ document.documentElement.dataset.presentation='calm';document.documentElement.da
 </main>
 <script src="/ui/core/model.js"></script>
 <script src="/ui/themes/terminal/view.js"></script>
+<script src="/ui/themes/shared/bars.js"></script>
 <script src="/ui/themes/lime/view.js"></script>
 <script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true",theme:"lime"}),document.body);</script>
 </body>

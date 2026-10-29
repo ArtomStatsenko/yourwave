@@ -19,7 +19,7 @@ class LimeMarkupTests(unittest.TestCase):
         made_by_script = {"llm-key", "voice-fb"}  # drawn with the AI and Voice blocks
         self.assertEqual(sorted(used - set(ids) - made_by_script), [])
         self.assertEqual([k for k, n in ids.items() if n > 1], [])
-        self.assertEqual(len(re.findall(r"<i></i>", html[html.index('id="lime-bars"'):html.index("</div>", html.index('id="lime-bars"'))])), 20)
+        self.assertEqual(len(re.findall(r"<i></i>", html[html.index('id="spectrum-bars"'):html.index("</div>", html.index('id="spectrum-bars"'))])), 20)
 
     def test_dark_only_fixed_look_and_load_order(self):
         html = (LIME / "index.html").read_text()
@@ -29,11 +29,12 @@ class LimeMarkupTests(unittest.TestCase):
         self.assertNotIn('appearance-palette', html)        # no palette, accent or time-format choices
         self.assertNotIn('appearance-time-format', html)
         scripts = re.findall(r'<script src="([^"]+)"></script>', html)
-        self.assertEqual(scripts, ["/ui/core/core.js", "/ui/core/model.js", "/ui/themes/terminal/view.js", "/ui/themes/lime/view.js"])
+        self.assertEqual(scripts, ["/ui/core/core.js", "/ui/core/model.js", "/ui/themes/terminal/view.js", "/ui/themes/shared/bars.js", "/ui/themes/lime/view.js"])
         self.assertLess(html.index("/ui/core/core.js"), html.index("</head>"))  # the saved theme is followed before drawing
         self.assertIn("RadioTheme.mount(RadioCore.create(", html)
         css = (LIME / "theme.css").read_text()
-        self.assertTrue(css.lstrip().split("\n", 2)[2].startswith('@import url("/ui/themes/terminal/theme.css");'))
+        self.assertIn('@import url("/ui/themes/shared/cards.css");', css)
+        self.assertIn('@import url("/ui/themes/terminal/theme.css");', (WEB / "themes/shared/cards.css").read_text())
         self.assertIn("color-scheme:dark", css)
 
 
@@ -64,7 +65,7 @@ reduced=false;motionListener();assert.equal(frames.length,1,'it starts when moti
 
 class LimeSpectrumTests(unittest.TestCase):
     def test_bars_follow_the_sound_and_stop_with_it(self):
-        result = subprocess.run(["node", "-e", SPECTRUM.replace("LIME", (LIME / "view.js").read_text())],
+        result = subprocess.run(["node", "-e", SPECTRUM.replace("LIME", (WEB / "themes/shared/bars.js").read_text() + (LIME / "view.js").read_text())],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
