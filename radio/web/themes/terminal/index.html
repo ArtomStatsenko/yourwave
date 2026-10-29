@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Yourwave</title>
 <link rel="stylesheet" href="/ui/themes/terminal/theme.css">
+<script src="/ui/core/core.js"></script>
+<script>RadioCore.followSavedTheme('terminal')</script>
 <script id="appearance-script">
 // Apply before the body is painted; appearance belongs to this browser, not the station.
 var appearance=(function(){
@@ -159,6 +161,9 @@ var appearance=(function(){
   <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
     <section class="st" id="appearance" aria-labelledby="appearance-heading">
       <div class="row appearance-heading"><h2 id="appearance-heading">Appearance</h2><button id="appearance-reset" type="button">Reset</button></div>
+      <label for="theme-select">Theme</label>
+      <select id="theme-select" aria-label="Theme" aria-describedby="theme-note"></select>
+      <p class="l" id="theme-note"></p>
       <label for="appearance-time-format">Time format</label>
       <select id="appearance-time-format"><option value="24">24-hour · 14:30</option><option value="12">12-hour · 02:30 PM</option></select>
       <label for="appearance-presentation">Player style</label>
@@ -226,9 +231,8 @@ var appearance=(function(){
   </div>
 </section>
 </main>
-<script src="/ui/core/core.js"></script>
 <script src="/ui/core/model.js"></script>
 <script src="/ui/themes/terminal/view.js"></script>
-<script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true"}),document.body);</script>
+<script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true",theme:"terminal"}),document.body);</script>
 </body>
 </html>

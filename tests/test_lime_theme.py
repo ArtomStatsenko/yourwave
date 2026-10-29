@@ -26,9 +26,11 @@ class LimeMarkupTests(unittest.TestCase):
         self.assertIn('<html lang="en" data-theme="dark" data-skin="lime">', html)
         self.assertIn('<meta name="color-scheme" content="dark">', html)
         self.assertIn("typing:false", html)                 # no typed titles
-        self.assertNotIn('id="appearance"', html)           # no palette, accent or time-format choices
+        self.assertNotIn('appearance-palette', html)        # no palette, accent or time-format choices
+        self.assertNotIn('appearance-time-format', html)
         scripts = re.findall(r'<script src="([^"]+)"></script>', html)
         self.assertEqual(scripts, ["/ui/core/core.js", "/ui/core/model.js", "/ui/themes/terminal/view.js", "/ui/themes/lime/view.js"])
+        self.assertLess(html.index("/ui/core/core.js"), html.index("</head>"))  # the saved theme is followed before drawing
         self.assertIn("RadioTheme.mount(RadioCore.create(", html)
         css = (LIME / "theme.css").read_text()
         self.assertTrue(css.lstrip().split("\n", 2)[2].startswith('@import url("/ui/themes/terminal/theme.css");'))

@@ -5,6 +5,18 @@ var RadioCore=(function(){
   // What each kind of air entry is called, the same in every theme (and in the phone's Media Session).
   var KINDS={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
 
+  // Page themes (radio/web/themes/<name>), by folder name; one without a title here shows its name capitalized.
+  var THEME_TITLES={terminal:'Terminal',lime:'Lime',synthwave:'Synthwave',soft:'Soft'},THEME_KEY='yourwave.theme';
+  var THEME_NOTE='Switching reloads the page and stops listening.';
+  function savedTheme(){try{return localStorage.getItem(THEME_KEY)||''}catch(e){return ''}}
+  // A page opened without ?theme= goes once to the theme this browser chose; the server still decides by ?theme=,
+  // then [ui] theme, then terminal. Call it in the page's <head>, before anything is drawn. The address it goes to
+  // carries ?theme=, so it never goes again (a theme that no longer exists is served as terminal there).
+  function followSavedTheme(current,loc){
+    loc=loc||location;var saved=savedTheme();
+    if(/[?&]theme=/.test(loc.search)||!saved||saved===current)return false;
+    loc.replace('/?theme='+encodeURIComponent(saved)+loc.hash);return true}
+
   // Listening on this device: the station's live stream (/stream, same origin so Web Audio can read it) through
   // an analyser (the spectrum) and a gain (the volume). Pause and volume are this page's own; next / stop /
   // replay are station commands for every listener.
@@ -70,8 +82,16 @@ var RadioCore=(function(){
       error:'',           // why the last poll failed ('' when the last one worked)
       capabilities:null,  // /api/capabilities: operations, reads, themes
       commands:{},        // one function per operation in capabilities, e.g. core.commands.next()
-      kinds:KINDS
+      kinds:KINDS,
+      theme:options.theme||'',  // the theme of this page
+      themeNote:THEME_NOTE      // shown beside the theme picker
     };
+    // The installed themes, [{name, title, current}], for the picker (until the capabilities answer: this one).
+    core.themes=function(){var names=core.capabilities&&core.capabilities.themes||[core.theme];
+      return names.map(function(n){return {name:n,title:THEME_TITLES[n]||n.charAt(0).toUpperCase()+n.slice(1),current:n===core.theme}})};
+    // Switch this browser to a theme: remembered here, then the page opens again in it (listening stops).
+    core.setTheme=function(name){try{localStorage.setItem(THEME_KEY,name)}catch(e){}
+      (options.location||location).assign('/?theme='+encodeURIComponent(name))};
     // The station is on air (playing or paused), by the last snapshot.
     core.running=function(){var s=core.snapshot&&core.snapshot.status;return !!s&&(s.state==='PLAYING'||s.state==='PAUSED')};
 
@@ -126,5 +146,5 @@ var RadioCore=(function(){
     return core;
   }
 
-  return {create:create,KINDS:KINDS};
+  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme};
 })();

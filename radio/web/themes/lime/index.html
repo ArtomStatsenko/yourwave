@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
 <link rel="stylesheet" href="/ui/themes/lime/theme.css">
+<script src="/ui/core/core.js"></script>
+<script>RadioCore.followSavedTheme('lime')</script>
 <script>
 // Lime has one look: dark, a fixed lime accent, 24-hour times, no title typing and no timeline print effect.
 var appearance={formatTime:function(value){return value},mount:function(){},typing:false};
@@ -85,6 +87,12 @@ document.documentElement.dataset.presentation='calm';document.documentElement.da
 
   </div>
   <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
+    <section class="st" id="appearance" aria-labelledby="appearance-heading">
+      <h2 id="appearance-heading">Appearance</h2>
+      <label for="theme-select">Theme</label>
+      <select id="theme-select" aria-label="Theme" aria-describedby="theme-note"></select>
+      <p class="l" id="theme-note"></p>
+    </section>
     
     <div class="st" id="music-source-control">
       <label for="music-source-select">Music source</label>
@@ -119,10 +127,9 @@ document.documentElement.dataset.presentation='calm';document.documentElement.da
   </div>
 </section>
 </main>
-<script src="/ui/core/core.js"></script>
 <script src="/ui/core/model.js"></script>
 <script src="/ui/themes/terminal/view.js"></script>
 <script src="/ui/themes/lime/view.js"></script>
-<script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true"}),document.body);</script>
+<script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true",theme:"lime"}),document.body);</script>
 </body>
 </html>

@@ -707,6 +707,14 @@ $('sk').onclick=function(){cmd('skip-news')};
 $('so').onclick=function(){if(LOCAL_CONTROL&&!busy&&st.state!=='STOPPING')cmd(running()?'stop':'play')};
 // 2-second refresh: re-renders from state, so expanded rows (open) stay open
 setInterval(player,250);
+// the theme picker (Settings → Appearance): every theme the server has, this one selected
+function themePicker(){
+  var box=$('theme-select');
+  box.innerHTML=core.themes().map(function(t){return '<option value="'+esc(t.name)+'"'+(t.current?' selected':'')+'>'+esc(t.title)+'</option>'}).join('');
+  $('theme-note').textContent=core.themeNote}
+$('theme-select').onchange=function(){core.setTheme(this.value)};
+core.subscribe(function(core,change){if(change==='capabilities')themePicker()});
+themePicker();
 // a Details box stays open across redraws (toggle does not bubble: caught on the way down)
 root.addEventListener('toggle',function(e){var d=e.target;if(d.classList&&d.classList.contains('control-help'))(helpText.open=helpText.open||{})[d.id.slice(5)]=d.open},true);
 core.start();

@@ -16,13 +16,19 @@ or `?theme=<name>` in the page address; `terminal` is the default and the refere
 ## Writing a theme
 
 1. Copy `radio/web/themes/terminal` to `radio/web/themes/<name>` (lowercase letters, digits, hyphens).
-2. Keep these lines in `index.html`, in this order, at the end of `<body>`:
+2. Keep these lines in `index.html`: in `<head>`, before anything is drawn,
 
    ```html
    <script src="/ui/core/core.js"></script>
+   <script>RadioCore.followSavedTheme('<name>')</script>
+   ```
+
+   and at the end of `<body>`, in this order:
+
+   ```html
    <script src="/ui/core/model.js"></script>
    <script src="/ui/themes/<name>/view.js"></script>
-   <script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true"}),document.body);</script>
+   <script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true",theme:"<name>"}),document.body);</script>
    ```
 
    The server fills in `__TOKEN__` and `__LOCAL_CONTROL__`. Load other files by absolute path
@@ -59,6 +65,8 @@ at once instead of typing it. Its own `view.js` wraps the terminal `RadioTheme.m
 | `core.capabilities` | Operations, reads and installed themes |
 | `core.localControl` | Start and stop belong to this page (false on the phone port) |
 | `core.kinds` | What each kind of air entry is called |
+| `core.themes()`, `core.setTheme(name)`, `core.themeNote` | The installed themes `[{name, title, current}]`; switch this browser to one (remembered here, the page opens again in it); the note to show beside the picker |
+| `RadioCore.followSavedTheme(name)` | In `<head>`: a page opened without `?theme=` goes once to the theme this browser chose |
 | `core.audio` | Listening on this device: `listen()`, `unlisten()`, `listening`, `volume`, `setVolume(v)` (saved per browser), `lag()`, `catchUp()` (after next), `read(n)` → `{bands: 32 values, wave: n values}` or null, `media(status)` (Media Session), `onnext` (lock-screen Next) |
 
 The stream watchdog and the Media Session handlers run inside the core.
@@ -82,6 +90,10 @@ The stream watchdog and the Media Session handlers run inside the core.
 Tones are `['ok'|'wait'|'bad', glyph]`. Times stay ISO strings or epoch milliseconds: the theme formats them.
 
 ## What a theme must keep
+
+- The theme picker: Settings → Appearance, its first row "Theme": a `<select id="theme-select" aria-label="Theme">`
+  of `core.themes()` titles (this theme selected) that calls `core.setTheme(name)`, and `core.themeNote` beside it in
+  muted 16px text (`id="theme-note"`). A test checks every theme for it.
 
 - Keyboard: every control reachable and usable with Tab, Enter, Space and arrows (the tabs and the plan editor
   use arrows), visible focus, focus kept on the same control across the 2 s redraw.
