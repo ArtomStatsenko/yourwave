@@ -1,40 +1,68 @@
-/* Soft: light, raised and pressed surfaces, one periwinkle accent. The card layout is shared (themes/shared/cards.css).
-   Muted text and accent-coloured text are a shade darker than the design's #66709a and #5668f0, which reach 4.1:1
-   and 3.8:1 on the background; small text needs 4.5:1. Fills (the main button, switches) keep #5668f0. */
+/* Soft: raised and pressed surfaces in light or dark, one accent the listener picks (index.html sets --accent,
+   --accent-ink and --accent-text). The card layout is shared (themes/shared/cards.css). Light muted text is a shade
+   darker than the design's #66709a, which reaches 4.1:1 on the background; small text needs 4.5:1. */
 @import url("/ui/themes/shared/cards.css");
 
 :root[data-skin="soft"]{color-scheme:light;--bg:#e8ecf4;--surface:#e8ecf4;--tile:#e8ecf4;--current:#e8ecf4;--current-line:transparent;--summary:#e8ecf4;
-  --ink:#2a3350;--muted:#5e678e;--line:#c5cad8;--accent:#5668f0;--accent-text:#4357ee;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
+  --ink:#2a3350;--muted:#5e678e;--line:#c5cad8;--accent:#5668f0;--accent-text:#4d5ed8;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
   --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:linear-gradient(145deg,#c9d4ff,#f5d0ff);
-  --raised:5px 5px 10px #c5cad8,-5px -5px 10px #fff;--pressed:inset 4px 4px 8px #c5cad8,inset -4px -4px 8px #fff;
+  --sh:#c5cad8;--lit:#fff;--raised:5px 5px 10px var(--sh),-5px -5px 10px var(--lit);--pressed:inset 4px 4px 8px var(--sh),inset -4px -4px 8px var(--lit);
+  --panel-shadow:12px 12px 24px var(--sh),-12px -12px 24px var(--lit);--row-shadow:5px 5px 10px rgba(197,202,216,.33),-5px -5px 10px rgba(255,255,255,.6);
+  --cover-glow:inset 6px 6px 14px rgba(255,255,255,.53),0 10px 24px #b3bbd8;--bar-opacity:.75;
   --r-panel:30px;--r-tile:16px;--r-button:999px;--r-tab:999px;--r-input:14px;--r-cover:22px;--title-size:26px;--title-weight:700;--title-track:0}
+:root[data-skin="soft"][data-theme="dark"]{color-scheme:dark;--bg:#23262e;--surface:#23262e;--tile:#23262e;--current:#23262e;--summary:#23262e;
+  --ink:#e8ebf5;--muted:#a3abc4;--line:#323644;--ok:#4bd184;--warn:#f0b429;--cover:linear-gradient(145deg,#3a4070,#6a3d7a);
+  --sh:#17191f;--lit:#2e323d;--raised:7px 7px 14px var(--sh),-7px -7px 14px var(--lit);--panel-shadow:var(--raised);
+  --row-shadow:5px 5px 10px rgba(23,25,31,.6),-5px -5px 10px rgba(46,50,61,.6);--cover-glow:inset 6px 6px 14px rgba(255,255,255,.19),0 10px 24px var(--sh);--bar-opacity:.85}
 
 /* raised: panels, buttons, the tabs not open; pressed: the open tab, the current row, fields, progress, switches */
-:root[data-skin="soft"] .panel{box-shadow:12px 12px 24px #c5cad8,-12px -12px 24px #fff}
+:root[data-skin="soft"] .panel{box-shadow:var(--panel-shadow)}
 :root[data-skin="soft"] :is(#nx,#so,#sk,.ab,.tabs button,#yt-chrome,#yt-connect,#direction-form button,.source-add button){
   border:0;background:var(--bg);box-shadow:var(--raised)}
 :root[data-skin="soft"] #pp{border:0;box-shadow:var(--raised)}
 :root[data-skin="soft"] #pp:disabled{background:var(--bg)}
 :root[data-skin="soft"] .tabs{gap:12px;padding:6px 6px 10px}
 :root[data-skin="soft"] .tabs button[aria-selected="true"]{background:var(--bg);color:var(--accent-text);box-shadow:var(--pressed)}
-:root[data-skin="soft"] .bar{height:8px;background:var(--bg);box-shadow:inset 2px 2px 4px #c5cad8,inset -2px -2px 4px #fff}
+:root[data-skin="soft"] .bar{height:8px;background:var(--bg);box-shadow:inset 2px 2px 4px var(--sh),inset -2px -2px 4px var(--lit)}
 :root[data-skin="soft"] .bar i{height:8px}
 :root[data-skin="soft"] .st input[type=url],:root[data-skin="soft"] .st input[type=password],:root[data-skin="soft"] .st input[type=text],
 :root[data-skin="soft"] .st select,:root[data-skin="soft"] .st textarea,:root[data-skin="soft"] #direction-controls input,
 :root[data-skin="soft"] #direction-controls select,:root[data-skin="soft"] #direction-controls textarea{border:0;background:var(--bg);box-shadow:var(--pressed)}
 :root[data-skin="soft"] :is(.pl .sw,input[role=switch]){border:0;background:var(--bg);box-shadow:var(--pressed)}
 :root[data-skin="soft"] :is(.pl[aria-pressed="true"] .sw,input[role=switch]:checked){background:var(--accent)}
-:root[data-skin="soft"] :is(.pl .sw,input[role=switch])::after{background:#fff;box-shadow:1px 1px 3px #b3bbd8}
+:root[data-skin="soft"] :is(.pl .sw,input[role=switch])::after{background:#fff;box-shadow:1px 1px 3px var(--sh)}
 :root[data-skin="soft"] .sum{box-shadow:var(--pressed)}
 
 /* the cover: a soft gradient lit from inside; the bars sit on it in the accent */
-:root[data-skin="soft"] .cover{box-shadow:inset 6px 6px 14px rgba(255,255,255,.53),0 10px 24px #b3bbd8}
-:root[data-skin="soft"] #spectrum-bars i{border-radius:6px;opacity:.75}
+:root[data-skin="soft"] .cover{box-shadow:var(--cover-glow)}
+:root[data-skin="soft"] #spectrum-bars i{border-radius:6px;opacity:var(--bar-opacity)}
 
 /* timeline: rows are cards with a soft shadow; the current one is pressed in */
-:root[data-skin="soft"] .it,:root[data-skin="soft"] #upcoming{padding:12px 14px;margin-bottom:8px;box-shadow:5px 5px 10px rgba(197,202,216,.33),-5px -5px 10px rgba(255,255,255,.6)}
+:root[data-skin="soft"] .it,:root[data-skin="soft"] #upcoming{padding:12px 14px;margin-bottom:8px;box-shadow:var(--row-shadow)}
 :root[data-skin="soft"] .it.cur{box-shadow:var(--pressed)}
 :root[data-skin="soft"] body:not(.program-editing) #broadcast-timeline{padding:6px 18px 12px 8px}  /* room for the shadows */
 
-/* accent-coloured text: the darker shade */
+/* accent-coloured text: the shade that reaches 4.5:1; labels on a mid-tone fill that does not reach it are bold */
 :root[data-skin="soft"] :is(#np h1.live,#catchup-build,#plan-edit,#plan-done,#activity summary,.st .rs,a){color:var(--accent-text)}
+:root[data-skin="soft"][data-fill-weak] :is(#pp,.tabs button[aria-selected="true"]){font-weight:700}
+
+/* Settings → Appearance: Mode (segmented) and Accent (swatches, hex, picker) */
+:root[data-skin="soft"] #appearance fieldset{border:0;padding:0;margin:16px 0 0}
+:root[data-skin="soft"] #appearance legend{padding:0;margin-bottom:8px}
+:root[data-skin="soft"] #appearance :is(.seg button,#accent-reset){min-height:44px;padding:0 18px;border:0;border-radius:999px;background:var(--bg);color:var(--ink);box-shadow:var(--raised)}
+:root[data-skin="soft"] #appearance .seg{gap:12px}
+:root[data-skin="soft"] #appearance .seg button[aria-pressed="true"]{color:var(--accent-text);font-weight:700;box-shadow:var(--pressed)}
+:root[data-skin="soft"] #appearance .swatches{gap:12px;margin-bottom:12px}
+:root[data-skin="soft"] #appearance .swatches button{width:44px;height:44px;padding:0;border:0;border-radius:50%;background:var(--swatch);box-shadow:var(--raised)}
+:root[data-skin="soft"] #appearance .swatches button[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:3px}
+:root[data-skin="soft"] #appearance #accent-picker{width:56px;height:44px;padding:4px;border:0;border-radius:14px;background:var(--bg);box-shadow:var(--pressed)}
+:root[data-skin="soft"] #appearance #accent-hex{width:130px;min-height:44px}
+:root[data-skin="soft"] #appearance .accent-inputs{gap:12px}
+:root[data-skin="soft"] #appearance-status{margin-top:12px}
+
+/* sliders: a pressed track and an accent knob (Chrome draws the native track white on a dark ground) */
+:root[data-skin="soft"] input[type=range]{-webkit-appearance:none;appearance:none;background:transparent}
+:root[data-skin="soft"] input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:8px;background:var(--bg);box-shadow:inset 2px 2px 4px var(--sh),inset -2px -2px 4px var(--lit)}
+:root[data-skin="soft"] input[type=range]::-moz-range-track{height:8px;border-radius:8px;background:var(--bg);box-shadow:inset 2px 2px 4px var(--sh),inset -2px -2px 4px var(--lit)}
+:root[data-skin="soft"] input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-6px;border:0;border-radius:50%;background:var(--accent);box-shadow:2px 2px 4px var(--sh)}
+:root[data-skin="soft"] input[type=range]::-moz-range-thumb{width:20px;height:20px;border:0;border-radius:50%;background:var(--accent)}

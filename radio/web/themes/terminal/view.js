@@ -711,7 +711,10 @@ setInterval(player,250);
 function themePicker(){
   var box=$('theme-select');
   box.innerHTML=core.themes().map(function(t){return '<option value="'+esc(t.name)+'"'+(t.current?' selected':'')+'>'+esc(t.title)+'</option>'}).join('');
-  $('theme-note').textContent=core.themeNote}
+  $('theme-note').textContent=core.themeNote;
+  var me=core.themes().find(function(t){return t.current})||{modes:[],accent:false};
+  if($('appearance-mode-row'))$('appearance-mode-row').hidden=!me.modes.length;   // a theme with these rows (soft)
+  if($('appearance-accent-row'))$('appearance-accent-row').hidden=!me.accent}
 $('theme-select').onchange=function(){core.setTheme(this.value)};
 core.subscribe(function(core,change){if(change==='capabilities')themePicker()});
 themePicker();

@@ -11,8 +11,40 @@
 <script src="/ui/core/core.js"></script>
 <script>RadioCore.followSavedTheme('soft')</script>
 <script>
-// Soft has one look: light, a fixed periwinkle accent, 24-hour times, no title typing and no timeline print effect.
-var appearance={formatTime:function(value){return value},mount:function(){},typing:false};
+// Soft: light, dark or the system's mode and the listener's accent, saved in this browser; 24-hour times, no title
+// typing and no timeline print effect. Fills use the accent as is; accent-coloured text is shifted to 4.5:1 (RadioCore).
+var appearance=(function(){
+  var key='yourwave.soft',root=document.documentElement,system=matchMedia('(prefers-color-scheme:dark)'),INDIGO='#5668f0',
+    state={mode:'system',accent:INDIGO},$=function(id){return document.getElementById(id)};
+  function hex(value){return typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)}
+  try{var saved=JSON.parse(localStorage.getItem(key));if(saved&&typeof saved==='object'){
+    if(['light','dark','system'].indexOf(saved.mode)>=0)state.mode=saved.mode;if(hex(saved.accent))state.accent=saved.accent.toLowerCase()}}catch(e){}
+  function save(){try{localStorage.setItem(key,JSON.stringify(state))}catch(e){}}
+  function apply(){
+    var dark=state.mode==='dark'||state.mode==='system'&&system.matches,ground=dark?'#23262e':'#e8ecf4',
+      fill=RadioCore.onFill(state.accent),text=RadioCore.textAccent(state.accent,ground,dark),onFill=RadioCore.contrast(fill,state.accent);
+    root.dataset.theme=dark?'dark':'light';
+    document.querySelector('meta[name="color-scheme"]').content=dark?'dark':'light';
+    root.style.setProperty('--accent',state.accent);root.style.setProperty('--accent-ink',fill);root.style.setProperty('--accent-text',text);
+    if(onFill<4.5)root.dataset.fillWeak='';else delete root.dataset.fillWeak;
+    if(!$('appearance-status'))return;
+    document.querySelectorAll('#appearance-mode-row [data-mode]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode))});
+    document.querySelectorAll('#appearance-accent-row [data-accent]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.accent===state.accent))});
+    $('accent-picker').value=state.accent;if(document.activeElement!==$('accent-hex'))$('accent-hex').value=state.accent;
+    $('appearance-status').textContent='Text accent '+text+' on ground: '+RadioCore.contrast(text,ground).toFixed(1)+':1 · On fill: '+
+      (fill==='#ffffff'?'white':'dark')+' text '+onFill.toFixed(1)+':1'+(onFill<4.5?' · the fill is mid-tone, so its labels are bold':'')}
+  function set(change){Object.assign(state,change);save();apply()}
+  system.addEventListener('change',apply);apply();
+  return {formatTime:function(value){return value},typing:false,mount:function(){
+    document.querySelectorAll('#appearance-mode-row [data-mode]').forEach(function(b){b.onclick=function(){set({mode:b.dataset.mode})}});
+    document.querySelectorAll('#appearance-accent-row [data-accent]').forEach(function(b){b.onclick=function(){set({accent:b.dataset.accent})}});
+    $('accent-picker').oninput=function(){set({accent:this.value.toLowerCase()})};
+    $('accent-hex').oninput=function(){var v=this.value.trim();if(v.charAt(0)!=='#')v='#'+v;var ok=hex(v);
+      this.setAttribute('aria-invalid',String(!ok));if(ok)set({accent:v.toLowerCase()})};
+    $('accent-hex').onblur=apply;
+    $('accent-reset').onclick=function(){set({accent:INDIGO})};
+    apply()}};
+})();
 document.documentElement.dataset.presentation='calm';document.documentElement.dataset.timelineEffect='off';
 </script>
 </head>
@@ -92,6 +124,16 @@ document.documentElement.dataset.presentation='calm';document.documentElement.da
       <label for="theme-select">Theme</label>
       <select id="theme-select" aria-label="Theme" aria-describedby="theme-note"></select>
       <p class="l" id="theme-note"></p>
+      <fieldset id="appearance-mode-row" hidden><legend>Mode</legend><div class="row seg" role="group" aria-label="Mode">
+        <button type="button" data-mode="light" aria-pressed="false">Light</button><button type="button" data-mode="dark" aria-pressed="false">Dark</button><button type="button" data-mode="system" aria-pressed="false">System</button>
+      </div></fieldset>
+      <fieldset id="appearance-accent-row" hidden><legend>Accent</legend>
+        <div class="row swatches">
+          <button type="button" data-accent="#5668f0" aria-label="Indigo" aria-pressed="false" style="--swatch:#5668f0"></button><button type="button" data-accent="#ef5a6f" aria-label="Coral" aria-pressed="false" style="--swatch:#ef5a6f"></button><button type="button" data-accent="#139a92" aria-label="Teal" aria-pressed="false" style="--swatch:#139a92"></button><button type="button" data-accent="#d98410" aria-label="Amber" aria-pressed="false" style="--swatch:#d98410"></button><button type="button" data-accent="#9459ee" aria-label="Violet" aria-pressed="false" style="--swatch:#9459ee"></button><button type="button" data-accent="#2f9e55" aria-label="Green" aria-pressed="false" style="--swatch:#2f9e55"></button>
+        </div>
+        <div class="row accent-inputs"><input id="accent-picker" type="color" aria-label="Choose accent colour" value="#5668f0"><input id="accent-hex" type="text" value="#5668f0" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Accent colour (hex)" aria-invalid="false"><button id="accent-reset" type="button">Reset</button></div>
+        <p class="l" id="appearance-status" role="status" aria-live="polite"></p>
+      </fieldset>
     </section>
     
     <div class="st" id="music-source-control">

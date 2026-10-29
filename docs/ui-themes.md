@@ -65,8 +65,9 @@ at once instead of typing it. Its own `view.js` wraps the terminal `RadioTheme.m
 | `core.capabilities` | Operations, reads and installed themes |
 | `core.localControl` | Start and stop belong to this page (false on the phone port) |
 | `core.kinds` | What each kind of air entry is called |
-| `core.themes()`, `core.setTheme(name)`, `core.themeNote` | The installed themes `[{name, title, current}]`; switch this browser to one (remembered here, the page opens again in it); the note to show beside the picker |
+| `core.themes()`, `core.setTheme(name)`, `core.themeNote` | The installed themes `[{name, title, current, modes, accent}]` (`modes`: the colour modes the theme offers, `accent`: it lets the listener pick an accent); switch this browser to one (remembered here, the page opens again in it); the note to show beside the picker |
 | `RadioCore.followSavedTheme(name)` | In `<head>`: a page opened without `?theme=` goes once to the theme this browser chose |
+| `RadioCore.contrast(a, b)`, `RadioCore.onFill(accent)`, `RadioCore.textAccent(accent, ground, dark)` | Colours as `#rrggbb`: the WCAG contrast ratio; the label colour on an accent fill (`#ffffff` or `#111111`, whichever reads better); the accent as text on a ground, moved toward black (light) or white (dark) in 2% steps until it reaches 4.5:1 |
 | `core.audio` | Listening on this device: `listen()`, `unlisten()`, `listening`, `volume`, `setVolume(v)` (saved per browser), `lag()`, `catchUp()` (after next), `read(n)` → `{bands: 32 values, wave: n values}` or null, `media(status)` (Media Session), `onnext` (lock-screen Next) |
 
 The stream watchdog and the Media Session handlers run inside the core.
@@ -104,7 +105,10 @@ Tones are `['ok'|'wait'|'bad', glyph]`. Times stay ISO strings or epoch millisec
 - Words: show the model's texts as they are, so every theme says the same thing.
 
 Appearance preferences (palette, accent, player style, timeline effect, time format) belong to a theme; the
-terminal theme keeps its own in this browser.
+terminal theme keeps its own in this browser. A theme whose `core.themes()` entry has `modes` or `accent` puts the
+rows `id="appearance-mode-row"` (Mode) and `id="appearance-accent-row"` (Accent) after Theme, `hidden`; the shared
+behavior shows them from those flags. Soft has both (Light, Dark, System; six accents and a custom one, saved in this
+browser); lime and synthwave have neither.
 
 ## Checking a theme
 

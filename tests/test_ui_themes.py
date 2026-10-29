@@ -30,7 +30,7 @@ class CardThemeTests(unittest.TestCase):
     def test_card_themes_have_every_element_the_behavior_uses_once(self):
         from collections import Counter
         behavior = (WEB / "themes/terminal/view.js").read_text()
-        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb"}  # drawn by the script
+        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row"}  # drawn by the script; rows only some themes have
         cards = [n for n in THEMES if n != "terminal"]
         self.assertTrue(cards)
         for name in cards:
@@ -63,10 +63,13 @@ assert.equal(R.followSavedTheme('lime',loc('','#st')),true);
 assert.deepEqual(went.pop(),['replace','/?theme=soft#st'],'once, to the saved theme');
 const here=loc('');
 const core=R.create({theme:'lime',location:here});
-assert.equal(JSON.stringify(core.themes()),JSON.stringify([{name:'lime',title:'Lime',current:true}]),'before the capabilities: this theme');
+assert.equal(JSON.stringify(core.themes()),JSON.stringify([{name:'lime',title:'Lime',current:true,modes:[],accent:false}]),'before the capabilities: this theme');
 core.capabilities={themes:['lime','soft','synthwave','terminal','new-look']};
 assert.equal(JSON.stringify(core.themes().map(t=>t.title)),JSON.stringify(['Lime','Soft','Synthwave','Terminal','New-look']));
 assert.equal(core.themes().filter(t=>t.current).length,1);
+const flags=Object.fromEntries(core.themes().map(t=>[t.name,JSON.stringify([t.modes,t.accent])]));
+assert.equal(flags.soft,JSON.stringify([['light','dark','system'],true]));
+assert.equal(flags.lime,JSON.stringify([[],false]));assert.equal(flags.synthwave,flags.lime);assert.equal(flags['new-look'],flags.lime);
 assert.equal(core.themeNote,'Switching reloads the page and stops listening.');
 core.setTheme('synthwave');
 assert.equal(stored['yourwave.theme'],'synthwave','remembered in this browser');
@@ -75,6 +78,43 @@ assert.deepEqual(went.pop(),['assign','/?theme=synthwave']);
 
 
 class CoreThemeTests(unittest.TestCase):
+    def test_every_soft_accent_reads_at_4_5_to_1_in_both_modes(self):
+        harness = CORE + r"""
+const assert=require('node:assert/strict');
+for(const accent of ['#5668f0','#ef5a6f','#139a92','#d98410','#9459ee','#2f9e55','#ffff00','#000080']){
+  for(const [ground,dark] of [['#e8ecf4',false],['#23262e',true]]){
+    const text=RadioCore.textAccent(accent,ground,dark);
+    assert.ok(RadioCore.contrast(text,ground)>=4.5,accent+' on '+ground+': '+text);
+    if(RadioCore.contrast(accent,ground)>=4.5)assert.equal(text,accent,'kept when it already reads')}
+  const ink=RadioCore.onFill(accent),other=ink==='#ffffff'?'#111111':'#ffffff';
+  assert.ok(RadioCore.contrast(ink,accent)>=RadioCore.contrast(other,accent),'the label colour that reads better on '+accent)}
+assert.equal(RadioCore.onFill('#5668f0'),'#ffffff');
+assert.ok(RadioCore.contrast(RadioCore.onFill('#9459ee'),'#9459ee')<4.5,'violet: a mid-tone fill (its labels are bold)');
+"""
+        result = subprocess.run(["node", "-e", harness], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_mode_and_accent_rows_follow_the_theme_flags(self):
+        behavior = (WEB / "themes/terminal/view.js").read_text()
+        picker = behavior[behavior.index("function themePicker(){"):behavior.index("core.subscribe(function(core,change){if(change==='capabilities')themePicker()});")]
+        for name in ("soft", "lime", "synthwave"):
+            with self.subTest(theme=name):
+                html = (WEB / "themes" / name / "index.html").read_text()
+                rows = re.findall(r'id="(appearance-(?:mode|accent)-row)" hidden', html)
+                harness = CORE + r"""
+const assert=require('node:assert/strict');
+const nodes={'theme-select':{},'theme-note':{}};ROWS.forEach(id=>nodes[id]={hidden:true});
+const $=id=>nodes[id],esc=s=>s;
+const core=RadioCore.create({theme:NAME,location:{search:'',hash:''}});
+""" + picker + r"""
+themePicker();
+ROWS.forEach(id=>assert.equal(nodes[id].hidden,false,id+' shown'));
+"""
+                result = subprocess.run(["node", "-e", f"const ROWS={json.dumps(rows)},NAME={json.dumps(name)};" + harness], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(len(rows), 2 if name == "soft" else 0)   # lime and synthwave: no rows at all
+
+
     def test_themes_are_listed_remembered_and_followed_once(self):
         result = subprocess.run(["node", "-e", "const CORE=" + json.dumps(CORE) + ";" + HARNESS], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

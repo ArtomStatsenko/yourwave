@@ -6,7 +6,9 @@ var RadioCore=(function(){
   var KINDS={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
 
   // Page themes (radio/web/themes/<name>), by folder name; one without a title here shows its name capitalized.
-  var THEME_TITLES={terminal:'Terminal',lime:'Lime',synthwave:'Synthwave',soft:'Soft'},THEME_KEY='yourwave.theme';
+  // modes: the colour modes it offers (Settings → Appearance → Mode); accent: it lets the listener choose its accent.
+  var THEMES={terminal:{title:'Terminal',modes:['system','light','dark'],accent:true},lime:{title:'Lime'},
+    synthwave:{title:'Synthwave'},soft:{title:'Soft',modes:['light','dark','system'],accent:true}},THEME_KEY='yourwave.theme';
   var THEME_NOTE='Switching reloads the page and stops listening.';
   function savedTheme(){try{return localStorage.getItem(THEME_KEY)||''}catch(e){return ''}}
   // A page opened without ?theme= goes once to the theme this browser chose; the server still decides by ?theme=,
@@ -16,6 +18,17 @@ var RadioCore=(function(){
     loc=loc||location;var saved=savedTheme();
     if(/[?&]theme=/.test(loc.search)||!saved||saved===current)return false;
     loc.replace('/?theme='+encodeURIComponent(saved)+loc.hash);return true}
+
+  // Colours (#rrggbb): WCAG contrast; the text colour on an accent fill (white or dark, whichever reads better); and the
+  // accent as text on a ground, moved toward black (light ground) or white (dark) in 2% steps until it reaches 4.5:1.
+  function luminance(color){var c=[1,3,5].map(function(i){var v=parseInt(color.slice(i,i+2),16)/255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)});return c[0]*.2126+c[1]*.7152+c[2]*.0722}
+  function contrast(a,b){var x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+  function onFill(accent){return contrast('#ffffff',accent)>=contrast('#111111',accent)?'#ffffff':'#111111'}
+  function textAccent(accent,ground,dark){
+    var rgb=[1,3,5].map(function(i){return parseInt(accent.slice(i,i+2),16)}),to=dark?255:0,c=accent.toLowerCase();
+    for(var step=0;step<=50&&contrast(c,ground)<4.5;step++)
+      c='#'+rgb.map(function(v){return Math.round(v+(to-v)*step*.02).toString(16).padStart(2,'0')}).join('');
+    return c}
 
   // The play position this device shows, steady across polls; a pure step, the caller keeps the result for the next.
   // prev: the last result or null; s: the status heard now (core.heard().s); o: {now and received (when that status
@@ -101,9 +114,11 @@ var RadioCore=(function(){
       theme:options.theme||'',  // the theme of this page
       themeNote:THEME_NOTE      // shown beside the theme picker
     };
-    // The installed themes, [{name, title, current}], for the picker (until the capabilities answer: this one).
+    // The installed themes, [{name, title, current, modes, accent}], for the picker (until the capabilities answer:
+    // this one); modes and accent say which Appearance rows the theme has.
     core.themes=function(){var names=core.capabilities&&core.capabilities.themes||[core.theme];
-      return names.map(function(n){return {name:n,title:THEME_TITLES[n]||n.charAt(0).toUpperCase()+n.slice(1),current:n===core.theme}})};
+      return names.map(function(n){var t=THEMES[n]||{};
+        return {name:n,title:t.title||n.charAt(0).toUpperCase()+n.slice(1),current:n===core.theme,modes:t.modes||[],accent:!!t.accent}})};
     // Switch this browser to a theme: remembered here, then the page opens again in it (listening stops).
     core.setTheme=function(name){try{localStorage.setItem(THEME_KEY,name)}catch(e){}
       (options.location||location).assign('/?theme='+encodeURIComponent(name))};
@@ -165,5 +180,5 @@ var RadioCore=(function(){
     return core;
   }
 
-  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead};
+  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent};
 })();

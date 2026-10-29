@@ -18,8 +18,7 @@ var appearance=(function(){
       ocean:{light:['#edf3f6','#dfe8ee','#192b36','#506575','#c3d1dc','#185e91','#ffffff'],dark:['#111c27','#1b2b3b','#e4edf4','#9db0c2','#334b60','#80bce7','#14283a']}
     },state={mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24'},mounted=false,saveError=false;
   function hex(value){return typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)}
-  function luminance(color){var c=[1,3,5].map(function(i){var v=parseInt(color.slice(i,i+2),16)/255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)});return c[0]*.2126+c[1]*.7152+c[2]*.0722}
-  function contrast(a,b){var x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+  var contrast=RadioCore.contrast;
   function mode(){return state.mode==='system'?(system.matches?'dark':'light'):state.mode}
   function colors(){return palettes[state.palette][mode()]}
   function readable(value){var c=colors();return hex(value)&&Math.min(contrast(value,c[0]),contrast(value,c[1]))>=4.5}

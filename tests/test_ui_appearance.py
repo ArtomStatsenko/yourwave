@@ -4,10 +4,11 @@ from pathlib import Path
 import re
 import subprocess
 import unittest
-from tests.ui_page import page_source
+from tests.ui_page import WEB, page_source
 
 PAGE = page_source()
 SCRIPT = re.search(r'<script id="appearance-script">(.*?)</script>', PAGE, re.S).group(1)
+CORE = (WEB / "core/core.js").read_text()  # loads first in <head>; the script uses its contrast
 
 
 class AppearanceTests(unittest.TestCase):
@@ -22,7 +23,7 @@ function setup(saved=null,dark=false,blocked=false){
   const media={matches:dark,addEventListener(k,f){listeners[k]=f}};
   const c={timeline(){},directionView(){},player(){},document:{documentElement:root,getElementById:node,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
     localStorage:{getItem(){if(blocked)throw Error('blocked');return value},setItem(k,v){if(blocked)throw Error('blocked');value=v;writes++}}};
-  vm.createContext(c);vm.runInContext(SCRIPT,c);
+  vm.createContext(c);vm.runInContext(CORE+';this.RadioCore=RadioCore',c);vm.runInContext(SCRIPT,c);
   const beforeMount={...styles};c.appearance.mount();
   return {styles,nodes,beforeMount,root,formatTime:c.appearance.formatTime,select(kind,value){const n=radios[kind].find(n=>n.value===value);n.onchange()},
     input(value){node('accent-hex').value=value;node('accent-hex').oninput()},apply(){node('accent-form').onsubmit({preventDefault(){}})},
@@ -61,7 +62,7 @@ t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode
 t=setup(null,false,true);t.select('palette','ocean');assert.equal(t.styles['--bg'],'#edf3f6');assert.match(t.nodes['appearance-status'].textContent,/could not save/);
 t=setup(JSON.stringify({mode:'invalid',palette:'__proto__',accent:'red'}));assert.equal(t.styles['--bg'],'#f2f2ee');
 """
-        result = subprocess.run(['node', '-e', 'const SCRIPT=' + json.dumps(SCRIPT) + ';\n' + harness], capture_output=True, text=True)
+        result = subprocess.run(['node', '-e', 'const SCRIPT=' + json.dumps(SCRIPT) + ',CORE=' + json.dumps(CORE) + ';\n' + harness], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_presets_keep_text_and_status_contrast(self):
