@@ -1,5 +1,7 @@
 # Host opinions
 
+Public defaults are **Alex**, the curious enthusiast, and **Jess**, the friendly skeptic; both character descriptions are written in English. Personal station overrides stay local.
+
 Enable **Experiments → Host opinions**. In **Settings**, open **Details** beneath each host name to edit **Host character** and **Co-host character** (up to 1200 characters each; saved when leaving the field). Defaults are a curious enthusiast and a friendly sceptic. **Two hosts** gives the co-host a separate voice; without it, new scripts use the main host. No additional model call is needed for a comment.
 
 The character supplies interests, values and a manner of judging the facts. A news script gives the event first, then one short, clearly subjective assessment with a reason. The news-detail word budget still applies. Weather, timed reminders and authored announcements keep their wording. Musical judgements and memory of previous opinions are not implemented.

@@ -1,23 +1,23 @@
-# Личная позиция AI-ведущих
+# Editorial personalities for AI hosts
 
-Проверено 29 октября 2026 года по официальным страницам; продукты не запускались, аудио не прослушивалось. Это сравнение подходов, без оценки популярности или качества на слух.
+Checked against official pages on October 29, 2026. The products were not run and their audio was not evaluated. This compares approaches without ranking their popularity or listening quality.
 
-## Готовые ориентиры
+## Existing references
 
-| Решение | Что уже умеет | Применимость к Yourwave |
+| Product | Available capabilities | Fit for Yourwave |
 | --- | --- | --- |
-| Futuri AudioAI / ранее представленный RadioGPT | Настраиваемые AI-DJ под стиль станции, локальные новости и события; интеграции с системами автоматизации и доставка аудио по URL. | Реальный коммерческий продукт для вещателей; подключение обсуждается через demo/onboarding. Публичная страница не подтверждает готовый self-service API или русский язык. Для личного радио это, вероятно, более тяжёлая замена существующего конвейера. |
-| Spotify AI DJ | Персональная подборка с короткими комментариями о музыке, артистах и жанрах; генерация использует знания музыкальных редакторов. | Хороший образец короткой содержательной подводки. Проверенные страницы описывают функцию внутри Spotify, а не компонент для подключения к Yourwave; собственный голос, новостная редакционная позиция и API комментариев ими не подтверждены. |
-| NotebookLM / текущая справка Gemini Notebook, Audio Overview | Deep Dive, Brief, Critique и Debate; два ведущих могут разбирать материал и спорить с разных позиций. Есть настройка языка, темы и экспорт аудио. | Подходит для ручного прототипа разговора по нескольким источникам. Google прямо определяет результат как отражение источников, а не субъективные мнения ведущих; постоянные характеры и непрерывный радиоэфир этой справкой не обещаны. |
+| Futuri AudioAI / originally RadioGPT | AI DJs tailored to a station's style, local news and events; broadcast automation integrations and audio delivery by URL. | A commercial broadcasting product with demo/onboarding. The public pages do not establish a self-service API or Russian support. Adopting it would likely be a larger change than extending the current pipeline. |
+| Spotify AI DJ | Personalized music selections with short commentary about tracks, artists and genres, informed by music editors. | A useful reference for concise music introductions. The reviewed pages describe a Spotify feature rather than an embeddable component; they do not establish a commentary API, custom host voices or editorial news positions. |
+| NotebookLM / Gemini Notebook Audio Overview | Deep Dive, Brief, Critique and Debate formats, including two-host discussion; language/topic customization and audio export. | Useful for a manual conversation prototype grounded in several sources. Google describes the output as a reflection of sources rather than the hosts' subjective opinions; persistent personalities and continuous radio broadcasting are not promised. |
 
-Источники: [Futuri AudioAI](https://futurimedia.com/products/audio-ai), [запуск RadioGPT, 2023](https://futurimedia.com/press-release/futuri-launches-radiogpt), [устройство Spotify DJ](https://newsroom.spotify.com/2023-02-22/spotify-debuts-a-new-ai-dj-right-in-your-pocket/), [Spotify DJ с запросами, 2025](https://newsroom.spotify.com/2025-05-13/dj-voice-requests/), [актуальная справка Audio Overview](https://support.google.com/gemininotebook/answer/16212820?hl=en).
+Sources: [Futuri AudioAI](https://futurimedia.com/products/audio-ai), [RadioGPT launch, 2023](https://futurimedia.com/press-release/futuri-launches-radiogpt), [Spotify DJ design](https://newsroom.spotify.com/2023-02-22/spotify-debuts-a-new-ai-dj-right-in-your-pocket/), [Spotify DJ voice requests, 2025](https://newsroom.spotify.com/2025-05-13/dj-voice-requests/), [Audio Overview help](https://support.google.com/gemininotebook/answer/16212820?hl=en).
 
-У Futuri есть особенно близкий пример: Rock 108 создала Tori с язвительным рок-характером и открыто обозначает её AI-ведущей; она используется ночью и по выходным. Это подтверждение внедрения персоны, но кейс поставщика не доказывает независимую оценку качества или устойчивые взгляды по новостям. [Кейс KFMW / Tori](https://futurimedia.com/case-studies/case-study-this-ai-rocks-how-kfmw-used-audioai-to-amplify-brand-attitude-and-drive-revenue).
+Futuri's Rock 108 case study is a close reference: Tori has a snarky rock persona, is openly identified as AI, and appears overnight and on weekends. This demonstrates a deployed persona; a supplier case study does not independently establish audio quality or consistent editorial views. [KFMW / Tori case study](https://futurimedia.com/case-studies/case-study-this-ai-rocks-how-kfmw-used-audioai-to-amplify-brand-attitude-and-drive-revenue).
 
-## Практическая рекомендация
+## Recommendation
 
-Ни один из проверенных продуктов не даёт подтверждённой простой вставки «личного мнения» в нынешний Yourwave. Мой вывод: начать с уже существующей генерации текста, добавив каждому ведущему короткую устойчивую редакционную карточку — ценности, интересы, музыкальные предпочтения и манеру аргументировать; постоянная биография и выдуманный жизненный опыт для этого не нужны.
+None of the reviewed products establishes a simple drop-in personal-opinion component for the current Yourwave pipeline. Start with the existing text generation and give each host a short, stable editorial profile: values, interests, musical preferences and criteria for judging a story. A fictional biography or invented life experience is unnecessary.
 
-Для новостей сначала дать факт, затем одну короткую оценку с причиной; разные ведущие могут выбирать разные существенные стороны события без обязательного спора. Для музыки оценка звучания должна опираться на анализ аудио или подготовленные музыкальные признаки, а сведения об артисте — на проверенный материал; название трека само по себе не обосновывает фразу о басе, вокале или аранжировке. Это проектное предложение, а не возможность, проверенная в перечисленных продуктах.
+For news, give the event first, then a brief assessment with a reason. Hosts can notice different aspects without having to disagree. Musical assessments need audio analysis or supplied musical features; artist information needs verified source material. A track title alone cannot justify claims about its bass, vocals or arrangement. These are design proposals, not verified capabilities of the products above.
 
-Первый эксперимент: одинаковые три новости и два трека, по две реплики от разных характеров; оценить узнаваемость, конкретность, отсутствие выдуманных фактов и естественность на слух перед подключением к эфиру.
+Suggested first experiment: use the same three news items and two tracks for both personalities, then assess recognizability, specificity, invented facts and natural speech before broadcast integration. The implemented scope and verification are documented in [Host opinions](host-opinions.md).
