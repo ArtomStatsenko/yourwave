@@ -1,0 +1,29 @@
+/* Synthwave: dark, neon pink for what is live, a sunset cover. The card layout is shared (themes/shared/cards.css). */
+@import url("/ui/themes/shared/cards.css");
+
+:root[data-skin="synthwave"]{color-scheme:dark;--bg:#10061f;--surface:#1a0b30;--tile:transparent;--current:transparent;--current-line:transparent;
+  --summary:rgba(255,46,151,.08);--ink:#ffe9ff;--muted:#c58bd8;--line:rgba(255,46,151,.2);--accent:#ff2e97;--accent-ink:#fff;--ok:#43d17a;--warn:#ffd23d;
+  --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:linear-gradient(#1a0836,#ff6a3d 62%,#10061f 62%);
+  --glow:rgba(255,46,151,.67);--rule:rgba(255,46,151,.13);
+  --r-panel:14px;--r-button:999px;--r-tab:0;--r-tile:0;--r-cover:10px;--cover-ratio:1;--title-size:26px;--title-weight:700;--title-track:0;--bar-gap:3px}
+
+/* panels: a thin neon frame and a glow inside */
+:root[data-skin="synthwave"] .panel{border:1px solid rgba(255,46,151,.33);box-shadow:0 0 40px rgba(255,46,151,.13) inset}
+:root[data-skin="synthwave"] .title{text-shadow:0 0 14px var(--glow)}
+:root[data-skin="synthwave"] .bar i{box-shadow:0 0 12px var(--accent)}
+:root[data-skin="synthwave"] #pp:not(:disabled){box-shadow:0 0 18px rgba(255,46,151,.53)}
+
+/* the cover: a square sunset with its sun; the spectrum glows over its lower third */
+.sun{position:absolute;left:50%;top:20%;width:46%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:linear-gradient(#ffd23d,#ff2e97)}
+:root[data-skin="synthwave"] #spectrum-bars{position:absolute;inset:auto 0 0 0;height:33%;padding:0 8px 8px}
+:root[data-skin="synthwave"] #spectrum-bars i{border-radius:1px;box-shadow:0 0 8px var(--accent)}
+
+/* tabs: the open one is underlined in neon, its text glows; no fill */
+:root[data-skin="synthwave"] .tabs button{text-transform:capitalize;letter-spacing:.02em;font-size:17px;border-bottom:2px solid transparent}
+:root[data-skin="synthwave"] .tabs button[aria-selected="true"]{background:none;color:var(--ink);font-weight:500;border-bottom:2px solid var(--accent);text-shadow:0 0 10px var(--accent)}
+
+/* timeline: rows are lines, not tiles; times in a pastel pink */
+:root[data-skin="synthwave"] .it,:root[data-skin="synthwave"] #upcoming{padding:10px 0;margin:0;border-bottom:1px solid var(--rule)}
+:root[data-skin="synthwave"] .it.cur{outline:0}
+:root[data-skin="synthwave"] .it .tm,:root[data-skin="synthwave"] #upcoming .tm{color:#ff9ad0}
+:root[data-skin="synthwave"] .sum{border:1px solid var(--line)}

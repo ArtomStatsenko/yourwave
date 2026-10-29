@@ -54,7 +54,9 @@ class PageServerTests(unittest.TestCase):
         self.assertEqual(self.get('/api/capabilities')[0], 403)
         code, raw = self.get('/api/capabilities', {'X-Radio-Token': self.server.token})
         self.assertEqual(code, 200)
-        self.assertEqual(json.loads(raw), {**control.capabilities(), 'themes': ['lime', 'terminal']})
+        from radio import ui
+        self.assertEqual(json.loads(raw), {**control.capabilities(), 'themes': ui.themes()})
+        self.assertIn('terminal', ui.themes())
 
     def test_a_page_can_ask_for_another_theme(self):
         status, page = self.get('/?theme=lime')

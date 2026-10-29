@@ -25,6 +25,28 @@ class ThemePickerTests(unittest.TestCase):
                 self.assertIn(f'theme:"{name}"', html)
 
 
+class CardThemeTests(unittest.TestCase):
+    """Themes built on the terminal behavior (lime, synthwave, soft): its elements, the shared bars, one look."""
+    def test_card_themes_have_every_element_the_behavior_uses_once(self):
+        from collections import Counter
+        behavior = (WEB / "themes/terminal/view.js").read_text()
+        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb"}  # drawn by the script
+        cards = [n for n in THEMES if n != "terminal"]
+        self.assertTrue(cards)
+        for name in cards:
+            with self.subTest(theme=name):
+                html = (WEB / "themes" / name / "index.html").read_text()
+                ids = Counter(re.findall(r'id="([^"]+)"', html))
+                self.assertEqual(sorted(used - set(ids)), [])
+                self.assertEqual([k for k, n in ids.items() if n > 1], [])
+                scripts = re.findall(r'<script src="([^"]+)"></script>', html)
+                self.assertEqual(scripts, ["/ui/core/core.js", "/ui/core/model.js", "/ui/themes/terminal/view.js",
+                                           "/ui/themes/shared/bars.js", f"/ui/themes/{name}/view.js"])
+                self.assertIn('id="spectrum-bars"', html)
+                self.assertIn(f'data-skin="{name}"', html)
+                self.assertIn('@import url("/ui/themes/shared/cards.css");', (WEB / "themes" / name / "theme.css").read_text())
+
+
 CORE = (WEB / "core/core.js").read_text()
 HARNESS = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
