@@ -77,8 +77,9 @@ function setTitle(text,instant,duration){
   var box=document.querySelector('.title'),el=$('ttl'),car=$('caret');
   $('ttl-sr').textContent=text;box.title=text;           // a screen reader hears the finished title once
   cancelAnimationFrame(tfx.raf);
-  /* no animation: first load, reduced motion, hidden tab, nothing shown yet, or messages instead of a track */
-  if(instant||duration===0||matchMedia('(prefers-reduced-motion:reduce)').matches||document.hidden||!tfx.shown||text===tfx.shown){
+  /* no animation: first load, reduced motion, hidden tab, nothing shown yet, messages instead of a track, or a
+     theme that reuses this script without the typing (appearance.typing===false, e.g. lime) */
+  if(instant||appearance.typing===false||duration===0||matchMedia('(prefers-reduced-motion:reduce)').matches||document.hidden||!tfx.shown||text===tfx.shown){
     el.textContent=tfx.shown=text;car.hidden=true;box.classList.remove('typing');box.scrollLeft=0;fitTitle();return}
   tfx.from=tfx.shown;tfx.to=text;tfx.t0=performance.now();tfx.duration=duration;   // a change mid-animation restarts from the text on screen
   box.classList.remove('mq');box.classList.add('typing');car.hidden=false;

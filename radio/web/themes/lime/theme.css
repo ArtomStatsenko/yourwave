@@ -1,0 +1,133 @@
+/* Lime: dark, one lime accent for what is live, rows as tiles. The terminal theme's stylesheet is the base
+   (the plan editor's layout, drag line and lens, gaps, folds); this file changes the look. */
+@import url("/ui/themes/terminal/theme.css");
+
+:root[data-skin="lime"]{color-scheme:dark;--bg:#101110;--surface:#171917;--tile:#1a1c19;--current:#252a1c;--summary:#1f221d;
+  --ink:#f2f4ee;--muted:#9aa092;--line:#2a2d27;--accent:#c8ff3d;--accent-ink:#101110;--ok:#43d17a;--warn:#f0b429;
+  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+:root[data-skin="lime"] body{font:18px/1.45 var(--sans);padding-block:24px 48px}
+:root[data-skin="lime"] :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+/* layout: the player on the left (up to 380px), the tabs on the right; one column below 900px */
+:root[data-skin="lime"] main{max-width:1100px;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:28px;align-items:start}
+@media(max-width:900px){:root[data-skin="lime"] main{grid-template-columns:minmax(0,1fr)}}
+
+/* controls */
+:root[data-skin="lime"] button{border-radius:12px;font-family:var(--sans)}
+:root[data-skin="lime"] button:hover{border-color:var(--muted)}
+:root[data-skin="lime"] .l{font-size:16px}
+:root[data-skin="lime"] h2{font-size:16px;letter-spacing:.08em}
+
+/* player panel */
+.panel{background:var(--surface);border-radius:20px;padding:20px}
+:root[data-skin="lime"] #np{display:grid;gap:0}
+.np-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:16px;margin-bottom:14px}
+.brand{font-weight:700;letter-spacing:.03em}
+:root[data-skin="lime"] #np h1.live{font-size:16px;letter-spacing:0;text-transform:none;color:var(--accent);display:flex;gap:8px;align-items:center;margin:0}
+:root[data-skin="lime"] #np h1.live:has(#air.off){color:var(--muted)}
+:root[data-skin="lime"] #air{font-size:12px}
+.cover{aspect-ratio:2.6;border-radius:12px;background:linear-gradient(160deg,#243314,#101110);overflow:hidden}
+#lime-bars{height:100%;display:flex;gap:4px;align-items:flex-end;padding:10px}
+#lime-bars i{flex:1;height:0;min-height:2px;background:var(--accent);border-radius:2px;opacity:.9}  /* no sound: a flat line */
+:root[data-skin="lime"] .title{font-size:30px;line-height:1.15;font-weight:500;letter-spacing:-.01em;white-space:normal;overflow:visible;overflow-wrap:anywhere;margin:16px 0 0}
+:root[data-skin="lime"] .bar{height:5px;min-width:0;border-radius:5px;background:color-mix(in srgb,var(--ink) 16%,transparent);margin:16px 0 6px}
+:root[data-skin="lime"] .bar i{height:5px;border-radius:5px}
+:root[data-skin="lime"] #time{font-size:16px}
+:root[data-skin="lime"] .ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+:root[data-skin="lime"] #pp{width:56px;height:56px;padding:0;background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+:root[data-skin="lime"] #pp:disabled{background:none;color:var(--muted);border-color:var(--line)}
+:root[data-skin="lime"] #nx,:root[data-skin="lime"] #so{width:48px;height:48px;min-height:48px;padding:0;display:grid;place-items:center;color:var(--ink);border:1px solid var(--line);font-size:16px}
+:root[data-skin="lime"] #station-controls{margin-left:auto}
+.vol{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:16px;margin-top:14px}
+:root[data-skin="lime"] #vol{flex:1;width:auto;min-width:0}
+@media(max-width:640px){:root[data-skin="lime"] .vol{display:none}}  /* the phone's own buttons set the volume */
+:root[data-skin="lime"] #music-source{margin-top:12px}
+.station-state{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:8px}
+:root[data-skin="lime"] .voice-state{margin-left:0}
+:root[data-skin="lime"] .dot{width:9px;height:9px}
+:root[data-skin="lime"] #sk{margin-top:12px;font-size:16px;padding:8px 16px;min-height:44px}
+:root[data-skin="lime"] #er:empty{display:none}
+
+/* tabs: capitals; the open one is filled with the accent */
+:root[data-skin="lime"] .tabbar{border:0}
+:root[data-skin="lime"] .tabs{gap:6px;margin-bottom:6px}
+:root[data-skin="lime"] .tabs button{border:0;border-radius:10px;min-height:44px;padding:0 16px;font-size:16px;letter-spacing:.08em;color:var(--muted)}
+:root[data-skin="lime"] .tabs button:hover{border:0;color:var(--ink)}
+:root[data-skin="lime"] .tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700;border:0}
+@media(max-width:420px){:root[data-skin="lime"] .tabs{display:grid;grid-template-columns:1fr 1fr}:root[data-skin="lime"] .tabs button{text-align:center;justify-self:stretch}}
+
+/* text actions: More news, Activity, Edit, Undo, Done, Show earlier, Show later */
+:root[data-skin="lime"] [hidden]{display:none!important}  /* the text actions below set display: hidden must still win */
+:root[data-skin="lime"] #catchup-build,:root[data-skin="lime"] #plan-edit,:root[data-skin="lime"] #plan-undo,:root[data-skin="lime"] #plan-done,
+:root[data-skin="lime"] #history-more,:root[data-skin="lime"] #plan-later,:root[data-skin="lime"] #activity summary{
+  border:0;background:none;min-height:44px;padding:0 12px;font-size:16px;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center}
+:root[data-skin="lime"] #plan-undo,:root[data-skin="lime"] #history-more,:root[data-skin="lime"] #plan-later{color:var(--muted)}
+:root[data-skin="lime"] #history-more{width:100%;justify-content:center}
+:root[data-skin="lime"] #activity-log{background:var(--surface);border-radius:12px}
+
+/* timeline: rows are tiles; time on the left, text after a 22px gutter for the marker (▶ now, ◆ reminder) */
+:root[data-skin="lime"] #broadcast-timeline{scrollbar-color:var(--line) var(--bg)}
+:root[data-skin="lime"] .it{background:var(--tile);border-radius:12px;padding:10px 12px;margin-bottom:6px}
+:root[data-skin="lime"] .it.cur{background:var(--current);outline:1px solid rgba(200,255,61,.4);outline-offset:-1px}
+:root[data-skin="lime"] .tg{display:grid;grid-template-columns:56px minmax(0,1fr) auto;column-gap:12px;align-items:baseline;padding:0}
+:root[data-skin="lime"] .tg .tm{grid-column:1;grid-row:1}
+:root[data-skin="lime"] .tg .tm.ch{grid-column:3;grid-row:1}
+:root[data-skin="lime"] .tg .k{grid-column:2;grid-row:1}
+:root[data-skin="lime"] .tg .tx{grid-column:2;font-size:18px}
+:root[data-skin="lime"] button.tg:hover{background:none}
+:root[data-skin="lime"] .it:is(.reminder,.weather) > .hd .k{display:block;padding-left:22px;font-size:16px;color:var(--muted)}  /* the model's kind label, where the title does not already say it */
+:root[data-skin="lime"] .it.cur .tx::before{color:var(--accent)}
+:root[data-skin="lime"] .it.reminder .tx::before{color:var(--muted)}
+:root[data-skin="lime"] .it.weather .tx::before{content:none}
+:root[data-skin="lime"] .it.id .tx{font-size:16px}
+:root[data-skin="lime"] .ex{margin:6px 0 0 68px;padding:0 0 4px 22px;font-size:17px;line-height:1.45}
+:root[data-skin="lime"] .rp{border:0;min-width:44px;min-height:44px;padding:0}
+#upcoming .tg{padding-left:0}
+:root[data-skin="lime"] #upcoming{background:var(--tile);border-radius:12px;padding:10px 12px;margin-bottom:6px}
+
+/* the plan editor keeps the terminal layout; its blocks are tiles too */
+:root[data-skin="lime"] #direction-list .plan-hour>summary{min-height:44px;display:flex;align-items:center}
+:root[data-skin="lime"] .plan-drag-lens{background:var(--surface);border-radius:12px}
+:root[data-skin="lime"] .plan-gap>button{border-radius:8px}
+@media(min-width:901px){
+  .program-editing main{grid-template-rows:minmax(0,1fr)}
+  .program-editing #np{position:static;padding:20px;background:var(--surface)}
+}
+
+/* switches: 56×32, the accent when on (the button keeps aria-pressed and its on/off word for screen readers) */
+:root[data-skin="lime"] .pl{align-items:center;min-height:56px;border:0;padding:8px 0}
+:root[data-skin="lime"] .pl:hover{background:none;border:0}
+:root[data-skin="lime"] .pl .nm{order:-1}
+:root[data-skin="lime"] .pl .sw{position:relative;width:56px;height:32px;border-radius:32px;border:1px solid var(--line);
+  background:color-mix(in srgb,var(--ink) 12%,transparent);font-size:0;color:transparent}
+:root[data-skin="lime"] .pl .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--ink);transition:transform .15s}
+:root[data-skin="lime"] .pl[aria-pressed="true"] .sw{background:var(--accent);border-color:var(--accent)}
+:root[data-skin="lime"] .pl[aria-pressed="true"] .sw::after{transform:translateX(24px);background:var(--accent-ink)}
+:root[data-skin="lime"] .pl:disabled .sw{opacity:.4}
+@media(max-width:640px){:root[data-skin="lime"] .pl{display:flex}}
+:root[data-skin="lime"] .plugin-row>.pl,:root[data-skin="lime"] .plugin-row>.pl:hover{padding-right:0}
+:root[data-skin="lime"] .plugin-row>.control-help>summary{position:static}
+:root[data-skin="lime"] .plugin-row>.control-help>.l,:root[data-skin="lime"] .plugin-warning,:root[data-skin="lime"] #news-source-list>section>p{margin-left:0;padding-left:0}
+:root[data-skin="lime"] input[role=switch]{appearance:none;position:relative;flex:none;width:56px;height:32px;margin:0;border-radius:32px;border:1px solid var(--line);
+  background:color-mix(in srgb,var(--ink) 12%,transparent);cursor:pointer}
+:root[data-skin="lime"] input[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--ink);transition:transform .15s}
+:root[data-skin="lime"] input[role=switch]:checked{background:var(--accent);border-color:var(--accent)}
+:root[data-skin="lime"] input[role=switch]:checked::after{transform:translateX(24px);background:var(--accent-ink)}
+:root[data-skin="lime"] .st label:has(input[role=switch]){width:100%;justify-content:space-between;flex-direction:row-reverse}
+
+/* forms */
+:root[data-skin="lime"] .st{border-bottom:1px solid var(--line)}
+:root[data-skin="lime"] .st input[type=url],:root[data-skin="lime"] .st input[type=password],:root[data-skin="lime"] .st input[type=text],
+:root[data-skin="lime"] .st select,:root[data-skin="lime"] .st textarea,:root[data-skin="lime"] #direction-controls input,
+:root[data-skin="lime"] #direction-controls select,:root[data-skin="lime"] #direction-controls textarea{
+  font:17px/1.4 var(--sans);min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);color:var(--ink);
+  background:color-mix(in srgb,var(--ink) 8%,transparent)}
+:root[data-skin="lime"] .st .v{color:var(--ink)}
+:root[data-skin="lime"] .ab{min-height:44px;font-size:16px;padding:0 18px}
+:root[data-skin="lime"] .st .rs{color:var(--accent)}
+
+/* AI and Voice: the summary is a tile with a coloured dot */
+:root[data-skin="lime"] .sum{background:var(--summary);border:0;border-radius:12px;padding:12px 14px;margin:4px 0 8px}
+:root[data-skin="lime"] .sum .nm{font-size:20px;line-height:1.3;font-weight:500}
+
+@media (prefers-reduced-motion:reduce){:root[data-skin="lime"] *{transition:none!important}}

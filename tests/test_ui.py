@@ -54,7 +54,15 @@ class PageServerTests(unittest.TestCase):
         self.assertEqual(self.get('/api/capabilities')[0], 403)
         code, raw = self.get('/api/capabilities', {'X-Radio-Token': self.server.token})
         self.assertEqual(code, 200)
-        self.assertEqual(json.loads(raw), {**control.capabilities(), 'themes': ['terminal']})
+        self.assertEqual(json.loads(raw), {**control.capabilities(), 'themes': ['lime', 'terminal']})
+
+    def test_a_page_can_ask_for_another_theme(self):
+        status, page = self.get('/?theme=lime')
+        self.assertEqual(status, 200)
+        self.assertIn(b'data-skin="lime"', page)
+        self.assertIn(self.server.token.encode(), page)
+        self.assertEqual(self.get('/ui/themes/lime/view.js')[0], 200)
+        self.assertNotIn(b'data-skin="lime"', self.get('/')[1])          # terminal stays the default
 
     def test_theme_markup_has_no_inline_handlers(self):
         """A theme lives inside mount(core, root): an inline on...="" handler cannot see its functions."""

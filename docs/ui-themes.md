@@ -33,6 +33,16 @@ or `?theme=<name>` in the page address; `terminal` is the default and the refere
 
 No inline `on...=""` handlers: a theme's functions live inside `mount()`, out of their reach. A test checks this.
 
+### A new look on the terminal behavior
+
+A theme that only changes the look can reuse the terminal theme's behavior instead of writing its own, as `lime`
+does: its `index.html` keeps every element id the terminal script uses (arranged and styled its own way), loads
+`/ui/themes/terminal/view.js` before its own `view.js`, and its `theme.css` starts with
+`@import url("/ui/themes/terminal/theme.css")` for the editor's layout. The page's inline `appearance` object
+replaces terminal's appearance settings: `formatTime(value)`, `mount()`, and `typing: false` to show a new title
+at once instead of typing it. Its own `view.js` wraps the terminal `RadioTheme.mount` to add what the look needs
+(lime: the spectrum bars). `tests/test_lime_theme.py` checks that no id the behavior uses is missing.
+
 ## What the core gives
 
 `RadioCore.create(options)` returns `core`:
