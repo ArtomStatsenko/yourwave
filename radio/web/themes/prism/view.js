@@ -1,6 +1,6 @@
 // Prism: the terminal theme's behavior (radio/web/themes/terminal/view.js) in its own look, with 32 white spectrum bars
 // (shared/bars.js) and the colour split moving:
-// with the sound (--ab on the theme root), a rising title on a new track, a settle on a new tab or switch, and a still
+// with the sound (--ab on the player and the tab bar), a rising title on a new track, a settle on a new tab or switch, and a still
 // red split on an error. Reduced motion keeps the still split; nothing moves.
 var RadioTheme=(function(theme){
   // the split width for a smoothed level of the low bands (0..1): 1.5px still, up to 4.3px loud
@@ -10,12 +10,13 @@ var RadioTheme=(function(theme){
   function step(text){return text.length>48?'s':text.length>30?'m':''}
   function mount(core,root){
     theme.mount(core,root);
-    var html=document.documentElement,motion=matchMedia('(prefers-reduced-motion:reduce)'),level=0,running=false;
+    var html=document.documentElement,motion=matchMedia('(prefers-reduced-motion:reduce)'),level=0,running=false,
+      moved=[root.querySelector('#np'),root.querySelector('.tabbar')];  // not the root: a change there restyles the whole page every frame
     function moving(){return core.audio.listening&&!motion.matches&&!document.hidden&&!core.error&&!(core.snapshot&&core.snapshot.state==='PAUSED')}
     function frame(){
-      if(!moving()){running=false;level=0;root.style.removeProperty('--ab');return}
-      var heard=core.audio.read(1);level+=((heard?low(heard.bands):0)-level)*.25;
-      root.style.setProperty('--ab',width(level));requestAnimationFrame(frame)}
+      if(!moving()){running=false;level=0;moved.forEach(function(el){el.style.removeProperty('--ab')});return}
+      var heard=core.audio.read(1),ab;level+=((heard?low(heard.bands):0)-level)*.25;ab=width(level);
+      moved.forEach(function(el){el.style.setProperty('--ab',ab)});requestAnimationFrame(frame)}
     function start(){if(!running&&moving()){running=true;requestAnimationFrame(frame)}}
     core.subscribe(function(core,change){
       html.classList.toggle('prism-error',!!core.error);   // the words are the core's, shown where terminal shows them

@@ -69,7 +69,9 @@ global.MutationObserver=function(f){this.observe=()=>observers.push(f)};
 var RadioTheme={mount(){}},RadioBars={wrap:t=>t};
 VIEW
 const el=()=>({textContent:'',classList:{add(){},remove(){}},addEventListener(){},offsetWidth:0,dataset:{},style:{}});
-const style={},root={style:{setProperty:(k,v)=>style[k]=v,removeProperty:k=>delete style[k]},querySelector:el,addEventListener(){}};
+const style={},bodyStyle={},moved=el=>Object.assign(el,{style:{setProperty:(k,v)=>style[k]=v,removeProperty:k=>delete style[k]}});
+const parts={'#np':moved(el()),'.tabbar':moved(el())};  // the player and the tab bar share one record: both get the same width
+const root={style:{setProperty:(k,v)=>bodyStyle[k]=v,removeProperty(){}},querySelector:q=>parts[q]||el(),addEventListener(){}};
 let heard=null;
 const core={audio:{listening:false,read:()=>heard},snapshot:{state:'PLAYING'},error:'',subscribe:f=>listeners.push(f)};
 const tick=()=>{const f=frames.shift();if(f)f()},tell=c=>listeners.forEach(f=>f(core,c));
@@ -91,6 +93,7 @@ core.error='';tell('snapshot');assert.equal(document.documentElement.classList.o
 reduced=true;tick();assert.equal(frames.length,0,'reduced motion: nothing moves');tell('snapshot');assert.equal(frames.length,0);
 reduced=false;motionListener();assert.equal(frames.length,1);
 core.audio.listening=false;tick();assert.equal(frames.length,0,'stops with the sound');
+assert.deepEqual(bodyStyle,{},'never on the root: that restyles the whole page');
 """
 
 
