@@ -40,9 +40,9 @@ class CardThemeTests(unittest.TestCase):
                 self.assertEqual(sorted(used - set(ids)), [])
                 self.assertEqual([k for k, n in ids.items() if n > 1], [])
                 scripts = re.findall(r'<script src="([^"]+)"></script>', html)
+                bars = ["/ui/themes/shared/bars.js"] if 'id="spectrum-bars"' in html else []   # prism draws a disc, no spectrum
                 self.assertEqual(scripts, ["/ui/core/core.js", "/ui/core/model.js", "/ui/themes/terminal/view.js",
-                                           "/ui/themes/shared/bars.js", f"/ui/themes/{name}/view.js"])
-                self.assertIn('id="spectrum-bars"', html)
+                                           *bars, f"/ui/themes/{name}/view.js"])
                 self.assertIn(f'data-skin="{name}"', html)
                 self.assertIn('@import url("/ui/themes/shared/cards.css");', (WEB / "themes" / name / "theme.css").read_text())
 

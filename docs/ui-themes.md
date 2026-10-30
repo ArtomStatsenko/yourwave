@@ -47,7 +47,8 @@ does: its `index.html` keeps every element id the terminal script uses (arranged
 `@import url("/ui/themes/terminal/theme.css")` for the editor's layout. The page's inline `appearance` object
 replaces terminal's appearance settings: `formatTime(value)`, `mount()`, and `typing: false` to show a new title
 at once instead of typing it. Its own `view.js` wraps the terminal `RadioTheme.mount` to add what the look needs
-(lime: the spectrum bars). `tests/test_lime_theme.py` checks that no id the behavior uses is missing.
+(lime: the spectrum bars; prism: the colour split moving with the sound, a rising title on a new track, a
+settle on a new tab or switch, a still red split on an error). `tests/test_lime_theme.py` checks that no id the behavior uses is missing.
 
 ## What the core gives
 
@@ -111,7 +112,7 @@ displacement map on body, which then scrolls inside the screen). Phones get ligh
 off under `prefers-contrast: more`. A theme whose `core.themes()` entry has `modes` or `accent` puts the
 rows `id="appearance-mode-row"` (Mode) and `id="appearance-accent-row"` (Accent) after Theme, `hidden`; the shared
 behavior shows them from those flags. Soft has both (Light, Dark, System; six accents and a custom one, saved in this
-browser); lime and synthwave have neither.
+browser); lime, synthwave and prism have neither.
 
 ## Checking a theme
 

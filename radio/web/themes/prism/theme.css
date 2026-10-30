@@ -1,0 +1,90 @@
+/* Prism: white ink on a black stage, split into a cyan and a red copy like light through a prism. Dark only.
+   The card layout (themes/shared/cards.css) gives the player-left, tabs-right structure; prism turns its tiles into
+   lines. The split (--ab, --c1, --c2) sits only on the track title and on shapes: the on-air dot, the main button,
+   the progress fill, the line under the open tab and the knob of a switch that is on (and a button while held).
+   Never on small text. view.js moves --ab with the sound, settles it on a change and turns it red on an error. */
+@import url("/ui/themes/shared/cards.css");
+@property --ab{syntax:"<length>";inherits:true;initial-value:1.5px}
+@property --c1{syntax:"<color>";inherits:true;initial-value:#25f4ee}
+@property --c2{syntax:"<color>";inherits:true;initial-value:#fe2c55}
+
+:root[data-skin="prism"]{color-scheme:dark;--bg:#000;--surface:#000;--tile:transparent;--current:transparent;--current-line:transparent;
+  --summary:transparent;--ink:#fff;--muted:#a6a6ad;--line:#2a2a2e;--accent:#fff;--accent-ink:#000;--ok:#5fd08a;--warn:#f0b429;
+  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:#0a0a0c;--cover-ratio:1.18;--r-cover:0;--r-tile:0;
+  --ab:1.5px;--track:#26262b;--edge:#3a3a40}
+:root[data-skin="prism"].prism-error{--c1:#fe2c55;--ab:3px}  /* an error: a still, red-only split beside the words */
+:root[data-skin="prism"] :focus-visible{outline:2px solid #25f4ee;outline-offset:3px}
+
+/* the stage: one thin frame; the player up to 370px on the left, the tabs on the right; one column below 860px */
+:root[data-skin="prism"] main{grid-template-columns:minmax(0,370px) minmax(0,1fr);gap:clamp(20px,4vw,48px);border:1px solid var(--line);
+  border-radius:6px;padding:clamp(16px,3vw,32px)}
+@media(max-width:860px){:root[data-skin="prism"] main{grid-template-columns:minmax(0,1fr)}}
+:root[data-skin="prism"] .panel{padding:0}
+:root[data-skin="prism"] .brand{letter-spacing:.14em;text-transform:uppercase}
+:root[data-skin="prism"] #np h1.live{color:var(--ink)}
+:root[data-skin="prism"] #air{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink);font-size:0;
+  box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
+:root[data-skin="prism"] #air.off{background:var(--muted);box-shadow:none}
+:root[data-skin="prism"] .cover{display:grid;place-items:center}
+:root[data-skin="prism"] .disc{width:46%;aspect-ratio:1;border-radius:50%;background:#fff}
+
+/* the track title: Syne, split; a new title rises from below as the old one leaves upward (view.js) */
+:root[data-skin="prism"] .title{font:800 clamp(30px,3.6vw,38px)/1.05 "Syne",var(--sans);letter-spacing:-.02em;overflow-wrap:anywhere;
+  overflow:hidden;padding:.08em 4px;margin:20px -4px 0;text-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
+:root[data-skin="prism"] #ttl{display:block}
+:root[data-skin="prism"] .title.swap #ttl{animation:prism-swap .46s cubic-bezier(.2,.7,.2,1)}
+@keyframes prism-swap{0%{transform:translateY(0);opacity:1}38%{transform:translateY(-70%);opacity:0}39%{transform:translateY(70%);opacity:0}100%{transform:translateY(0);opacity:1}}
+
+/* progress and the main button */
+:root[data-skin="prism"] .bar{height:3px;border-radius:0;background:var(--track);margin:20px 0 8px}
+:root[data-skin="prism"] .bar i{height:3px;border-radius:0;background:var(--ink);box-shadow:0 calc(var(--ab)*-.5) 0 var(--c1),0 calc(var(--ab)*.5) 0 var(--c2)}
+:root[data-skin="prism"] #pp{width:58px;height:58px;border-radius:50%;background:#fff;color:#000;border-color:#fff;
+  box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
+:root[data-skin="prism"] #pp:disabled{background:none;color:var(--muted);border-color:var(--edge);box-shadow:none}
+:root[data-skin="prism"] :is(#nx,#so){width:50px;height:50px;border-radius:50%;border-color:var(--edge)}
+
+/* held: a button, an icon or a tab splits a little wider while pressed (its shape, never its text) */
+:root[data-skin="prism"] :is(button,.tabs button){transition:--ab .14s ease-out}
+:root[data-skin="prism"]:not(.prism-error) :is(button,.tabs button):active{--ab:2.8px}
+:root[data-skin="prism"] :is(#nx,#so,.ab):active{box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
+
+/* tabs: capitals, the open one white and bold with a 2px line under its text */
+:root[data-skin="prism"] .tabs button{position:relative;border-radius:0;font-size:17px;letter-spacing:.1em;padding:0 14px}
+:root[data-skin="prism"] .tabs button[aria-selected="true"]{background:none;color:var(--ink)}
+:root[data-skin="prism"] .tabs button[aria-selected="true"]::after{content:"";position:absolute;left:14px;right:14px;bottom:6px;height:2px;background:#fff;
+  box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
+
+/* text actions: white with a cyan underline; Undo, Show earlier and Show later in grey with a grey one */
+:root[data-skin="prism"] :is(#catchup-build,#plan-edit,#history-more,#plan-later,#plan-undo,#activity summary){color:var(--ink);
+  text-decoration:underline;text-decoration-color:#25f4ee;text-underline-offset:5px;padding:0 12px 0 0}
+:root[data-skin="prism"] :is(#plan-undo,#history-more,#plan-later){color:var(--muted);text-decoration-color:#555}
+:root[data-skin="prism"] #plan-done{background:#fff;color:#000;border:1px solid #fff;border-radius:999px;padding:0 18px;text-decoration:none}
+:root[data-skin="prism"] :is(.ex a,.st a){color:var(--ink);text-decoration-color:#25f4ee;text-underline-offset:4px}
+
+/* timeline: lines, not tiles; time 60px on the left, the text after a 22px gutter for its marker; white, never split */
+:root[data-skin="prism"] :is(.it,#upcoming){padding:12px 0;margin:0;border-top:1px solid var(--line)}
+:root[data-skin="prism"] .tg{grid-template-columns:60px minmax(0,1fr) auto}
+:root[data-skin="prism"] .it.cur .tx::before,:root[data-skin="prism"] .it.reminder .tx::before{color:var(--ink)}
+:root[data-skin="prism"] .ex{margin-left:72px}
+:root[data-skin="prism"] .plan-drag-lens,:root[data-skin="prism"] #activity-log{background:#0b0b0d;border:1px solid var(--line)}
+
+/* switches 56×32: off a grey knob; on a white knob and a white frame, the knob split */
+:root[data-skin="prism"] :is(.pl .sw,input[role=switch]){background:none;border-color:var(--edge)}
+:root[data-skin="prism"] :is(.pl .sw,input[role=switch])::after{background:#777}
+:root[data-skin="prism"] :is(.pl[aria-pressed="true"] .sw,input[role=switch]:checked){background:none;border-color:#fff}
+:root[data-skin="prism"] :is(.pl[aria-pressed="true"] .sw,input[role=switch]:checked)::after{background:#fff;
+  box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
+
+/* a new tab or a switch just turned on: the split opens to 9px and settles back (view.js adds .settle) */
+@keyframes prism-settle{from{--ab:9px}}
+:root[data-skin="prism"] .tabs button.settle::after{animation:prism-settle .45s ease-out}
+:root[data-skin="prism"] :is(.pl.settle .sw,input[role=switch].settle)::after{animation:prism-settle .55s ease-out}
+
+/* forms: dark fields with a grey frame */
+:root[data-skin="prism"] :is(.st input[type=url],.st input[type=password],.st input[type=text],.st select,.st textarea,
+  #direction-controls input,#direction-controls select,#direction-controls textarea){background:#0b0b0d;border-color:var(--edge);border-radius:8px}
+:root[data-skin="prism"] .sum{border:1px solid var(--line);border-radius:10px}
+:root[data-skin="prism"] .st input[type=range]{accent-color:#fff}
+
+/* reduced motion: the split stays, still; nothing moves */
+@media (prefers-reduced-motion:reduce){:root[data-skin="prism"] *,:root[data-skin="prism"] *::after{animation:none!important;transition:none!important}}
