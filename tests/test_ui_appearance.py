@@ -85,7 +85,17 @@ let off=setup(JSON.stringify({crt:'off'}));assert.equal(off.nodes['crt-map'].hre
         bend = "@media (min-width:701px) and (not (pointer:coarse)) and (not (prefers-contrast:more)){"
         self.assertEqual(crt.count("filter:url(#crt)"), 1)
         self.assertGreater(crt.index("filter:url(#crt)"), crt.index(bend), "phones (narrow or touch) never get the bend")
-        self.assertIn("@media (max-width:700px),(pointer:coarse){:root:not([data-crt=\"off\"]){--crt-lines:.08;--crt-vignette:.2;--crt-glow:.25;--crt-noise:0}}", crt)
+        self.assertIn("@media (max-width:700px),(pointer:coarse){:root[data-crt]:not([data-crt=\"off\"]){--crt-lines:.08;--crt-vignette:.2;--crt-glow:.25;--crt-noise:0}}", crt)
+        # the other themes import this stylesheet and never set data-crt: every rule that draws needs the attribute
+        for selectors, body in re.findall(r"([^{}@]+)\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", crt, flags=re.S)):
+            if selectors.strip().startswith(("from", "to")) or all(d.strip().startswith("--crt") for d in body.split(";") if d.strip()):
+                continue
+            depth, parts = 0, [""]
+            for ch in selectors:                                   # top-level commas only, not those inside :is()
+                depth += (ch == "(") - (ch == ")")
+                parts[-1:] = [parts[-1], ""] if ch == "," and depth == 0 else [parts[-1] + ch]
+            for sel in parts:
+                self.assertRegex(sel.strip(), r"^:root(\[[^\]]*\])*(\[data-crt|:is\(\[data-crt)", sel.strip())
         layers = crt[crt.index("@media not (prefers-contrast:more){"):crt.index("@keyframes crt-roll")]
         self.assertIn("pointer-events:none", layers)
         self.assertIn("content:\"\"", layers)                                    # no text: nothing for a screen reader
