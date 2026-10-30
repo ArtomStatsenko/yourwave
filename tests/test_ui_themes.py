@@ -4,7 +4,7 @@ import re
 import subprocess
 import unittest
 
-from tests.ui_page import WEB
+from tests.ui_page import WEB, theme_html
 
 THEMES = sorted(p.parent.name for p in (WEB / "themes").glob("*/index.html"))
 
@@ -14,7 +14,7 @@ class ThemePickerTests(unittest.TestCase):
         self.assertIn("terminal", THEMES)
         for name in THEMES:
             with self.subTest(theme=name):
-                html = (WEB / "themes" / name / "index.html").read_text()
+                html = theme_html(name)
                 appearance = html[html.index('id="appearance"'):]
                 first = re.search(r"<(?:label|select|input)\b[^>]*>", appearance[appearance.index("</h2>"):]).group(0)
                 self.assertEqual(first, '<label for="theme-select">')       # Theme is the first row
@@ -33,11 +33,11 @@ class VoiceLineTests(unittest.TestCase):
         self.assertIn("#voice-warn:empty{display:none}", (WEB / "themes/terminal/theme.css").read_text())  # card themes import it
         for name in THEMES:
             with self.subTest(theme=name):
-                html = (WEB / "themes" / name / "index.html").read_text()
+                html = theme_html(name)
                 self.assertIn('<div class="l" id="voice-warn" aria-live="polite"></div>', html)
                 player = html[:html.index('role="tablist"')]
                 self.assertNotIn("min this hour", player)
-        terminal = (WEB / "themes/terminal/index.html").read_text()
+        terminal = theme_html("terminal")
         status = terminal[terminal.index('id="playback-status"'):]
         self.assertIn("min this hour", status[:status.index("</details>")])   # Settings → Playback status keeps the details
 
@@ -55,6 +55,29 @@ class SettingsSummaryTests(unittest.TestCase):
         self.assertLess(voice.index('id="st-voice_engine"'), voice.index('id="voice-sample"'))
 
 
+# themes on the shared layout (themes/shared/layout.html): one DOM, terminal's arrangement; they differ only in CSS
+ON_LAYOUT = ["terminal"]
+KEY = ["np", "air", "station-controls", "ttl", "viz", "pp", "nx", "fill", "time", "viz-controls", "music-source",
+       "voice-warn", "tab-tl", "tab-st", "catchup-build", "plan-edit", "tl", "theme-select"]
+
+
+class LayoutTests(unittest.TestCase):
+    def test_every_theme_on_the_layout_has_the_same_key_elements_in_the_same_order_and_nesting(self):
+        reference = theme_html("terminal")
+        def order(html):
+            return [i for i, _ in sorted(((i, html.index(f'id="{i}"')) for i in KEY), key=lambda x: x[1])]
+        self.assertEqual(order(reference), KEY)
+        player = reference[reference.index('id="np"'):reference.index("</section>", reference.index('id="np"'))]
+        for i in ("air", "ttl", "viz", "pp", "nx", "fill", "time", "music-source", "voice-warn"):
+            self.assertIn(f'id="{i}"', player, f"{i} sits in the player")
+        for name in ON_LAYOUT:
+            with self.subTest(theme=name):
+                index = (WEB / "themes" / name / "index.html").read_text()
+                self.assertIn("<!--layout-->", index)
+                self.assertNotIn("<main", index, "the theme brings no markup of its own besides its Appearance rows")
+                self.assertEqual(order(theme_html(name)), KEY)
+
+
 class CardThemeTests(unittest.TestCase):
     """Themes built on the terminal behavior (lime, synthwave, soft): its elements, the shared bars, one look."""
     def test_card_themes_have_every_element_the_behavior_uses_once(self):
@@ -65,7 +88,7 @@ class CardThemeTests(unittest.TestCase):
         self.assertTrue(cards)
         for name in cards:
             with self.subTest(theme=name):
-                html = (WEB / "themes" / name / "index.html").read_text()
+                html = theme_html(name)
                 ids = Counter(re.findall(r'id="([^"]+)"', html))
                 self.assertEqual(sorted(used - set(ids)), [])
                 self.assertEqual([k for k, n in ids.items() if n > 1], [])
@@ -150,7 +173,7 @@ sliders[0].value='0';sliders[0].type='range';listener({target:sliders[0]});asser
         picker = behavior[behavior.index("function themePicker(){"):behavior.index("core.subscribe(function(core,change){if(change==='capabilities')themePicker()});")]
         for name in ("soft", "lime", "synthwave"):
             with self.subTest(theme=name):
-                html = (WEB / "themes" / name / "index.html").read_text()
+                html = theme_html(name)
                 rows = re.findall(r'id="(appearance-(?:mode|accent)-row)" hidden', html)
                 harness = CORE + r"""
 const assert=require('node:assert/strict');

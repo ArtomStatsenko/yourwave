@@ -5,7 +5,7 @@ import subprocess
 import unittest
 from collections import Counter
 
-from tests.ui_page import WEB, theme_source
+from tests.ui_page import WEB, theme_html, theme_source
 
 LIME = WEB / "themes/lime"
 
@@ -14,7 +14,7 @@ class LimeMarkupTests(unittest.TestCase):
     def test_every_element_the_shared_behavior_uses_is_there_once(self):
         behavior = theme_source("terminal")
         used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior))
-        html = (LIME / "index.html").read_text()
+        html = theme_html("lime")
         ids = Counter(re.findall(r'id="([^"]+)"', html))
         made_by_script = {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb", "vd", "vs"}  # drawn with the AI and Voice blocks; rows and details only some themes have
         self.assertEqual(sorted(used - set(ids) - made_by_script), [])
@@ -22,7 +22,7 @@ class LimeMarkupTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r"<i></i>", html[html.index('id="spectrum-bars"'):html.index("</div>", html.index('id="spectrum-bars"'))])), 20)
 
     def test_dark_only_fixed_look_and_load_order(self):
-        html = (LIME / "index.html").read_text()
+        html = theme_html("lime")
         self.assertIn('<html lang="en" data-theme="dark" data-skin="lime">', html)
         self.assertIn('<meta name="color-scheme" content="dark">', html)
         self.assertIn("typing:false", html)                 # no typed titles

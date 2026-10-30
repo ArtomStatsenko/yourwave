@@ -57,7 +57,7 @@ class MobileControlTests(unittest.TestCase):
                     .replace('__LOCAL_CONTROL__', 'false').encode())   # the shell; the theme comes in its frame (?embed=1)
         self.assertEqual(body, expected)
         code, body, _ = self.request('/?theme=terminal&embed=1')
-        self.assertEqual(body, (ui.WEB / 'themes/terminal/index.html').read_text().replace('__TOKEN__', self.server.token)
+        self.assertEqual(body, ui.theme_page('terminal').replace('__TOKEN__', self.server.token)
                          .replace('__LOCAL_CONTROL__', 'false').encode())
         self.assertEqual(headers['Cache-Control'], 'no-store')
         self.assertEqual(self.mobile.server_address[0], '127.0.0.1')

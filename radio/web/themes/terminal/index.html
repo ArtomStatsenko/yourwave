@@ -107,85 +107,7 @@ var appearance=(function(){
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><filter id="crt" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feImage id="crt-map" preserveAspectRatio="none" result="map"/><feDisplacementMap id="crt-bend" in="SourceGraphic" in2="map" scale="35" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
-<main>
-<section id="np" aria-label="Now playing">
-  <div class="air-heading">
-    <pre id="station-ident" aria-hidden="true" data-active="false">     .|.
-<span class="station-wave"> ((</span>   |   <span class="station-wave">))</span>
-      |
-     /|\
-    /_|_\</pre>
-    <div class="air-caption"><div id="station-name" aria-hidden="true">Yourwave</div>
-      <h1><span id="air">●</span> <span id="airtxt">on air</span></h1>
-      <span id="terminal-monitor" aria-hidden="true"></span>
-    </div>
-    <div id="station-controls" role="group" aria-label="Station" hidden><button id="so" aria-label="Start radio" title="Start radio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9M6.2 5.8a8 8 0 1 0 11.6 0"/></svg></button></div>
-  </div>
-  <div class="title"><span id="ttl" aria-hidden="true"></span><span id="caret" class="caret" aria-hidden="true" hidden></span></div>
-  <span id="ttl-sr" class="sr" aria-live="polite"></span>
-  <div class="strip"><pre id="viz" aria-hidden="true"></pre></div><span id="ruler" aria-hidden="true">⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿</span>
-  <div class="row player-controls"><button id="pp" aria-label="Listen" title="Listen" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path class="play-icon" d="m8 4 12 8-12 8z"/><path class="pause-icon" d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg></button><button id="nx" aria-label="Next">▶▶</button>
-    <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
-    <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span><div id="viz-controls" role="group" aria-label="Visualizer"><button id="vzprev" aria-label="Previous visual" title="Previous visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m8 2-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button><button id="vzb" aria-label="Enable visualizer" aria-pressed="true"></button><button id="vznext" aria-label="Next visual" title="Next visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
-  <div class="l" id="music-source" role="status" aria-live="polite"></div>
-  <div class="l" id="voice-warn" aria-live="polite"></div>
-  <div class="row"><button id="sk" aria-label="Skip bulletin">skip bulletin</button>
-    <span class="l err" id="er"></span></div>
-</section>
-<section>
-  <div class="tabbar"><div class="tabs" role="tablist" aria-label="Radio controls">
-    <button role="tab" id="tab-tl" aria-controls="tl-panel" aria-selected="true" data-tab="tl">timeline</button>
-    <button role="tab" id="tab-in" aria-controls="integrations" aria-selected="false" tabindex="-1" data-tab="in">sources</button>
-    <button role="tab" id="tab-ex" aria-controls="experiments" aria-selected="false" tabindex="-1" data-tab="ex">experiments</button>
-    <button role="tab" id="tab-st" aria-controls="stg" aria-selected="false" tabindex="-1" data-tab="st">settings</button>
-  </div></div>
-  <div id="tl-panel" role="tabpanel" aria-labelledby="tab-tl">
-    <div class="timeline-tools">
-    <div id="catchup-controls" class="row" hidden>
-      <button id="catchup-build" type="button">More news</button>
-      <span id="catchup-status" class="l" role="status" aria-live="polite"></span>
-    </div><details id="activity" hidden><summary>Activity</summary><div id="activity-log" aria-label="Radio activity"></div></details><button id="plan-edit">Edit</button><button id="plan-undo" hidden>Undo</button><button id="plan-done" hidden>Done</button></div>
-    <p id="plan-pause" class="l" role="status" hidden>Paused · timing will update on resume</p>
-    <p id="direction-message" class="l" role="status" aria-live="polite"></p>
-    <div id="broadcast-timeline">
-    <div id="direction-controls" hidden>
-      <button id="plan-later" hidden>Show later ↑</button><div id="direction-list" aria-label="Future program"></div>
-    </div>
-    <div id="upcoming" aria-label="Up next" hidden></div>
-    <div class="tl" id="tl" aria-label="Broadcast history"></div><button id="history-more" hidden>Show earlier</button>
-    </div>
-      <div id="plan-add" hidden aria-label="Add block">
-      <form id="direction-form" class="st">
-        <label for="direction-block">Block type</label><select id="direction-block" required></select>
-        <label for="direction-text" id="direction-text-label">Spoken text</label><textarea id="direction-text" maxlength="4000" rows="3"></textarea>
-        <label for="direction-at">Play at or after</label><div class="row"><input id="direction-at" type="datetime-local" step="1" required><button type="button" id="direction-now">Now</button></div>
-        <div class="row"><button type="submit" id="direction-add">Add block</button><button type="button" id="direction-refresh">Refresh blocks</button><button type="button" id="direction-cancel">Cancel</button></div>
-      </form>
-      </div>
-  </div>
-  <div id="integrations" role="tabpanel" aria-labelledby="tab-in" hidden>
-    <section aria-labelledby="news-sources-heading">
-      <h2 id="news-sources-heading">News sources</h2>
-
-      <div id="news-source-list"></div>
-    </section>
-    <h2>Weather, reminders &amp; music</h2>
-    <div id="integration-plugins"></div>
-
-  </div>
-  <div id="experiments" role="tabpanel" aria-labelledby="tab-ex" hidden>
-    <div id="experiment-plugins"></div>
-    <section id="hook-review" hidden aria-label="Music hook review">
-      <h2>Music hooks</h2>
-      <p id="hook-counts" class="l" role="status"></p>
-      <audio id="hook-audio" controls hidden></audio>
-      <div id="hook-candidates"></div>
-      <p id="hook-feedback" class="l" role="status"></p>
-    </section>
-
-  </div>
-  <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
-    <section class="st" id="appearance" aria-labelledby="appearance-heading">
+<!--appearance-->
       <div class="row appearance-heading"><h2 id="appearance-heading">Appearance</h2><button id="appearance-reset" type="button">Reset</button></div>
       <label for="theme-select">Theme</label>
       <select id="theme-select" aria-label="Theme" aria-describedby="theme-note"></select>
@@ -222,43 +144,7 @@ var appearance=(function(){
           <div class="row"><button id="accent-apply" type="submit" disabled>Apply accent</button><button id="accent-cancel" type="button">Cancel</button><button id="accent-default" type="button">Use theme accent</button></div>
         </form>
       </details>
-    </section>
-
-    <div class="st" id="music-source-control">
-      <label for="music-source-select">Music source</label>
-      <select id="music-source-select" aria-describedby="music-source"><option value="local">Local</option></select>
-    </div>
-    <div class="st">
-      <label for="audio-preset">Audio preset</label>
-      <select id="audio-preset"><option value="base">Base</option><option value="personal" disabled>Personal</option></select>
-      <div class="l" id="audio-preset-hint" role="status">Restart the station to apply.</div>
-      <p class="l" id="base-audio-credit">Base audio: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700030" target="_blank" rel="noopener">Tech Live — Kevin MacLeod</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> · edited excerpts.</p>
-    </div>
-    <form id="yt-form" class="st" hidden>
-      <label for="yt-playlist">YouTube Music playlist</label>
-      <input id="yt-playlist" type="url" value="https://music.youtube.com/playlist?list=LM" required>
-      <div class="row"><button id="yt-chrome" type="button">Connect from Chrome</button><span id="yt-state" class="l" role="status" aria-live="polite"></span></div>
-      <div class="l">Connect with your Chrome sign-in. macOS may ask for access to Chrome's key. Only YouTube cookies are saved on this Mac.</div>
-      <details><summary class="l">Or paste a Cookie header</summary>
-      <label for="yt-cookie">YouTube Music Cookie header</label>
-      <input id="yt-cookie" type="password" autocomplete="off" spellcheck="false" maxlength="60000" aria-describedby="yt-help">
-      <div id="yt-help" class="l">In browser developer tools, copy only the Cookie header from a signed-in music.youtube.com request. Leave blank to refresh a saved connection; cookies stay on this Mac.</div>
-      <div class="row"><button id="yt-connect" type="submit">Connect or refresh</button></div>
-      </details>
-      <div class="l">Restart the station to apply.</div>
-      <details class="control-help"><summary>Import details</summary><p class="l">Imports up to 500 songs; unavailable songs are skipped. Local music plays if the playlist cannot play.</p></details>
-    </form>
-    <details class="st" id="playback-status"><summary>Playback status</summary>
-  <div class="l row player-status"><span>speech <span id="sp"></span>/<span id="splim"></span> min this hour</span><div class="lim"><i id="spb"></i></div>
-    <span class="voice-state"><span class="dot" id="vd"></span><span id="vs"></span></span></div>
-      <div class="l" id="yt-summary"></div>
-    </details>
-    <div id="features"></div>
-    <div id="settings"></div>
-
-  </div>
-</section>
-</main>
+    <!--/appearance--><!--layout-->
 <script src="/ui/core/model.js"></script>
 <script src="/ui/themes/terminal/view.js"></script>
 <script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true",theme:"terminal"}),document.body);</script>

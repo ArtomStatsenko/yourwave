@@ -3,6 +3,7 @@ Every API call needs a per-run token and a trusted Host header."""
 import html
 import json
 import queue
+import re
 import secrets
 import socket
 import threading
@@ -24,6 +25,19 @@ CALLBACK = Path(__file__).with_name("callback.html")  # the page the browser lan
 
 def themes() -> list[str]:
     return sorted(p.parent.name for p in (WEB / "themes").glob("*/index.html"))
+
+
+def theme_page(theme: str) -> str:
+    """A theme's page: its index.html with the shared layout (themes/shared/layout.html) in place of <!--layout-->, and
+    the theme's own Appearance rows (written between <!--appearance--> and <!--/appearance-->) in the layout's slot."""
+    html = (WEB / "themes" / theme / "index.html").read_text(encoding="utf-8")
+    if "<!--layout-->" not in html:
+        return html
+    rows = re.search(r"<!--appearance-->(.*?)<!--/appearance-->", html, re.S)
+    if rows:
+        html = html[:rows.start()] + html[rows.end():]
+    layout = (WEB / "themes/shared/layout.html").read_text(encoding="utf-8").replace("<!--appearance-->", rows[1] if rows else "")
+    return html.replace("<!--layout-->", layout, 1)
 
 
 def theme_name(requested: str, cfg: dict) -> str:
@@ -155,8 +169,8 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 theme = theme_name(q.get("theme", [""])[0], cfg)
                 # the shell holds the core and the sound for the whole visit; the theme runs in its frame (?embed) or,
                 # for debugging, on its own (?standalone)
-                page = WEB / "themes" / theme / "index.html" if {"embed", "standalone"} & q.keys() else WEB / "shell.html"
-                body = (page.read_text(encoding="utf-8").replace("__TOKEN__", token).replace("__THEME__", theme)
+                page = theme_page(theme) if {"embed", "standalone"} & q.keys() else (WEB / "shell.html").read_text(encoding="utf-8")
+                body = (page.replace("__TOKEN__", token).replace("__THEME__", theme)
                         .replace("__LOCAL_CONTROL__", str(self.server is server).lower()).encode())
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")

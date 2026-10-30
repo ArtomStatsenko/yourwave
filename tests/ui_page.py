@@ -6,10 +6,16 @@ from pathlib import Path
 WEB = Path(__file__).resolve().parents[1] / "radio/web"
 
 
+def theme_html(theme: str = "terminal") -> str:
+    """The theme's page as the server sends it: its index.html with the shared layout put in (radio.ui.theme_page)."""
+    from radio import ui
+    return ui.theme_page(theme)
+
+
 def page_source(theme: str = "terminal") -> str:
     def file(url):
         return (WEB / url.removeprefix("/ui/")).read_text()
-    html = (WEB / "themes" / theme / "index.html").read_text()
+    html = theme_html(theme)
     html = re.sub(r'<link rel="stylesheet" href="([^"]+)">', lambda m: f"<style>\n{file(m[1])}</style>", html)
     return re.sub(r'<script src="([^"]+)"></script>', lambda m: f"<script>\n{file(m[1])}</script>", html)
 

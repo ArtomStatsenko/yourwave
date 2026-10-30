@@ -4,7 +4,7 @@ import re
 import subprocess
 import unittest
 
-from tests.ui_page import WEB
+from tests.ui_page import WEB, theme_html
 
 PRISM = WEB / "themes/prism"
 SPLIT = re.compile(r"(?:text|box)-shadow:[^;}]*var\(--ab\)")
@@ -40,7 +40,7 @@ class PrismLookTests(unittest.TestCase):
         self.assertIn("-webkit-line-clamp:3", css)
 
     def test_dark_only_no_mode_or_accent_rows_and_the_split_properties_registered(self):
-        html = (PRISM / "index.html").read_text()
+        html = theme_html("prism")
         self.assertIn('<html lang="en" data-theme="dark" data-skin="prism">', html)
         self.assertIn("typing:false", html)
         self.assertNotIn("appearance-mode-row", html)
