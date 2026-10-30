@@ -40,15 +40,16 @@ class LimeMarkupTests(unittest.TestCase):
 
 SPECTRUM = r"""
 const assert=require('node:assert/strict');
-let frames=[],reduced=false,listeners=[],motionListener=null;
+let frames=[],reduced=false,listeners=[],motionListener=null,visibility=null;
 global.requestAnimationFrame=f=>{frames.push(f);return frames.length};
 global.matchMedia=()=>({get matches(){return reduced},addEventListener:(k,f)=>motionListener=f});
+global.document={hidden:false,addEventListener:(k,f)=>visibility=f};
 var RadioTheme={mount(){}};  // the terminal behavior: not needed for the strip
 LIME
 const bars=Array.from({length:20},()=>({style:{}}));
 const root={querySelectorAll:()=>bars};
 let heard=null;
-const core={audio:{listening:false,read:()=>heard},subscribe:f=>listeners.push(f)};
+const core={audio:{listening:false,read:()=>heard},snapshot:{status:{state:'PLAYING'}},subscribe:f=>listeners.push(f)};
 RadioTheme.mount(core,root);
 const tick=()=>{const f=frames.shift();if(f)f()};
 const heights=()=>bars.map(b=>b.style.height||'0').join(',');
@@ -60,12 +61,16 @@ heard=null;tick();assert.equal(heights(),Array(20).fill('0').join(','),'no sound
 core.audio.listening=false;listeners.forEach(f=>f(core,'listening'));tick();assert.equal(frames.length,0,'the loop stops');
 reduced=true;core.audio.listening=true;listeners.forEach(f=>f(core,'listening'));assert.equal(frames.length,0,'no animation with reduced motion');
 reduced=false;motionListener();assert.equal(frames.length,1,'it starts when motion is allowed again');
+tick();assert.equal(frames.length,1,'on every frame');
+core.snapshot.status.state='PAUSED';tick();assert.equal(frames.length,0,'the station paused: it stops');assert.equal(heights(),Array(20).fill('0').join(','));
+core.snapshot.status.state='PLAYING';listeners.forEach(f=>f(core,'snapshot'));assert.equal(frames.length,1);
+document.hidden=true;tick();assert.equal(frames.length,0,'a hidden tab: it stops');document.hidden=false;visibility();assert.equal(frames.length,1);
 """
 
 
 class LimeSpectrumTests(unittest.TestCase):
     def test_bars_follow_the_sound_and_stop_with_it(self):
-        result = subprocess.run(["node", "-e", SPECTRUM.replace("LIME", (WEB / "themes/shared/bars.js").read_text() + (LIME / "view.js").read_text())],
+        result = subprocess.run(["node", "-e", SPECTRUM.replace("LIME", (WEB / "core/core.js").read_text() + (WEB / "themes/shared/bars.js").read_text() + (LIME / "view.js").read_text())],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 

@@ -180,5 +180,21 @@ var RadioCore=(function(){
     return core;
   }
 
-  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent};
+  // The one loop a spectrum is drawn by, in every theme: step(dt, now) on every animation frame (dt: seconds since the
+  // last frame, for rates that keep their speed at any frame rate) while this device listens, the station is not paused,
+  // the tab shows, motion is allowed and active() (when given) agrees; otherwise it stops and rest() draws the flat line
+  // once. It starts itself on those changes; the returned start() is for the theme's own (a visualizer switched on).
+  function spectrumLoop(core,step,rest,active){
+    var on=false,last=0,motion=matchMedia('(prefers-reduced-motion:reduce)');
+    function live(){return core.audio.listening&&!document.hidden&&!motion.matches&&!(core.snapshot&&core.snapshot.status&&core.snapshot.status.state==='PAUSED')&&(!active||active())}
+    function frame(now){
+      if(!live()){on=false;rest();return}
+      step(last?Math.min(.25,(now-last)/1000):0,now);last=now;requestAnimationFrame(frame)}  // the first frame: no time has passed
+    function start(){if(!on&&live()){on=true;last=0;requestAnimationFrame(frame)}}
+    core.subscribe(function(core,change){if(change==='listening'||change==='snapshot')start()});
+    motion.addEventListener('change',start);document.addEventListener('visibilitychange',start);
+    return start}
+
+  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent,
+    spectrumLoop:spectrumLoop};
 })();

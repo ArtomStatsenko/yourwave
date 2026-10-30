@@ -32,14 +32,9 @@ function unlisten(){core.audio.unlisten()}
 function vol(){core.audio.setVolume(+$('vol').value)}
 $('vol').value=core.audio.volume;
 $('vol').oninput=vol;
-// the spectrum for radioViz while this device listens
-function feed(){
-  var heard=core.audio.read(radioViz.dw());
-  if(heard)radioViz.set(heard.bands,heard.wave);
-  if(core.audio.listening)requestAnimationFrame(feed)}
 function media(ds){core.audio.media(ds)}
 core.audio.onnext=function(){cmd('next')};
-core.subscribe(function(core,change){if(change==='listening'){listening=core.audio.listening;if(listening)requestAnimationFrame(feed);player()}});
+core.subscribe(function(core,change){if(change==='listening'){listening=core.audio.listening;player()}});
 function running(){return st.state==='PLAYING'||st.state==='PAUSED'}
 
 // The title line: text that fits stays still, a longer one scrolls to its end and back (no scrolling with reduced motion).
@@ -723,9 +718,9 @@ themePicker();
 // a Details box stays open across redraws (toggle does not bubble: caught on the way down)
 root.addEventListener('toggle',function(e){var d=e.target;if(d.classList&&d.classList.contains('control-help'))(helpText.open=helpText.open||{})[d.id.slice(5)]=d.open},true);
 core.start();
-/* ---- visualizer: audio-driven braille patterns under the title.
-   Feed: radioViz.set(32 spectrum values 0..1, dw() waveform values 0..1). No feed (no sound): it settles into a flat
-   muted line and the loop stops. ---- */
+/* ---- visualizer: audio-driven braille patterns under the title, drawn on every frame by the core's spectrumLoop
+   from core.audio.read(dw()); a flat muted line when the loop stops (no sound, paused, hidden tab, reduced motion,
+   switched off). Rates are per second, so the patterns move at the same speed at any frame rate. ---- */
 document.addEventListener('visibilitychange',function(){document.documentElement.dataset.pageHidden=String(document.hidden)});
 document.documentElement.dataset.pageHidden=String(document.hidden);
 document.documentElement.dataset.mastVisible='false';
@@ -733,9 +728,11 @@ if('IntersectionObserver' in window)new IntersectionObserver(function(entries){d
 appearance.mount();
 
 var radioViz=(function(){
-  var CELLS=64,DW=128,ROWS=2,DH=8,N=32,spec=new Array(N).fill(0),wave=new Array(DW).fill(.5),mode='pulse',fed=0,run=false,
+  var CELLS=64,DW=128,ROWS=2,DH=8,N=32,spec=new Array(N).fill(0),wave=new Array(DW).fill(.5),mode='pulse',
     el=$('viz'),BIT=[[1,2,4,64],[8,16,32,128]],MODES=['pulse','scope','bars','peaks','fall','vu','ribbon'],enabled=true,peaks=new Array(N).fill(0),history=[],
-    motion=matchMedia('(prefers-reduced-motion:reduce)'),still=motion.matches;
+    STEPS_PER_SECOND=15,  // the visual tempo: fall scrolls this many rows a second and the decays below are per step;
+                          // 15 is what the old 50 ms timer plus a 60 Hz frame gave (not the frame rate)
+    heardAt=-1e9,heardSpec=spec.slice(),heardWave=wave.slice(),rows=0;
   try{mode=localStorage.getItem('viz2')||'pulse';enabled=localStorage.getItem('vizEnabled')!=='false'&&mode!=='off'}catch(e){}
   if(MODES.indexOf(mode)<0)mode='pulse';
   // cells follow the box width (measured braille glyph), so the line never wraps or scrolls sideways
@@ -772,29 +769,30 @@ var radioViz=(function(){
     mode==='peaks'?bars(true):mode==='fall'?fall():mode==='vu'?vu():ribbon()}
   function mark(){var b=$('vzb');b.textContent=mode;b.setAttribute('aria-pressed',String(enabled));
     b.setAttribute('aria-label',(enabled?'Disable':'Enable')+' visualizer: '+mode);b.title=enabled?'Disable visualizer':'Enable visualizer'}
-  function reset(){spec.fill(0);wave.fill(.5);peaks.fill(0);history=[];fed=0}
+  function reset(){spec.fill(0);wave.fill(.5);peaks.fill(0);history=[];heardAt=-1e9;heardSpec.fill(0);heardWave.fill(.5);rows=0}
   function change(step){mode=MODES[(MODES.indexOf(mode)+step+MODES.length)%MODES.length];
     try{localStorage.setItem('viz2',mode)}catch(x){}mark();draw()}
   $('vzb').onclick=function(){enabled=!enabled;
     try{localStorage.setItem('vizEnabled',String(enabled));localStorage.setItem('viz2',mode)}catch(x){}
-    if(!enabled)reset();mark();draw()};
+    if(!enabled)reset();mark();draw();start()};
   $('vzprev').onclick=function(){change(-1)};
   $('vznext').onclick=function(){change(1)};
-  // History and peak decay advance at 20 fps, independent of the audio feed rate.
-  function tick(now){if(still||document.hidden||!enabled){reset();draw();run=false;return}
-    var live=fed&&now-fed<=500;
-    if(!live){for(var i=0;i<N;i++)spec[i]*=.8;for(var j=0;j<DW;j++)wave[j]+=(.5-wave[j])*.2}
-    for(var i=0;i<N;i++)peaks[i]=Math.max(spec[i],peaks[i]-.035);
-    history.unshift(spec.slice());history.length=Math.min(DH,history.length);
-    if(!live&&quiet()&&wave.every(function(v){return Math.abs(v-.5)<.01})&&peaks.every(function(v){return v<.02})){
-      reset();draw();run=false;return}
-    draw();setTimeout(function(){requestAnimationFrame(tick)},50)}
-  motion.addEventListener('change',function(e){still=e.matches;if(still){reset();draw()}});
+  // One frame, dt seconds after the last. Without fresh sound for half a second the spectrum and the wave sink back from
+  // what was last heard (to .8, the wave 20% nearer the middle, each step: a function of the time, not of the frames);
+  // peaks fall .035 a step; fall's history scrolls a row a step.
+  function step(dt,now){
+    var heard=core.audio.read(DW);
+    if(heard){heardAt=now;for(var i=0;i<N;i++)spec[i]=heardSpec[i]=heard.bands[i]||0;for(var j=0;j<DW;j++)wave[j]=heardWave[j]=heard.wave[j]==null?.5:heard.wave[j]}
+    else if(now-heardAt>500){var k=Math.pow(.8,(now-heardAt-500)/1000*STEPS_PER_SECOND);
+      for(var i=0;i<N;i++)spec[i]=heardSpec[i]*k;for(var j=0;j<DW;j++)wave[j]=.5+((heardWave[j]==null?.5:heardWave[j])-.5)*k}
+    for(var i=0;i<N;i++)peaks[i]=Math.max(spec[i],peaks[i]-.035*STEPS_PER_SECOND*dt);
+    for(rows+=dt*STEPS_PER_SECOND;rows>1-1e-9;rows--){  // fractions add up to 0.999…: a row is due at 1 all the same
+      history.unshift(spec.slice());history.length=Math.min(DH,history.length)}
+    draw()}
+  var start=RadioCore.spectrumLoop(core,step,function(){reset();draw()},function(){return enabled});
   window.addEventListener('resize',layout);
   mark();layout();draw();
-  return{dw:function(){return DW},
-    set:function(a,w){if(still||document.hidden||!enabled)return;fed=performance.now();for(var i=0;i<N;i++)spec[i]=a[i]||0;for(var j=0;j<DW;j++)wave[j]=w[j]==null?.5:w[j];
-      if(!run){run=true;requestAnimationFrame(tick)}}}})();
+  return{dw:function(){return DW}}})();
 }
 return {mount:mount};
 })();
