@@ -796,7 +796,7 @@ var radioViz=(function(){
     var moving=now-heardAt<=500||!quiet()||peaks.some(function(v){return v>.02})||history.some(function(r){return r.some(function(v){return v>.02})});
     if(!moving){reset();resting=true}
     draw();return moving}
-  core.frames.add(step);
+  if(getComputedStyle(el).display!=='none')core.frames.add(step);  // a theme that hides the braille line moves its own spectrum
   window.addEventListener('resize',layout);
   mark();layout();draw();
   return{dw:function(){return DW}}})();

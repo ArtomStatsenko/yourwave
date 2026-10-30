@@ -11,13 +11,14 @@ class VisualizerTests(unittest.TestCase):
         visualizer = source[start:source.index('\n}\nreturn {mount:mount};', start)]  # up to the end of the theme's mount()
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
-function setup(saved='pulse',reduced=false){
+function setup(saved='pulse',reduced=false,display='block'){
   let frames=[],width=640,stored=saved,motion,layout,visible,enabled='true',subs=[];
   const nodes={viz:{parentNode:{get clientWidth(){return width}}},
     ruler:{getBoundingClientRect:()=>({width:200})},vzb:{setAttribute(k,v){this[k]=v}},vzprev:{},vznext:{}};
   const c={Array,Math,String,JSON,Promise,document:{hidden:false,addEventListener:(k,fn)=>visible=fn},$:id=>nodes[id],
     localStorage:{getItem:k=>k==='vizEnabled'?enabled:stored,setItem:(k,v)=>{if(k==='vizEnabled')enabled=v;else stored=v}},
     matchMedia:()=>({get matches(){return reduced},addEventListener:(k,fn)=>motion=fn}),
+    getComputedStyle:el=>({display:el===nodes.viz?display:'block'}),
     window:{addEventListener:(k,fn)=>layout=fn},requestAnimationFrame:fn=>frames.push(fn)};
   vm.createContext(c);vm.runInContext(CORE+';\nvar core=RadioCore.create({fetch:()=>new Promise(()=>{})});\n'+SOURCE,c);
   const core=c.core;core.audio.heard=null;core.audio.read=function(){return this.heard};  // the stand-in sound
@@ -41,6 +42,8 @@ for(const mode of modes){
   assert.equal(t.pending,0,mode+' must stop without audio');
   assert.equal(t.nodes.viz.className,'idle');
 }
+{const t=setup('pulse',false,'none');t.listen();t.core.audio.heard=sound(t);  // a theme that hides the braille line
+  assert.equal(t.pending,0,'a hidden visualizer takes no frames')}
 // rates are per second: 60 and 30 frames a second (both whole multiples of the 15 steps) show the same picture
 for(const mode of ['pulse','peaks','fall','scope','ribbon']){
   const shots=[60,30].map(fps=>{const t=setup(mode);t.listen();t.core.audio.heard=sound(t);t.frame(0);  /* the first frame at the same moment */
