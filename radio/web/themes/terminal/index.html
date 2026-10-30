@@ -16,14 +16,23 @@ var appearance=(function(){
       ember:{light:['#f2f2ee','#e7e7e1','#17170f','#5f5f55','#cfcfc5','#c2410c','#ffffff'],dark:['#121210','#1b1a17','#ece8dc','#9a968a','#2e2d27','#ff6a3d','#121210']},
       forest:{light:['#f1f3eb','#e3e8d9','#20271e','#56624f','#c8d1bf','#346347','#ffffff'],dark:['#131b17','#1c2821','#e5eee4','#a0b3a4','#34463b','#93cba5','#132319']},
       ocean:{light:['#edf3f6','#dfe8ee','#192b36','#506575','#c3d1dc','#185e91','#ffffff'],dark:['#111c27','#1b2b3b','#e4edf4','#9db0c2','#334b60','#80bce7','#14283a']}
-    },state={mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24'},mounted=false,saveError=false;
+    },state={mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24',crt:'subtle'},mounted=false,saveError=false,
+    CRT_BEND={off:0,subtle:35,classic:80,heavy:170};  // displacement scale of the CRT bend, px
   function hex(value){return typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)}
   var contrast=RadioCore.contrast;
   function mode(){return state.mode==='system'?(system.matches?'dark':'light'):state.mode}
   function colors(){return palettes[state.palette][mode()]}
   function readable(value){var c=colors();return hex(value)&&Math.min(contrast(value,c[0]),contrast(value,c[1]))>=4.5}
   function accent(value){root.style.setProperty('--accent',value);root.style.setProperty('--accent-ink',contrast('#ffffff',value)>=contrast('#121210',value)?'#ffffff':'#121210')}
-  function apply(){root.dataset.timeFormat=state.timeFormat;root.dataset.timelineEffect=state.timelineEffect;root.dataset.presentation=state.presentation;var c=colors();tokens.forEach(function(t,i){root.style.setProperty('--'+t,c[i])});root.dataset.theme=mode();root.style.colorScheme=mode();
+  // The CRT bend: a barrel displacement map (R and G push x and y) drawn once, the first time a preset is on.
+  function crtBend(){var map=el('crt-map'),bend=el('crt-bend');if(!map)return;
+    if(state.crt!=='off'&&!map.getAttribute('href')){var n=256,c=document.createElement('canvas');c.width=c.height=n;
+      var x=c.getContext('2d'),d=x.createImageData(n,n);
+      for(var j=0;j<n;j++)for(var i=0;i<n;i++){var u=i/(n-1)*2-1,v=j/(n-1)*2-1,r2=(u*u+v*v)*.5,o=(j*n+i)*4;
+        d.data[o]=127.5+127.5*u*r2;d.data[o+1]=127.5+127.5*v*r2;d.data[o+2]=127;d.data[o+3]=255}
+      x.putImageData(d,0,0);map.setAttribute('href',c.toDataURL());root.dataset.crtReady=''}
+    bend.setAttribute('scale',CRT_BEND[state.crt])}
+  function apply(){root.dataset.timeFormat=state.timeFormat;root.dataset.crt=state.crt;crtBend();root.dataset.timelineEffect=state.timelineEffect;root.dataset.presentation=state.presentation;var c=colors();tokens.forEach(function(t,i){root.style.setProperty('--'+t,c[i])});root.dataset.theme=mode();root.style.colorScheme=mode();
     if(readable(state.accent))accent(state.accent);
   }
   function save(){try{localStorage.setItem(key,JSON.stringify(state));saveError=false}catch(e){saveError=true}}
@@ -33,6 +42,7 @@ var appearance=(function(){
     el('appearance-presentation').value=state.presentation;
     el('appearance-time-format').value=state.timeFormat;
     el('appearance-timeline-effect').value=state.timelineEffect;
+    el('appearance-crt').value=state.crt;
     document.querySelectorAll('[name="appearance-mode"]').forEach(function(n){n.checked=n.value===state.mode});
     document.querySelectorAll('[name="appearance-palette"]').forEach(function(n){n.checked=n.value===state.palette});
     Object.keys(palettes).forEach(function(name){var p=palettes[name][mode()],n=el('palette-'+name);n.style.setProperty('--sample-bg',p[0]);n.style.setProperty('--sample-ink',p[2]);n.style.setProperty('--sample-accent',p[5])});
@@ -55,6 +65,7 @@ var appearance=(function(){
     if(saved.timeFormat==='12')state.timeFormat='12';
     if(saved.presentation==='terminal')state.presentation='terminal';
     if(['off','fade','line'].indexOf(saved.timelineEffect)>=0)state.timelineEffect=saved.timelineEffect;
+    if(Object.prototype.hasOwnProperty.call(CRT_BEND,saved.crt))state.crt=saved.crt;
   }}catch(e){}
   apply();
   system.addEventListener('change',function(){if(state.mode==='system'){apply();render()}});
@@ -65,22 +76,24 @@ var appearance=(function(){
     el('appearance-time-format').onchange=function(){state.timeFormat=this.value;change();timeline();directionView(true)};
     el('appearance-timeline-effect').onchange=function(){state.timelineEffect=this.value;change();el('tl').getAnimations({subtree:true}).forEach(function(a){a.cancel()})};
     el('appearance-presentation').onchange=function(){state.presentation=this.value;change();player()};
+    el('appearance-crt').onchange=function(){state.crt=this.value;change()};
     document.querySelectorAll('[name="appearance-mode"]').forEach(function(n){n.onchange=function(){state.mode=n.value;change()}});
     document.querySelectorAll('[name="appearance-palette"]').forEach(function(n){n.onchange=function(){state.palette=n.value;change()}});
     el('accent-picker').oninput=function(){preview(this.value)};
     el('accent-hex').oninput=function(){preview(this.value.trim())};
     el('accent-form').onsubmit=function(e){e.preventDefault();var value=el('accent-hex').value.trim();if(!readable(value))return;state.accent=value.toLowerCase();change()};
     el('accent-default').onclick=function(){state.accent='';change()};
-    el('appearance-reset').onclick=function(){state={mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24'};change();timeline();directionView(true)};
+    el('appearance-reset').onclick=function(){state={mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24',crt:'subtle'};change();timeline();directionView(true)};
     el('accent-cancel').onclick=function(){apply();render()};
     el('appearance-custom').addEventListener('toggle',function(){if(!this.open){apply();render()}});
     el('accent-form').onkeydown=function(e){if(e.key==='Escape'){apply();render();el('appearance-custom').open=false;el('appearance-custom').querySelector('summary').focus()}};
-    render();
+    crtBend();render();
   }};
 })();
 </script>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><filter id="crt" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feImage id="crt-map" preserveAspectRatio="none" result="map"/><feDisplacementMap id="crt-bend" in="SourceGraphic" in2="map" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
 <main>
 <section id="np" aria-label="Now playing">
   <div class="air-heading">
@@ -170,6 +183,9 @@ var appearance=(function(){
 
       <label for="appearance-timeline-effect">Timeline effect</label>
       <select id="appearance-timeline-effect" aria-describedby="timeline-effect-hint"><option value="off">Off</option><option value="fade">Fade</option><option value="line" selected>Terminal line print</option></select>
+      <label for="appearance-crt">CRT screen</label>
+      <select id="appearance-crt" aria-label="CRT screen" aria-describedby="crt-hint"><option value="off">Off</option><option value="subtle" selected>Subtle</option><option value="classic">Classic</option><option value="heavy">Heavy</option></select>
+      <p id="crt-hint" class="l">On phones the effect is reduced to light lines and a vignette.</p>
       <details class="control-help"><summary>About appearance</summary>
         <p id="presentation-hint" class="l">Terminal adds an ASCII callsign and live broadcast status.</p>
         <p id="timeline-effect-hint" class="l">Effects apply to new broadcast rows. Saved in this browser; reduced motion disables animation.</p>

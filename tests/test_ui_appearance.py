@@ -19,9 +19,10 @@ function setup(saved=null,dark=false,blocked=false){
   const styles={},nodes={},radios={},listeners={};let value=saved,writes=0;
   const root={dataset:{},style:{setProperty(k,v){styles[k]=v}}};
   for(const kind of ['mode','palette'])radios[kind]=(kind==='mode'?['system','light','dark']:['ember','forest','ocean']).map(value=>({value,checked:false}));
-  function node(id){return nodes[id]||(nodes[id]={value:'',disabled:false,textContent:'',style:{setProperty(){}},setAttribute(k,v){this[k]=v},addEventListener(k,f){this[k]=f},getAnimations(){return[]},querySelector(){return{focus(){}}}})}
+  function node(id){return nodes[id]||(nodes[id]={value:'',disabled:false,textContent:'',style:{setProperty(){}},setAttribute(k,v){this[k]=v},getAttribute(k){return this[k]},addEventListener(k,f){this[k]=f},getAnimations(){return[]},querySelector(){return{focus(){}}}})}
   const media={matches:dark,addEventListener(k,f){listeners[k]=f}};
-  const c={timeline(){},directionView(){},player(){},document:{documentElement:root,getElementById:node,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
+  const canvas={getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(){}}),toDataURL:()=>'data:image/png;map'};
+  const c={timeline(){},directionView(){},player(){},document:{documentElement:root,getElementById:node,createElement:()=>canvas,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
     localStorage:{getItem(){if(blocked)throw Error('blocked');return value},setItem(k,v){if(blocked)throw Error('blocked');value=v;writes++}}};
   vm.createContext(c);vm.runInContext(CORE+';this.RadioCore=RadioCore',c);vm.runInContext(SCRIPT,c);
   const beforeMount={...styles};c.appearance.mount();
@@ -58,12 +59,38 @@ let reopened=setup(t.saved);assert.equal(reopened.styles['--accent'],'#154f84');
 t.select('mode','dark');assert.equal(t.styles['--accent'],'#93cba5','incompatible saved accent falls back');
 assert.match(t.nodes['appearance-status'].textContent,/needs more contrast/);
 t.select('mode','light');assert.equal(t.styles['--accent'],'#154f84','custom accent survives fallback');
-t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24'});
+t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24',crt:'subtle'});
 t=setup(null,false,true);t.select('palette','ocean');assert.equal(t.styles['--bg'],'#edf3f6');assert.match(t.nodes['appearance-status'].textContent,/could not save/);
 t=setup(JSON.stringify({mode:'invalid',palette:'__proto__',accent:'red'}));assert.equal(t.styles['--bg'],'#f2f2ee');
+let crt=setup();assert.equal(crt.root.dataset.crt,'subtle','CRT screen: Subtle by default');assert.equal(crt.nodes['appearance-crt'].value,'subtle');
+assert.equal(crt.nodes['crt-map'].href,'data:image/png;map','the bend map is drawn once a preset is on');assert.equal(crt.nodes['crt-bend'].scale,35);
+for(const [value,scale] of [['classic',80],['heavy',170],['off',0],['subtle',35]]){crt.nodes['appearance-crt'].value=value;crt.nodes['appearance-crt'].onchange();
+  assert.equal(crt.root.dataset.crt,value);assert.equal(crt.nodes['crt-bend'].scale,scale);assert.equal(JSON.parse(crt.saved).crt,value);assert.equal(setup(crt.saved).root.dataset.crt,value,'saved with the other appearance settings')}
+assert.equal(setup(JSON.stringify({crt:'blinding'})).root.dataset.crt,'subtle');assert.equal(setup(JSON.stringify({crt:'__proto__'})).root.dataset.crt,'subtle');
+let off=setup(JSON.stringify({crt:'off'}));assert.equal(off.nodes['crt-map'].href,undefined,'Off never draws the map');
 """
         result = subprocess.run(['node', '-e', 'const SCRIPT=' + json.dumps(SCRIPT) + ',CORE=' + json.dumps(CORE) + ';\n' + harness], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_crt_option_markup_and_where_each_layer_applies(self):
+        self.assertIn('<label for="appearance-crt">CRT screen</label>', PAGE)
+        select = re.search(r'<select id="appearance-crt"[^>]*>(.*?)</select>', PAGE, re.S)
+        self.assertIn('aria-label="CRT screen"', select.group(0))
+        self.assertEqual(re.findall(r'<option value="(\w+)"( selected)?>(\w+)</option>', select.group(1)),
+                         [("off", "", "Off"), ("subtle", " selected", "Subtle"), ("classic", "", "Classic"), ("heavy", "", "Heavy")])
+        self.assertIn('<p id="crt-hint" class="l">On phones the effect is reduced to light lines and a vignette.</p>', PAGE)
+        self.assertRegex(PAGE, r'<svg[^>]*aria-hidden="true"[^>]*><filter id="crt"')
+        css = (WEB / "themes/terminal/theme.css").read_text()
+        crt = css[css.index("/* CRT screen"):]
+        bend = "@media (min-width:701px) and (not (pointer:coarse)) and (not (prefers-contrast:more)){"
+        self.assertEqual(crt.count("filter:url(#crt)"), 1)
+        self.assertGreater(crt.index("filter:url(#crt)"), crt.index(bend), "phones (narrow or touch) never get the bend")
+        self.assertIn("@media (max-width:700px),(pointer:coarse){:root:not([data-crt=\"off\"]){--crt-lines:.08;--crt-vignette:.2;--crt-glow:.25;--crt-noise:0}}", crt)
+        layers = crt[crt.index("@media not (prefers-contrast:more){"):crt.index("@keyframes crt-roll")]
+        self.assertIn("pointer-events:none", layers)
+        self.assertIn("content:\"\"", layers)                                    # no text: nothing for a screen reader
+        self.assertEqual(crt.count("animation:"), 1)
+        self.assertLess(crt.index("@media (prefers-reduced-motion:no-preference)"), crt.index("animation:"), "the roll bar only with motion allowed")
 
     def test_presets_keep_text_and_status_contrast(self):
         # Check actual shipped text and accent values.
