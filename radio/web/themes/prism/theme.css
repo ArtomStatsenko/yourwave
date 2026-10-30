@@ -27,6 +27,10 @@
 :root[data-skin="prism"] #air.off{background:var(--muted);box-shadow:none}
 :root[data-skin="prism"] .cover{display:grid;place-items:center}
 :root[data-skin="prism"] .disc{width:46%;aspect-ratio:1;border-radius:50%;background:#fff}
+/* the spectrum: 32 thin white bars below the disc (its foot is at 77% of the cover), never split; a flat line of short
+   dashes while nothing plays */
+:root[data-skin="prism"] #spectrum-bars{position:absolute;left:8%;right:8%;bottom:6%;height:14%;padding:0;gap:3px;justify-content:space-between}
+:root[data-skin="prism"] #spectrum-bars i{flex:0 0 3px;border-radius:1px;background:#fff;opacity:1}
 
 /* the track title: Syne, split; a new title rises from below as the old one leaves upward (view.js) */
 :root[data-skin="prism"] .title{font:800 clamp(30px,3.6vw,38px)/1.05 "Syne",var(--sans);letter-spacing:-.02em;overflow-wrap:anywhere;

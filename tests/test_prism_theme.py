@@ -66,7 +66,7 @@ global.requestAnimationFrame=f=>{frames.push(f);return frames.length};
 global.matchMedia=()=>({get matches(){return reduced},addEventListener:(k,f)=>motionListener=f});
 global.document={hidden:false,documentElement:{classList:{on:false,toggle(k,v){this.on=v}}},addEventListener:(k,f)=>visListener=f};
 global.MutationObserver=function(f){this.observe=()=>observers.push(f)};
-var RadioTheme={mount(){}};
+var RadioTheme={mount(){}},RadioBars={wrap:t=>t};
 VIEW
 const el=()=>({textContent:'',classList:{add(){},remove(){}},addEventListener(){},offsetWidth:0,dataset:{},style:{}});
 const style={},root={style:{setProperty:(k,v)=>style[k]=v,removeProperty:k=>delete style[k]},querySelector:el,addEventListener(){}};
@@ -75,12 +75,12 @@ const core={audio:{listening:false,read:()=>heard},snapshot:{state:'PLAYING'},er
 const tick=()=>{const f=frames.shift();if(f)f()},tell=c=>listeners.forEach(f=>f(core,c));
 assert.equal(RadioTheme.step('Maria También'),'');assert.equal(RadioTheme.step('x'.repeat(30)),'');assert.equal(RadioTheme.step('x'.repeat(31)),'m');
 assert.equal(RadioTheme.step('Twenty One Pilots - At The Risk Of Feeling Dumb'),'m','47 characters');assert.equal(RadioTheme.step('x'.repeat(48)),'m');assert.equal(RadioTheme.step('x'.repeat(49)),'s');
-assert.equal(RadioTheme.width(0),'1.20px');assert.equal(RadioTheme.width(1),'2.40px');
+assert.equal(RadioTheme.width(0),'1.50px');assert.equal(RadioTheme.width(1),'4.30px');
 assert.equal(RadioTheme.low([1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),1,'the low quarter of the bands');
 RadioTheme.mount(core,root);assert.equal(frames.length,0,'no loop without sound');
 core.audio.listening=true;tell('listening');assert.equal(frames.length,1);
-heard={bands:Array(32).fill(1)};tick();assert.equal(style['--ab'],'1.50px','smoothed: a quarter of the way to loud');
-tick();tick();assert.ok(parseFloat(style['--ab'])>1.5&&parseFloat(style['--ab'])<2.4,'and rising');assert.equal(frames.length,1,'one loop');
+heard={bands:Array(32).fill(1)};tick();assert.equal(style['--ab'],'2.20px','smoothed: a quarter of the way to loud');
+tick();tick();assert.ok(parseFloat(style['--ab'])>2.2&&parseFloat(style['--ab'])<4.3,'and rising');assert.equal(frames.length,1,'one loop');
 core.snapshot.state='PAUSED';tick();assert.equal(style['--ab'],undefined,'paused: back to the still split');assert.equal(frames.length,0);
 core.snapshot.state='PLAYING';tell('snapshot');assert.equal(frames.length,1);
 document.hidden=true;tick();assert.equal(frames.length,0,'a hidden tab stops it');

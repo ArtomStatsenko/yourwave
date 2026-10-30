@@ -1,9 +1,10 @@
-// Prism: the terminal theme's behavior (radio/web/themes/terminal/view.js) in its own look, with the colour split moving:
+// Prism: the terminal theme's behavior (radio/web/themes/terminal/view.js) in its own look, with 32 white spectrum bars
+// (shared/bars.js) and the colour split moving:
 // with the sound (--ab on the theme root), a rising title on a new track, a settle on a new tab or switch, and a still
 // red split on an error. Reduced motion keeps the still split; nothing moves.
 var RadioTheme=(function(theme){
-  // the split width for a smoothed level of the low bands (0..1): 1.2px still, up to 2.4px loud
-  function width(level){return (1.2+level*1.2).toFixed(2)+'px'}
+  // the split width for a smoothed level of the low bands (0..1): 1.5px still, up to 4.3px loud
+  function width(level){return (1.5+level*2.8).toFixed(2)+'px'}
   function low(bands){var n=Math.max(1,Math.floor(bands.length/4)),s=0;for(var i=0;i<n;i++)s+=bands[i];return s/n}
   // the title's size step (theme.css): up to 30 characters as designed, 31–48 smaller, longer smaller still
   function step(text){return text.length>48?'s':text.length>30?'m':''}
@@ -45,5 +46,5 @@ var RadioTheme=(function(theme){
       setTimeout(function(){var now=root.querySelector('.pl[data-pl="'+name+'"]');if(now&&now.getAttribute('aria-pressed')==='true')settle(now)})}});  // the row is drawn anew
     root.addEventListener('change',function(e){if(e.target.matches('input[role=switch]')&&e.target.checked)settle(e.target)});
     start()}
-  return {mount:mount,width:width,low:low,step:step};
-})(RadioTheme);
+  return {mount:mount,width:width,low:low,step:step,bars:theme.bars};
+})(RadioBars.wrap(RadioTheme,32));
