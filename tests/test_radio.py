@@ -352,6 +352,11 @@ class SchedulingTests(unittest.TestCase):
         db.execute("UPDATE packages SET status='READY'")
         self.svc._refresh_audio_cache()
         self.assertEqual(db.execute("SELECT status FROM packages").fetchone()[0], "READY")
+        # The old signature predates fixed-seed retries; its prepared audio must be rebuilt.
+        (config.DATA_DIR / "cache/audio-config.json").write_text(json.dumps(self.svc.cfg["jingles"], default=str, sort_keys=True))
+        self.svc._refresh_audio_cache()
+        self.assertEqual(db.execute("SELECT status FROM packages").fetchone()[0], "PENDING")
+        db.execute("UPDATE packages SET status='READY'")
         self.svc.cfg["jingles"]["stinger_in"] = [Path("/local/personal-intro.wav")]
         self.svc._refresh_audio_cache()
         self.assertEqual(db.execute("SELECT status FROM packages").fetchone()[0], "PENDING")
@@ -1205,7 +1210,7 @@ class SchedulingTests(unittest.TestCase):
         # the jingle follows the last word: the file is the speech plus the (trimmed) jingle
         self.assertAlmostEqual(audio.duration(out), (b - a) + audio.JINGLE_AFTER_SEC + min(4.0, audio.duration(jingle)), delta=1.2)
 
-    def test_retry_seed_goes_with_the_request_not_onto_the_shared_voice(self):
+    def test_retries_never_change_the_voice_seed(self):
         from radio import tts as tts_mod
         seen = []
 
@@ -1218,10 +1223,14 @@ class SchedulingTests(unittest.TestCase):
             def synthesize(self, text, out, seed=None):
                 seen.append((seed, self.seed))
                 out.write_bytes(b"x")
-        bad = iter([True, True, True, False])  # no comma in the text: the dash take equals the first one
-        tts_mod.cached_synthesize(Voice(), "Фраза для проверки зерна.", lambda p: "noise" if next(bad) else None)
-        self.assertEqual([s for s, _ in seen], [None, None, 44, 47])  # retries with neighbouring seeds
-        self.assertEqual({shared for _, shared in seen}, {42})              # the shared voice never changed
+        voice = Voice()
+        text = "Фраза, для проверки зерна."
+        out = config.DATA_DIR / "cache/tts" / (voice.cache_key(text) + ".wav")
+        with self.assertRaisesRegex(RuntimeError, "TTS audio invalid after 3 takes: noise"):
+            tts_mod.cached_synthesize(voice, text, lambda p: "noise")
+        self.assertEqual(seen, [(None, 42)] * 3)
+        self.assertFalse(out.exists())
+        self.assertFalse(list(out.parent.glob("*.take.wav")))
 
     def test_two_hosts_enter_without_handoff_or_thanks(self):
         svc = self.svc

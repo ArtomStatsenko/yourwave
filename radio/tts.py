@@ -36,16 +36,15 @@ class VoiceStudio:
     def voices(self) -> list[dict]:
         return self._get("/v1/audio/voices")["voices"]
 
-    def synthesize(self, text: str, out: Path, seed: int | None = None) -> None:
-        """seed: this take only (a retry with a neighbouring seed); the voice's own seed otherwise."""
+    def synthesize(self, text: str, out: Path) -> None:
         if len(text) > MAX_CHARS:
             raise ValueError("text too long for one TTS request")
         req_body = {"model": "tts-1", "voice": self.voice_id, "input": text, "language": self.language,
                     "response_format": "wav", "speed": self.speed}
         if self.instruct:
             req_body["instruct"] = self.instruct  # voice design: the built-in voice is described, not cloned
-        if (seed := self.seed if seed is None else seed) is not None:
-            req_body["seed"] = seed  # same seed -> same designed voice in every clip
+        if self.seed is not None:
+            req_body["seed"] = self.seed
         body = json.dumps(req_body).encode()
         req = urllib.request.Request(self.base_url + "/v1/audio/speech", body, {"Content-Type": "application/json"})
         tmp = out.with_suffix(".tmp.wav")
@@ -57,7 +56,8 @@ class VoiceStudio:
         return transcribe(path, self.language)
 
     def cache_key(self, text: str) -> str:
-        key = f"voicestudio|{self.voice_id}|{self.language}|{self.speed}|{self.instruct}|{self.seed}|{text}"
+        # Old cached takes may have used a different seed during retries.
+        key = f"voicestudio-fixed-seed-v1|{self.voice_id}|{self.language}|{self.speed}|{self.instruct}|{self.seed}|{text}"
         return hashlib.sha256(key.encode()).hexdigest()[:32]
 
 
@@ -265,7 +265,7 @@ def pronounce(text: str, *, phonemes=False) -> str:
 def cached_synthesize(tts, text: str, check=None) -> Path:
     """TTS with a cache keyed by the text. `check(path) -> error|None` rejects broken audio: with a fixed seed the
     engine is deterministic, so a text that came out as noise is retried with other punctuation (same words, same
-    voice), then with neighbouring seeds. The first good take is cached under the original text."""
+    voice). The first good take is cached under the original text."""
     # OmniVoice reaction tags are spoken literally by Qwen3; strip before cache lookup too.
     if not isinstance(tts, VoiceStudio):
         text = re.sub(r"\[(?:laughter|surprise-ah|sigh)\]\s*", "", text, flags=re.I)
@@ -281,17 +281,14 @@ def cached_synthesize(tts, text: str, check=None) -> Path:
     if check is None:
         tts.synthesize(text, out)
         return out
-    takes = [(text, None), (text.replace(", ", " — "), None), (text.rstrip(".!?…") + "…", None)]
-    if getattr(tts, "seed", None) is not None:
-        takes += [(text, tts.seed + d) for d in (2, 5)]
-    # A take file of its own: two threads may voice the same phrase at once. The seed goes with the request, never
-    # onto the shared voice object: another thread's take would get this retry's seed, i.e. another voice.
+    takes = [text, text.replace(", ", " — "), text.rstrip(".!?…") + "…"]
+    # A take file of its own: two threads may voice the same phrase at once.
     fd, name = tempfile.mkstemp(suffix=".take.wav", dir=out.parent)
     os.close(fd)
     tmp, errors = Path(name), []
     try:
-        for variant, seed in dict.fromkeys(takes):
-            tts.synthesize(variant, tmp, **({"seed": seed} if seed is not None else {}))
+        for variant in dict.fromkeys(takes):
+            tts.synthesize(variant, tmp)
             if not (err := check(tmp)):
                 os.replace(tmp, out)
                 return out

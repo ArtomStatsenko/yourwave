@@ -495,7 +495,7 @@ class Service:
         return host.startup(self.cfg["broadcast"]["station_name"])
 
     def _opener_file(self) -> Path:
-        name = hashlib.sha256((self._opener_text() + str(self.cfg["jingles"]["stinger_in"])).encode()).hexdigest()[:16]
+        name = hashlib.sha256((self.tts.cache_key(self._opener_text()) + str(self.cfg["jingles"]["stinger_in"])).encode()).hexdigest()[:16]
         return config.DATA_DIR / "cache/packages" / f"opener-{name}.wav"
 
     def _opener_line(self) -> str:
@@ -602,10 +602,11 @@ class Service:
                 self.db.execute("UPDATE packages SET status='PENDING' WHERE id=?", (p["id"],))
 
     def _refresh_audio_cache(self) -> None:
-        signature = json.dumps(self.cfg["jingles"], default=str, sort_keys=True)
+        signature = json.dumps({"jingles": self.cfg["jingles"], "voices": [self.tts.cache_key(""), self.tts2.cache_key("")]},
+                               default=str, sort_keys=True)
         path = config.DATA_DIR / "cache/audio-config.json"
         if not path.exists() or path.read_text() != signature:
-            # Prepared audio contains the old jingles; keep its text and rebuild with the selected pack.
+            # Prepared audio contains old jingles or voices; keep its text and rebuild.
             self.db.execute("UPDATE packages SET status='PENDING' WHERE status='READY'")
             path.write_text(signature)
 
