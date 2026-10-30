@@ -29,12 +29,27 @@ var appearance=(function(){
       var x=c.getContext('2d'),d=x.createImageData(n,n);
       for(var j=0;j<n;j++)for(var i=0;i<n;i++){var u=i/(n-1)*2-1,v=j/(n-1)*2-1,r2=(u*u+v*v)*.5,o=(j*n+i)*4;
         d.data[o]=127.5+127.5*u*r2;d.data[o+1]=127.5+127.5*v*r2;d.data[o+2]=127;d.data[o+3]=255}
-      x.putImageData(d,0,0);map.setAttribute('href',c.toDataURL());root.dataset.crtReady=''}}
+      x.putImageData(d,0,0);map.setAttribute('href',c.toDataURL());root.dataset.crtReady=''}
+    crtWatch()}
+  // A safety net for slow machines: once the bend shows, time 120 frames; if the median frame takes over 22 ms, drop
+  // only the bend (lines, vignette, glare and glow stay) for the rest of this session, without going back and forth.
+  var crtWatching=false;
+  function crtWatch(){var key='yourwave.crt-bend';
+    try{if(sessionStorage.getItem(key)==='off')root.dataset.crtBend='off'}catch(e){}
+    if(crtWatching||state.crt!=='on'||root.dataset.crtBend==='off'||!matchMedia(BEND).matches)return;
+    crtWatching=true;var last=0,times=[];
+    requestAnimationFrame(function frame(now){
+      if(state.crt!=='on'){crtWatching=false;return}
+      if(document.hidden)last=0;else{if(last)times.push(now-last);last=now}
+      if(times.length<120){requestAnimationFrame(frame);return}
+      times.sort(function(a,b){return a-b});
+      if(times[60]>22){root.dataset.crtBend='off';try{sessionStorage.setItem(key,'off')}catch(e){}}})}
   function apply(){root.dataset.timeFormat=state.timeFormat;root.dataset.crt=state.crt;crtBend();root.dataset.timelineEffect=state.timelineEffect;root.dataset.presentation=state.presentation;var c=colors();tokens.forEach(function(t,i){root.style.setProperty('--'+t,c[i])});root.dataset.theme=mode();root.style.colorScheme=mode();
     if(readable(state.accent))accent(state.accent);
   }
   function save(){try{localStorage.setItem(key,JSON.stringify(state));saveError=false}catch(e){saveError=true}}
   function el(id){return document.getElementById(id)}
+  var BEND='(min-width:701px) and (not (pointer:coarse)) and (not (prefers-contrast:more))';  // where theme.css bends
   function message(text){el('appearance-status').textContent=text||''}
   function render(){if(!mounted)return;
     el('appearance-presentation').value=state.presentation;

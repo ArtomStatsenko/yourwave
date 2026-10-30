@@ -15,18 +15,19 @@ class AppearanceTests(unittest.TestCase):
     def test_preferences_preview_contrast_and_storage_failures(self):
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
-function setup(saved=null,dark=false,blocked=false){
+function setup(saved=null,dark=false,blocked=false,session={}){
   const styles={},nodes={},radios={},listeners={};let value=saved,writes=0;
   const root={dataset:{},style:{setProperty(k,v){styles[k]=v}}};
   for(const kind of ['mode','palette'])radios[kind]=(kind==='mode'?['system','light','dark']:['ember','forest','ocean']).map(value=>({value,checked:false}));
   function node(id){return nodes[id]||(nodes[id]={value:'',disabled:false,textContent:'',style:{setProperty(){}},setAttribute(k,v){this[k]=v},getAttribute(k){return this[k]},addEventListener(k,f){this[k]=f},getAnimations(){return[]},querySelector(){return{focus(){}}}})}
   const media={matches:dark,addEventListener(k,f){listeners[k]=f}};
   const canvas={getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(){}}),toDataURL:()=>'data:image/png;map'};
-  const c={timeline(){},directionView(){},player(){},document:{documentElement:root,getElementById:node,createElement:()=>canvas,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(){return media},
+  const c={timeline(){},directionView(){},player(){},document:{documentElement:root,getElementById:node,createElement:()=>canvas,querySelectorAll(q){return radios[q.includes('palette')?'palette':'mode']}},matchMedia(q){return q.includes('min-width')?{matches:true}:media},raf:[],requestAnimationFrame(f){c.raf.push(f)},
+    sessionStorage:{getItem:k=>k in session?session[k]:null,setItem:(k,v)=>session[k]=v},
     localStorage:{getItem(){if(blocked)throw Error('blocked');return value},setItem(k,v){if(blocked)throw Error('blocked');value=v;writes++}}};
   vm.createContext(c);vm.runInContext(CORE+';this.RadioCore=RadioCore',c);vm.runInContext(SCRIPT,c);
   const beforeMount={...styles};c.appearance.mount();
-  return {styles,nodes,beforeMount,root,formatTime:c.appearance.formatTime,select(kind,value){const n=radios[kind].find(n=>n.value===value);n.onchange()},
+  return {styles,nodes,beforeMount,root,session,frames(ms,n){let t=0;for(let i=0;i<n&&c.raf.length;i++){t+=ms;c.raf.shift()(t)}},formatTime:c.appearance.formatTime,select(kind,value){const n=radios[kind].find(n=>n.value===value);n.onchange()},
     input(value){node('accent-hex').value=value;node('accent-hex').oninput()},apply(){node('accent-form').onsubmit({preventDefault(){}})},
     system(dark){media.matches=dark;listeners.change()},get saved(){return value},get writes(){return writes}};
 }
@@ -67,6 +68,10 @@ assert.equal(crt.nodes['crt-map'].href,'data:image/png;map','the bend map is dra
 for(const on of [false,true,false]){crt.nodes['appearance-crt'].checked=on;crt.nodes['appearance-crt'].onchange();const value=on?'on':'off';
   assert.equal(crt.root.dataset.crt,value);assert.equal(JSON.parse(crt.saved).crt,value);assert.equal(setup(crt.saved).root.dataset.crt,value,'saved with the other appearance settings')}
 for(const old of ['subtle','classic','heavy','blinding','__proto__'])assert.equal(setup(JSON.stringify({crt:old})).root.dataset.crt,'on','the old presets and anything unknown: on');
+let slow=setup();slow.frames(30,200);assert.equal(slow.root.dataset.crtBend,'off','slow frames with the bend: the bend goes');assert.equal(slow.session['yourwave.crt-bend'],'off');
+assert.equal(slow.root.dataset.crt,'on','the rest of the screen stays');assert.equal(JSON.parse(slow.saved||'{}').crt===undefined||JSON.parse(slow.saved).crt==='on',true,'not in the saved setting');
+let fast=setup();fast.frames(16,200);assert.equal(fast.root.dataset.crtBend,undefined,'fast frames: the bend stays');
+let again=setup(null,false,false,{'yourwave.crt-bend':'off'});assert.equal(again.root.dataset.crtBend,'off','for the rest of the session');assert.equal(again.frames(16,1),undefined);
 let off=setup(JSON.stringify({crt:'off'}));assert.equal(off.nodes['crt-map'].href,undefined,'Off never draws the map');
 """
         result = subprocess.run(['node', '-e', 'const SCRIPT=' + json.dumps(SCRIPT) + ',CORE=' + json.dumps(CORE) + ';\n' + harness], capture_output=True, text=True)

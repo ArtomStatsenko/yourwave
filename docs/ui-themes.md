@@ -109,7 +109,10 @@ Appearance preferences (palette, accent, player style, timeline effect, time for
 terminal theme keeps its own in this browser, among them the "CRT screen" switch (on by default; the old preset
 values subtle, classic and heavy read as on): scan lines, glow, vignette and glass over the page, and on wide windows
 with a mouse a barrel bend (an SVG displacement map on body, which then scrolls inside the screen). Phones get light
-lines and a vignette only; it is off under `prefers-contrast: more`. A theme whose `core.themes()` entry has `modes` or `accent` puts the
+lines and a vignette only; it is off under `prefers-contrast: more`. A safety net for slow machines: once the bend
+shows, the page times 120 frames; if the median frame takes over 22 ms it drops only the bend (lines, vignette, glare
+and glow stay) for the rest of the browser session (`sessionStorage` `yourwave.crt-bend`, not the saved setting), and
+does not turn it back on in that session. A theme whose `core.themes()` entry has `modes` or `accent` puts the
 rows `id="appearance-mode-row"` (Mode) and `id="appearance-accent-row"` (Accent) after Theme, `hidden`; the shared
 behavior shows them from those flags. Soft has both (Light, Dark, System; six accents and a custom one, saved in this
 browser); lime, synthwave and prism have neither.

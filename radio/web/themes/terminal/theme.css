@@ -325,7 +325,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 /* CRT screen (Settings → Appearance, on by default): layers over the page; colours, sizes and positions stay. Scan
    lines, a vignette and a glass glare (html::before) and a glow; phones and narrow windows get lighter lines and
    vignette and less glow. The bend is an SVG displacement map (#crt) on body, which then scrolls inside a screen-sized
-   box; only wide windows with a mouse get it. Nothing under prefers-contrast: more. Every rule needs data-crt="on":
+   box; only wide windows with a mouse get it, and not after the page found frames too slow with it (data-crt-bend=
+   "off", see the appearance script). Nothing under prefers-contrast: more. Every rule needs data-crt="on":
    the card themes import this stylesheet and never set it. */
 :root[data-crt="on"]{--crt-lines:.14;--crt-vignette:.3;--crt-glow:.35;--crt-glow-mix:55%}
 :root[data-crt="on"][data-theme="light"]{--crt-glow-mix:30%}
@@ -346,7 +347,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 /* the bend: body becomes the screen, rounded, on black; 28px more padding keeps text clear of the bent edges */
 @media (min-width:701px) and (not (pointer:coarse)) and (not (prefers-contrast:more)){
   :root[data-crt="on"][data-crt-ready]{height:100%;overflow:hidden;background:#000}
-  :root[data-crt="on"][data-crt-ready] body{height:100%;overflow:auto;border-radius:26px;filter:url(#crt);
+  :root[data-crt="on"][data-crt-ready]:not([data-crt-bend="off"]) body{filter:url(#crt)}
+  :root[data-crt="on"][data-crt-ready] body{height:100%;overflow:auto;border-radius:26px;
     padding-block:60px;padding-left:max(44px,calc(env(safe-area-inset-left,0px) + 28px));padding-right:max(44px,calc(env(safe-area-inset-right,0px) + 28px))}
   :root[data-crt="on"][data-crt-ready]::before{border-radius:26px}
   :root[data-crt="on"][data-crt-ready] .program-editing main{height:calc(100dvh - 120px)}
