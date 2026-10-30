@@ -61,45 +61,50 @@ assert.equal(JSON.stringify(core.themes()[0]),JSON.stringify({name:'prism',title
 
 MOTION = r"""
 const assert=require('node:assert/strict');
-let frames=[],reduced=false,motionListener,visListener,listeners=[],observers=[];
+let frames=[],reduced=false,observers=[],time=1000,state='PLAYING',reachable=true;
 global.requestAnimationFrame=f=>{frames.push(f);return frames.length};
-global.matchMedia=()=>({get matches(){return reduced},addEventListener:(k,f)=>motionListener=f});
-global.document={hidden:false,documentElement:{classList:{on:false,toggle(k,v){this.on=v}}},addEventListener:(k,f)=>visListener=f};
+global.matchMedia=()=>({get matches(){return reduced},addEventListener(){}});
+global.document={hidden:false,documentElement:{classList:{on:false,toggle(k,v){this.on=v}}},addEventListener(){}};
+global.localStorage={getItem:()=>null,setItem(){}};
 global.MutationObserver=function(f){this.observe=()=>observers.push(f)};
 var RadioTheme={mount(){}},RadioBars={wrap:t=>t};
+CORE
 VIEW
 const el=()=>({textContent:'',classList:{add(){},remove(){}},addEventListener(){},offsetWidth:0,dataset:{},style:{}});
 const style={},bodyStyle={},moved=el=>Object.assign(el,{style:{setProperty:(k,v)=>style[k]=v,removeProperty:k=>delete style[k]}});
 const parts={'#np':moved(el()),'.tabbar':moved(el())};  // the player and the tab bar share one record: both get the same width
 const root={style:{setProperty:(k,v)=>bodyStyle[k]=v,removeProperty(){}},querySelector:q=>parts[q]||el(),addEventListener(){}};
 let heard=null;
-const core={audio:{listening:false,read:()=>heard},snapshot:{status:{state:'PLAYING'}},error:''  /* the /api/status answer: the state is in its status */,subscribe:f=>listeners.push(f)};
-const tick=()=>{const f=frames.shift();if(f)f()},tell=c=>listeners.forEach(f=>f(core,c));
+const core=RadioCore.create({fetch:()=>reachable?Promise.resolve({json:()=>Promise.resolve({status:{state}})}):Promise.reject(Error('the page cannot reach the radio'))});
+core.audio.read=()=>heard;core.audio.watchdog=()=>{};  // the stand-in sound
+const tick=(ms=1000/60)=>{time+=ms;const f=frames.shift();if(f)f(time)};
+(async()=>{
 assert.equal(RadioTheme.step('Maria También'),'');assert.equal(RadioTheme.step('x'.repeat(30)),'');assert.equal(RadioTheme.step('x'.repeat(31)),'m');
 assert.equal(RadioTheme.step('Twenty One Pilots - At The Risk Of Feeling Dumb'),'m','47 characters');assert.equal(RadioTheme.step('x'.repeat(48)),'m');assert.equal(RadioTheme.step('x'.repeat(49)),'s');
 assert.equal(RadioTheme.width(0),'1.50px');assert.equal(RadioTheme.width(1),'4.30px');
 assert.equal(RadioTheme.low([1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),1,'the low quarter of the bands');
-RadioTheme.mount(core,root);assert.equal(frames.length,0,'no loop without sound');
-core.audio.listening=true;tell('listening');assert.equal(frames.length,1);
+RadioTheme.mount(core,root);tick();assert.equal(frames.length,0,'no sound: it rests');
+core.audio.listening=true;await core.refresh();assert.equal(frames.length,1,'listening and the station plays: it wakes');
 heard={bands:Array(32).fill(1)};tick();assert.equal(style['--ab'],'2.20px','smoothed: a quarter of the way to loud');
 tick();tick();assert.ok(parseFloat(style['--ab'])>2.2&&parseFloat(style['--ab'])<4.3,'and rising');assert.equal(frames.length,1,'one loop');
-core.snapshot.status.state='PAUSED';tick();assert.equal(style['--ab'],undefined,'paused: back to the still split');assert.equal(frames.length,0);
-core.snapshot.status.state='PLAYING';tell('snapshot');assert.equal(frames.length,1);
-document.hidden=true;tick();assert.equal(frames.length,0,'a hidden tab stops it');
-document.hidden=false;visListener();assert.equal(frames.length,1);
-core.error='the page cannot reach the radio';tell('error');tick();assert.equal(style['--ab'],undefined,'an error: the still red split');
+state='PAUSED';await core.refresh();tick();assert.equal(style['--ab'],undefined,'paused: back to the still split');assert.equal(frames.length,0);
+state='PLAYING';await core.refresh();assert.equal(frames.length,1,'playing again: it wakes');
+heard={bands:Array(32).fill(0)};for(let i=0;i<60&&frames.length;i++)tick();assert.equal(frames.length,0,'silence: it settles and rests');assert.equal(style['--ab'],undefined);
+heard={bands:Array(32).fill(1)};core.frames.wake();tick();
+reachable=false;await core.refresh();tick();assert.equal(style['--ab'],undefined,'an error: the still red split');assert.equal(frames.length,0);
 assert.equal(document.documentElement.classList.on,true);
-core.error='';tell('snapshot');assert.equal(document.documentElement.classList.on,false);assert.equal(frames.length,1);
-reduced=true;tick();assert.equal(frames.length,0,'reduced motion: nothing moves');tell('snapshot');assert.equal(frames.length,0);
-reduced=false;motionListener();assert.equal(frames.length,1);
+reachable=true;await core.refresh();assert.equal(document.documentElement.classList.on,false);assert.equal(frames.length,1);
+reduced=true;tick();assert.equal(frames.length,0,'reduced motion: nothing moves');
+reduced=false;core.frames.wake();tick();assert.equal(frames.length,1);
 core.audio.listening=false;tick();assert.equal(frames.length,0,'stops with the sound');
 assert.deepEqual(bodyStyle,{},'never on the root: that restyles the whole page');
+})().catch(e=>{console.error(e);process.exit(1)});
 """
 
 
 class PrismMotionTests(unittest.TestCase):
     def test_the_split_follows_the_sound_and_stops_with_it(self):
-        result = subprocess.run(["node", "-e", MOTION.replace("VIEW", (PRISM / "view.js").read_text())], capture_output=True, text=True)
+        result = subprocess.run(["node", "-e", MOTION.replace("CORE", (WEB / "core/core.js").read_text()).replace("VIEW", (PRISM / "view.js").read_text())], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
 

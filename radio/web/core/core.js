@@ -146,6 +146,24 @@ var RadioCore=(function(){
     core.subscribe=function(fn){listeners.push(fn);return function(){listeners=listeners.filter(function(l){return l!==fn})}};
     function emit(change){listeners.slice().forEach(function(fn){fn(core,change)})}
 
+    // One animation frame for everything that moves on the page (a spectrum, a theme's breathing): each fn(dt, now) runs
+    // on every frame (dt: seconds since the last, so rates keep their speed at any frame rate) and returns true while it
+    // still moves. When none does, the loop sleeps: no frames, no reading of the sound. Stopping listening, a paused
+    // station, a hidden tab and reduced motion are only ways to rest. It wakes on what can bring movement back:
+    // listening starts, the station plays while this device listens, the tab shows, motion is allowed, or wake().
+    var movers=[],frame=0,lastFrame=0,watching=false;
+    function tick(now){var dt=lastFrame?Math.min(.25,(now-lastFrame)/1000):0,moving=false;lastFrame=now;
+      movers.slice().forEach(function(fn){if(fn(dt,now))moving=true});
+      frame=moving?requestAnimationFrame(tick):0;if(!frame)lastFrame=0}
+    core.frames={
+      add:function(fn){movers.push(fn);
+        if(!watching){watching=true;document.addEventListener('visibilitychange',core.frames.wake);
+          matchMedia('(prefers-reduced-motion:reduce)').addEventListener('change',core.frames.wake)}
+        core.frames.wake();return function(){movers=movers.filter(function(f){return f!==fn})}},
+      wake:function(){if(!frame&&movers.length&&!document.hidden)frame=requestAnimationFrame(tick)}};
+    listeners.push(function(core,change){
+      if(change==='listening'&&core.audio.listening||change==='snapshot'&&core.audio.listening&&core.snapshot.status.state==='PLAYING')core.frames.wake()});
+
     // One poll. A late answer never replaces a newer one; a failed poll keeps the last good snapshot.
     core.refresh=function(){
       var mine=++sequence;
@@ -180,21 +198,5 @@ var RadioCore=(function(){
     return core;
   }
 
-  // The one loop a spectrum is drawn by, in every theme: step(dt, now) on every animation frame (dt: seconds since the
-  // last frame, for rates that keep their speed at any frame rate) while this device listens, the station is not paused,
-  // the tab shows, motion is allowed and active() (when given) agrees; otherwise it stops and rest() draws the flat line
-  // once. It starts itself on those changes; the returned start() is for the theme's own (a visualizer switched on).
-  function spectrumLoop(core,step,rest,active){
-    var on=false,last=0,motion=matchMedia('(prefers-reduced-motion:reduce)');
-    function live(){return core.audio.listening&&!document.hidden&&!motion.matches&&!(core.snapshot&&core.snapshot.status&&core.snapshot.status.state==='PAUSED')&&(!active||active())}
-    function frame(now){
-      if(!live()){on=false;rest();return}
-      step(last?Math.min(.25,(now-last)/1000):0,now);last=now;requestAnimationFrame(frame)}  // the first frame: no time has passed
-    function start(){if(!on&&live()){on=true;last=0;requestAnimationFrame(frame)}}
-    core.subscribe(function(core,change){if(change==='listening'||change==='snapshot')start()});
-    motion.addEventListener('change',start);document.addEventListener('visibilitychange',start);
-    return start}
-
-  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent,
-    spectrumLoop:spectrumLoop};
+  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent};
 })();

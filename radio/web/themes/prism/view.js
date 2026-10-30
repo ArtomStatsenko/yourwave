@@ -10,18 +10,17 @@ var RadioTheme=(function(theme){
   function step(text){return text.length>48?'s':text.length>30?'m':''}
   function mount(core,root){
     theme.mount(core,root);
-    var html=document.documentElement,motion=matchMedia('(prefers-reduced-motion:reduce)'),level=0,running=false,
+    var html=document.documentElement,motion=matchMedia('(prefers-reduced-motion:reduce)'),level=0,
       moved=[root.querySelector('#np'),root.querySelector('.tabbar')];  // not the root: a change there restyles the whole page every frame
-    function moving(){return core.audio.listening&&!motion.matches&&!document.hidden&&!core.error&&!(core.snapshot&&core.snapshot.status&&core.snapshot.status.state==='PAUSED')}
-    function frame(){
-      if(!moving()){running=false;level=0;moved.forEach(function(el){el.style.removeProperty('--ab')});return}
-      var heard=core.audio.read(1),ab;level+=((heard?low(heard.bands):0)-level)*.25;ab=width(level);
-      moved.forEach(function(el){el.style.setProperty('--ab',ab)});requestAnimationFrame(frame)}
-    function start(){if(!running&&moving()){running=true;requestAnimationFrame(frame)}}
-    core.subscribe(function(core,change){
-      html.classList.toggle('prism-error',!!core.error);   // the words are the core's, shown where terminal shows them
-      if(change==='listening'||change==='snapshot')start()});
-    motion.addEventListener('change',start);document.addEventListener('visibilitychange',start);
+    function moving(){return core.audio.listening&&!motion.matches&&!core.error&&!(core.snapshot&&core.snapshot.status&&core.snapshot.status.state==='PAUSED')}
+    function still(){level=0;moved.forEach(function(el){el.style.removeProperty('--ab')});return false}
+    // on the core's frames: true while the split breathes; it rests at the still split without sound
+    core.frames.add(function(){
+      if(!moving())return still();
+      var heard=core.audio.read(1),loud=heard?low(heard.bands):0,ab;level+=(loud-level)*.25;
+      if(loud<.005&&level<.005)return still();  // silence: the station still sends a stream
+      ab=width(level);moved.forEach(function(el){el.style.setProperty('--ab',ab)});return true});
+    core.subscribe(function(core){html.classList.toggle('prism-error',!!core.error)});   // the words are the core's, shown where terminal shows them
 
     // a new track: the size step is set first; the box takes the new title's height for the whole motion; the old
     // title leaves upward, the text is swapped at 180 ms, the new one rises into place
@@ -45,7 +44,6 @@ var RadioTheme=(function(theme){
       .observe(root.querySelector('.tabs'),{attributes:true,attributeFilter:['aria-selected'],subtree:true});
     root.addEventListener('click',function(e){var pl=e.target.closest('.pl');if(pl){var name=pl.dataset.pl;
       setTimeout(function(){var now=root.querySelector('.pl[data-pl="'+name+'"]');if(now&&now.getAttribute('aria-pressed')==='true')settle(now)})}});  // the row is drawn anew
-    root.addEventListener('change',function(e){if(e.target.matches('input[role=switch]')&&e.target.checked)settle(e.target)});
-    start()}
+    root.addEventListener('change',function(e){if(e.target.matches('input[role=switch]')&&e.target.checked)settle(e.target)})}
   return {mount:mount,width:width,low:low,step:step,bars:theme.bars};
 })(RadioBars.wrap(RadioTheme,32));

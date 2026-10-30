@@ -718,9 +718,10 @@ themePicker();
 // a Details box stays open across redraws (toggle does not bubble: caught on the way down)
 root.addEventListener('toggle',function(e){var d=e.target;if(d.classList&&d.classList.contains('control-help'))(helpText.open=helpText.open||{})[d.id.slice(5)]=d.open},true);
 core.start();
-/* ---- visualizer: audio-driven braille patterns under the title, drawn on every frame by the core's spectrumLoop
-   from core.audio.read(dw()); a flat muted line when the loop stops (no sound, paused, hidden tab, reduced motion,
-   switched off). Rates are per second, so the patterns move at the same speed at any frame rate. ---- */
+/* ---- visualizer: audio-driven braille patterns under the title, drawn on the core's frames from
+   core.audio.read(dw()). Without sound (not listening, a paused station, silence) it settles into a flat muted line
+   and rests, and the frames sleep; at once when switched off or with reduced motion. Rates are per second, so the
+   patterns move at the same speed at any frame rate. ---- */
 document.addEventListener('visibilitychange',function(){document.documentElement.dataset.pageHidden=String(document.hidden)});
 document.documentElement.dataset.pageHidden=String(document.hidden);
 document.documentElement.dataset.mastVisible='false';
@@ -732,7 +733,7 @@ var radioViz=(function(){
     el=$('viz'),BIT=[[1,2,4,64],[8,16,32,128]],MODES=['pulse','scope','bars','peaks','fall','vu','ribbon'],enabled=true,peaks=new Array(N).fill(0),history=[],
     STEPS_PER_SECOND=15,  // the visual tempo: fall scrolls this many rows a second and the decays below are per step;
                           // 15 is what the old 50 ms timer plus a 60 Hz frame gave (not the frame rate)
-    heardAt=-1e9,heardSpec=spec.slice(),heardWave=wave.slice(),rows=0;
+    heardAt=-1e9,heardSpec=spec.slice(),heardWave=wave.slice(),rows=0,resting=true,motion=matchMedia('(prefers-reduced-motion:reduce)');
   try{mode=localStorage.getItem('viz2')||'pulse';enabled=localStorage.getItem('vizEnabled')!=='false'&&mode!=='off'}catch(e){}
   if(MODES.indexOf(mode)<0)mode='pulse';
   // cells follow the box width (measured braille glyph), so the line never wraps or scrolls sideways
@@ -774,22 +775,27 @@ var radioViz=(function(){
     try{localStorage.setItem('viz2',mode)}catch(x){}mark();draw()}
   $('vzb').onclick=function(){enabled=!enabled;
     try{localStorage.setItem('vizEnabled',String(enabled));localStorage.setItem('viz2',mode)}catch(x){}
-    if(!enabled)reset();mark();draw();start()};
+    if(!enabled)reset();mark();draw();core.frames.wake()};
   $('vzprev').onclick=function(){change(-1)};
   $('vznext').onclick=function(){change(1)};
   // One frame, dt seconds after the last. Without fresh sound for half a second the spectrum and the wave sink back from
   // what was last heard (to .8, the wave 20% nearer the middle, each step: a function of the time, not of the frames);
-  // peaks fall .035 a step; fall's history scrolls a row a step.
+  // peaks fall .035 a step; fall's history scrolls a row a step. True while anything still moves.
   function step(dt,now){
-    var heard=core.audio.read(DW);
+    if(!enabled||motion.matches){if(!resting){reset();draw();resting=true}return false}
+    var heard=core.audio.listening&&core.audio.read(DW);
+    if(heard&&!heard.bands.some(function(v){return v>.02}))heard=null;  // silence: a paused station still sends a stream
+    resting=false;
     if(heard){heardAt=now;for(var i=0;i<N;i++)spec[i]=heardSpec[i]=heard.bands[i]||0;for(var j=0;j<DW;j++)wave[j]=heardWave[j]=heard.wave[j]==null?.5:heard.wave[j]}
     else if(now-heardAt>500){var k=Math.pow(.8,(now-heardAt-500)/1000*STEPS_PER_SECOND);
       for(var i=0;i<N;i++)spec[i]=heardSpec[i]*k;for(var j=0;j<DW;j++)wave[j]=.5+((heardWave[j]==null?.5:heardWave[j])-.5)*k}
     for(var i=0;i<N;i++)peaks[i]=Math.max(spec[i],peaks[i]-.035*STEPS_PER_SECOND*dt);
     for(rows+=dt*STEPS_PER_SECOND;rows>1-1e-9;rows--){  // fractions add up to 0.999…: a row is due at 1 all the same
       history.unshift(spec.slice());history.length=Math.min(DH,history.length)}
-    draw()}
-  var start=RadioCore.spectrumLoop(core,step,function(){reset();draw()},function(){return enabled});
+    var moving=now-heardAt<=500||!quiet()||peaks.some(function(v){return v>.02})||history.some(function(r){return r.some(function(v){return v>.02})});
+    if(!moving){reset();resting=true}
+    draw();return moving}
+  core.frames.add(step);
   window.addEventListener('resize',layout);
   mark();layout();draw();
   return{dw:function(){return DW}}})();

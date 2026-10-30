@@ -15,15 +15,15 @@ function setup(saved='pulse',reduced=false){
   let frames=[],width=640,stored=saved,motion,layout,visible,enabled='true',subs=[];
   const nodes={viz:{parentNode:{get clientWidth(){return width}}},
     ruler:{getBoundingClientRect:()=>({width:200})},vzb:{setAttribute(k,v){this[k]=v}},vzprev:{},vznext:{}};
-  const core={audio:{listening:false,heard:null,read(){return this.heard}},snapshot:{status:{state:'PLAYING'}},subscribe:f=>subs.push(f)};
-  const c={Array,Math,String,core,document:{hidden:false,addEventListener:(k,fn)=>visible=fn},$:id=>nodes[id],
+  const c={Array,Math,String,JSON,Promise,document:{hidden:false,addEventListener:(k,fn)=>visible=fn},$:id=>nodes[id],
     localStorage:{getItem:k=>k==='vizEnabled'?enabled:stored,setItem:(k,v)=>{if(k==='vizEnabled')enabled=v;else stored=v}},
     matchMedia:()=>({get matches(){return reduced},addEventListener:(k,fn)=>motion=fn}),
     window:{addEventListener:(k,fn)=>layout=fn},requestAnimationFrame:fn=>frames.push(fn)};
-  vm.createContext(c);vm.runInContext(CORE+';\n'+SOURCE,c);
-  let time=1000;
+  vm.createContext(c);vm.runInContext(CORE+';\nvar core=RadioCore.create({fetch:()=>new Promise(()=>{})});\n'+SOURCE,c);
+  const core=c.core;core.audio.heard=null;core.audio.read=function(){return this.heard};  // the stand-in sound
+  let time=1000;{const f=frames.shift();if(f)f(time)}  // the frame a new mover wakes: no sound yet, so it rests
   return {c,nodes,core,
-    listen(on=true){core.audio.listening=on;subs.forEach(f=>f(core,'listening'))},
+    listen(on=true){core.audio.listening=on;core.frames.wake()},  // as the core's 'listening' does
     frame(ms=1000/60){time+=ms;const f=frames.shift();if(f)f(time)},
     get pending(){return frames.length},get stored(){return stored},
     resize(w){width=w;layout()},motion(v){reduced=v;motion()},show(hidden){c.document.hidden=hidden;visible()}};
@@ -37,7 +37,7 @@ for(const mode of modes){
   assert.equal(active.split('\n').length,2);
   assert.ok(active.split('\n').every(row=>row.length===t.c.radioViz.dw()/2));
   assert.equal(t.pending,1,mode+': drawn on every frame');
-  t.listen(false);t.frame();
+  t.listen(false);for(let i=0;i<300&&t.pending;i++)t.frame();  // it settles, then rests
   assert.equal(t.pending,0,mode+' must stop without audio');
   assert.equal(t.nodes.viz.className,'idle');
 }
@@ -62,15 +62,16 @@ for(let i=1;i<=modes.length;i++){
 assert.equal(setup('unknown').nodes.vzb.textContent,'pulse');
 t=setup('off');assert.equal(t.nodes.vzb.textContent,'pulse');assert.equal(t.nodes.vzb['aria-pressed'],'false');
 t=setup('peaks');t.nodes.vzb.onclick();assert.equal(t.nodes.vzb['aria-pressed'],'false');
-assert.equal(t.nodes.viz.textContent,'');t.listen();t.core.audio.heard=sound(t);assert.equal(t.pending,0,'switched off: no loop');
+assert.equal(t.nodes.viz.textContent,'');t.listen();t.core.audio.heard=sound(t);t.frame();assert.equal(t.pending,0,'switched off: it rests');assert.equal(t.nodes.viz.textContent,'');
 t.nodes.vznext.onclick();assert.equal(t.stored,'fall');assert.equal(t.nodes.viz.textContent,'');
 t.nodes.vzprev.onclick();assert.equal(t.stored,'peaks');assert.equal(t.nodes.vzb['aria-pressed'],'false');
 t.nodes.vzb.onclick();assert.equal(t.nodes.vzb['aria-pressed'],'true');assert.equal(t.pending,1,'switched on while listening: it starts');
 t.frame();assert.notEqual(t.nodes.viz.textContent,'');
 t=setup();t.resize(320);assert.equal(t.c.radioViz.dw(),64);t.resize(960);assert.equal(t.c.radioViz.dw(),192);
-t=setup('peaks',true);t.listen();assert.equal(t.pending,0,'reduced motion: no loop');
-t=setup();t.c.document.hidden=true;t.listen();assert.equal(t.pending,0,'hidden tab: no loop');t.show(false);assert.equal(t.pending,1,'shown again: it starts');
-t=setup();t.core.snapshot.status.state='PAUSED';t.listen();assert.equal(t.pending,0,'paused: no loop');
+t=setup('peaks',true);t.listen();t.core.audio.heard=sound(t);t.frame();assert.equal(t.pending,0,'reduced motion: it rests');
+t=setup();t.c.document.hidden=true;t.listen();assert.equal(t.pending,0,'hidden tab: no frames');t.show(false);assert.equal(t.pending,1,'shown again: it wakes');
+t=setup();t.listen();t.core.audio.heard=sound(t);t.frame();t.core.audio.heard={bands:Array(32).fill(0),wave:[]};  // a paused station: a silent stream
+for(let i=0;i<300&&t.pending;i++)t.frame();assert.equal(t.pending,0,'silence: it settles and the frames sleep');assert.equal(t.nodes.viz.className,'idle');
 t=setup();t.listen();t.core.audio.heard=sound(t);t.frame();t.motion(true);t.frame();assert.equal(t.pending,0);assert.equal(t.nodes.viz.className,'idle','a flat line');
 """
         core = (WEB / "core/core.js").read_text()

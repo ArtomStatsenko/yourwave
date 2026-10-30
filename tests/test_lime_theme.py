@@ -40,31 +40,32 @@ class LimeMarkupTests(unittest.TestCase):
 
 SPECTRUM = r"""
 const assert=require('node:assert/strict');
-let frames=[],reduced=false,listeners=[],motionListener=null,visibility=null;
+let frames=[],reduced=false,time=1000;
 global.requestAnimationFrame=f=>{frames.push(f);return frames.length};
-global.matchMedia=()=>({get matches(){return reduced},addEventListener:(k,f)=>motionListener=f});
-global.document={hidden:false,addEventListener:(k,f)=>visibility=f};
+global.matchMedia=()=>({get matches(){return reduced},addEventListener(){}});
+global.document={hidden:false,addEventListener(){}};
+global.localStorage={getItem:()=>null,setItem(){}};
 var RadioTheme={mount(){}};  // the terminal behavior: not needed for the strip
 LIME
 const bars=Array.from({length:20},()=>({style:{}}));
 const root={querySelectorAll:()=>bars};
 let heard=null;
-const core={audio:{listening:false,read:()=>heard},snapshot:{status:{state:'PLAYING'}},subscribe:f=>listeners.push(f)};
+const core=RadioCore.create({fetch:()=>new Promise(()=>{})});core.audio.read=()=>heard;  // the stand-in sound
 RadioTheme.mount(core,root);
-const tick=()=>{const f=frames.shift();if(f)f()};
+const tick=(ms=1000/60)=>{time+=ms;const f=frames.shift();if(f)f(time)};
 const heights=()=>bars.map(b=>b.style.height||'0').join(',');
+const flat=Array(20).fill('0').join(',');
 assert.deepEqual(RadioTheme.bars(Array(32).fill(0).map((_,i)=>i/31)).length,20);
 const one=Array(32).fill(0);one[0]=1;one[1]=.3;assert.deepEqual(RadioTheme.bars(one).slice(0,2),[1,.3],'each bar is the loudest of its bands');
-core.audio.listening=true;listeners.forEach(f=>f(core,'listening'));assert.equal(frames.length,1);
-heard={bands:Array(32).fill(.5)};tick();assert.equal(heights(),Array(20).fill('50%').join(','));assert.equal(frames.length,1,'the loop runs while listening');
-heard=null;tick();assert.equal(heights(),Array(20).fill('0').join(','),'no sound: a flat line');
-core.audio.listening=false;listeners.forEach(f=>f(core,'listening'));tick();assert.equal(frames.length,0,'the loop stops');
-reduced=true;core.audio.listening=true;listeners.forEach(f=>f(core,'listening'));assert.equal(frames.length,0,'no animation with reduced motion');
-reduced=false;motionListener();assert.equal(frames.length,1,'it starts when motion is allowed again');
-tick();assert.equal(frames.length,1,'on every frame');
-core.snapshot.status.state='PAUSED';tick();assert.equal(frames.length,0,'the station paused: it stops');assert.equal(heights(),Array(20).fill('0').join(','));
-core.snapshot.status.state='PLAYING';listeners.forEach(f=>f(core,'snapshot'));assert.equal(frames.length,1);
-document.hidden=true;tick();assert.equal(frames.length,0,'a hidden tab: it stops');document.hidden=false;visibility();assert.equal(frames.length,1);
+tick();assert.equal(frames.length,0,'no sound yet: the bars rest');
+core.audio.listening=true;core.frames.wake();heard={bands:Array(32).fill(.5)};
+tick();assert.equal(heights(),Array(20).fill('50%').join(','));assert.equal(frames.length,1,'on every frame while there is sound');
+heard={bands:Array(32).fill(0)};tick();assert.equal(heights(),flat,'silence (a paused station still sends a stream): a flat line');
+for(let i=0;i<40&&frames.length;i++)tick();assert.equal(frames.length,0,'half a second of silence: it rests and the frames sleep');
+heard={bands:Array(32).fill(.5)};core.frames.wake();tick();assert.equal(frames.length,1);
+core.audio.listening=false;tick();assert.equal(heights(),flat);assert.equal(frames.length,0,'not listening: it rests');
+reduced=true;core.audio.listening=true;core.frames.wake();tick();assert.equal(frames.length,0,'no animation with reduced motion');assert.equal(heights(),flat);
+reduced=false;core.frames.wake();tick();assert.equal(frames.length,1,'motion allowed again');
 """
 
 
