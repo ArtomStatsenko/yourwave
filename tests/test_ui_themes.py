@@ -56,7 +56,7 @@ class SettingsSummaryTests(unittest.TestCase):
 
 
 # themes on the shared layout (themes/shared/layout.html): one DOM, terminal's arrangement; they differ only in CSS
-ON_LAYOUT = ["terminal", "lime", "synthwave", "soft"]
+ON_LAYOUT = ["terminal", "lime", "synthwave", "soft", "prism"]
 KEY = ["np", "air", "station-controls", "ttl", "viz", "pp", "nx", "fill", "time", "viz-controls", "music-source",
        "voice-warn", "tab-tl", "tab-st", "catchup-build", "plan-edit", "tl", "theme-select"]
 

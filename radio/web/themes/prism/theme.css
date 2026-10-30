@@ -1,39 +1,34 @@
 /* Prism: white ink on a black stage, split into a cyan and a red copy like light through a prism. Dark only.
-   The card layout (themes/shared/cards.css) gives the player-left, tabs-right structure; prism turns its tiles into
-   lines. The split (--ab, --c1, --c2) sits only on the track title and on shapes: the on-air dot, the main button,
+   On the shared layout (themes/shared/look.css), in terminal's arrangement; prism turns the tiles into lines. The split (--ab, --c1, --c2) sits only on the track title and on shapes: the on-air dot, the main button,
    the progress fill, the line under the open tab and the knob of a switch that is on (and a button while held).
    Never on small text. view.js moves --ab with the sound, settles it on a change and turns it red on an error. */
-@import url("/ui/themes/shared/cards.css");
+@import url("/ui/themes/shared/look.css");
 @property --ab{syntax:"<length>";inherits:true;initial-value:1.5px}
 @property --c1{syntax:"<color>";inherits:true;initial-value:#25f4ee}
 @property --c2{syntax:"<color>";inherits:true;initial-value:#fe2c55}
 
 :root[data-skin="prism"]{color-scheme:dark;--bg:#000;--surface:#000;--tile:transparent;--current:transparent;--current-line:transparent;
   --summary:transparent;--ink:#fff;--muted:#a6a6ad;--line:#2a2a2e;--accent:#fff;--accent-ink:#000;--ok:#5fd08a;--warn:#f0b429;
-  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:#0a0a0c;--cover-ratio:1.18;--r-cover:0;--r-tile:0;
+  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:#0a0a0c;--strip-h:120px;--r-cover:0;--r-tile:0;
   --ab:1.5px;--track:#26262b;--edge:#3a3a40}
 :root[data-skin="prism"].prism-error{--c1:#fe2c55;--ab:3px}  /* an error: a still, red-only split beside the words */
 :root[data-skin="prism"] :focus-visible{outline:2px solid #25f4ee;outline-offset:3px}
 
-/* the stage: one thin frame; the player up to 370px on the left, the tabs on the right; one column below 860px */
-:root[data-skin="prism"] main{grid-template-columns:minmax(0,370px) minmax(0,1fr);gap:clamp(20px,4vw,48px);border:1px solid var(--line);
-  border-radius:6px;padding:clamp(16px,3vw,32px)}
-@media(max-width:860px){:root[data-skin="prism"] main{grid-template-columns:minmax(0,1fr)}}
-:root[data-skin="prism"] .panel{padding:0}
-:root[data-skin="prism"] .brand{letter-spacing:.14em;text-transform:uppercase}
-:root[data-skin="prism"] #np h1.live{color:var(--ink)}
-:root[data-skin="prism"] #air{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink);font-size:0;
+/* the stage: the page's one column in a thin frame */
+:root[data-skin="prism"] main{border:1px solid var(--line);border-radius:6px;padding:clamp(16px,3vw,32px)}
+:root[data-skin="prism"] h1{color:var(--ink)}
+:root[data-skin="prism"] #air{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink);font-size:0;vertical-align:middle;
   box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
 :root[data-skin="prism"] #air.off{background:var(--muted);box-shadow:none}
-:root[data-skin="prism"] .cover{display:grid;place-items:center}
-:root[data-skin="prism"] .disc{width:46%;aspect-ratio:1;border-radius:50%;background:#fff}
-/* the spectrum: 32 thin white bars below the disc (its foot is at 77% of the cover), never split; a flat line of short
-   dashes while nothing plays */
-:root[data-skin="prism"] #spectrum-bars{position:absolute;left:8%;right:8%;bottom:6%;height:14%;padding:0;gap:3px;justify-content:space-between}
+/* the visualizer's slot: a dark band with the white disc; below it 32 thin white bars, never split, a flat line of
+   short dashes while nothing plays */
+:root[data-skin="prism"] .strip{position:relative}
+:root[data-skin="prism"] .strip::before{content:"";position:absolute;left:50%;top:10px;width:72px;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:#fff}
+:root[data-skin="prism"] #spectrum-bars{position:absolute;left:8%;right:8%;bottom:8px;height:22px;padding:0;gap:3px;justify-content:space-between}
 :root[data-skin="prism"] #spectrum-bars i{flex:0 0 3px;border-radius:1px;background:#fff;opacity:1}
 
 /* the track title: Syne, split; a new title rises from below as the old one leaves upward (view.js) */
-:root[data-skin="prism"] .title{font:800 clamp(30px,3.6vw,38px)/1.05 "Syne",var(--sans);letter-spacing:-.02em;overflow-wrap:anywhere;
+:root[data-skin="prism"] .title{white-space:normal;text-overflow:clip;font:800 clamp(30px,3.6vw,38px)/1.05 "Syne",var(--sans);letter-spacing:-.02em;overflow-wrap:anywhere;
   overflow:hidden;padding:.08em 4px;margin:20px -4px 0;text-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
 /* long titles step down (view.js sets data-size): 31–48 characters, then over 48; at most three lines, the full
    title stays in the box's title and for screen readers. The split never goes below 28px, so neither step has it */

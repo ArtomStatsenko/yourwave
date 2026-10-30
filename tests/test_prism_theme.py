@@ -31,7 +31,7 @@ class PrismLookTests(unittest.TestCase):
 
     def test_long_titles_step_down_and_lose_the_split_below_28px(self):
         css = (PRISM / "theme.css").read_text()
-        self.assertIn(':root[data-skin="prism"] .title{font:800 clamp(30px,3.6vw,38px)/1.05', css)
+        self.assertIn(':root[data-skin="prism"] .title{white-space:normal;text-overflow:clip;font:800 clamp(30px,3.6vw,38px)/1.05', css)
         # both smaller steps stay under 28px at any width, so neither carries the split
         self.assertIn(':root[data-skin="prism"] .title[data-size="m"]{font-size:clamp(22px,2.4vw,27px);text-shadow:none}', css)
         self.assertIn(':root[data-skin="prism"] .title[data-size="s"]{font-size:clamp(20px,2.4vw,26px);text-shadow:none}', css)
