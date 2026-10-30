@@ -32,10 +32,11 @@ class PrismLookTests(unittest.TestCase):
     def test_long_titles_step_down_and_lose_the_split_below_28px(self):
         css = (PRISM / "theme.css").read_text()
         self.assertIn(':root[data-skin="prism"] .title{font:800 clamp(30px,3.6vw,38px)/1.05', css)
-        self.assertIn(':root[data-skin="prism"] .title[data-size="m"]{font-size:clamp(24px,2.8vw,30px)}', css)
+        # both smaller steps stay under 28px at any width, so neither carries the split
+        self.assertIn(':root[data-skin="prism"] .title[data-size="m"]{font-size:clamp(22px,2.4vw,27px);text-shadow:none}', css)
         self.assertIn(':root[data-skin="prism"] .title[data-size="s"]{font-size:clamp(20px,2.4vw,26px);text-shadow:none}', css)
-        # 2.8vw reaches 28px at a 1000px window: below it the middle step drops the split too
-        self.assertIn('@media(max-width:999px){:root[data-skin="prism"] .title[data-size="m"]{text-shadow:none}}', css)
+        for step in re.findall(r'\.title\[data-size="\w"\]\{font-size:clamp\((\d+)px,[\d.]+vw,(\d+)px\)', css):
+            self.assertLess(int(step[1]), 28)
         self.assertIn("-webkit-line-clamp:3", css)
 
     def test_dark_only_no_mode_or_accent_rows_and_the_split_properties_registered(self):

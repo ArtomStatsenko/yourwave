@@ -32,11 +32,9 @@
 :root[data-skin="prism"] .title{font:800 clamp(30px,3.6vw,38px)/1.05 "Syne",var(--sans);letter-spacing:-.02em;overflow-wrap:anywhere;
   overflow:hidden;padding:.08em 4px;margin:20px -4px 0;text-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
 /* long titles step down (view.js sets data-size): 31–48 characters, then over 48; at most three lines, the full
-   title stays in the box's title and for screen readers. The split never goes below 28px: none on the smallest step,
-   and on the middle one only where 2.8vw reaches 28px */
-:root[data-skin="prism"] .title[data-size="m"]{font-size:clamp(24px,2.8vw,30px)}
+   title stays in the box's title and for screen readers. The split never goes below 28px, so neither step has it */
+:root[data-skin="prism"] .title[data-size="m"]{font-size:clamp(22px,2.4vw,27px);text-shadow:none}
 :root[data-skin="prism"] .title[data-size="s"]{font-size:clamp(20px,2.4vw,26px);text-shadow:none}
-@media(max-width:999px){:root[data-skin="prism"] .title[data-size="m"]{text-shadow:none}}
 :root[data-skin="prism"] #ttl{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
 :root[data-skin="prism"] .title.swap #ttl{animation:prism-swap .46s cubic-bezier(.2,.7,.2,1)}
 @keyframes prism-swap{0%{transform:translateY(0);opacity:1}38%{transform:translateY(-70%);opacity:0}39%{transform:translateY(70%);opacity:0}100%{transform:translateY(0);opacity:1}}
