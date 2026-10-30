@@ -106,10 +106,10 @@ Tones are `['ok'|'wait'|'bad', glyph]`. Times stay ISO strings or epoch millisec
 - Words: show the model's texts as they are, so every theme says the same thing.
 
 Appearance preferences (palette, accent, player style, timeline effect, time format) belong to a theme; the
-terminal theme keeps its own in this browser, among them "CRT screen" (Off, Subtle, Classic, Heavy; Subtle by
-default): scan lines, glow, vignette and glass over the page, and on wide windows with a mouse a barrel bend (an SVG
-displacement map on body, which then scrolls inside the screen). Phones get light lines and a vignette only; it is
-off under `prefers-contrast: more`. A theme whose `core.themes()` entry has `modes` or `accent` puts the
+terminal theme keeps its own in this browser, among them the "CRT screen" switch (on by default; the old preset
+values subtle, classic and heavy read as on): scan lines, glow, vignette and glass over the page, and on wide windows
+with a mouse a barrel bend (an SVG displacement map on body, which then scrolls inside the screen). Phones get light
+lines and a vignette only; it is off under `prefers-contrast: more`. A theme whose `core.themes()` entry has `modes` or `accent` puts the
 rows `id="appearance-mode-row"` (Mode) and `id="appearance-accent-row"` (Accent) after Theme, `hidden`; the shared
 behavior shows them from those flags. Soft has both (Light, Dark, System; six accents and a custom one, saved in this
 browser); lime, synthwave and prism have neither.

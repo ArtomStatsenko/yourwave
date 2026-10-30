@@ -322,47 +322,32 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 @media(max-width:420px){:root[data-presentation="terminal"] .air-heading{gap:12px} :root[data-presentation="terminal"] #station-ident{font-size:12px;line-height:16px} :root[data-presentation="terminal"] #np h1{font-size:12px}}
 @media(prefers-reduced-motion:reduce){#station-ident[data-active="true"] .station-wave{animation:none}}
 
-/* CRT screen (Settings → Appearance): layers over the page; colours, sizes and positions stay. The lines, vignette,
-   glass glare (html::before), noise (html::after) and glow follow the preset; phones and narrow windows get light
-   lines, a vignette and a little glow only. The bend is an SVG displacement map (#crt) on body, which then scrolls
-   inside a screen-sized box; only wide windows with a mouse get it. Nothing under prefers-contrast: more. */
-:root{--crt-lines:0;--crt-vignette:0;--crt-glow:0;--crt-noise:0;--crt-glow-mix:55%}
-:root[data-crt="subtle"]{--crt-lines:.14;--crt-vignette:.3;--crt-glow:.35}
-:root[data-crt="classic"]{--crt-lines:.28;--crt-vignette:.55;--crt-glow:.6;--crt-noise:.12}
-:root[data-crt="heavy"]{--crt-lines:.58;--crt-vignette:.92;--crt-glow:1.3;--crt-noise:.3}
-:root[data-theme="light"]{--crt-glow-mix:30%}
-@media (max-width:700px),(pointer:coarse){:root[data-crt]:not([data-crt="off"]){--crt-lines:.08;--crt-vignette:.2;--crt-glow:.25;--crt-noise:0}}
+/* CRT screen (Settings → Appearance, on by default): layers over the page; colours, sizes and positions stay. Scan
+   lines, a vignette and a glass glare (html::before) and a glow; phones and narrow windows get lighter lines and
+   vignette and less glow. The bend is an SVG displacement map (#crt) on body, which then scrolls inside a screen-sized
+   box; only wide windows with a mouse get it. Nothing under prefers-contrast: more. Every rule needs data-crt="on":
+   the card themes import this stylesheet and never set it. */
+:root[data-crt="on"]{--crt-lines:.14;--crt-vignette:.3;--crt-glow:.35;--crt-glow-mix:55%}
+:root[data-crt="on"][data-theme="light"]{--crt-glow-mix:30%}
+@media (max-width:700px),(pointer:coarse){:root[data-crt="on"]{--crt-lines:.08;--crt-vignette:.2;--crt-glow:.25}}
 @media not (prefers-contrast:more){
-  :root[data-crt]:not([data-crt="off"])::before{content:"";position:fixed;inset:0;z-index:2147483647;pointer-events:none;--crt-shade:rgba(0,0,0,var(--crt-vignette));
+  :root[data-crt="on"]::before{content:"";position:fixed;inset:0;z-index:2147483647;pointer-events:none;--crt-shade:rgba(0,0,0,var(--crt-vignette));
     background:linear-gradient(125deg,rgba(255,255,255,.07),transparent 28%),radial-gradient(ellipse at center,transparent 50%,var(--crt-shade) 100%),
       repeating-linear-gradient(0deg,rgba(0,0,0,var(--crt-lines)) 0 1px,transparent 1px 3px)}
-  :root[data-theme="light"][data-crt]:not([data-crt="off"])::before{--crt-shade:rgba(40,30,10,calc(var(--crt-vignette)*.6))}
+  :root[data-crt="on"][data-theme="light"]::before{--crt-shade:rgba(40,30,10,calc(var(--crt-vignette)*.6))}
   /* glow in each element's own colour (accent text glows in the accent); muted text keeps none, so it stays crisp */
-  :root[data-crt]:not([data-crt="off"]) body *{text-shadow:0 0 calc(var(--crt-glow)*8px) color-mix(in srgb,currentColor var(--crt-glow-mix),transparent)}
-  :root[data-crt]:not([data-crt="off"]) :is(h1,h2,.l,.tm,.ds,.ex,.d,summary,.range-labels,.control-help,#activity,#upcoming,#viz-controls,.pl .sw,.it.id .tx,.then .tx,.tabs button:not([aria-selected="true"])),
-  :root[data-crt]:not([data-crt="off"]) :is(h1,h2,.l,.tm,.ds,.ex,.d,summary,.range-labels,.control-help,#activity,#upcoming,#viz-controls) *{text-shadow:none}
-  :root[data-crt]:not([data-crt="off"]) :is(#air,#airtxt,.tabs button[aria-selected="true"]){text-shadow:0 0 calc(var(--crt-glow)*8px) color-mix(in srgb,var(--accent) var(--crt-glow-mix),transparent)}
-  :root[data-crt]:not([data-crt="off"]) #fill{box-shadow:0 0 calc(var(--crt-glow)*8px) color-mix(in srgb,var(--accent) var(--crt-glow-mix),transparent)}
-  :root[data-crt]:not([data-crt="off"]) #pp svg{filter:drop-shadow(0 0 calc(var(--crt-glow)*6px) color-mix(in srgb,var(--accent) var(--crt-glow-mix),transparent))}
-  /* wide windows with a mouse only: noise (Classic, Heavy); Heavy adds a colour fringe on the text and a light bar
-     rolling down the glass (not with reduced motion) */
-  @media (min-width:701px) and (not (pointer:coarse)){
-    :root:is([data-crt="classic"],[data-crt="heavy"])::after{content:"";position:fixed;inset:0;z-index:2147483647;pointer-events:none;opacity:var(--crt-noise);mix-blend-mode:overlay;
-    background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='.33 .33 .33 0 0 .33 .33 .33 0 0 .33 .33 .33 0 0 0 0 0 0 1'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>")}
-    :root[data-crt="heavy"] body *{text-shadow:0 0 calc(var(--crt-glow)*8px) color-mix(in srgb,currentColor var(--crt-glow-mix),transparent),-1.4px 0 0 rgba(255,40,40,.5),1.4px 0 0 rgba(40,255,255,.5)}
-  }
-  @media (prefers-reduced-motion:no-preference) and (min-width:701px) and (not (pointer:coarse)){
-    :root[data-crt="heavy"]::before{background-image:linear-gradient(transparent,rgba(255,255,255,.05),transparent),linear-gradient(125deg,rgba(255,255,255,.07),transparent 28%),
-        radial-gradient(ellipse at center,transparent 50%,var(--crt-shade) 100%),repeating-linear-gradient(0deg,rgba(0,0,0,var(--crt-lines)) 0 1px,transparent 1px 3px);
-      background-size:100% 18%,auto,auto,auto;background-repeat:no-repeat,repeat,repeat,repeat;animation:crt-roll 9s linear infinite}
-  }
+  :root[data-crt="on"] body *{text-shadow:0 0 calc(var(--crt-glow)*8px) color-mix(in srgb,currentColor var(--crt-glow-mix),transparent)}
+  :root[data-crt="on"] :is(h1,h2,.l,.tm,.ds,.ex,.d,summary,.range-labels,.control-help,#activity,#upcoming,#viz-controls,.pl .sw,.it.id .tx,.then .tx,.tabs button:not([aria-selected="true"])),
+  :root[data-crt="on"] :is(h1,h2,.l,.tm,.ds,.ex,.d,summary,.range-labels,.control-help,#activity,#upcoming,#viz-controls) *{text-shadow:none}
+  :root[data-crt="on"] :is(#air,#airtxt,.tabs button[aria-selected="true"]){text-shadow:0 0 calc(var(--crt-glow)*8px) color-mix(in srgb,var(--accent) var(--crt-glow-mix),transparent)}
+  :root[data-crt="on"] #fill{box-shadow:0 0 calc(var(--crt-glow)*8px) color-mix(in srgb,var(--accent) var(--crt-glow-mix),transparent)}
+  :root[data-crt="on"] #pp svg{filter:drop-shadow(0 0 calc(var(--crt-glow)*6px) color-mix(in srgb,var(--accent) var(--crt-glow-mix),transparent))}
 }
-@keyframes crt-roll{from{background-position:0 -25%,0 0,0 0,0 0}to{background-position:0 125%,0 0,0 0,0 0}}
 /* the bend: body becomes the screen, rounded, on black; 28px more padding keeps text clear of the bent edges */
 @media (min-width:701px) and (not (pointer:coarse)) and (not (prefers-contrast:more)){
-  :root[data-crt-ready]:not([data-crt="off"]){height:100%;overflow:hidden;background:#000}
-  :root[data-crt-ready]:not([data-crt="off"]) body{height:100%;overflow:auto;border-radius:26px;filter:url(#crt);
+  :root[data-crt="on"][data-crt-ready]{height:100%;overflow:hidden;background:#000}
+  :root[data-crt="on"][data-crt-ready] body{height:100%;overflow:auto;border-radius:26px;filter:url(#crt);
     padding-block:60px;padding-left:max(44px,calc(env(safe-area-inset-left,0px) + 28px));padding-right:max(44px,calc(env(safe-area-inset-right,0px) + 28px))}
-  :root[data-crt-ready]:not([data-crt="off"])::before{border-radius:26px}
-  :root[data-crt-ready]:not([data-crt="off"]) .program-editing main{height:calc(100dvh - 120px)}
+  :root[data-crt="on"][data-crt-ready]::before{border-radius:26px}
+  :root[data-crt="on"][data-crt-ready] .program-editing main{height:calc(100dvh - 120px)}
 }

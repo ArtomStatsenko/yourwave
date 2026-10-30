@@ -59,48 +59,43 @@ let reopened=setup(t.saved);assert.equal(reopened.styles['--accent'],'#154f84');
 t.select('mode','dark');assert.equal(t.styles['--accent'],'#93cba5','incompatible saved accent falls back');
 assert.match(t.nodes['appearance-status'].textContent,/needs more contrast/);
 t.select('mode','light');assert.equal(t.styles['--accent'],'#154f84','custom accent survives fallback');
-t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24',crt:'subtle'});
+t.nodes['appearance-reset'].onclick();assert.deepEqual(JSON.parse(t.saved),{mode:'system',palette:'ember',accent:'',presentation:'calm',timelineEffect:'line',timeFormat:'24',crt:'on'});
 t=setup(null,false,true);t.select('palette','ocean');assert.equal(t.styles['--bg'],'#edf3f6');assert.match(t.nodes['appearance-status'].textContent,/could not save/);
 t=setup(JSON.stringify({mode:'invalid',palette:'__proto__',accent:'red'}));assert.equal(t.styles['--bg'],'#f2f2ee');
-let crt=setup();assert.equal(crt.root.dataset.crt,'subtle','CRT screen: Subtle by default');assert.equal(crt.nodes['appearance-crt'].value,'subtle');
-assert.equal(crt.nodes['crt-map'].href,'data:image/png;map','the bend map is drawn once a preset is on');assert.equal(crt.nodes['crt-bend'].scale,35);
-for(const [value,scale] of [['classic',80],['heavy',170],['off',0],['subtle',35]]){crt.nodes['appearance-crt'].value=value;crt.nodes['appearance-crt'].onchange();
-  assert.equal(crt.root.dataset.crt,value);assert.equal(crt.nodes['crt-bend'].scale,scale);assert.equal(JSON.parse(crt.saved).crt,value);assert.equal(setup(crt.saved).root.dataset.crt,value,'saved with the other appearance settings')}
-assert.equal(setup(JSON.stringify({crt:'blinding'})).root.dataset.crt,'subtle');assert.equal(setup(JSON.stringify({crt:'__proto__'})).root.dataset.crt,'subtle');
+let crt=setup();assert.equal(crt.root.dataset.crt,'on','CRT screen: on by default');assert.equal(crt.nodes['appearance-crt'].checked,true);
+assert.equal(crt.nodes['crt-map'].href,'data:image/png;map','the bend map is drawn once the screen is on');
+for(const on of [false,true,false]){crt.nodes['appearance-crt'].checked=on;crt.nodes['appearance-crt'].onchange();const value=on?'on':'off';
+  assert.equal(crt.root.dataset.crt,value);assert.equal(JSON.parse(crt.saved).crt,value);assert.equal(setup(crt.saved).root.dataset.crt,value,'saved with the other appearance settings')}
+for(const old of ['subtle','classic','heavy','blinding','__proto__'])assert.equal(setup(JSON.stringify({crt:old})).root.dataset.crt,'on','the old presets and anything unknown: on');
 let off=setup(JSON.stringify({crt:'off'}));assert.equal(off.nodes['crt-map'].href,undefined,'Off never draws the map');
 """
         result = subprocess.run(['node', '-e', 'const SCRIPT=' + json.dumps(SCRIPT) + ',CORE=' + json.dumps(CORE) + ';\n' + harness], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_crt_option_markup_and_where_each_layer_applies(self):
-        self.assertIn('<label for="appearance-crt">CRT screen</label>', PAGE)
-        select = re.search(r'<select id="appearance-crt"[^>]*>(.*?)</select>', PAGE, re.S)
-        self.assertIn('aria-label="CRT screen"', select.group(0))
-        self.assertEqual(re.findall(r'<option value="(\w+)"( selected)?>(\w+)</option>', select.group(1)),
-                         [("off", "", "Off"), ("subtle", " selected", "Subtle"), ("classic", "", "Classic"), ("heavy", "", "Heavy")])
+    def test_crt_switch_markup_and_where_each_layer_applies(self):
+        self.assertIn('<label for="appearance-crt"><input type="checkbox" role="switch" id="appearance-crt" aria-label="CRT screen" aria-describedby="crt-hint" checked> CRT screen</label>', PAGE)
         self.assertIn('<p id="crt-hint" class="l">On phones the effect is reduced to light lines and a vignette.</p>', PAGE)
         self.assertRegex(PAGE, r'<svg[^>]*aria-hidden="true"[^>]*><filter id="crt"')
+        self.assertIn('scale="35"', PAGE)
         css = (WEB / "themes/terminal/theme.css").read_text()
         crt = css[css.index("/* CRT screen"):]
         bend = "@media (min-width:701px) and (not (pointer:coarse)) and (not (prefers-contrast:more)){"
         self.assertEqual(crt.count("filter:url(#crt)"), 1)
         self.assertGreater(crt.index("filter:url(#crt)"), crt.index(bend), "phones (narrow or touch) never get the bend")
-        self.assertIn("@media (max-width:700px),(pointer:coarse){:root[data-crt]:not([data-crt=\"off\"]){--crt-lines:.08;--crt-vignette:.2;--crt-glow:.25;--crt-noise:0}}", crt)
-        # the other themes import this stylesheet and never set data-crt: every rule that draws needs the attribute
+        self.assertIn('@media (max-width:700px),(pointer:coarse){:root[data-crt="on"]{--crt-lines:.08;--crt-vignette:.2;--crt-glow:.25}}', crt)
+        # the other themes import this stylesheet and never set data-crt: every rule needs data-crt="on"
         for selectors, body in re.findall(r"([^{}@]+)\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", crt, flags=re.S)):
-            if selectors.strip().startswith(("from", "to")) or all(d.strip().startswith("--crt") for d in body.split(";") if d.strip()):
-                continue
             depth, parts = 0, [""]
             for ch in selectors:                                   # top-level commas only, not those inside :is()
                 depth += (ch == "(") - (ch == ")")
                 parts[-1:] = [parts[-1], ""] if ch == "," and depth == 0 else [parts[-1] + ch]
             for sel in parts:
-                self.assertRegex(sel.strip(), r"^:root(\[[^\]]*\])*(\[data-crt|:is\(\[data-crt)", sel.strip())
-        layers = crt[crt.index("@media not (prefers-contrast:more){"):crt.index("@keyframes crt-roll")]
+                self.assertRegex(sel.strip(), r'^:root(\[[^\]]*\])*\[data-crt="on"\]', sel.strip())
+        layers = crt[crt.index("@media not (prefers-contrast:more){"):crt.index(bend)]
         self.assertIn("pointer-events:none", layers)
         self.assertIn("content:\"\"", layers)                                    # no text: nothing for a screen reader
-        self.assertEqual(crt.count("animation:"), 1)
-        self.assertLess(crt.index("@media (prefers-reduced-motion:no-preference)"), crt.index("animation:"), "the roll bar only with motion allowed")
+        self.assertNotIn("animation", crt)
+        self.assertNotIn("::after", crt)
 
     def test_presets_keep_text_and_status_contrast(self):
         # Check actual shipped text and accent values.
