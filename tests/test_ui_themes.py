@@ -25,12 +25,29 @@ class ThemePickerTests(unittest.TestCase):
                 self.assertIn(f'theme:"{name}"', html)
 
 
+class VoiceLineTests(unittest.TestCase):
+    def test_the_player_names_the_voice_only_when_something_is_wrong(self):
+        behavior = (WEB / "themes/terminal/view.js").read_text()
+        self.assertIn("$('voice-warn').textContent=p.voiceTone==='warn'?p.voiceText:'';", behavior)   # off and ok: nothing
+        self.assertIn("if($('sp')){", behavior)            # the details, only where a theme has them
+        self.assertIn("#voice-warn:empty{display:none}", (WEB / "themes/terminal/theme.css").read_text())  # card themes import it
+        for name in THEMES:
+            with self.subTest(theme=name):
+                html = (WEB / "themes" / name / "index.html").read_text()
+                self.assertIn('<div class="l" id="voice-warn" aria-live="polite"></div>', html)
+                player = html[:html.index('role="tablist"')]
+                self.assertNotIn("min this hour", player)
+        terminal = (WEB / "themes/terminal/index.html").read_text()
+        status = terminal[terminal.index('id="playback-status"'):]
+        self.assertIn("min this hour", status[:status.index("</details>")])   # Settings → Playback status keeps the details
+
+
 class CardThemeTests(unittest.TestCase):
     """Themes built on the terminal behavior (lime, synthwave, soft): its elements, the shared bars, one look."""
     def test_card_themes_have_every_element_the_behavior_uses_once(self):
         from collections import Counter
         behavior = (WEB / "themes/terminal/view.js").read_text()
-        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row"}  # drawn by the script; rows only some themes have
+        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb", "vd", "vs"}  # drawn by the script; rows and details only some themes have
         cards = [n for n in THEMES if n != "terminal"]
         self.assertTrue(cards)
         for name in cards:

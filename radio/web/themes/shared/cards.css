@@ -44,9 +44,7 @@
 :root[data-skin] #vol{flex:1;width:auto;min-width:0}
 @media(max-width:640px){:root[data-skin] .vol{display:none}}  /* the phone's own buttons set the volume */
 :root[data-skin] #music-source{margin-top:12px}
-.station-state{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:8px}
-:root[data-skin] .voice-state{margin-left:0}
-:root[data-skin] .dot{width:9px;height:9px}
+:root[data-skin] #voice-warn{margin-top:8px}
 :root[data-skin] #sk{margin-top:12px;font-size:16px;padding:8px 16px;min-height:44px}
 :root[data-skin] #er:empty{display:none}
 

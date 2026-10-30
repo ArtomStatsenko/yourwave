@@ -16,7 +16,7 @@ class LimeMarkupTests(unittest.TestCase):
         used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior))
         html = (LIME / "index.html").read_text()
         ids = Counter(re.findall(r'id="([^"]+)"', html))
-        made_by_script = {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row"}  # drawn with the AI and Voice blocks; soft-only rows
+        made_by_script = {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb", "vd", "vs"}  # drawn with the AI and Voice blocks; rows and details only some themes have
         self.assertEqual(sorted(used - set(ids) - made_by_script), [])
         self.assertEqual([k for k, n in ids.items() if n > 1], [])
         self.assertEqual(len(re.findall(r"<i></i>", html[html.index('id="spectrum-bars"'):html.index("</div>", html.index('id="spectrum-bars"'))])), 20)

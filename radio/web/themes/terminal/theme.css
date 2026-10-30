@@ -76,6 +76,7 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #nx{width:48px;height:44px;min-height:44px;padding:8px}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
 #time{white-space:nowrap;font-variant-numeric:tabular-nums}
 .player-status{gap:12px}
+#voice-warn:empty{display:none}  /* the player's voice line shows only a problem (unavailable, limit near) */
 .voice-state{margin-left:auto;white-space:nowrap}
 #playback-status summary{cursor:pointer;font-size:16px;color:var(--muted)}
 #playback-status[open]{gap:12px}

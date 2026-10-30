@@ -124,11 +124,13 @@ function player(){
   if(!ytEnabled||document.activeElement!==select)select.value=ytEnabled?musicChoice:'local';
   $('music-source-select').disabled=busy;
   $('yt-summary').textContent='YouTube Music: '+(ytEnabled?'on':'off')+' · '+(ytStatus.connected?ytStatus.tracks+' tracks configured':'not connected');
-  var sp=p.speech.minutes,lim=p.speech.limit;
-  $('sp').textContent=sp.toFixed(1);$('splim').textContent=lim%1?lim.toFixed(1):lim;
-  $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=p.speech.near?'var(--warn)':'var(--ok)';
-  $('vd').style.background={off:'var(--line)',warn:'var(--warn)',ok:'var(--ok)'}[p.voiceTone];
-  $('vs').textContent=p.voiceText;
+  if($('sp')){  // the speech and voice details, where a theme shows them (terminal: Settings → Playback status)
+    var sp=p.speech.minutes,lim=p.speech.limit;
+    $('sp').textContent=sp.toFixed(1);$('splim').textContent=lim%1?lim.toFixed(1):lim;
+    $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=p.speech.near?'var(--warn)':'var(--ok)';
+    $('vd').style.background={off:'var(--line)',warn:'var(--warn)',ok:'var(--ok)'}[p.voiceTone];
+    $('vs').textContent=p.voiceText}
+  $('voice-warn').textContent=p.voiceTone==='warn'?p.voiceText:'';  // the player names only a voice problem
   var ppLabel=p.listen.label;
   $('pp').dataset.playing=String(p.listen.playing);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=ppLabel;
   $('vol').hidden=!p.browser;
