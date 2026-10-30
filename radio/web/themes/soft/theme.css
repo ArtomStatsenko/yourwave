@@ -1,7 +1,7 @@
 /* Soft: raised and pressed surfaces in light or dark, one accent the listener picks (index.html sets --accent,
-   --accent-ink and --accent-text). The card layout is shared (themes/shared/cards.css). Light muted text is a shade
+   --accent-ink and --accent-text). On the shared layout (themes/shared/look.css). Light muted text is a shade
    darker than the design's #66709a, which reaches 4.1:1 on the background; small text needs 4.5:1. */
-@import url("/ui/themes/shared/cards.css");
+@import url("/ui/themes/shared/look.css");
 
 :root[data-skin="soft"]{color-scheme:light;--bg:#e8ecf4;--surface:#e8ecf4;--tile:#e8ecf4;--current:#e8ecf4;--current-line:transparent;--summary:#e8ecf4;
   --ink:#2a3350;--muted:#5e678e;--line:#c5cad8;--accent:#5668f0;--accent-text:#4d5ed8;--accent-ink:#fff;--ok:#2b7348;--warn:#8f5200;
@@ -9,14 +9,14 @@
   --sh:#c5cad8;--lit:#fff;--raised:5px 5px 10px var(--sh),-5px -5px 10px var(--lit);--pressed:inset 4px 4px 8px var(--sh),inset -4px -4px 8px var(--lit);
   --panel-shadow:12px 12px 24px var(--sh),-12px -12px 24px var(--lit);--row-shadow:5px 5px 10px rgba(197,202,216,.33),-5px -5px 10px rgba(255,255,255,.6);
   --cover-glow:inset 6px 6px 14px rgba(255,255,255,.53),0 10px 24px #b3bbd8;--bar-color:color-mix(in srgb,var(--accent) 85%,#000);--bar-opacity:.9;
-  --r-panel:30px;--r-tile:16px;--r-button:999px;--r-tab:999px;--r-input:14px;--r-cover:22px;--title-size:26px;--title-weight:700;--title-track:0}
+  --r-tile:16px;--r-button:999px;--r-tab:999px;--r-input:14px;--r-cover:22px;--strip-h:80px;--title-size:30px;--title-weight:700;--title-track:0}
 :root[data-skin="soft"][data-theme="dark"]{color-scheme:dark;--bg:#23262e;--surface:#23262e;--tile:#23262e;--current:#23262e;--summary:#23262e;
   --ink:#e8ebf5;--muted:#a3abc4;--line:#323644;--ok:#4bd184;--warn:#f0b429;--cover:linear-gradient(145deg,color-mix(in srgb,var(--accent) 38%,#23262e),color-mix(in srgb,var(--accent) 12%,#1b1d23));
   --sh:#17191f;--lit:#2e323d;--raised:7px 7px 14px var(--sh),-7px -7px 14px var(--lit);--panel-shadow:var(--raised);
   --row-shadow:5px 5px 10px rgba(23,25,31,.6),-5px -5px 10px rgba(46,50,61,.6);--cover-glow:inset 5px 5px 12px rgba(255,255,255,.11),0 10px 24px var(--sh);--bar-color:color-mix(in srgb,var(--accent) 60%,#fff)}
 
 /* raised: panels, buttons, the tabs not open; pressed: the open tab, the current row, fields, progress, switches */
-:root[data-skin="soft"] .panel{box-shadow:var(--panel-shadow)}
+:root[data-skin="soft"] #np{padding:24px;border-radius:30px;background:var(--bg);box-shadow:var(--panel-shadow)}  /* the player: a raised panel */
 :root[data-skin="soft"] :is(#nx,#so,#sk,.ab,.tabs button,#yt-chrome,#yt-connect,#direction-form button,.source-add button){
   border:0;background:var(--bg);box-shadow:var(--raised)}
 :root[data-skin="soft"] #pp{border:0;box-shadow:var(--raised)}
@@ -33,7 +33,7 @@
 :root[data-skin="soft"] :is(.pl .sw,input[role=switch])::after{background:#fff;box-shadow:1px 1px 3px var(--sh)}
 
 /* the cover: a gradient of the accent lit from inside; the bars sit on it in a deeper (light) or paler (dark) accent */
-:root[data-skin="soft"] .cover{box-shadow:var(--cover-glow)}
+:root[data-skin="soft"] .strip{box-shadow:var(--cover-glow)}
 :root[data-skin="soft"] #spectrum-bars i{border-radius:6px;background:var(--bar-color);opacity:var(--bar-opacity)}
 
 /* timeline: rows are cards with a soft shadow; the current one is pressed in */

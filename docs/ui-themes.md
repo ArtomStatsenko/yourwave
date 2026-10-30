@@ -73,6 +73,7 @@ in CSS only and keeping the reading order; each deviation is listed here:
 | Theme | What | Why |
 | --- | --- | --- |
 | synthwave | The player sits in a neon frame with a glow inside and 20px padding | The frame and glow are the theme's look; inside it the player keeps terminal's arrangement |
+| soft | The player sits on a raised panel, radius 30px, 24px padding | Soft's surfaces are raised or pressed; inside it the player keeps terminal's arrangement |
 
 ## What the core gives
 
