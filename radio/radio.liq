@@ -35,7 +35,8 @@ end
 protocol.add(temporary=true, "ytmusic", ytmusic)
 
 # Replace a queued request without skipping the currently playing source.
-def replace_music(get_queue, set_queue, arg) =
+# hold(f): run f while the playlist hands out no next file (its prefetch would slip one in among a new queue).
+def replace_music(~hold=fun (f) -> f(), get_queue, set_queue, arg) =
   let json.parse (params : {expected: string, uri: string, rid: int, head: bool}) = arg
   def matches(r) =
     m = request.metadata(r)
@@ -69,7 +70,16 @@ def replace_music(get_queue, set_queue, arg) =
           end, prepared)
           if resolved then "STALE" else "UNAVAILABLE" end
         else
-          set_queue(prepared)
+          # set_queue returns before it has added the requests one by one: wait for them, holding the playlist's next
+          # file back until then, or its prefetch lands among them.
+          ids = list.map(request.id, prepared)
+          def rec settle(n) =
+            if n > 0 and not list.for_all(fun (i) -> list.mem(i, list.map(request.id, get_queue())), ids) then
+              thread.pause(.02)
+              settle(n - 1)
+            end
+          end
+          hold(fun () -> begin set_queue(prepared); settle(100) end)
           request.destroy(old)
           "#{request.id(replacement)}"
         end
@@ -108,13 +118,23 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
   def ordered(p) = if shuffle_enabled() then list.shuffle(p) else p end end
   loop_reload = ref(fun () -> ())
   loaded = ref(false)
+  holding = ref(false)
   s = playlist.list(id=id, prefetch=prefetch, mode="normal",
     on_loop=fun () -> begin f = loop_reload(); f() end, [])
   s.on_wake_up(synchronous=false, memoize(fun () -> begin
     s.reload(ordered(files()))
     loaded := true
   end))
-  loop_reload := {if loaded() then s.reload(empty_queue=false, ordered(files())) end}
+  loop_reload := {if loaded() and not holding() then s.reload(empty_queue=false, ordered(files())) end}
+  # f() while the round is empty, so the prefetch finds no next file; then the round as it was
+  def hold(f) =
+    holding := true
+    rest = s.remaining_files()
+    s.reload(empty_queue=false, [])
+    f()
+    s.reload(empty_queue=false, rest)
+    holding := false
+  end
   def reorder() =
     remaining = s.remaining_files()
     pending = if shuffle_enabled() then list.shuffle(remaining) else
@@ -138,7 +158,7 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
     s.reload(ordered(files()))
     "OK"
   end)
-  s.{reorder=reorder,reserve=reserve}
+  s.{reorder=reorder,reserve=reserve,hold=hold}
 end
 music = controlled_playlist(id="music", prefetch=(if yt_count > 0 then 3 else 1 end), environment.get("RADIO_M3U"))
 local_reorder = ref(fun () -> ())
@@ -150,14 +170,14 @@ server.register("music.shuffle", fun (arg) -> begin
     "OK"
   else "ERROR" end
 end)
-server.register("music.replace", fun (arg) -> replace_music(music.queue, music.set_queue, arg))
+server.register("music.replace", fun (arg) -> replace_music(hold=music.hold, music.queue, music.set_queue, arg))
 primary_music = music
 active_playlist = ref(fun () -> primary_music)
 local_playlist = environment.get(default="", "RADIO_FALLBACK_M3U")
 music = if local_playlist != "" then
   local_music = controlled_playlist(id="local_music", local_playlist)
   local_reorder := local_music.reorder
-  server.register("local_music.replace", fun (arg) -> replace_music(local_music.queue, local_music.set_queue, arg))
+  server.register("local_music.replace", fun (arg) -> replace_music(hold=local_music.hold, local_music.queue, local_music.set_queue, arg))
   selected = ref(environment.get(default="ytmusic", "RADIO_MUSIC_SOURCE"))
   server.register("music.source", fun (arg) -> begin
     if arg == "local" or arg == "ytmusic" then selected := arg; "OK" else "ERROR" end

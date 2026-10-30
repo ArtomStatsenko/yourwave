@@ -488,7 +488,8 @@ class RerollTests(unittest.TestCase):
             finally:
                 await engine.stop()
         self.clock.stop()
-        asyncio.run(scenario())
+        with patch.dict(os.environ, {'RADIO_FILE_SYNC': 'realtime'}):  # fast, the 2 s opener ends before the song has loaded
+            asyncio.run(scenario())
         self.assertEqual([e['ref'] for e in events[:3]], ['hello', 'song', 'other'])
 
     def test_opener_is_the_jingle_until_the_voice_is_rendered(self):
