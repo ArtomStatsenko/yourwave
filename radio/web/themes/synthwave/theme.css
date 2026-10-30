@@ -1,15 +1,15 @@
-/* Synthwave: dark, neon pink for what is live, a sunset cover. The card layout is shared (themes/shared/cards.css). */
-@import url("/ui/themes/shared/cards.css");
+/* Synthwave: dark, neon pink for what is live, a sunset in the visualizer's slot, on the shared layout (themes/shared/look.css). */
+@import url("/ui/themes/shared/look.css");
 
 :root[data-skin="synthwave"]{color-scheme:dark;--bg:#10061f;--surface:#1a0b30;--tile:transparent;--current:transparent;--current-line:transparent;
   --summary:rgba(255,46,151,.08);--ink:#ffe9ff;--muted:#c58bd8;--line:rgba(255,46,151,.2);--accent:#ff2e97;--accent-ink:#fff;--ok:#43d17a;--warn:#ffd23d;
   --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:linear-gradient(#1a0836,#ff6a3d 62%,#10061f 62%);
   --glow:rgba(255,46,151,.67);--rule:rgba(255,46,151,.13);
-  --r-panel:14px;--r-button:999px;--r-tab:0;--r-tile:0;--r-cover:10px;--cover-ratio:1;--title-size:26px;--title-weight:700;--title-track:0;--bar-gap:3px}
+  --r-button:999px;--r-tab:0;--r-tile:0;--r-cover:10px;--strip-h:96px;--title-size:30px;--title-weight:700;--title-track:0;--bar-gap:3px}
 
-/* panels: a thin neon frame and a glow inside, drawn as gradients from each edge: a blurred inset shadow looks the
+/* the player: a thin neon frame and a glow inside, drawn as gradients from each edge: a blurred inset shadow looks the
    same, but with the glowing spectrum changing inside it the GPU redraws the blur all the time (5x the GPU work) */
-:root[data-skin="synthwave"] .panel{border:1px solid rgba(255,46,151,.33);  /* the stops follow the blurred shadow's own fall-off */
+:root[data-skin="synthwave"] #np{padding:20px;border-radius:14px;border:1px solid rgba(255,46,151,.33);  /* the stops follow the blurred shadow's own fall-off */
   --edge-glow:rgba(255,46,151,.058),rgba(255,46,151,.048) 6px,rgba(255,46,151,.035) 12px,rgba(255,46,151,.022) 18px,rgba(255,46,151,.009) 24px,rgba(255,46,151,.004) 27px,transparent 33px;
   background:linear-gradient(180deg,var(--edge-glow)),linear-gradient(0deg,var(--edge-glow)),linear-gradient(90deg,var(--edge-glow)),
     linear-gradient(270deg,var(--edge-glow)),var(--surface);
@@ -18,8 +18,10 @@
 :root[data-skin="synthwave"] .bar i{box-shadow:0 0 12px var(--accent)}
 :root[data-skin="synthwave"] #pp:not(:disabled){box-shadow:0 0 18px rgba(255,46,151,.53)}
 
-/* the cover: a square sunset with its sun; the spectrum glows over its lower third */
-.sun{position:absolute;left:50%;top:20%;width:46%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:linear-gradient(#ffd23d,#ff2e97)}
+/* the visualizer's slot: a sunset band with its sun on the horizon; the spectrum glows over its lower third */
+:root[data-skin="synthwave"] .strip{position:relative}
+:root[data-skin="synthwave"] .strip::before{content:"";position:absolute;left:50%;top:12%;width:64px;aspect-ratio:1;transform:translateX(-50%);
+  border-radius:50%;background:linear-gradient(#ffd23d,#ff2e97)}
 :root[data-skin="synthwave"] #spectrum-bars{position:absolute;inset:auto 0 0 0;height:33%;padding:0 8px 8px}
 :root[data-skin="synthwave"] #spectrum-bars i{border-radius:1px;box-shadow:0 0 8px var(--accent)}
 

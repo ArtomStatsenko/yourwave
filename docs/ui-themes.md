@@ -60,6 +60,20 @@ frame and swap it in once it has loaded (about 30–45 ms on the stand), so list
 `/?theme=<name>`, and the new theme opens Settings with focus on Theme. `/?theme=<name>&standalone` serves a theme on
 its own (its own core; switching reloads the page), for debugging.
 
+## One layout
+
+Every theme has the same page, `themes/shared/layout.html` (terminal's arrangement): the on-air line, the title, the
+visualizer's slot, Listen, Next, volume, progress and time in one row, the music source and the voice line, the tabs,
+the timeline's actions, the timeline, Settings in the same order. A theme's `index.html` brings only its head, its own
+Appearance rows (between `<!--appearance-->` and `<!--/appearance-->`) and its scripts; `radio.ui.theme_page()` puts
+the page together. The card themes' look is `themes/shared/look.css` on terminal's stylesheet; it changes colours,
+fonts, shapes and sizes, never the order or the arrangement. A theme may deviate where that is clearly better for it,
+in CSS only and keeping the reading order; each deviation is listed here:
+
+| Theme | What | Why |
+| --- | --- | --- |
+| synthwave | The player sits in a neon frame with a glow inside and 20px padding | The frame and glow are the theme's look; inside it the player keeps terminal's arrangement |
+
 ## What the core gives
 
 `RadioCore.create(options)` returns `core`:
