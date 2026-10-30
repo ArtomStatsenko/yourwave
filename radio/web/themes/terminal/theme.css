@@ -156,6 +156,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .strip{height:36px;overflow:hidden;contain:size layout paint}
 .strip pre{margin:0;font:inherit;font-size:18px;line-height:18px;height:36px;letter-spacing:0;white-space:pre;color:var(--accent);transition:color .6s}
 .strip pre.idle{color:var(--muted)}
+#spectrum-bars{display:none}  /* the bar themes' spectrum, in the same slot */
 #ruler{position:absolute;visibility:hidden;font-size:18px;white-space:pre;font-family:var(--mono)}
 #viz-controls{display:flex;align-items:center;color:var(--muted);font-size:16px;white-space:nowrap}
 #viz-controls #vzb{min-width:6ch;text-align:center}

@@ -1,6 +1,6 @@
-/* Lime: dark, one lime accent for what is live, rows as tiles. The card layout is shared (themes/shared/cards.css). */
-@import url("/ui/themes/shared/cards.css");
+/* Lime: dark, one lime accent for what is live, rows as tiles, on the shared layout (themes/shared/look.css). */
+@import url("/ui/themes/shared/look.css");
 
 :root[data-skin="lime"]{color-scheme:dark;--bg:#101110;--surface:#171917;--tile:#1a1c19;--current:#252a1c;--current-line:rgba(200,255,61,.4);
   --summary:#1f221d;--ink:#f2f4ee;--muted:#9aa092;--line:#2a2d27;--accent:#c8ff3d;--accent-ink:#101110;--ok:#43d17a;--warn:#f0b429;
-  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:linear-gradient(160deg,#243314,#101110)}
+  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:linear-gradient(160deg,#243314,#101110);--strip-h:72px}

@@ -19,7 +19,7 @@ class LimeMarkupTests(unittest.TestCase):
         made_by_script = {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb", "vd", "vs"}  # drawn with the AI and Voice blocks; rows and details only some themes have
         self.assertEqual(sorted(used - set(ids) - made_by_script), [])
         self.assertEqual([k for k, n in ids.items() if n > 1], [])
-        self.assertEqual(len(re.findall(r"<i></i>", html[html.index('id="spectrum-bars"'):html.index("</div>", html.index('id="spectrum-bars"'))])), 20)
+        self.assertIn("RadioBars.wrap(RadioTheme,20)", (LIME / "view.js").read_text())   # bars.js fills the layout's slot with 20
 
     def test_dark_only_fixed_look_and_load_order(self):
         html = theme_html("lime")
@@ -33,8 +33,8 @@ class LimeMarkupTests(unittest.TestCase):
         self.assertLess(html.index("/ui/core/core.js"), html.index("</head>"))  # the saved theme is followed before drawing
         self.assertIn("RadioTheme.mount(RadioCore.create(", html)
         css = (LIME / "theme.css").read_text()
-        self.assertIn('@import url("/ui/themes/shared/cards.css");', css)
-        self.assertIn('@import url("/ui/themes/terminal/theme.css");', (WEB / "themes/shared/cards.css").read_text())
+        self.assertIn('@import url("/ui/themes/shared/look.css");', css)
+        self.assertIn('@import url("/ui/themes/terminal/theme.css");', (WEB / "themes/shared/look.css").read_text())
         self.assertIn("color-scheme:dark", css)
 
 

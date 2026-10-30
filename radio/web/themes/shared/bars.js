@@ -12,6 +12,8 @@ var RadioBars={wrap:function(theme,count){
     return out}
   function mount(core,root){
     theme.mount(core,root);
+    var box=root.querySelector&&root.querySelector('#spectrum-bars');
+    if(box&&!box.children.length)for(var n=0;n<count;n++)box.appendChild(document.createElement('i'));  // the layout leaves the slot empty
     var els=Array.from(root.querySelectorAll('#spectrum-bars i')),motion=matchMedia('(prefers-reduced-motion:reduce)'),heardAt=-1e9,flat=true;
     function draw(levels){els.forEach(function(el,i){el.style.height=levels?Math.round(levels[i]*100)+'%':'0'})}
     core.frames.add(function(dt,now){

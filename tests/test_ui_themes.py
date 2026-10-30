@@ -56,7 +56,7 @@ class SettingsSummaryTests(unittest.TestCase):
 
 
 # themes on the shared layout (themes/shared/layout.html): one DOM, terminal's arrangement; they differ only in CSS
-ON_LAYOUT = ["terminal"]
+ON_LAYOUT = ["terminal", "lime"]
 KEY = ["np", "air", "station-controls", "ttl", "viz", "pp", "nx", "fill", "time", "viz-controls", "music-source",
        "voice-warn", "tab-tl", "tab-st", "catchup-build", "plan-edit", "tl", "theme-select"]
 
@@ -93,11 +93,12 @@ class CardThemeTests(unittest.TestCase):
                 self.assertEqual(sorted(used - set(ids)), [])
                 self.assertEqual([k for k, n in ids.items() if n > 1], [])
                 scripts = re.findall(r'<script src="([^"]+)"></script>', html)
-                bars = ["/ui/themes/shared/bars.js"] if 'id="spectrum-bars"' in html else []   # prism draws a disc, no spectrum
+                bars = ["/ui/themes/shared/bars.js"] if name in ON_LAYOUT or 'id="spectrum-bars"' in html else []
                 self.assertEqual(scripts, ["/ui/core/core.js", "/ui/core/model.js", "/ui/themes/terminal/view.js",
                                            *bars, f"/ui/themes/{name}/view.js"])
                 self.assertIn(f'data-skin="{name}"', html)
-                self.assertIn('@import url("/ui/themes/shared/cards.css");', (WEB / "themes" / name / "theme.css").read_text())
+                look = "look.css" if name in ON_LAYOUT else "cards.css"   # the card look on the shared layout, or the old card layout
+                self.assertIn(f'@import url("/ui/themes/shared/{look}");', (WEB / "themes" / name / "theme.css").read_text())
 
 
 CORE = (WEB / "core/core.js").read_text()

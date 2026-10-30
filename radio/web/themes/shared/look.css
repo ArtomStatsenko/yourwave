@@ -1,0 +1,111 @@
+/* The look the card themes share (lime, synthwave, soft, prism) on the shared layout (themes/shared/layout.html):
+   terminal's arrangement, from its stylesheet below, with the cards' look on top: their font, a spectrum of bars in the
+   visualizer's slot, a round main button, tabs as pills, text actions in the accent, rows as tiles, 56×32 switches.
+   Nothing here moves a block or changes the order. A theme sets its tokens on :root[data-skin="<name>"] and changes
+   what its look needs.
+   Tokens: --bg --surface --tile --current --current-line --ink --muted --line --accent --accent-ink --ok --warn --sans
+   --cover; optional, with these defaults: --strip-h 64px --r-tile 12px --r-button 12px --r-tab 10px --r-input 10px
+   --r-cover 12px --title-size 34px --title-weight 600 --title-track -.01em --bar-gap 4px. */
+@import url("/ui/themes/terminal/theme.css");
+:root[data-skin] body{font:18px/1.45 var(--sans)}
+:root[data-skin] :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+:root[data-skin] [hidden]{display:none!important}  /* the text actions below set display: hidden must still win */
+
+/* the player: terminal's rows; its ASCII callsign, braille strip and visual picker are terminal's own */
+:root[data-skin] :is(#station-ident,#station-name,#terminal-monitor,#viz,#viz-controls){display:none}
+:root[data-skin] h1{font-size:16px;letter-spacing:0;text-transform:none;color:var(--accent)}
+:root[data-skin] h1:has(#air.off){color:var(--muted)}
+:root[data-skin] #air{font-size:12px}
+:root[data-skin] .title{font-size:var(--title-size,34px);line-height:1.25;font-weight:var(--title-weight,600);letter-spacing:var(--title-track,-.01em)}
+:root[data-skin] .strip{height:var(--strip-h,64px);border-radius:var(--r-cover,12px);background:var(--cover);contain:size layout paint}
+:root[data-skin] #spectrum-bars{display:flex;height:100%;gap:var(--bar-gap,4px);align-items:flex-end;padding:10px}
+:root[data-skin] #spectrum-bars i{flex:1;height:0;min-height:2px;background:var(--accent);border-radius:2px;opacity:.9}  /* no sound: a flat line */
+:root[data-skin] button{border-radius:var(--r-button,12px);font-family:var(--sans)}
+:root[data-skin] button:hover{border-color:var(--muted)}
+:root[data-skin] #pp{width:56px;height:56px;padding:0;border-radius:50%;background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+:root[data-skin] #pp:disabled{background:none;color:var(--muted);border-color:var(--line)}
+:root[data-skin] :is(#nx,#so){width:48px;height:48px;min-height:48px;padding:0;display:grid;place-items:center;border-radius:50%;color:var(--ink);border:1px solid var(--line);font-size:16px}
+:root[data-skin] #vol{accent-color:var(--accent)}
+:root[data-skin] .bar{height:5px;border-radius:5px;background:color-mix(in srgb,var(--ink) 16%,transparent)}
+:root[data-skin] .bar i{height:5px;border-radius:5px}
+:root[data-skin] #time{font-size:16px}
+:root[data-skin] #sk{font-size:16px;padding:8px 16px;min-height:44px}
+:root[data-skin] #er:empty{display:none}
+
+/* tabs: words, the open one filled with the accent */
+:root[data-skin] .tabbar{border:0}
+:root[data-skin] .tabs{gap:6px;margin-bottom:6px}
+:root[data-skin] .tabs button{border:0;border-radius:var(--r-tab,10px);min-height:44px;padding:0 16px;font-size:16px;letter-spacing:.08em;color:var(--muted)}
+:root[data-skin] .tabs button:hover{border:0;color:var(--ink)}
+:root[data-skin] .tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700;border:0}
+@media(max-width:420px){:root[data-skin] .tabs{display:grid;grid-template-columns:1fr 1fr}:root[data-skin] .tabs button{text-align:center;justify-self:stretch}}
+
+/* text actions: More news, Activity, Edit, Undo, Done, Show earlier, Show later */
+:root[data-skin] #catchup-build,:root[data-skin] #plan-edit,:root[data-skin] #plan-undo,:root[data-skin] #plan-done,
+:root[data-skin] #history-more,:root[data-skin] #plan-later,:root[data-skin] #activity summary{
+  border:0;background:none;min-height:44px;padding:0 12px;font-size:16px;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center}
+:root[data-skin] #plan-undo,:root[data-skin] #history-more,:root[data-skin] #plan-later{color:var(--muted)}
+:root[data-skin] #history-more{width:100%;justify-content:center}
+:root[data-skin] #activity-log{background:var(--surface);border-radius:var(--r-tile,12px)}
+
+/* timeline: rows are tiles; time on the left, text after a 22px gutter for the marker (▶ now, ◆ reminder) */
+:root[data-skin] #broadcast-timeline{scrollbar-color:var(--line) var(--bg)}
+:root[data-skin] body:not(.program-editing) #broadcast-timeline{padding-right:6px}  /* tiles keep off the scrollbar */
+:root[data-skin] .it{background:var(--tile);border-radius:var(--r-tile,12px);padding:10px 12px;margin-bottom:6px}
+:root[data-skin] .it.cur{background:var(--current);outline:1px solid var(--current-line);outline-offset:-1px}
+:root[data-skin] .tg{display:grid;grid-template-columns:56px minmax(0,1fr) auto;column-gap:12px;align-items:baseline;padding:0}
+:root[data-skin] .tg .tm{grid-column:1;grid-row:1}
+:root[data-skin] .tg .tm.ch{grid-column:3;grid-row:1}
+:root[data-skin] .tg .k{grid-column:2;grid-row:1}
+:root[data-skin] .tg .tx{grid-column:2;font-size:18px}
+:root[data-skin] button.tg:hover{background:none}
+:root[data-skin] .it:is(.reminder,.weather) > .hd .k{display:block;padding-left:22px;font-size:16px;color:var(--muted)}  /* the model's kind label, where the title does not already say it */
+:root[data-skin] .it.cur .tx::before{color:var(--accent)}
+:root[data-skin] .it.reminder .tx::before{color:var(--muted)}
+:root[data-skin] .it.weather .tx::before{content:none}
+:root[data-skin] .it.id .tx{font-size:16px}
+:root[data-skin] .ex{margin:6px 0 0 68px;padding:0 0 4px 22px;font-size:17px;line-height:1.45}
+:root[data-skin] .rp{border:0;min-width:44px;min-height:44px;padding:0}
+#upcoming .tg{padding-left:0}
+:root[data-skin] #upcoming{background:var(--tile);border-radius:var(--r-tile,12px);padding:10px 12px;margin-bottom:6px}
+:root[data-skin] #direction-list .plan-hour>summary{min-height:44px;display:flex;align-items:center}
+:root[data-skin] .plan-drag-lens{background:var(--surface);border-radius:var(--r-tile,12px)}
+:root[data-skin] .plan-gap>button{border-radius:8px}
+
+/* switches: 56×32, the accent when on (the button keeps aria-pressed and its on/off word for screen readers) */
+:root[data-skin] .pl{align-items:center;min-height:56px;border:0;padding:8px 0}
+:root[data-skin] .pl:hover{background:none;border:0}
+:root[data-skin] .pl .nm{order:-1}
+:root[data-skin] .pl .sw{position:relative;width:56px;height:32px;border-radius:32px;border:1px solid var(--line);
+  background:color-mix(in srgb,var(--ink) 12%,transparent);font-size:0;color:transparent}
+:root[data-skin] .pl .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--ink);transition:transform .15s}
+:root[data-skin] .pl[aria-pressed="true"] .sw{background:var(--accent);border-color:var(--accent)}
+:root[data-skin] .pl[aria-pressed="true"] .sw::after{transform:translateX(24px);background:var(--accent-ink)}
+:root[data-skin] .pl:disabled .sw{opacity:.4}
+@media(max-width:640px){:root[data-skin] .pl{display:flex}}
+:root[data-skin] .plugin-row>.pl,:root[data-skin] .plugin-row>.pl:hover{padding-right:0}
+:root[data-skin] .plugin-row>.control-help>summary{position:static}
+:root[data-skin] .plugin-row>.control-help>.l,:root[data-skin] .plugin-warning,:root[data-skin] #news-source-list>section>p{margin-left:0;padding-left:0}
+:root[data-skin] input[role=switch]{appearance:none;position:relative;flex:none;width:56px;height:32px;margin:0;border-radius:32px;border:1px solid var(--line);
+  background:color-mix(in srgb,var(--ink) 12%,transparent);cursor:pointer}
+:root[data-skin] input[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--ink);transition:transform .15s}
+:root[data-skin] input[role=switch]:checked{background:var(--accent);border-color:var(--accent)}
+:root[data-skin] input[role=switch]:checked::after{transform:translateX(24px);background:var(--accent-ink)}
+:root[data-skin] .st label:has(input[role=switch]){width:100%;justify-content:space-between;flex-direction:row-reverse}
+
+/* forms */
+:root[data-skin] .st{border-bottom:1px solid var(--line)}
+:root[data-skin] .st input[type=url],:root[data-skin] .st input[type=password],:root[data-skin] .st input[type=text],
+:root[data-skin] .st select,:root[data-skin] .st textarea,:root[data-skin] #direction-controls input,
+:root[data-skin] #direction-controls select,:root[data-skin] #direction-controls textarea{
+  font:17px/1.4 var(--sans);min-height:44px;padding:8px 12px;border-radius:var(--r-input,10px);border:1px solid var(--line);color:var(--ink);
+  background:color-mix(in srgb,var(--ink) 8%,transparent)}
+:root[data-skin] .st .v{color:var(--ink)}
+:root[data-skin] .ab{min-height:44px;font-size:16px;padding:0 18px}
+:root[data-skin] .st .rs{color:var(--accent)}
+
+/* AI and Voice: the state beside the heading, no tile; one line between the blocks, none inside */
+:root[data-skin] .ai{border-bottom:1px solid var(--line)}
+:root[data-skin] .ai .st{border-bottom:0}
+
+@media (prefers-reduced-motion:reduce){:root[data-skin] *{transition:none!important}}
