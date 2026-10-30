@@ -29,6 +29,15 @@ class PrismLookTests(unittest.TestCase):
             ':root[data-skin="prism"] :is(.pl[aria-pressed="true"] .sw,input[role=switch]:checked)::after',
         ]))
 
+    def test_long_titles_step_down_and_lose_the_split_below_28px(self):
+        css = (PRISM / "theme.css").read_text()
+        self.assertIn(':root[data-skin="prism"] .title{font:800 clamp(30px,3.6vw,38px)/1.05', css)
+        self.assertIn(':root[data-skin="prism"] .title[data-size="m"]{font-size:clamp(24px,2.8vw,30px)}', css)
+        self.assertIn(':root[data-skin="prism"] .title[data-size="s"]{font-size:clamp(20px,2.4vw,26px);text-shadow:none}', css)
+        # 2.8vw reaches 28px at a 1000px window: below it the middle step drops the split too
+        self.assertIn('@media(max-width:999px){:root[data-skin="prism"] .title[data-size="m"]{text-shadow:none}}', css)
+        self.assertIn("-webkit-line-clamp:3", css)
+
     def test_dark_only_no_mode_or_accent_rows_and_the_split_properties_registered(self):
         html = (PRISM / "index.html").read_text()
         self.assertIn('<html lang="en" data-theme="dark" data-skin="prism">', html)
@@ -58,11 +67,13 @@ global.document={hidden:false,documentElement:{classList:{on:false,toggle(k,v){t
 global.MutationObserver=function(f){this.observe=()=>observers.push(f)};
 var RadioTheme={mount(){}};
 VIEW
-const el=()=>({textContent:'',classList:{add(){},remove(){}},addEventListener(){},offsetWidth:0});
+const el=()=>({textContent:'',classList:{add(){},remove(){}},addEventListener(){},offsetWidth:0,dataset:{},style:{}});
 const style={},root={style:{setProperty:(k,v)=>style[k]=v,removeProperty:k=>delete style[k]},querySelector:el,addEventListener(){}};
 let heard=null;
 const core={audio:{listening:false,read:()=>heard},snapshot:{state:'PLAYING'},error:'',subscribe:f=>listeners.push(f)};
 const tick=()=>{const f=frames.shift();if(f)f()},tell=c=>listeners.forEach(f=>f(core,c));
+assert.equal(RadioTheme.step('Maria También'),'');assert.equal(RadioTheme.step('x'.repeat(30)),'');assert.equal(RadioTheme.step('x'.repeat(31)),'m');
+assert.equal(RadioTheme.step('Twenty One Pilots - At The Risk Of Feeling Dumb'),'m','47 characters');assert.equal(RadioTheme.step('x'.repeat(48)),'m');assert.equal(RadioTheme.step('x'.repeat(49)),'s');
 assert.equal(RadioTheme.width(0),'1.20px');assert.equal(RadioTheme.width(1),'2.40px');
 assert.equal(RadioTheme.low([1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),1,'the low quarter of the bands');
 RadioTheme.mount(core,root);assert.equal(frames.length,0,'no loop without sound');

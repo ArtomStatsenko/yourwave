@@ -5,6 +5,8 @@ var RadioTheme=(function(theme){
   // the split width for a smoothed level of the low bands (0..1): 1.2px still, up to 2.4px loud
   function width(level){return (1.2+level*1.2).toFixed(2)+'px'}
   function low(bands){var n=Math.max(1,Math.floor(bands.length/4)),s=0;for(var i=0;i<n;i++)s+=bands[i];return s/n}
+  // the title's size step (theme.css): up to 30 characters as designed, 31–48 smaller, longer smaller still
+  function step(text){return text.length>48?'s':text.length>30?'m':''}
   function mount(core,root){
     theme.mount(core,root);
     var html=document.documentElement,motion=matchMedia('(prefers-reduced-motion:reduce)'),level=0,running=false;
@@ -19,15 +21,20 @@ var RadioTheme=(function(theme){
       if(change==='listening'||change==='snapshot')start()});
     motion.addEventListener('change',start);document.addEventListener('visibilitychange',start);
 
-    // a new track: the old title leaves upward, the text is swapped at 180 ms, the new one rises into place
+    // a new track: the size step is set first; the box takes the new title's height for the whole motion; the old
+    // title leaves upward, the text is swapped at 180 ms, the new one rises into place
     var ttl=root.querySelector('#ttl'),box=root.querySelector('.title'),shown=ttl.textContent,swapping=null;
+    function size(text){box.dataset.size=step(text)}
+    size(shown);
     new MutationObserver(function(){
       var next=ttl.textContent;if(next===shown||swapping!==null&&next===swapping)return;
+      size(next);
       if(!shown||motion.matches){shown=next;return}
-      swapping=next;ttl.textContent=shown;box.classList.remove('swap');void box.offsetWidth;box.classList.add('swap');
+      swapping=next;box.style.height='';var h=box.offsetHeight;ttl.textContent=shown;box.style.height=h+'px';
+      box.classList.remove('swap');void box.offsetWidth;box.classList.add('swap');
       setTimeout(function(){shown=swapping;swapping=null;ttl.textContent=shown},180)
     }).observe(ttl,{childList:true,characterData:true,subtree:true});
-    box.addEventListener('animationend',function(){box.classList.remove('swap')});
+    box.addEventListener('animationend',function(){box.classList.remove('swap');box.style.height=''});
 
     // a new tab or a switch turned on: its split opens and settles back
     function settle(el){if(!el||motion.matches)return;el.classList.remove('settle');void el.offsetWidth;el.classList.add('settle');
@@ -38,5 +45,5 @@ var RadioTheme=(function(theme){
       setTimeout(function(){var now=root.querySelector('.pl[data-pl="'+name+'"]');if(now&&now.getAttribute('aria-pressed')==='true')settle(now)})}});  // the row is drawn anew
     root.addEventListener('change',function(e){if(e.target.matches('input[role=switch]')&&e.target.checked)settle(e.target)});
     start()}
-  return {mount:mount,width:width,low:low};
+  return {mount:mount,width:width,low:low,step:step};
 })(RadioTheme);
