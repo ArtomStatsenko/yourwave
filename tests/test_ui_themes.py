@@ -88,6 +88,16 @@ class LayoutTests(unittest.TestCase):
                 self.assertEqual(order(theme_html(name)), KEY)
 
 
+class SlotTests(unittest.TestCase):
+    def test_every_card_theme_keeps_its_spectrum_slot_between_36_and_120px(self):
+        for name in [n for n in ON_LAYOUT if n != "terminal"]:
+            with self.subTest(theme=name):
+                css = (WEB / "themes" / name / "theme.css").read_text()
+                height = re.search(r"--strip-h:(\d+)px", css)
+                self.assertTrue(height, "the theme sets its slot")
+                self.assertTrue(36 <= int(height[1]) <= 120, height[1])
+
+
 class CardThemeTests(unittest.TestCase):
     """Themes built on the terminal behavior (lime, synthwave, soft, prism): its elements, the shared bars, one look."""
     def test_card_themes_have_every_element_the_behavior_uses_once(self):

@@ -5,7 +5,7 @@
   --summary:rgba(255,46,151,.08);--ink:#ffe9ff;--muted:#c58bd8;--line:rgba(255,46,151,.2);--accent:#ff2e97;--accent-ink:#fff;--ok:#43d17a;--warn:#ffd23d;
   --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:linear-gradient(#1a0836,#ff6a3d 62%,#10061f 62%);
   --glow:rgba(255,46,151,.67);--rule:rgba(255,46,151,.13);
-  --r-button:999px;--r-tab:0;--r-tile:0;--r-cover:10px;--strip-h:96px;--title-size:30px;--title-weight:700;--title-track:0;--bar-gap:3px}
+  --r-button:999px;--r-tab:0;--r-tile:0;--r-cover:10px;--strip-h:60px;--title-size:30px;--title-weight:700;--title-track:0;--bar-gap:3px}
 
 /* the player: a thin neon frame and a glow inside, drawn as gradients from each edge: a blurred inset shadow looks the
    same, but with the glowing spectrum changing inside it the GPU redraws the blur all the time (5x the GPU work) */
@@ -18,11 +18,11 @@
 :root[data-skin="synthwave"] .bar i{box-shadow:0 0 12px var(--accent)}
 :root[data-skin="synthwave"] #pp:not(:disabled){box-shadow:0 0 18px rgba(255,46,151,.53)}
 
-/* the visualizer's slot: a sunset band with its sun on the horizon; the spectrum glows over its lower third */
+/* the visualizer's slot: a sunset sky down to the horizon (62%), half a sun rising on it; the spectrum glows below */
 :root[data-skin="synthwave"] .strip{position:relative}
-:root[data-skin="synthwave"] .strip::before{content:"";position:absolute;left:50%;top:12%;width:64px;aspect-ratio:1;transform:translateX(-50%);
-  border-radius:50%;background:linear-gradient(#ffd23d,#ff2e97)}
-:root[data-skin="synthwave"] #spectrum-bars{position:absolute;inset:auto 0 0 0;height:33%;padding:0 8px 8px}
+:root[data-skin="synthwave"] .strip::before{content:"";position:absolute;left:50%;bottom:38%;width:40px;height:20px;transform:translateX(-50%);
+  border-radius:20px 20px 0 0;background:linear-gradient(#ffd23d,#ff2e97 200%)}  /* the upper half of a #ffd23d → #ff2e97 disc */
+:root[data-skin="synthwave"] #spectrum-bars{position:absolute;inset:auto 0 0 0;height:38%;padding:0 8px 3px}
 :root[data-skin="synthwave"] #spectrum-bars i{border-radius:1px;box-shadow:0 0 8px var(--accent)}
 
 /* tabs: the open one is underlined in neon, its text glows; no fill */

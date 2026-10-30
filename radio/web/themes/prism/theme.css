@@ -9,7 +9,7 @@
 
 :root[data-skin="prism"]{color-scheme:dark;--bg:#000;--surface:#000;--tile:transparent;--current:transparent;--current-line:transparent;
   --summary:transparent;--ink:#fff;--muted:#a6a6ad;--line:#2a2a2e;--accent:#fff;--accent-ink:#000;--ok:#5fd08a;--warn:#f0b429;
-  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:#0a0a0c;--strip-h:120px;--r-cover:0;--r-tile:0;
+  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--cover:#0a0a0c;--strip-h:52px;--r-cover:0;--r-tile:0;
   --ab:1.5px;--track:#26262b;--edge:#3a3a40}
 :root[data-skin="prism"].prism-error{--c1:#fe2c55;--ab:3px}  /* an error: a still, red-only split beside the words */
 :root[data-skin="prism"] :focus-visible{outline:2px solid #25f4ee;outline-offset:3px}
@@ -20,11 +20,10 @@
 :root[data-skin="prism"] #air{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink);font-size:0;vertical-align:middle;
   box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
 :root[data-skin="prism"] #air.off{background:var(--muted);box-shadow:none}
-/* the visualizer's slot: a dark band with the white disc; below it 32 thin white bars, never split, a flat line of
+/* the visualizer's slot: a dark band with 32 thin white bars, never split, a flat line of
    short dashes while nothing plays */
 :root[data-skin="prism"] .strip{position:relative}
-:root[data-skin="prism"] .strip::before{content:"";position:absolute;left:50%;top:10px;width:72px;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:#fff}
-:root[data-skin="prism"] #spectrum-bars{position:absolute;left:8%;right:8%;bottom:8px;height:22px;padding:0;gap:3px;justify-content:space-between}
+:root[data-skin="prism"] #spectrum-bars{position:absolute;left:8%;right:8%;bottom:5px;height:80%;padding:0;gap:3px;justify-content:space-between}
 :root[data-skin="prism"] #spectrum-bars i{flex:0 0 3px;border-radius:1px;background:#fff;opacity:1}
 
 /* the track title: Syne, split; a new title rises from below as the old one leaves upward (view.js) */

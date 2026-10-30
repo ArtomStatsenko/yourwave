@@ -76,7 +76,6 @@ in CSS only and keeping the reading order; each deviation is listed here:
 | soft | The player sits on a raised panel, radius 30px, 24px padding | Soft's surfaces are raised or pressed; inside it the player keeps terminal's arrangement |
 | prism | The whole page sits on a stage: a 1px frame, radius 6px, padding up to 32px | Prism is a lit stage; the blocks inside keep terminal's order |
 | prism | The title wraps to up to three lines and steps down in size (31–48 and over 48 characters), instead of terminal's one line that scrolls | The display face is the theme; a long title stays whole and readable |
-| prism | The spectrum slot is 120px with the white disc above the bars | The disc is prism's cover; the bars stay in the visualizer's slot |
 
 ## What the core gives
 
