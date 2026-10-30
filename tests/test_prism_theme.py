@@ -73,7 +73,7 @@ const style={},bodyStyle={},moved=el=>Object.assign(el,{style:{setProperty:(k,v)
 const parts={'#np':moved(el()),'.tabbar':moved(el())};  // the player and the tab bar share one record: both get the same width
 const root={style:{setProperty:(k,v)=>bodyStyle[k]=v,removeProperty(){}},querySelector:q=>parts[q]||el(),addEventListener(){}};
 let heard=null;
-const core={audio:{listening:false,read:()=>heard},snapshot:{state:'PLAYING'},error:'',subscribe:f=>listeners.push(f)};
+const core={audio:{listening:false,read:()=>heard},snapshot:{status:{state:'PLAYING'}},error:''  /* the /api/status answer: the state is in its status */,subscribe:f=>listeners.push(f)};
 const tick=()=>{const f=frames.shift();if(f)f()},tell=c=>listeners.forEach(f=>f(core,c));
 assert.equal(RadioTheme.step('Maria También'),'');assert.equal(RadioTheme.step('x'.repeat(30)),'');assert.equal(RadioTheme.step('x'.repeat(31)),'m');
 assert.equal(RadioTheme.step('Twenty One Pilots - At The Risk Of Feeling Dumb'),'m','47 characters');assert.equal(RadioTheme.step('x'.repeat(48)),'m');assert.equal(RadioTheme.step('x'.repeat(49)),'s');
@@ -83,8 +83,8 @@ RadioTheme.mount(core,root);assert.equal(frames.length,0,'no loop without sound'
 core.audio.listening=true;tell('listening');assert.equal(frames.length,1);
 heard={bands:Array(32).fill(1)};tick();assert.equal(style['--ab'],'2.20px','smoothed: a quarter of the way to loud');
 tick();tick();assert.ok(parseFloat(style['--ab'])>2.2&&parseFloat(style['--ab'])<4.3,'and rising');assert.equal(frames.length,1,'one loop');
-core.snapshot.state='PAUSED';tick();assert.equal(style['--ab'],undefined,'paused: back to the still split');assert.equal(frames.length,0);
-core.snapshot.state='PLAYING';tell('snapshot');assert.equal(frames.length,1);
+core.snapshot.status.state='PAUSED';tick();assert.equal(style['--ab'],undefined,'paused: back to the still split');assert.equal(frames.length,0);
+core.snapshot.status.state='PLAYING';tell('snapshot');assert.equal(frames.length,1);
 document.hidden=true;tick();assert.equal(frames.length,0,'a hidden tab stops it');
 document.hidden=false;visListener();assert.equal(frames.length,1);
 core.error='the page cannot reach the radio';tell('error');tick();assert.equal(style['--ab'],undefined,'an error: the still red split');

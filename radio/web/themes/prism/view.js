@@ -12,7 +12,7 @@ var RadioTheme=(function(theme){
     theme.mount(core,root);
     var html=document.documentElement,motion=matchMedia('(prefers-reduced-motion:reduce)'),level=0,running=false,
       moved=[root.querySelector('#np'),root.querySelector('.tabbar')];  // not the root: a change there restyles the whole page every frame
-    function moving(){return core.audio.listening&&!motion.matches&&!document.hidden&&!core.error&&!(core.snapshot&&core.snapshot.state==='PAUSED')}
+    function moving(){return core.audio.listening&&!motion.matches&&!document.hidden&&!core.error&&!(core.snapshot&&core.snapshot.status&&core.snapshot.status.state==='PAUSED')}
     function frame(){
       if(!moving()){running=false;level=0;moved.forEach(function(el){el.style.removeProperty('--ab')});return}
       var heard=core.audio.read(1),ab;level+=((heard?low(heard.bands):0)-level)*.25;ab=width(level);
