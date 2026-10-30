@@ -251,7 +251,7 @@ function settingsView(force){  // force: after this page saved a value; the poll
   if(f&&f.id&&(force||f.id.startsWith('help-toggle-'))&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
-    $('audio-preset-hint').textContent=d.ok===false?d.error:'Restart the station to apply.';$('audio-preset-hint').dataset.said='1';
+    $('audio-preset-hint').textContent=d.ok===false?d.error:'Restart the station to apply.';$('audio-preset-hint').said=true;
     refresh();
   }).catch(function(){$('audio-preset-hint').textContent='Could not save the audio preset. Try again.'})
 };
@@ -276,7 +276,7 @@ $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
   // one restart note for Audio preset and the playlist: under the playlist, or under the preset when the playlist is hidden
-  if(!$('audio-preset-hint').dataset.said)$('audio-preset-hint').textContent=$('yt-form').hidden?'Restart the station to apply.':'';
+  if(!$('audio-preset-hint').said)$('audio-preset-hint').textContent=$('yt-form').hidden?'Restart the station to apply.':'';
   var focused=document.activeElement&&document.activeElement.dataset.pl,helpFocus=document.activeElement&&document.activeElement.id;
   sourceManagerView();
   ['integrations','experiments','features'].forEach(function(section){
