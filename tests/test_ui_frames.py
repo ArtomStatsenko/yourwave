@@ -41,9 +41,42 @@ const tick=(ms=1000/60)=>{now+=ms;const f=frames.shift();if(f)f(now)};
 """
 
 
+LEND = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+let frames=[],pagehide=null,stored={},polls=0;
+const c={console,Promise,JSON,Math,Date,Array,Object,String,Error,setInterval:()=>1,
+  document:{hidden:false,addEventListener(){}},matchMedia:()=>({matches:false,addEventListener(){}}),
+  localStorage:{getItem:k=>stored[k]||null,setItem:(k,v)=>stored[k]=v},requestAnimationFrame:f=>{frames.push(f);return 1},
+  fetch:url=>{if(url==='/api/status')polls++;return Promise.resolve({json:()=>Promise.resolve({status:{state:'PLAYING'}})})}};
+vm.createContext(c);vm.runInContext(CORE+';this.RadioCore=RadioCore',c);
+(async()=>{
+  const core=c.RadioCore.create({theme:'terminal'}).start();await null;
+  const shown=[],win={addEventListener:(k,f)=>{if(k==='pagehide')pagehide=f}};
+  const lent=c.RadioCore.lend(core,win,'prism',name=>shown.push(name));
+  assert.equal(lent.themeNote,'Switching themes keeps the broadcast playing.');
+  assert.equal(lent.audio,core.audio,'the same sound');
+  let heard=0;lent.subscribe(()=>heard++);lent.frames.add(()=>false);
+  const before=polls;lent.start();await new Promise(r=>setTimeout(r,0));
+  assert.ok(polls>before,'a theme starting the running core gets a fresh snapshot at once');assert.ok(heard>0);
+  lent.setTheme('soft');assert.deepEqual(shown,['soft'],'switching asks the shell to swap the frame');
+  assert.equal(stored['yourwave.theme'],'soft','and is remembered here');
+  pagehide();const after=heard;await core.refresh();assert.equal(heard,after,'the frame gone: its subscriptions are gone');
+  frames.length=0;core.frames.wake();assert.equal(frames.length,0,'and its frames: no one left to move');
+  assert.equal(typeof core.refresh,'function','the core goes on');
+})().catch(e=>{console.error(e);process.exit(1)});
+"""
+
+
 class FramesTests(unittest.TestCase):
     def test_one_frame_for_all_and_asleep_when_nothing_moves(self):
         result = subprocess.run(["node", "-e", "const CORE=" + json.dumps((WEB / "core/core.js").read_text()) + ";" + HARNESS],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+
+class LendTests(unittest.TestCase):
+    def test_a_theme_in_the_shell_borrows_its_core_and_gives_back_what_it_took(self):
+        result = subprocess.run(["node", "-e", "const CORE=" + json.dumps((WEB / "core/core.js").read_text()) + ";" + LEND],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 

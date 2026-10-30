@@ -9,7 +9,7 @@ var RadioCore=(function(){
   // modes: the colour modes it offers (Settings → Appearance → Mode); accent: it lets the listener choose its accent.
   var THEMES={terminal:{title:'Terminal',modes:['system','light','dark'],accent:true},lime:{title:'Lime'},
     synthwave:{title:'Synthwave'},soft:{title:'Soft',modes:['light','dark','system'],accent:true}},THEME_KEY='yourwave.theme';
-  var THEME_NOTE='Switching reloads the page and stops listening.';
+  var THEME_NOTE='Switching reloads the page and stops listening.',SHELL_NOTE='Switching themes keeps the broadcast playing.';
   function savedTheme(){try{return localStorage.getItem(THEME_KEY)||''}catch(e){return ''}}
   // A page opened without ?theme= goes once to the theme this browser chose; the server still decides by ?theme=,
   // then [ui] theme, then terminal. Call it in the page's <head>, before anything is drawn. The address it goes to
@@ -100,8 +100,23 @@ var RadioCore=(function(){
     return audio;
   }
 
+  // A theme in the shell's frame (shell.html) borrows the shell's core instead of making one: the same snapshot, sound
+  // and commands. What it subscribes, and its frames, go when the frame does; switching themes asks the shell to swap
+  // the frame (show) instead of reloading the page, so the sound plays on.
+  function lend(core,win,theme,show){
+    var own=[],lent=Object.create(core);
+    lent.theme=theme;lent.themeNote=SHELL_NOTE;
+    lent.subscribe=function(fn){var off=core.subscribe(fn);own.push(off);return off};
+    lent.frames={add:function(fn){var off=core.frames.add(fn);own.push(off);return off},wake:core.frames.wake};
+    lent.setTheme=function(name){try{localStorage.setItem(THEME_KEY,name)}catch(e){}show(name)};
+    lent.start=function(){core.start();return lent};
+    win.addEventListener('pagehide',function(){own.forEach(function(off){off()});own=[]});
+    return lent}
+
   function create(options){
     options=options||{};
+    var shell=typeof window!=='undefined'&&window.parent!==window&&(function(){try{return window.parent.radioShell}catch(e){return null}})();
+    if(shell)return shell.lend(window,options.theme);
     var token=options.token||'',fetchImpl=options.fetch||function(url,init){return fetch(url,init)};
     var listeners=[],sequence=0,applied=0,timer=null,history=[];  // history: recent statuses, about 30 s
     var core={
@@ -193,10 +208,12 @@ var RadioCore=(function(){
         emit('capabilities')}).catch(function(){})};
 
     // Polls every 2 s from now on; the first answer comes at once.
-    core.start=function(){if(!timer){timer=setInterval(core.refresh,POLL_MS);core.refresh();core.loadCapabilities()}return core};
+    // Start polling; a theme starting a core that already runs (the shell's) gets a fresh snapshot at once instead of
+    // waiting for the next poll.
+    core.start=function(){if(!timer)timer=setInterval(core.refresh,POLL_MS);core.refresh();core.loadCapabilities();return core};
     core.stop=function(){clearInterval(timer);timer=null};
     return core;
   }
 
-  return {create:create,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent};
+  return {create:create,lend:lend,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent};
 })();

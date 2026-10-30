@@ -151,8 +151,12 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 return self._json({"error": "forbidden"}, 403)
             path, _, query = self.path.partition("?")
             if path in ("/", "/index.html"):
-                theme = theme_name(urllib.parse.parse_qs(query).get("theme", [""])[0], cfg)
-                body = ((WEB / "themes" / theme / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", token)
+                q = urllib.parse.parse_qs(query, keep_blank_values=True)
+                theme = theme_name(q.get("theme", [""])[0], cfg)
+                # the shell holds the core and the sound for the whole visit; the theme runs in its frame (?embed) or,
+                # for debugging, on its own (?standalone)
+                page = WEB / "themes" / theme / "index.html" if {"embed", "standalone"} & q.keys() else WEB / "shell.html"
+                body = (page.read_text(encoding="utf-8").replace("__TOKEN__", token).replace("__THEME__", theme)
                         .replace("__LOCAL_CONTROL__", str(self.server is server).lower()).encode())
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")

@@ -59,12 +59,18 @@ class PageServerTests(unittest.TestCase):
         self.assertIn('terminal', ui.themes())
 
     def test_a_page_can_ask_for_another_theme(self):
-        status, page = self.get('/?theme=lime')
+        status, page = self.get('/?theme=lime')                            # the shell, with lime in its frame
+        self.assertEqual(status, 200)
+        self.assertIn(b'theme:"lime"', page)
+        self.assertIn(b'<iframe id="theme"', page)
+        self.assertIn(self.server.token.encode(), page)
+        status, page = self.get('/?theme=lime&embed=1')                    # the theme in the frame
         self.assertEqual(status, 200)
         self.assertIn(b'data-skin="lime"', page)
-        self.assertIn(self.server.token.encode(), page)
+        self.assertIn(b'data-skin="lime"', self.get('/?theme=lime&standalone')[1])   # on its own, for debugging
         self.assertEqual(self.get('/ui/themes/lime/view.js')[0], 200)
-        self.assertNotIn(b'data-skin="lime"', self.get('/')[1])          # terminal stays the default
+        self.assertIn(b'theme:"terminal"', self.get('/')[1])              # terminal stays the default
+        self.assertNotIn(b'data-skin', self.get('/')[1])
 
     def test_theme_markup_has_no_inline_handlers(self):
         """A theme lives inside mount(core, root): an inline on...="" handler cannot see its functions."""
@@ -85,7 +91,9 @@ class PageServerTests(unittest.TestCase):
         self.assertEqual(self.get('/ui/themes/terminal/theme.css', {'Host': 'evil.example:80'})[0], 403)
         status, page = self.get('/?theme=../../../etc')                      # unknown theme: the default one
         self.assertEqual(status, 200)
-        self.assertIn(b'/ui/themes/terminal/view.js', page)
+        self.assertIn(b'theme:"terminal"', page)
+        self.assertNotIn(b'etc', page)
+        self.assertIn(b'/ui/themes/terminal/view.js', self.get('/?theme=../../../etc&embed=1')[1])
         self.assertIn(self.server.token.encode(), page)
 
     def test_news_sources_save_through_the_ui_api(self):

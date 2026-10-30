@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yourwave</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
+iframe[hidden]{display:block;visibility:hidden}  /* full size while it loads: the theme measures its layout */
+</style>
+<script src="/ui/core/core.js"></script>
+<script>RadioCore.followSavedTheme('__THEME__')</script>
+</head>
+<body>
+<iframe id="theme" title="Yourwave"></iframe>
+<script>
+// The shell: it holds the core (the polls, the stream, the analyser, Media Session) for the whole visit, and the theme
+// runs in a frame and borrows it. Switching themes loads the new one in a hidden frame and swaps it in when it is ready,
+// so the sound plays on and the old look stays until the new one can be shown.
+var radioShell=(function(){
+  var core=RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true",theme:"__THEME__"}).start(),
+    frame=document.getElementById('theme');
+  function src(name){return '/?theme='+encodeURIComponent(name)+'&embed=1'+location.hash}
+  function show(name){
+    core.theme=name;history.replaceState(null,'','/?theme='+encodeURIComponent(name)+location.hash);
+    var next=document.createElement('iframe');next.title='Yourwave';next.hidden=true;next.src=src(name);
+    next.onload=function(){var old=frame,d=next.contentDocument,picker=d.getElementById('theme-select'),settings=d.getElementById('tab-st');
+      frame=next;next.hidden=false;next.id='theme';old.remove();
+      // the switch was made in Settings: the new theme opens there with focus back on Theme
+      if(picker&&!picker.offsetParent&&settings)settings.click();next.focus();if(picker)picker.focus();
+      window.dispatchEvent(new CustomEvent('radio-theme-shown',{detail:name}))};
+    document.body.appendChild(next)}
+  frame.src=src(core.theme);
+  return {core:core,lend:function(win,theme){return RadioCore.lend(core,win,theme,show)}};
+})();
+</script>
+</body>
+</html>

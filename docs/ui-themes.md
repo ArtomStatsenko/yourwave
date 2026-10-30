@@ -50,6 +50,16 @@ at once instead of typing it. Its own `view.js` wraps the terminal `RadioTheme.m
 (lime: the spectrum bars; prism: the colour split moving with the sound, a rising title on a new track, a
 settle on a new tab or switch, a still red split on an error). `tests/test_lime_theme.py` checks that no id the behavior uses is missing.
 
+## The shell
+
+`/` serves `radio/web/shell.html`: it makes the one core (polls, the stream, the analyser, Media Session) for the
+whole visit and shows the theme full screen in a frame, `/?theme=<name>&embed=1`. There `RadioCore.create(...)` hands
+the theme the shell's core (`RadioCore.lend`): the same snapshot and sound, while what the theme subscribes and its
+frames are removed when the frame goes. `core.setTheme(name)` then asks the shell to load the new theme in a hidden
+frame and swap it in once it has loaded (about 30–45 ms on the stand), so listening never stops; the address becomes
+`/?theme=<name>`, and the new theme opens Settings with focus on Theme. `/?theme=<name>&standalone` serves a theme on
+its own (its own core; switching reloads the page), for debugging.
+
 ## What the core gives
 
 `RadioCore.create(options)` returns `core`:
