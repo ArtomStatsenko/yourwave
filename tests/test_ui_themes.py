@@ -79,7 +79,7 @@ class LayoutTests(unittest.TestCase):
 
 
 class CardThemeTests(unittest.TestCase):
-    """Themes built on the terminal behavior (lime, synthwave, soft): its elements, the shared bars, one look."""
+    """Themes built on the terminal behavior (lime, synthwave, soft, prism): its elements, the shared bars, one look."""
     def test_card_themes_have_every_element_the_behavior_uses_once(self):
         from collections import Counter
         behavior = (WEB / "themes/terminal/view.js").read_text()
@@ -93,12 +93,10 @@ class CardThemeTests(unittest.TestCase):
                 self.assertEqual(sorted(used - set(ids)), [])
                 self.assertEqual([k for k, n in ids.items() if n > 1], [])
                 scripts = re.findall(r'<script src="([^"]+)"></script>', html)
-                bars = ["/ui/themes/shared/bars.js"] if name in ON_LAYOUT or 'id="spectrum-bars"' in html else []
                 self.assertEqual(scripts, ["/ui/core/core.js", "/ui/core/model.js", "/ui/themes/terminal/view.js",
-                                           *bars, f"/ui/themes/{name}/view.js"])
+                                           "/ui/themes/shared/bars.js", f"/ui/themes/{name}/view.js"])
                 self.assertIn(f'data-skin="{name}"', html)
-                look = "look.css" if name in ON_LAYOUT else "cards.css"   # the card look on the shared layout, or the old card layout
-                self.assertIn(f'@import url("/ui/themes/shared/{look}");', (WEB / "themes" / name / "theme.css").read_text())
+                self.assertIn('@import url("/ui/themes/shared/look.css");', (WEB / "themes" / name / "theme.css").read_text())
 
 
 CORE = (WEB / "core/core.js").read_text()
