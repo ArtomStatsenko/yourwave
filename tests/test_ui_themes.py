@@ -42,6 +42,19 @@ class VoiceLineTests(unittest.TestCase):
         self.assertIn("min this hour", status[:status.index("</details>")])   # Settings → Playback status keeps the details
 
 
+class SettingsSummaryTests(unittest.TestCase):
+    def test_ai_and_voice_name_the_provider_and_engine_once_in_their_fields(self):
+        behavior = (WEB / "themes/terminal/view.js").read_text()
+        ai = behavior[behavior.index("function aiView("):behavior.index("var sample={")]
+        voice = behavior[behavior.index("function voiceView("):behavior.index("function sampleState(")]
+        for block, name in ((ai, "a.name"), (voice, "v.name")):
+            self.assertNotIn(name, block)                                      # the summary: the state only
+            self.assertIn('class="sum stt', block)
+            self.assertIn('role="status" aria-live="polite"', block)
+        self.assertIn('<div class="engine-row"><select id="st-voice_engine"', voice)    # the sample shares the engine's row
+        self.assertLess(voice.index('id="st-voice_engine"'), voice.index('id="voice-sample"'))
+
+
 class CardThemeTests(unittest.TestCase):
     """Themes built on the terminal behavior (lime, synthwave, soft): its elements, the shared bars, one look."""
     def test_card_themes_have_every_element_the_behavior_uses_once(self):

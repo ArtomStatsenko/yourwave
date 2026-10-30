@@ -91,7 +91,6 @@
 /* forms: dark fields with a grey frame */
 :root[data-skin="prism"] :is(.st input[type=url],.st input[type=password],.st input[type=text],.st select,.st textarea,
   #direction-controls input,#direction-controls select,#direction-controls textarea){background:#0b0b0d;border-color:var(--edge);border-radius:8px}
-:root[data-skin="prism"] .sum{border:1px solid var(--line);border-radius:10px}
 :root[data-skin="prism"] .st input[type=range]{accent-color:#fff}
 
 /* reduced motion: the split stays, still; nothing moves */

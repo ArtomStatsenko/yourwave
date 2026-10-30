@@ -131,8 +131,8 @@
 :root[data-skin] .ab{min-height:44px;font-size:16px;padding:0 18px}
 :root[data-skin] .st .rs{color:var(--accent)}
 
-/* AI and Voice: the summary is a tile with a coloured dot */
-:root[data-skin] .sum{background:var(--summary);border:0;border-radius:var(--r-tile,12px);padding:12px 14px;margin:4px 0 8px}
-:root[data-skin] .sum .nm{font-size:20px;line-height:1.3;font-weight:500}
+/* AI and Voice: the state beside the heading, no tile; one line between the blocks, none inside */
+:root[data-skin] .ai{border-bottom:1px solid var(--line)}
+:root[data-skin] .ai .st{border-bottom:0}
 
 @media (prefers-reduced-motion:reduce){:root[data-skin] *{transition:none!important}}

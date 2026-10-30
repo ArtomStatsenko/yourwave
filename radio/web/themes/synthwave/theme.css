@@ -31,4 +31,3 @@
 :root[data-skin="synthwave"] .it,:root[data-skin="synthwave"] #upcoming{padding:10px 0;margin:0;border-bottom:1px solid var(--rule)}
 :root[data-skin="synthwave"] .it.cur{outline:0}
 :root[data-skin="synthwave"] .it .tm,:root[data-skin="synthwave"] #upcoming .tm{color:#ff9ad0}
-:root[data-skin="synthwave"] .sum{border:1px solid var(--line)}

@@ -31,7 +31,6 @@
 :root[data-skin="soft"] :is(.pl .sw,input[role=switch]){border:0;background:var(--bg);box-shadow:var(--pressed)}
 :root[data-skin="soft"] :is(.pl[aria-pressed="true"] .sw,input[role=switch]:checked){background:var(--accent)}
 :root[data-skin="soft"] :is(.pl .sw,input[role=switch])::after{background:#fff;box-shadow:1px 1px 3px var(--sh)}
-:root[data-skin="soft"] .sum{box-shadow:var(--pressed)}
 
 /* the cover: a gradient of the accent lit from inside; the bars sit on it in a deeper (light) or paler (dark) accent */
 :root[data-skin="soft"] .cover{box-shadow:var(--cover-glow)}

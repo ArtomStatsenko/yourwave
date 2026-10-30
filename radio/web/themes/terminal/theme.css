@@ -192,9 +192,12 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .range-labels{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:16px;margin-bottom:8px}
 /* AI block of Settings (design system: AiSettings): summary, provider, key or sign-in, model; glyphs carry the state, not only colour */
 .ai{display:grid}
-.ai-h{font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px 0 4px}
-.sum{display:grid;gap:2px;padding:12px 0 16px;border-bottom:1px solid var(--line)}
-.sum .nm{font-size:22px;line-height:32px;font-weight:600;overflow-wrap:anywhere}
+.ai-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 16px;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:12px 0 0}
+/* AI and Voice: the state beside the heading; one line between the blocks, none inside, a third less space */
+.ai{border-bottom:1px solid var(--line);padding-bottom:6px}
+.ai .st{border-bottom:0;padding:6px 0 4px}
+.ai-h .sum{letter-spacing:0;text-transform:none}
+.engine-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.engine-row select{flex:1;min-width:220px;width:auto;margin:0}.engine-row .ab{min-width:17ch}
 .stt{display:flex;gap:8px;align-items:baseline;font-size:16px;line-height:24px}
 .stt .g{flex:none;width:1.4ch;text-align:center}
 .stt.ok .g{color:var(--ok)}.stt.bad .g,.stt.bad{color:var(--warn)}.stt.wait,.stt.wait .g{color:var(--muted)}
@@ -205,7 +208,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .ab{font-size:16px;padding:6px 14px;min-height:36px}.keyrow .ab{min-width:9ch}
 .fb{font-size:16px;line-height:24px;min-height:24px}.fb.bad{color:var(--warn)}.fb.ok{color:var(--ok)}
 .pick-hint{color:var(--warn)}
-.act{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.act .ab{min-width:17ch}.fb.wait{color:var(--muted)}
+.fb.wait{color:var(--muted)}
 .ab:disabled{opacity:.5;cursor:default}.ab:disabled:hover{border-color:var(--line)}
 .st input[type=url],.st input[type=password],.st input[type=text],.st select,.st textarea{box-sizing:border-box;width:100%;max-width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:8px}
 .st textarea{resize:vertical;min-height:96px}.st textarea[aria-invalid="true"]{border-color:var(--warn)}

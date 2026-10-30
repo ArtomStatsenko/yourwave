@@ -151,9 +151,9 @@ function saveKey(provider,key,remove){
 function aiView(p,m){  // the AI block: summary, provider, key or sign-in, model (design system: AiSettings)
   var a=RadioModel.ai(p),st=a.state,g=a.tone;
   if(keyFb.checking&&st!=='checking')keyFb=RadioModel.keyChecked(st);
-  var h='<section class="ai" aria-label="AI"><div class="ai-h">AI</div>'
-    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(a.name)+'</div>'
-    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(a.status)+(a.note?' <span class="d">· '+esc(a.note)+'</span>':'')+'</span></div></div>'
+  // the summary is the state only, beside the heading: the provider and model are named once, in their fields
+  var h='<section class="ai" aria-label="AI"><div class="ai-h"><span>AI</span>'
+    +'<span class="sum stt '+g[0]+'" role="status" aria-live="polite"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(a.status)+(a.note?' <span class="d">· '+esc(a.note)+'</span>':'')+'</span></span></div>'
     +'<div class="st"><div class="hd2"><label for="st-llm_provider">'+esc(p.title)+'</label>'+resetButton(p)+'</div><select id="st-llm_provider" data-st="llm_provider">'
     +p.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===p.value?' selected':'')+'>'+esc(p.labels[o]||o)+'</option>'}).join('')+'</select>'
     +(p.action?'<div class="row"><button type="button" class="ab" data-act="'+esc(p.action.cmd)+'">'+esc(p.action.label)+'</button></div>':'')+'</div>';
@@ -171,14 +171,15 @@ var sample={st:'idle',err:'',t0:0},sampleTick=null,sampleAudio=null,voicePending
 function sampleFb(){return RadioModel.sampleFeedback(sample,stg.find(function(x){return x.voice_state}))}  // under the sample button (never the player's #er)
 function voiceView(s){  // design system: VoiceSettings
   var v=RadioModel.voice(s,voicePending,sample),g=v.tone,fb=v.feedback,label=v.label;
-  return '<section class="ai" aria-label="Voice"><div class="ai-h">Voice</div>'
-    +'<div class="sum" role="status" aria-live="polite"><div class="nm">'+esc(v.name)+'</div>'
-    +'<div class="stt '+g[0]+'"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(v.status)+(v.note?' <span class="d">· '+esc(v.note)+'</span>':'')+'</span></div></div>'
-    +'<div class="st"><div class="hd2"><label for="st-voice_engine">'+esc(s.title)+'</label>'+resetButton(s)+'</div><select id="st-voice_engine" data-st="voice_engine">'
+  // the summary is the state only, beside the heading (the engine is named once, in its field); the sample button
+  // shares the engine's row, its feedback right below
+  return '<section class="ai" aria-label="Voice"><div class="ai-h"><span>Voice</span>'
+    +'<span class="sum stt '+g[0]+'" role="status" aria-live="polite"><span class="g" aria-hidden="true">'+g[1]+'</span><span>'+esc(v.status)+(v.note?' <span class="d">· '+esc(v.note)+'</span>':'')+'</span></span></div>'
+    +'<div class="st"><div class="hd2"><label for="st-voice_engine">'+esc(s.title)+'</label>'+resetButton(s)+'</div>'
+    +'<div class="engine-row"><select id="st-voice_engine" data-st="voice_engine">'
     +s.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===s.value?' selected':'')+'>'+esc(label(o))+'</option>'}).join('')+'</select>'
-    +'<div class="l">'+esc(s.hint)+'</div></div>'
-    +'<div class="st"><div class="act"><button type="button" class="ab" id="voice-sample"'+(sample.st==='busy'?' disabled aria-busy="true"':'')+'>'
-    +v.sampleLabel+'</button></div>'
+    +'<button type="button" class="ab" id="voice-sample"'+(sample.st==='busy'?' disabled aria-busy="true"':'')+'>'+v.sampleLabel+'</button></div>'
+    +'<div class="l">'+esc(s.hint)+'</div>'
     +'<div class="fb '+fb[0]+'" id="voice-fb" role="status" aria-live="polite">'+esc(fb[1])+'</div></div></section>'}
 function sampleState(st,err){sample.st=st;sample.err=err||'';clearInterval(sampleTick);
   if(st==='busy'){sample.t0=Date.now();sampleTick=setInterval(function(){var f=$('voice-fb'),t=sampleFb();if(f){f.textContent=t[1]}},1000)}
