@@ -53,9 +53,12 @@ class MobileControlTests(unittest.TestCase):
     def test_phone_receives_the_desktop_ui_and_uncached_token(self):
         code, body, headers = self.request('/')
         self.assertEqual(code, 200)
-        expected = ((ui.WEB / 'themes/terminal/index.html').read_text().replace('__TOKEN__', self.server.token)
-                    .replace('__LOCAL_CONTROL__', 'false').encode())
+        expected = ((ui.WEB / 'shell.html').read_text().replace('__TOKEN__', self.server.token).replace('__THEME__', 'terminal')
+                    .replace('__LOCAL_CONTROL__', 'false').encode())   # the shell; the theme comes in its frame (?embed=1)
         self.assertEqual(body, expected)
+        code, body, _ = self.request('/?theme=terminal&embed=1')
+        self.assertEqual(body, (ui.WEB / 'themes/terminal/index.html').read_text().replace('__TOKEN__', self.server.token)
+                         .replace('__LOCAL_CONTROL__', 'false').encode())
         self.assertEqual(headers['Cache-Control'], 'no-store')
         self.assertEqual(self.mobile.server_address[0], '127.0.0.1')
 
