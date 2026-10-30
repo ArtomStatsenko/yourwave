@@ -118,13 +118,11 @@ function player(){
   if(select.dataset.ytEnabled!==String(ytEnabled)){select.innerHTML=musicSourceOptions(ytEnabled);select.dataset.ytEnabled=String(ytEnabled)}
   if(!ytEnabled||document.activeElement!==select)select.value=ytEnabled?musicChoice:'local';
   $('music-source-select').disabled=busy;
-  $('yt-summary').textContent='YouTube Music: '+(ytEnabled?'on':'off')+' · '+(ytStatus.connected?ytStatus.tracks+' tracks configured':'not connected');
-  if($('sp')){  // the speech and voice details, where a theme shows them (terminal: Settings → Playback status)
+  $('yt-summary').textContent='YouTube Music: '+(ytEnabled?'on':'off')+(ytStatus.connected?'':' · not connected');  // the song count is beside Connect
+  if($('sp')){  // the speech details, where a theme shows them (Settings → Playback status); the voice state is the Voice block's
     var sp=p.speech.minutes,lim=p.speech.limit;
     $('sp').textContent=sp.toFixed(1);$('splim').textContent=lim%1?lim.toFixed(1):lim;
-    $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=p.speech.near?'var(--warn)':'var(--ok)';
-    $('vd').style.background={off:'var(--line)',warn:'var(--warn)',ok:'var(--ok)'}[p.voiceTone];
-    $('vs').textContent=p.voiceText}
+    $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=p.speech.near?'var(--warn)':'var(--ok)'}
   $('voice-warn').textContent=p.voiceTone==='warn'?p.voiceText:'';  // the player names only a voice problem
   var ppLabel=p.listen.label;
   $('pp').dataset.playing=String(p.listen.playing);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=ppLabel;
@@ -253,7 +251,7 @@ function settingsView(force){  // force: after this page saved a value; the poll
   if(f&&f.id&&(force||f.id.startsWith('help-toggle-'))&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
-    $('audio-preset-hint').textContent=d.ok===false?d.error:'Restart the station to apply.';
+    $('audio-preset-hint').textContent=d.ok===false?d.error:'Restart the station to apply.';$('audio-preset-hint').dataset.said='1';
     refresh();
   }).catch(function(){$('audio-preset-hint').textContent='Could not save the audio preset. Try again.'})
 };
@@ -277,6 +275,8 @@ $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();
   api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true);var field=$('st-'+key);if(field)field.focus({preventScroll:true})}).catch(function(e){$('er').textContent=e.message;sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
+  // one restart note for Audio preset and the playlist: under the playlist, or under the preset when the playlist is hidden
+  if(!$('audio-preset-hint').dataset.said)$('audio-preset-hint').textContent=$('yt-form').hidden?'Restart the station to apply.':'';
   var focused=document.activeElement&&document.activeElement.dataset.pl,helpFocus=document.activeElement&&document.activeElement.id;
   sourceManagerView();
   ['integrations','experiments','features'].forEach(function(section){

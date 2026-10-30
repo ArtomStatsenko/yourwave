@@ -43,6 +43,16 @@ class VoiceLineTests(unittest.TestCase):
 
 
 class SettingsSummaryTests(unittest.TestCase):
+    def test_settings_say_each_thing_once(self):
+        layout = (WEB / "themes/shared/layout.html").read_text()
+        behavior = (WEB / "themes/terminal/view.js").read_text()
+        self.assertEqual(layout.count("Restart the station to apply."), 1)       # under the playlist; the preset's note is the script's
+        self.assertIn("$('yt-form').hidden?'Restart the station to apply.':''", behavior)  # under the preset when the playlist is hidden
+        status = layout[layout.index('id="playback-status"'):layout.index("</details>", layout.index('id="playback-status"'))]
+        self.assertNotIn('id="vs"', status)                                       # the voice state is the Voice block's
+        summary = behavior[behavior.index("$('yt-summary')"):behavior.index("\n", behavior.index("$('yt-summary')"))]
+        self.assertNotIn("tracks", summary)                                       # the song count is beside Connect
+
     def test_ai_and_voice_name_the_provider_and_engine_once_in_their_fields(self):
         behavior = (WEB / "themes/terminal/view.js").read_text()
         ai = behavior[behavior.index("function aiView("):behavior.index("var sample={")]
@@ -83,7 +93,7 @@ class CardThemeTests(unittest.TestCase):
     def test_card_themes_have_every_element_the_behavior_uses_once(self):
         from collections import Counter
         behavior = (WEB / "themes/terminal/view.js").read_text()
-        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb", "vd", "vs"}  # drawn by the script; rows and details only some themes have
+        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb"}  # drawn by the script; rows and details only some themes have
         cards = [n for n in THEMES if n != "terminal"]
         self.assertTrue(cards)
         for name in cards:

@@ -77,14 +77,12 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #time{white-space:nowrap;font-variant-numeric:tabular-nums}
 .player-status{gap:12px}
 #voice-warn:empty{display:none}  /* the player's voice line shows only a problem (unavailable, limit near) */
-.voice-state{margin-left:auto;white-space:nowrap}
 #playback-status summary{cursor:pointer;font-size:16px;color:var(--muted)}
 #playback-status[open]{gap:12px}
 @media(max-width:640px){
   body{padding-block:20px;font-size:18px;line-height:28px}
   .player-status{gap:4px 12px;font-size:16px}
   .player-status .lim{max-width:none;min-width:40px}
-  .voice-state{flex-basis:100%;margin-left:0}
 }
 @media(max-width:800px){
   .player-controls{grid-template-columns:auto auto minmax(0,1fr);gap:8px}
@@ -99,7 +97,6 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 button{font:inherit;color:var(--ink);background:none;border:1px solid var(--line);border-radius:2px;padding:10px 20px;cursor:pointer}
 button:hover{border-color:var(--ink)}button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:disabled{opacity:.4;cursor:default}button:disabled:hover{border-color:var(--line)}
-.dot{display:inline-block;width:12px;height:12px;border-radius:999px;margin-right:6px;background:var(--ok)}
 .lim{height:4px;background:var(--line);max-width:240px;flex:1;min-width:80px}.lim i{display:block;height:4px;background:var(--ok)}
 /* timeline: two columns (time, title), no lines or cards; special kinds are marked by a prefix inside the title */
 .it{border:0}

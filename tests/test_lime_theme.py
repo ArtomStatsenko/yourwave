@@ -16,7 +16,7 @@ class LimeMarkupTests(unittest.TestCase):
         used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior))
         html = theme_html("lime")
         ids = Counter(re.findall(r'id="([^"]+)"', html))
-        made_by_script = {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb", "vd", "vs"}  # drawn with the AI and Voice blocks; rows and details only some themes have
+        made_by_script = {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb"}  # drawn with the AI and Voice blocks; rows and details only some themes have
         self.assertEqual(sorted(used - set(ids) - made_by_script), [])
         self.assertEqual([k for k, n in ids.items() if n > 1], [])
         self.assertIn("RadioBars.wrap(RadioTheme,20)", (LIME / "view.js").read_text())   # bars.js fills the layout's slot with 20
