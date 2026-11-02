@@ -564,6 +564,22 @@ function ytConnect(browser){if(ytBusy||!$('yt-form').reportValidity())return;ytB
 $('yt-form').onsubmit=function(e){e.preventDefault();ytConnect('')};
 $('yt-chrome').onclick=function(){ytConnect('chrome')};
 function rk(x){return RadioModel.replayKind(x)}
+// Skip a coming row this time, or take it back: a song by its ref, a plan block through the plan (as Edit does);
+// "Skipped · title" shows for 6 s with Don't skip
+var futureRows=[],skipToast=null;
+function skipRow(key,skip){
+  var r=futureRows.find(function(x){return x.key===key});if(!r)return;
+  var plan=st.broadcast_plan||{};
+  var ask=r.id?api('/api/cmd',{cmd:'direction',action:'save',version:plan.version,
+      changes:[{id:r.id,kind:r.kind,at:r.planAt,skipped:skip,rank:r.rank,skip_only:r.locked,skip_confirmed:true}]}):
+    api('/api/cmd',{cmd:skip?'skip':'unskip',ref:r.ref});
+  clearTimeout(skipToast);$('skip-toast').hidden=!skip;
+  if(skip){$('skip-toast-text').textContent='Skipped · '+r.title;$('skip-toast').dataset.key=key;$('skip-toast').dataset.ref=r.ref||'';$('skip-toast').dataset.id=r.id||'';
+    skipToast=setTimeout(function(){$('skip-toast').hidden=true},6000)}
+  ask.then(function(d){if(d&&d.ok===false){$('er').textContent=d.error;$('skip-toast').hidden=true}refresh()})
+    .catch(function(){$('er').textContent='the radio is not answering'})}
+$('skip-undo').onclick=function(){var t=$('skip-toast'),r=futureRows.find(function(x){return x.skipped&&(x.ref&&x.ref===t.dataset.ref||x.id&&x.id===t.dataset.id)});
+  if(r)skipRow(r.key,false);t.hidden=true}
 // a thumbs up for one airing of a song (24px line icon, filled when given)
 var THUMB='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1H7zm0 0l3.2-6.2a1.7 1.7 0 0 1 3.2 1L12.6 10H18a2 2 0 0 1 2 2.4l-1.3 6a2 2 0 0 1-2 1.6H7"/></svg>';
 function markButton(x){return '<button type="button" class="mk" data-mark="'+esc(String(x.id))+'" aria-pressed="'+!!x.marked+'" aria-label="Thumbs up" title="Hear this more often">'+THUMB+'</button>'}
@@ -598,13 +614,22 @@ function timeline(){
   if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
   var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
   function trackLabels(tags){if(!tags)return '';return (tags.announced?'<span class="l announced-track"> · announced</span>':'')}
-  var up=RadioModel.upcoming(st,rerollError),next=up.next;
-  $('upcoming').hidden=!next&&!up.queue.length||!!planDraft;
+  var CROSS='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  function atClock(at){return appearance.formatTime(new Date(at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'}))}
+  var up=RadioModel.future(st,rerollError);futureRows=up.rows;
+  $('upcoming').hidden=!up.rows.length&&!up.queue.length||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;
   // the planned next above the queue, the queue nearest "now" (queue 1 plays next)
   var queued=up.queue.slice().reverse().map(function(q){return '<div class="tg queued-row"><span class="tm">'+(q.place===1?'next':'then')+'</span><span class="tx">queue '+q.place+' · '+esc(q.title)+'</span>'+
-    '<button type="button" class="rp" data-unqueue="'+esc(q.ref)+'" data-kind="'+esc(q.kind)+'" title="Remove from the queue" aria-label="Remove '+esc(q.title)+' from the queue"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'}).join('');
-  $('upcoming').innerHTML=(next?'<div class="tg"><span class="tm">'+(up.queue.length?'then':'next')+'</span><span class="tx'+(up.pending?' pend':'')+'" title="'+esc(up.title)+'">'+esc(up.title)+(up.pending?' <span class="l">· loading…</span>':trackLabels(up.tags))+'</span>'+(up.reroll?rerollButton():'')+'</div>'+(up.error?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(up.error)+'</span></div>':''):'')+queued;
+    '<button type="button" class="rp" data-unqueue="'+esc(q.ref)+'" data-kind="'+esc(q.kind)+'" title="Remove from the queue" aria-label="Remove '+esc(q.title)+' from the queue">'+CROSS+'</button></div>'}).join('');
+  // farthest at the top, the nearest right above the queue and now
+  $('upcoming').innerHTML=up.rows.slice().reverse().map(function(r){
+    var tm=r.next?(up.queue.length?'then':'next'):(r.at?(r.tentative?'~':'')+atClock(r.at):'');
+    var tx=r.next?esc(r.title)+(r.pending?' <span class="l">· loading…</span>':trackLabels(r.tags)):(r.label==='then'?'then · ':'')+esc(r.title);
+    var acts=r.skipped?'<button type="button" class="unskip" data-unskip="'+esc(r.key)+'" aria-label="Don\'t skip '+esc(r.title)+'">Don\'t skip</button>':
+      (r.reroll?rerollButton():'')+(r.skippable?'<button type="button" class="rp" data-skip="'+esc(r.key)+'" title="Skip" aria-label="Skip '+esc(r.title)+'">'+CROSS+'</button>':'');
+    return '<div class="tg coming'+(r.skipped?' skipped':'')+'"><span class="tm">'+tm+'</span><span class="tx'+(r.pending?' pend':'')+'" title="'+esc(r.title)+'">'+tx+'</span><span class="acts">'+acts+'</span></div>'}).join('')+
+    (up.error?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(up.error)+'</span></div>':'')+queued;
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
   var tl=RadioModel.timeline({timeline:items,status:st},running()),aired=tl.entries,activity=tl.activity,background=tl.background;
@@ -741,6 +766,8 @@ $('pp').onclick=function(){
   if(!browser())return cmd(st.state==='PLAYING'?'pause':'resume');
   listening?unlisten():listen()};
 $('upcoming').onclick=function(e){var b=e.target.closest('[data-reroll]');if(b){rerollNext(b.dataset.reroll,b.dataset.ref);return}
+  var sk=e.target.closest('[data-skip]');if(sk){skipRow(sk.dataset.skip,true);return}
+  var un=e.target.closest('[data-unskip]');if(un){skipRow(un.dataset.unskip,false);return}
   var u=e.target.closest('[data-unqueue]');if(u)cmd('unqueue',{kind:u.dataset.kind,ref:u.dataset.unqueue})};
 $('upcoming').onkeydown=function(e){if(e.key==='Escape'&&rerollConfirm){e.preventDefault();rerollNext('cancel')}};
 $('music-source-select').onchange=function(e){

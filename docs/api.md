@@ -79,6 +79,7 @@ are listed by `/api/capabilities`:
 | `chatgpt_logout`, `openrouter_logout` | | Sign out |
 | `voice_sample` | | Answer `{url}` of a short sample in the selected voice |
 | `hook_review` | `id`, `approved` | Approve or reject a track preview |
+| `skip`, `unskip` | `ref` | Skip a coming song this time (the round goes on without it; one already prefetched is set aside), or take it back to its place while it has not passed. Idempotent; marks and the replay queue are untouched. Blocks are skipped with `direction` `save` (`skipped`) |
 | `mark`, `unmark` | `id` | Thumbs up for one airing of a song (`id`: its timeline entry), or take it back. Idempotent; answers `{id, marked}` |
 
 ## Audio

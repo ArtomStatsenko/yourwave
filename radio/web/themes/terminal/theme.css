@@ -127,6 +127,11 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .rp svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
 #upcoming .queued-row .tm{color:var(--ink)}#upcoming .rp{opacity:1}  /* a queued song's ✕ is always there */
 #upcoming .tg+.tg{margin-top:6px}
+/* a coming row skipped this time: dim and struck through, with Don't skip; "Skipped · …" for 6 s under the timeline */
+#upcoming .acts{display:flex;align-items:center;flex:none}#upcoming .coming.skipped{opacity:.5}#upcoming .coming.skipped :is(.tm,.tx){text-decoration:line-through}
+#upcoming .unskip,.toast button{border:0;min-height:44px;padding:0 8px;font-size:16px;color:var(--accent);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}
+.toast{position:sticky;bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:12px;padding:4px 4px 4px 14px;
+  border:1px solid var(--ink);background:var(--bg)}.toast[hidden]{display:none}
 /* charts: place, title with plays and marks and a bar against the leader, the move since yesterday, the marks */
 .chart-tools{display:flex;gap:16px;align-items:center;flex-wrap:wrap;min-height:44px}
 #chart-windows{display:flex;gap:4px;flex-wrap:wrap}

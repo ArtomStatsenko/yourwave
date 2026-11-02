@@ -2478,6 +2478,10 @@ class Service:
                     ref = json.loads(match.group(1))
             kind = row.get('kind') or ('music' if ref in self.library else '')
             seconds = row.get('duration',0)
+            if row.get('skipped'):  # shown in its place, takes no time
+                result.append({'ref': ref, 'title': music.label(self.db, ref), 'set': False, 'skipped': True,
+                               'at': iso(datetime.fromtimestamp(cursor, timezone.utc)) if cursor is not None else None})
+                continue
             if kind == 'music' and ref:
                 while cursor is not None and blocks and content.parse_time(blocks[0].get('expected_at') or blocks[0]['at']).timestamp() <= cursor:
                     block = blocks.pop(0)
@@ -2628,6 +2632,15 @@ class Service:
             return await self.unqueue(str((req or {}).get("kind", "")), str((req or {}).get("ref", "")))
         if cmd == 'reroll-next':
             return await self._reroll_next(str((req or {}).get('ref', '')))
+        if cmd in ('skip', 'unskip'):  # a coming song, this time only; marks and the replay queue are untouched
+            ref = str((req or {}).get('ref', '')).strip()
+            if not ref or '\n' in ref:
+                return {'ok': False, 'error': 'Choose a coming song'}
+            if ref == self.next_track:
+                await self._cancel_preview()  # a "Coming up" prepared for the next song no longer fits, as on a reroll
+            if await self.engine.command(f'music.{cmd} {ref}', timeout=85) != 'OK':  # queued YouTube songs load again, as on a reroll
+                return {'ok': False, 'error': 'This song is no longer coming up'}
+            return await self.dispatch('status')
         if cmd in ("status", "play"):
             if cmd == "play" and self.state == "PAUSED":
                 return await self.dispatch("resume")
@@ -2656,10 +2669,11 @@ class Service:
                     if isinstance(rows,list):
                         status['upcoming_tracks'] = self._music_plan_rows(rows,probe=False,
                             plan=(status.get('broadcast_plan') or {}).get('rows', []))
-                        if not ref and status['upcoming_tracks']:
-                            self.next_track = status['upcoming_tracks'][0]['ref']
+                        coming = [r for r in status['upcoming_tracks'] if not r.get('skipped')]
+                        if not ref and coming:
+                            self.next_track = coming[0]['ref']
                             status['upcoming'].append({'kind':'music','ref':self.next_track,
-                                                       'title':status['upcoming_tracks'][0]['title'],'stage':'music'})
+                                                       'title':coming[0]['title'],'stage':'music'})
                             status['next_reroll'] = self._reroll_state()
                         if self.plan_metadata_missing and (self.plan_metadata_task is None or self.plan_metadata_task.done()):
                             self.plan_metadata_task = asyncio.create_task(self._warm_music_plan(rows))

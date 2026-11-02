@@ -13,7 +13,7 @@ OPERATIONS = {
     'audio_preset': ['name'], 'reddit_community': ['action', 'value'], 'telegram_channel': ['action', 'value'],
     'ytmusic_connect': ['cookie', 'playlist', 'browser'], 'voice_sample': [], 'llm_key': ['provider', 'key'],
     'chatgpt_login': [], 'chatgpt_logout': [], 'openrouter_login': [], 'openrouter_logout': [],
-    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'mark': ['id'], 'unmark': ['id'],
+    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'],
     'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'],
     'direction': ['action', 'kind', 'ref', 'text', 'at', 'id', 'token', 'changes', 'version', 'remember_undo'],
 }
@@ -224,6 +224,8 @@ def execute(body, *, sender=None, starter=None, port=8765):
             return reply({'ok': False, 'error': 'Choose a song from the timeline' if isinstance(error, TypeError) else str(error)}, 400)
         finally:
             db.close()
+    elif cmd in ('skip', 'unskip'):
+        resp = send(cmd, timeout=90, ref=str(body.get('ref', '')))
     elif cmd == "reroll-next":
         resp = send(cmd, timeout=45, ref=str(body.get("ref", "")))
     elif cmd == "direction":

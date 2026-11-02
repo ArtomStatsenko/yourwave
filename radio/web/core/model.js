@@ -84,6 +84,36 @@ var RadioModel=(function(){
       reroll:!!(next&&next.kind==='music'&&status.next_reroll&&next.ref===status.next_reroll.ref),
       error:localError||nr.error||''};
   }
+  // What comes after now in the timeline (the replay queue aside), nearest first, at most 8 rows: next, then the
+  // following two songs (their times tentative) and, with Air direction, the plan's blocks within the hour; a skipped
+  // one stays in its place. Each row: key, label (next, then, skipped, or the block's kind), title, at, tentative,
+  // skippable, skipped, and ref (a song) or id and rank (a block). next also has pending, reroll and tags.
+  var FUTURE_ROWS=8,FUTURE_SONGS=2,BLOCK_HOURS=1;
+  function future(status,localError){
+    var up=upcoming(status,localError),next=up.next,rows=[],songs=0,nextShown=false,done=false,now=planNow(status);
+    var nextMusic=!!next&&next.kind==='music';
+    if(next&&!nextMusic)rows.push({key:'next',label:'next',kind:next.kind,title:up.title,at:null,next:true,skippable:false,skipped:false});
+    (status.upcoming_tracks||[]).forEach(function(t,i){
+      if(done)return;
+      var row={key:'song:'+i+':'+t.ref,label:'then',kind:'music',ref:t.ref,title:t.title,at:t.at||null,tentative:true,skippable:true,skipped:!!t.skipped};
+      if(row.skipped){row.label='skipped';rows.push(row);return}
+      if(nextMusic&&!nextShown){nextShown=true;rows.push(Object.assign(row,{label:'next',next:true,title:up.title,tentative:false,pending:up.pending,reroll:up.reroll,tags:up.tags}));return}
+      if(songs===FUTURE_SONGS){done=true;return}
+      songs++;rows.push(row);
+    });
+    if(nextMusic&&!nextShown)rows.unshift({key:'song:next:'+next.ref,label:'next',kind:'music',ref:next.ref,title:up.title,at:null,next:true,
+      skippable:true,skipped:false,pending:up.pending,reroll:up.reroll,tags:up.tags});
+    ((status.broadcast_plan||{}).rows||[]).forEach(function(r,i){
+      var at=Date.parse(r.expected_at||r.at);
+      if(r.kind==='music'||r.status==='QUEUED'||!(at>=now&&at<=now+BLOCK_HOURS*3600e3))return;
+      var p=planRow(r);
+      rows.push({key:'block:'+r.id,label:r.kind,kind:r.kind,id:r.id,rank:i,planAt:r.at,locked:!!r.locked,title:p.title,at:r.expected_at||r.at,
+        tentative:!!p.expectedAt,skippable:p.skippable,skipped:!!r.skipped});
+    });
+    function when(r){return r.at?Date.parse(r.at):r.next?-Infinity:Infinity}  // stable: equal times keep the plan's order
+    rows.sort(function(a,b){return when(a)-when(b)});
+    return {rows:rows.slice(0,FUTURE_ROWS),queue:up.queue,error:up.error};
+  }
   // A song's tags in the plan: announced by the host.
   // announced: refs still unclaimed this render (a song announced once is tagged once).
   function trackTags(x,status,announced){
@@ -266,5 +296,5 @@ var RadioModel=(function(){
     keySaved:keySaved,KEY_EMPTY:KEY_EMPTY,voice:voice,sampleFeedback:sampleFeedback,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,starsText:starsText,
-    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,queuePlace:queuePlace,charts:charts,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
+    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,queuePlace:queuePlace,charts:charts,future:future,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
 })();

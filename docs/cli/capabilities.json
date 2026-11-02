@@ -119,6 +119,16 @@
         "id"
       ]
     },
+    "skip": {
+      "fields": [
+        "ref"
+      ]
+    },
+    "unskip": {
+      "fields": [
+        "ref"
+      ]
+    },
     "replay": {
       "fields": [
         "kind",

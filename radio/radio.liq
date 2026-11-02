@@ -34,6 +34,23 @@ def ytmusic(~rlog, ~maxtime, arg) =
 end
 protocol.add(temporary=true, "ytmusic", ytmusic)
 
+# set_queue returns before it has added the requests one by one: wait for them, holding the playlist's next file back
+# until then (hold), or its prefetch lands among them.
+def set_queue_settled(~hold=fun (f) -> f(), get_queue, set_queue, q) =
+  ids = list.map(request.id, q)
+  def rec settle(n) =
+    if n > 0 and not list.for_all(fun (i) -> list.mem(i, list.map(request.id, get_queue())), ids) then
+      thread.pause(.02)
+      settle(n - 1)
+    end
+  end
+  hold(fun () -> begin set_queue(q); settle(100) end)
+end
+def uri_ref(uri) =
+  m = r/ref="([^"]*)"/.exec(uri)
+  m[1]
+end
+
 # Replace a queued request without skipping the currently playing source.
 # hold(f): run f while the playlist hands out no next file (its prefetch would slip one in among a new queue).
 def replace_music(~hold=fun (f) -> f(), get_queue, set_queue, arg) =
@@ -70,16 +87,7 @@ def replace_music(~hold=fun (f) -> f(), get_queue, set_queue, arg) =
           end, prepared)
           if resolved then "STALE" else "UNAVAILABLE" end
         else
-          # set_queue returns before it has added the requests one by one: wait for them, holding the playlist's next
-          # file back until then, or its prefetch lands among them.
-          ids = list.map(request.id, prepared)
-          def rec settle(n) =
-            if n > 0 and not list.for_all(fun (i) -> list.mem(i, list.map(request.id, get_queue())), ids) then
-              thread.pause(.02)
-              settle(n - 1)
-            end
-          end
-          hold(fun () -> begin set_queue(prepared); settle(100) end)
+          set_queue_settled(hold=hold, get_queue, set_queue, prepared)
           request.destroy(old)
           "#{request.id(replacement)}"
         end
@@ -137,7 +145,18 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
   loop_reload = ref(fun () -> ())
   loaded = ref(false)
   holding = ref(false)
-  s = playlist.list(id=id, prefetch=prefetch, mode="normal",
+  # Songs skipped this time (Timeline ✕). One still in the round is passed over when the round gets to it; one already
+  # prefetched is set aside and goes back to its place on "Don't skip", until it would have played.
+  skipped = ref([])   # refs, one per skipped play
+  aside = ref([])     # (place in the queue, uri)
+  def check_next(r) =
+    k = uri_ref(request.uri(r))
+    if list.mem(k, skipped()) then
+      skipped := list.remove(k, skipped())
+      false
+    else true end
+  end
+  s = playlist.list(id=id, prefetch=prefetch, mode="normal", check_next=check_next,
     on_loop=fun () -> begin f = loop_reload(); f() end, [])
   s.on_wake_up(synchronous=false, memoize(fun () -> begin
     s.reload(ordered(files()))
@@ -153,6 +172,49 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
     s.reload(empty_queue=false, rest)
     holding := false
   end
+  def is_aside(k) = list.exists(fun (a) -> uri_ref(snd(a)) == k, aside()) end
+  # set_queue destroys the requests it replaces: the new queue is made of resolved copies (as replace_music does)
+  def requeue(uris) =
+    prepared = list.map(fun (u) -> request.create("annotate:plan_clone=\"1\":#{u}"), uris)
+    if list.for_all(fun (r) -> request.resolve(timeout=25., r), prepared) then
+      set_queue_settled(hold=hold, s.queue, s.set_queue, prepared)
+      true
+    else
+      list.iter(request.destroy, prepared)
+      false
+    end
+  end
+  def skip(k) =
+    q = list.map(request.uri, s.queue())
+    i = list.index(fun (u) -> uri_ref(u) == k, q)
+    if list.mem(k, skipped()) or is_aside(k) then "OK"
+    elsif i < list.length(q) then
+      if requeue(list.filter(fun (u) -> u != list.nth(q, i), q)) then
+        aside := [...aside(), (i, list.nth(q, i))]
+        "OK"
+      else "STALE" end
+    elsif list.exists(fun (f) -> uri_ref(f) == k, s.remaining_files()) then
+      skipped := [...skipped(), k]
+      "OK"
+    else "STALE" end
+  end
+  def unskip(k) =
+    if is_aside(k) then
+      a = list.find(fun (a) -> uri_ref(snd(a)) == k, aside())
+      q = list.map(request.uri, s.queue())
+      if requeue(list.insert(min(fst(a), list.length(q)), snd(a), q)) then
+        aside := list.filter(fun (x) -> x != a, aside())
+        "OK"
+      else "STALE" end
+    elsif list.mem(k, skipped()) then
+      skipped := list.remove(k, skipped())
+      "OK"
+    else "STALE" end
+  end
+  # each song this playlist starts brings the set-aside ones a place nearer; one whose turn has passed is gone
+  s.on_track(synchronous=true, fun (_) -> begin
+    aside := list.filter(fun (a) -> fst(a) >= 0, list.map(fun (a) -> (fst(a) - 1, snd(a)), aside()))
+  end)
   def reorder() =
     remaining = s.remaining_files()
     pending = if shuffle_enabled() then shuffle_sources(remaining) else
@@ -176,7 +238,7 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
     s.reload(ordered(files()))
     "OK"
   end)
-  s.{reorder=reorder,reserve=reserve,hold=hold}
+  s.{reorder=reorder,reserve=reserve,hold=hold,skip=skip,unskip=unskip,skipped={skipped()},aside={aside()}}
 end
 music = controlled_playlist(id="music", prefetch=(if yt_count > 0 then 3 else 1 end), environment.get("RADIO_M3U"))
 local_reorder = ref(fun () -> ())
@@ -242,17 +304,30 @@ end
 server.register("music.plan", fun (_) -> begin
   get = active_playlist()
   source = get()
-  def rows(s, is_set) =
-    list.map(fun (r) -> begin
-      m = request.metadata(r)
-      {ref=m["ref"], uri=request.uri(r), kind=m["kind"], set=is_set,
-       duration=float_of_string(default=0., m["duration"])}
-    end, future_requests(s))
+  def row(r, is_set, skipped) =
+    m = request.metadata(r)
+    {ref=m["ref"], uri=request.uri(r), kind=m["kind"], set=is_set, skipped=skipped,
+     duration=float_of_string(default=0., m["duration"])}
   end
-  tail = list.map(fun (uri) -> {ref="", uri=uri, kind="music", set=false, duration=0.}, source.remaining_files())
+  def rows(s, is_set) = list.map(fun (r) -> row(r, is_set, false), future_requests(s)) end
+  # skipped songs stay in the plan, marked, in their place: a set-aside one where it was queued, one still in the
+  # round at its next turn
+  queued = rows(source, false)
+  offset = list.length(queued) - list.length(source.queue())
+  queued = list.fold(fun (acc, a) -> list.insert(min(offset + fst(a), list.length(acc)),
+    {ref=uri_ref(snd(a)), uri=snd(a), kind="music", set=false, skipped=true, duration=0.}, acc), queued, source.aside())
+  pending = ref(source.skipped())
+  tail = list.map(fun (uri) -> begin
+    hit = list.mem(uri_ref(uri), pending())
+    if hit then pending := list.remove(uri_ref(uri), pending()) end
+    {ref="", uri=uri, kind="music", set=false, skipped=hit, duration=0.}
+  end, source.remaining_files())
   json.stringify(compact=true, list.append(rows(news,false),
-    list.append(rows(fresh,true),list.append(rows(source,false),tail))))
+    list.append(rows(fresh,true),list.append(queued,tail))))
 end)
+# Skip a coming song this time, or take the skip back (refs; idempotent; STALE: it is no longer coming)
+server.register("music.skip", fun (arg) -> begin get = active_playlist(); s = get(); s.skip(string.trim(arg)) end)
+server.register("music.unskip", fun (arg) -> begin get = active_playlist(); s = get(); s.unskip(string.trim(arg)) end)
 def preview_requests() =
   get = active_playlist()
   list.prefix(2, list.append(future_requests(fresh), future_requests(get())))
