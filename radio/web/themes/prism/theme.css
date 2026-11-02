@@ -89,3 +89,6 @@
 
 /* reduced motion: the split stays, still; nothing moves */
 @media (prefers-reduced-motion:reduce){:root[data-skin="prism"] *,:root[data-skin="prism"] *::after{animation:none!important;transition:none!important}}
+
+/* the "Skipped" notice: black on the stage, a white frame, square */
+:root[data-skin="prism"] .toast{background:#000;border:1px solid #fff;border-radius:0}
