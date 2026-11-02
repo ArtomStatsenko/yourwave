@@ -216,7 +216,7 @@ var RadioModel=(function(){
   function musicSourceLabel(status,enabled,yt,choice){
     var source=status.music_source_state;
     if(source&&status.state!=='STOPPED'){
-      var name=function(s){return s==='ytmusic'?'YouTube Music':'Local music'},current=source.current?name(source.current):'Host on air';
+      var name=function(s){return s==='ytmusic'?'YouTube Music':s==='mixed'?'Local + YouTube Music':'Local music'},current=source.current?name(source.current):'Host on air';
       if(source.phase==='error')return current+' · '+source.error;
       if(source.phase==='crossfade')return name(source.from)+' → '+current+' · crossfading';
       if(source.phase==='loading')return current+' · loading '+name(source.target);
@@ -224,7 +224,8 @@ var RadioModel=(function(){
       return current;
     }
     if(status.music_source==='ytmusic')return 'YouTube Music';
-    if(status.state==='STOPPED')return enabled&&choice==='ytmusic'?'YouTube Music · '+(yt.connected?'configured':'not connected'):'Local music';
+    if(status.music_source==='mixed')return 'Local + YouTube Music';
+    if(status.state==='STOPPED')return enabled&&(choice==='ytmusic'||choice==='mixed')?(choice==='mixed'?'Local + YouTube Music · ':'YouTube Music · ')+(yt.connected?'configured':'not connected'):'Local music';
     if(choice==='local')return 'Local music';
     return 'Local music · YouTube Music '+(!enabled?'off':status.ytmusic_active?'fallback':'not active');
   }

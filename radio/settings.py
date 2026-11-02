@@ -189,7 +189,9 @@ def listing(cfg: dict) -> list[dict]:
 
 def music_source(cfg: dict) -> str:
     selected = _saved().get("music_source", cfg["music"].get("source", "local"))
-    return selected if plugins.on(cfg, "ytmusic") else "local"
+    if not plugins.on(cfg, "ytmusic"):
+        return "local"
+    return "mixed" if plugins.on(cfg, "mix_sources") else selected
 
 
 def _voice_state(live: dict) -> dict:

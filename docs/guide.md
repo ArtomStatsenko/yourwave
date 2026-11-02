@@ -87,7 +87,7 @@ Browser output pauses after 30 seconds without listeners and resumes when one co
 
 For YouTube Music:
 
-The Integrations switch only makes the feature available. It does not select a music source. **Settings → Music source** independently selects Local or YouTube Music; YouTube Music appears only while its integration is enabled. Disabling the integration resets the selection to Local. Re-enabling leaves Local selected. Source changes take effect at a track boundary.
+The Integrations switch only makes the feature available. It does not select a music source. **Settings → Music source** independently selects Local or YouTube Music; YouTube Music appears only while its integration is enabled. Disabling the integration resets the selection to Local. Re-enabling leaves Local selected. Source changes take effect at a track boundary. The **Mix local and YouTube Music** experiment alternates the two libraries in one shuffle regardless of this setting; local songs keep playing if YouTube Music is unreachable. Energy wave is off while mixing, and unplayed-first picks from both libraries.
 
 ```sh
 brew install yt-dlp

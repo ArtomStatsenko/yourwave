@@ -12,6 +12,7 @@ import uuid
 import sys
 import signal
 from datetime import datetime, timedelta, timezone
+from itertools import zip_longest
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -112,6 +113,7 @@ class Service:
         self.intro_rooms: dict = {}  # path -> seconds of intro the host may talk over (from the playlist)
         self.files: list[Path] = []
         self.ytmusic_active = False
+        self.music_mixed = False  # experimental: local files and YouTube Music in one shuffle
         self.music_source_lock = asyncio.Lock()
         self.music_source_error = ""
         self.music_source_ready = False
@@ -180,13 +182,14 @@ class Service:
         for stale in (ytmusic.directory() / "audio").glob("*.webm"):
             stale.unlink(missing_ok=True)
         try:
-            remote = ytmusic.write_m3u(self.db, remote_m3u) if settings.music_source(self.cfg) == "ytmusic" else {}
+            remote = self._write_remote_m3u() if settings.music_source(self.cfg) != "local" else {}
         except ValueError:
             remote = {}
             remote_m3u.write_text("#EXTM3U\n")
         self.library.update(remote)
         self.intro_rooms.update(remote)
-        self.ytmusic_active = settings.music_source(self.cfg) == "ytmusic" and bool(remote)
+        self.ytmusic_active = settings.music_source(self.cfg) != "local" and bool(remote)
+        self.music_mixed = self.ytmusic_active and settings.music_source(self.cfg) == "mixed"
         if not self.ytmusic_active:
             remote_m3u.write_text("#EXTM3U\n")
         if not files and not self.ytmusic_active:
@@ -665,7 +668,7 @@ class Service:
         if prev and prev['kind'] == 'music' and self.current['kind'] == 'music':
             old_source = 'ytmusic' if prev['ref'].startswith('ytmusic:') else 'local'
             new_source = 'ytmusic' if self.current['ref'].startswith('ytmusic:') else 'local'
-            self.source_overlap = {'from': old_source, 'until': time.time() + self.current['transition_sec']} if old_source != new_source else None
+            self.source_overlap = {'from': old_source, 'until': time.time() + self.current['transition_sec']} if old_source != new_source and not self.music_mixed else None
         else:
             self.source_overlap = None
         self.next_transition_sec = None
@@ -1793,6 +1796,8 @@ class Service:
         if self.ytmusic_active:
             aired = {r[0] for r in self.db.execute("SELECT DISTINCT ref FROM events WHERE type='MUSIC_STARTED'")}
             found = [f"ytmusic:{t['id']}" for t in ytmusic.library()['tracks'] if f"ytmusic:{t['id']}" not in aired]
+            if self.music_mixed:
+                found += music.unaired_new(self.db, self._local_files())
         else:
             found = music.unaired_new(self.db, self._local_files())
         excluded = {(self.current or {}).get('ref', '')}
@@ -2140,7 +2145,7 @@ class Service:
             return {'ref': ref, 'queue': 'fresh', 'rid': rid}
         ref = getattr(self, 'next_track', '')
         if ref:
-            queue = 'local_music' if getattr(self.engine, 'fallback_m3u', None) and not ref.startswith('ytmusic:') else 'music'
+            queue = 'local_music' if getattr(self.engine, 'fallback_m3u', None) and not self.music_mixed and not ref.startswith('ytmusic:') else 'music'
             return {'ref': ref, 'queue': queue, 'rid': ''}
         return None
 
@@ -2434,6 +2439,18 @@ class Service:
             if result == 'OK':
                 self.engine.music_shuffle = enabled
 
+    def _write_remote_m3u(self):
+        """ytmusic.m3u for the remote-capable playlist; in mixed mode the local lines are interleaved into it.
+        shortcut: tracks alternate one to one whatever the library sizes; Liquidsoap's shuffle mixes them further."""
+        out = config.RUN_DIR / 'ytmusic.m3u'
+        refs = ytmusic.write_m3u(self.db, out)
+        if settings.music_source(self.cfg) == 'mixed':
+            local = (config.RUN_DIR / 'music.m3u').read_text(encoding='utf-8').splitlines()[1:]
+            remote = out.read_text(encoding='utf-8').splitlines()[1:]
+            lines = [x for pair in zip_longest(remote, local) for x in pair if x]
+            out.write_text("\n".join(["#EXTM3U", *lines]) + "\n", encoding='utf-8')
+        return refs
+
     async def _sync_music_source(self):
         async with self.music_source_lock:
             await self._set_music_source()
@@ -2504,8 +2521,9 @@ class Service:
             log('music plan metadata:',type(error).__name__)
 
     async def _set_music_source(self):
-        target = settings.music_source(self.cfg) == 'ytmusic'
-        if target == self.ytmusic_active:
+        choice = settings.music_source(self.cfg)
+        target, mixed = choice != 'local', choice == 'mixed'
+        if target == self.ytmusic_active and (not target or mixed == self.music_mixed):
             self.music_source_error = "" if target or self.files else "No local music available"
             return
         if not target and not self.files and plugins.on(self.cfg, 'ytmusic'):
@@ -2513,7 +2531,7 @@ class Service:
             return
         if target:
             try:
-                refs = ytmusic.write_m3u(self.db, config.RUN_DIR / 'ytmusic.m3u')
+                refs = self._write_remote_m3u()
             except ValueError as e:
                 self.music_source_error = str(e)
                 return
@@ -2529,7 +2547,7 @@ class Service:
             return
         await self._cancel_automatic()
         await self._clear_fresh()
-        self.ytmusic_active = target
+        self.ytmusic_active, self.music_mixed = target, mixed
         self.announced_tracks = []
         self.music_source_ready = False
         self.music_source_error = "" if target or self.files else "No local music available"
@@ -2541,6 +2559,8 @@ class Service:
         target = settings.music_source(self.cfg)
         current = self.current or {}
         actual = ('ytmusic' if current['ref'].startswith('ytmusic:') else 'local') if current.get('kind') == 'music' else None
+        if actual and self.music_mixed:
+            actual = 'mixed'  # either kind of track is expected
         phase = 'idle'
         if self.state in ('PLAYING', 'PAUSED'):
             if self.music_source_error:

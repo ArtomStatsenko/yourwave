@@ -45,6 +45,20 @@ class MusicSourceTests(unittest.TestCase):
         self.assertTrue(plugins.on(self.svc.cfg, 'ytmusic'))
         self.assertEqual(settings.music_source(self.svc.cfg), 'local')
 
+    def test_mixed_playlist_interleaves_local_and_remote_lines(self):
+        plugins.set_plugin('ytmusic', True)
+        plugins.set_plugin('mix_sources', True)
+        (config.RUN_DIR).mkdir(parents=True, exist_ok=True)
+        (config.RUN_DIR / 'music.m3u').write_text('#EXTM3U\nL1\nL2\nL3\n')
+
+        def remote(db, out):
+            out.write_text('#EXTM3U\nY1\nY2\n')
+            return {'ytmusic:abcdefghijk': None}
+        with patch('radio.daemon.ytmusic.write_m3u', side_effect=remote):
+            self.svc._write_remote_m3u()
+        self.assertEqual((config.RUN_DIR / 'ytmusic.m3u').read_text().split(), ['#EXTM3U', 'Y1', 'L1', 'Y2', 'L2', 'L3'])
+        self.assertEqual(settings.music_source(self.svc.cfg), 'mixed')
+
     def test_disabling_integration_resets_selection_and_reenable_keeps_local(self):
         plugins.set_plugin('ytmusic', True)
         settings.set_setting('music_source', 'ytmusic')
