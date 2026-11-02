@@ -48,7 +48,9 @@ does: its `index.html` keeps every element id the terminal script uses (arranged
 replaces terminal's appearance settings: `formatTime(value)`, `mount()`, and `typing: false` to show a new title
 at once instead of typing it. Its own `view.js` wraps the terminal `RadioTheme.mount` to add what the look needs
 (lime: the spectrum bars; prism: the colour split moving with the sound, a rising title on a new track, a
-settle on a new tab or switch, a still red split on an error). `tests/test_lime_theme.py` checks that no id the behavior uses is missing.
+settle on a new tab or switch, a still red split on an error; cyber: a glitch on events only, chosen in Appearance →
+Glitch on events: a new title decodes out of noise, a lost signal and the radio turned off or on tear the title and
+the spectrum and flash blocks, then a still state; Reduced keeps the decode alone, reduced motion is always Off). `tests/test_lime_theme.py` checks that no id the behavior uses is missing.
 
 ## The shell
 
@@ -74,6 +76,7 @@ in CSS only and keeping the reading order; each deviation is listed here:
 | --- | --- | --- |
 | synthwave | The player sits in a neon frame with a glow inside and 20px padding | The frame and glow are the theme's look; inside it the player keeps terminal's arrangement |
 | soft | The player sits on a raised panel, radius 30px, 24px padding | Soft's surfaces are raised or pressed; inside it the player keeps terminal's arrangement |
+| cyber | The player sits on a panel of its own with cut corners and a 1px line | The chamfered panel is the theme's look; inside it the player keeps terminal's arrangement |
 | prism | The whole page sits on a stage: a 1px frame, radius 6px, padding up to 32px | Prism is a lit stage; the blocks inside keep terminal's order |
 | prism | The title wraps to up to three lines and steps down in size (31–48 and over 48 characters), instead of terminal's one line that scrolls | The display face is the theme; a long title stays whole and readable |
 
@@ -145,7 +148,7 @@ and glow stay) for the rest of the browser session (`sessionStorage` `yourwave.c
 does not turn it back on in that session. A theme whose `core.themes()` entry has `modes` or `accent` puts the
 rows `id="appearance-mode-row"` (Mode) and `id="appearance-accent-row"` (Accent) after Theme, `hidden`; the shared
 behavior shows them from those flags. Soft has both (Light, Dark, System; six accents and a custom one, saved in this
-browser); lime, synthwave and prism have neither.
+browser); cyber has Accent only (Yellow, Cyan, Red; dark only); lime, synthwave and prism have neither.
 
 ## Checking a theme
 

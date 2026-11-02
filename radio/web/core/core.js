@@ -8,7 +8,7 @@ var RadioCore=(function(){
   // Page themes (radio/web/themes/<name>), by folder name; one without a title here shows its name capitalized.
   // modes: the colour modes it offers (Settings → Appearance → Mode); accent: it lets the listener choose its accent.
   var THEMES={terminal:{title:'Terminal',modes:['system','light','dark'],accent:true},lime:{title:'Lime'},
-    synthwave:{title:'Synthwave'},soft:{title:'Soft',modes:['light','dark','system'],accent:true}},THEME_KEY='yourwave.theme';
+    synthwave:{title:'Synthwave'},soft:{title:'Soft',modes:['light','dark','system'],accent:true},cyber:{title:'Cyber',accent:true}},THEME_KEY='yourwave.theme';
   var THEME_NOTE='Switching reloads the page and stops listening.',SHELL_NOTE='Switching themes keeps the broadcast playing.';
   function savedTheme(){try{return localStorage.getItem(THEME_KEY)||''}catch(e){return ''}}
   // A page opened without ?theme= goes once to the theme this browser chose; the server still decides by ?theme=,

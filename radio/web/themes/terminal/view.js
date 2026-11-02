@@ -139,7 +139,7 @@ function player(){
   $('nx').textContent=p.next.text;$('nx').setAttribute('aria-busy',String(p.next.busy));
   $('nx').setAttribute('aria-label',p.next.label);$('nx').title=p.next.title;
   $('sk').hidden=p.skipNewsHidden;
-  $('er').textContent=p.error;
+  $('er').textContent=p.error||shownError;  // a lost connection stays said until a poll works again
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
 function saveKey(provider,key,remove){

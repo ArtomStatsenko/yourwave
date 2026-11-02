@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-skin="cyber" data-accent="yellow" data-glitch="on">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yourwave</title>
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="/ui/themes/cyber/theme.css">
+<script src="/ui/core/core.js"></script>
+<script>RadioCore.followSavedTheme('cyber')</script>
+<script>
+// Cyber: dark only; one of three accents and how much the page glitches on events, saved in this browser; 24-hour
+// times, no title typing and no timeline print effect.
+var appearance=(function(){
+  var key='yourwave.cyber',root=document.documentElement,state={accent:'yellow',glitch:'on'},
+    ACCENTS=['yellow','cyan','red'],GLITCH=['on','reduced','off'],$=function(id){return document.getElementById(id)};
+  try{var saved=JSON.parse(localStorage.getItem(key));if(saved&&typeof saved==='object'){
+    if(ACCENTS.indexOf(saved.accent)>=0)state.accent=saved.accent;if(GLITCH.indexOf(saved.glitch)>=0)state.glitch=saved.glitch}}catch(e){}
+  function apply(){
+    root.dataset.accent=state.accent;root.dataset.glitch=state.glitch;
+    document.querySelectorAll('#appearance-accent-row [data-accent]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.accent===state.accent))});
+    if($('glitch-select'))$('glitch-select').value=state.glitch}
+  function set(change){Object.assign(state,change);try{localStorage.setItem(key,JSON.stringify(state))}catch(e){}apply()}
+  apply();
+  return {formatTime:function(value){return value},typing:false,glitch:function(){return state.glitch},mount:function(){
+    document.querySelectorAll('#appearance-accent-row [data-accent]').forEach(function(b){b.onclick=function(){set({accent:b.dataset.accent})}});
+    $('glitch-select').onchange=function(){set({glitch:this.value})};
+    apply()}};
+})();
+document.documentElement.dataset.presentation='calm';document.documentElement.dataset.timelineEffect='off';
+</script>
+</head>
+<body>
+<!--appearance-->
+      <h2 id="appearance-heading">Appearance</h2>
+      <label for="theme-select">Theme</label>
+      <select id="theme-select" aria-label="Theme" aria-describedby="theme-note"></select>
+      <p class="l" id="theme-note"></p>
+      <fieldset id="appearance-accent-row" hidden><legend>Accent</legend>
+        <div class="row swatches" role="group" aria-label="Accent">
+          <button type="button" data-accent="yellow" aria-label="Yellow" aria-pressed="false" style="--swatch:#fcee09"></button><button type="button" data-accent="cyan" aria-label="Cyan" aria-pressed="false" style="--swatch:#19d9ff"></button><button type="button" data-accent="red" aria-label="Red" aria-pressed="false" style="--swatch:#ff2a4d"></button>
+        </div>
+      </fieldset>
+      <label for="glitch-select">Glitch on events</label>
+      <select id="glitch-select"><option value="on">On</option><option value="reduced">Reduced</option><option value="off">Off</option></select>
+    <!--/appearance--><!--layout-->
+<script src="/ui/core/model.js"></script>
+<script src="/ui/themes/terminal/view.js"></script>
+<script src="/ui/themes/shared/bars.js"></script>
+<script src="/ui/themes/cyber/view.js"></script>
+<script>RadioTheme.mount(RadioCore.create({token:"__TOKEN__",localControl:"__LOCAL_CONTROL__"==="true",theme:"cyber"}),document.body);</script>
+</body>
+</html>

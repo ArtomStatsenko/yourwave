@@ -1,0 +1,125 @@
+/* Cyber: dark, chamfered panels and thin lines, one accent for what is live, a glitch only on events (view.js), on the
+   shared layout (themes/shared/look.css). Accent presets: data-accent (yellow, cyan, red) on <html>. */
+@import url("/ui/themes/shared/look.css");
+
+:root[data-skin="cyber"]{color-scheme:dark;--page:#050608;--bg:#0a0b0f;--panel:#10121a;--surface:#10121a;--summary:#10121a;
+  --tile:transparent;--current:transparent;--current-line:transparent;--ink:#e8ecf1;--muted:#8a90a0;--line:#2a2e3a;
+  --accent:#fcee09;--accent-ink:#0a0b0f;--alt:#19d9ff;--bad:#ff2a4d;--bad-ground:#2a0f16;--bad-ink:#ffd0d8;--ok:#3ddc84;--warn:#ffb000;
+  --sans:"Rajdhani",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"Share Tech Mono",ui-monospace,monospace;--cover:none;
+  --strip-h:48px;--r-tile:0;--r-button:0;--r-tab:0;--r-input:0;--r-cover:0;--title-size:clamp(30px,5vw,42px);--title-weight:600;
+  --title-track:.02em;--bar-gap:3px;--cut:12px}
+:root[data-skin="cyber"][data-accent="cyan"]{--accent:#19d9ff;--accent-ink:#041014;--alt:#fcee09;--line:#222c36;--panel:#0e141b;--surface:#0e141b;--summary:#0e141b}
+:root[data-skin="cyber"][data-accent="red"]{--accent:#ff2a4d;--accent-ink:#ffffff;--alt:#19d9ff;--bad:#ffb000;--bad-ground:#2a2108;--bad-ink:#ffe0a0;
+  --line:#33202a;--panel:#150f14;--surface:#150f14;--summary:#150f14;--bg:#0c080b}
+:root[data-skin="cyber"] body{font:19px/1.4 var(--sans);background:var(--page) radial-gradient(circle,#ffffff0d 1px,transparent 1.5px) 0 0/22px 22px}
+:root[data-skin="cyber"] main{background:var(--bg);padding:clamp(14px,3vw,28px)}
+:root[data-skin="cyber"] :focus-visible{outline:2px solid var(--alt);outline-offset:3px}
+
+/* the player: a panel of its own with cut corners, a 1px line (the outer shape in the line colour, the panel 1px inside) */
+:root[data-skin="cyber"] #np{position:relative;isolation:isolate;padding:clamp(14px,2.6vw,22px);background:var(--line);
+  clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+:root[data-skin="cyber"] #np::before{content:"";position:absolute;inset:1px;z-index:-1;background:var(--panel);
+  clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+:root[data-skin="cyber"] h1{font-size:16px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+:root[data-skin="cyber"] h1:has(#air.off){color:var(--muted)}
+:root[data-skin="cyber"] #air{display:inline-block;width:8px;height:8px;margin-right:4px;font-size:0;vertical-align:middle;background:currentColor;
+  clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+:root[data-skin="cyber"] .title{position:relative;padding-left:16px;text-transform:uppercase;line-height:1.15}
+:root[data-skin="cyber"] .title::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:4px;background:var(--accent)}
+:root[data-skin="cyber"] #np:has(#air.off) .title::before{background:var(--line)}
+:root[data-skin="cyber"][data-signal="lost"] .title::before{background:var(--bad)}
+:root[data-skin="cyber"][data-signal="lost"] h1{color:var(--bad)}
+
+/* spectrum: thin bars with a bright accent line on top, a ruler with ticks under them */
+:root[data-skin="cyber"] .strip{background:none;position:relative}
+:root[data-skin="cyber"] .strip::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;
+  background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 12px)}
+:root[data-skin="cyber"] #spectrum-bars{height:calc(100% - 8px);padding:0;border-bottom:1px solid var(--line)}
+:root[data-skin="cyber"] #spectrum-bars i{border-radius:0;opacity:1;min-height:2px;
+  background:linear-gradient(var(--accent) 0 0) top/100% 2px no-repeat,linear-gradient(#ffffff14,#ffffff05)}
+:root[data-skin="cyber"][data-signal="lost"] #spectrum-bars i{opacity:.5;
+  background:linear-gradient(var(--bad) 0 0) top/100% 2px no-repeat,linear-gradient(#ffffff0a,#ffffff03)}
+
+/* buttons with cut corners, 52×44: the main one filled with the accent, the others panel coloured; a press darkens */
+:root[data-skin="cyber"] :is(#pp,#nx,#sh){--cc:8px;position:relative;isolation:isolate;width:52px;height:44px;min-height:44px;padding:0;border:0;
+  border-radius:0;display:grid;place-items:center;font-size:17px;
+  clip-path:polygon(var(--cc) 0,100% 0,100% calc(100% - var(--cc)),calc(100% - var(--cc)) 100%,0 100%,0 var(--cc))}
+:root[data-skin="cyber"] :is(#nx,#sh){background:var(--line);color:var(--ink)}
+:root[data-skin="cyber"] :is(#nx,#sh)::before{content:"";position:absolute;inset:1px;z-index:-1;background:var(--panel);
+  clip-path:polygon(calc(var(--cc) - 1px) 0,100% 0,100% calc(100% - var(--cc) + 1px),calc(100% - var(--cc) + 1px) 100%,0 100%,0 calc(var(--cc) - 1px))}
+:root[data-skin="cyber"] :is(#nx,#sh):hover::before{background:#171a24}
+:root[data-skin="cyber"] :is(#nx,#sh):active::before{background:#1d2130}
+:root[data-skin="cyber"] #sh[aria-pressed="true"]{background:var(--accent);color:var(--accent)}
+:root[data-skin="cyber"] #pp{background:var(--accent);color:var(--accent-ink)}
+:root[data-skin="cyber"] #pp:active{filter:brightness(.85)}
+:root[data-skin="cyber"] #pp:disabled{background:var(--line);color:var(--muted)}
+:root[data-skin="cyber"] :is(#pp,#nx,#sh):focus-visible{outline:2px solid var(--alt);outline-offset:-6px}  /* inside: the cut clips outside */
+:root[data-skin="cyber"] .bar{height:3px;border-radius:0;background:var(--line)}
+:root[data-skin="cyber"] .bar i{height:3px;border-radius:0;background:var(--accent)}
+:root[data-skin="cyber"] :is(#time,.tm,.chart .n,.chart .cm,#chart-note){font-family:var(--mono)}
+:root[data-skin="cyber"] #time{font-size:16px;color:var(--muted)}
+:root[data-skin="cyber"] #music-source{font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+:root[data-skin="cyber"] #er:not(:empty){display:block;border-left:4px solid var(--bad);background:var(--bad-ground);color:var(--bad-ink);
+  padding:8px 14px;font-size:17px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+
+/* tabs: capitals, the open one with a 3px accent line cut at both ends */
+:root[data-skin="cyber"] .tabbar{border-bottom:1px solid var(--line)}
+:root[data-skin="cyber"] .tabs{gap:6px;margin-bottom:0}
+:root[data-skin="cyber"] .tabs button{position:relative;font-size:17px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  background:none;border-radius:0;padding:0 14px}
+:root[data-skin="cyber"] .tabs button[aria-selected="true"]{background:none;color:var(--ink);font-weight:600}
+:root[data-skin="cyber"] .tabs button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;background:var(--accent);
+  clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,6px 100%)}
+
+/* text actions in the second colour, capitals */
+:root[data-skin="cyber"] :is(#catchup-build,#plan-edit,#plan-undo,#plan-done,#plan-later,#history-more,#activity summary,#chart-windows button,.unskip,.toast button){
+  color:var(--alt);font-size:16px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;text-decoration:none}
+:root[data-skin="cyber"] #chart-windows button[aria-pressed="true"]{color:var(--ink);box-shadow:inset 0 -3px 0 var(--accent)}
+
+/* timeline: dotted lines between rows, times in the mono face; the current row has an accent bar and a faint wash */
+:root[data-skin="cyber"] :is(.it,#upcoming,.chart){background:none;border-radius:0;outline:0;margin:0;border-bottom:1px dotted var(--line)}
+:root[data-skin="cyber"] .it{padding:8px 0}
+:root[data-skin="cyber"] #upcoming{padding:8px 0}
+:root[data-skin="cyber"] .it.cur{background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 8%,transparent),transparent 70%);
+  box-shadow:inset 3px 0 0 var(--accent);padding-left:10px}
+:root[data-skin="cyber"] .tg .tm{font-size:16px;color:var(--muted)}
+:root[data-skin="cyber"] .it.cur .tm,:root[data-skin="cyber"] .it.cur .tx::before{color:var(--accent)}
+:root[data-skin="cyber"] .tg .tx{font-size:19px;font-weight:500}
+:root[data-skin="cyber"] .it.cur .tx{font-weight:700}
+:root[data-skin="cyber"] .it .k,:root[data-skin="cyber"] .it:is(.reminder,.weather)>.hd .k{font-size:16px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--alt)}
+:root[data-skin="cyber"] .toast{border:1px solid var(--line);background:var(--panel)}
+
+/* Settings: dotted rows; accent presets as cut swatches */
+:root[data-skin="cyber"] .st{border-bottom:1px dotted var(--line)}
+:root[data-skin="cyber"] #appearance .swatches{gap:10px}
+:root[data-skin="cyber"] #appearance .swatches button{width:44px;height:44px;min-height:44px;padding:0;border:1px solid var(--line);
+  background:linear-gradient(var(--swatch),var(--swatch)) center/20px 20px no-repeat;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+:root[data-skin="cyber"] #appearance .swatches button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:-5px}
+
+/* glitch (view.js), on events only: Decode (the title resolves from noise) on a new title; Slice (copies of the title in
+   the bad and second colours tear apart, the spectrum shears, the panel flashes) with Blocks on a lost signal and on
+   the radio turned off or on. Nothing moves at rest */
+:root[data-skin="cyber"] #ttl[data-t]{position:relative}
+:root[data-skin="cyber"] #ttl[data-t]::before,:root[data-skin="cyber"] #ttl[data-t]::after{content:attr(data-t);position:absolute;left:0;top:0;opacity:0;
+  pointer-events:none;white-space:nowrap}
+:root[data-skin="cyber"] #ttl[data-t]::before{color:var(--bad)}
+:root[data-skin="cyber"] #ttl[data-t]::after{color:var(--alt)}
+:root[data-skin="cyber"] #np.cy-slice #ttl{animation:cy-jit .46s steps(1)}
+:root[data-skin="cyber"] #np.cy-slice #ttl::before{animation:cy-ga .46s steps(1) both}
+:root[data-skin="cyber"] #np.cy-slice #ttl::after{animation:cy-gb .46s steps(1) both}
+:root[data-skin="cyber"] #np.cy-slice .strip{animation:cy-tear .46s steps(1)}
+:root[data-skin="cyber"] #np.cy-slice::before{animation:cy-flash .46s steps(1)}
+:root[data-skin="cyber"] .cy-dc i{font-style:normal;display:inline-block;overflow:hidden;white-space:pre;text-align:center;vertical-align:top}
+:root[data-skin="cyber"] .cy-dc .w{white-space:nowrap}
+:root[data-skin="cyber"] .cy-blk{position:absolute;z-index:2;pointer-events:none;mix-blend-mode:screen}
+@keyframes cy-ga{0%{opacity:1;clip-path:inset(8% 0 64% 0);transform:translate(-9px,0)}16%{clip-path:inset(52% 0 20% 0);transform:translate(7px,0)}
+  32%{clip-path:inset(30% 0 40% 0);transform:translate(-5px,0)}50%{clip-path:inset(70% 0 6% 0);transform:translate(8px,0)}
+  70%{clip-path:inset(14% 0 58% 0);transform:translate(-3px,0)}100%{opacity:0}}
+@keyframes cy-gb{0%{opacity:1;clip-path:inset(60% 0 12% 0);transform:translate(8px,0)}20%{clip-path:inset(10% 0 66% 0);transform:translate(-8px,0)}
+  42%{clip-path:inset(44% 0 30% 0);transform:translate(6px,0)}64%{clip-path:inset(76% 0 2% 0);transform:translate(-6px,0)}100%{opacity:0}}
+@keyframes cy-jit{0%{transform:translate(2px,0)}25%{transform:translate(-3px,1px)}50%{transform:translate(0,0)}75%{transform:translate(3px,-1px)}100%{transform:none}}
+@keyframes cy-tear{0%{clip-path:inset(0);transform:translateX(0)}18%{clip-path:inset(0 0 58% 0);transform:translateX(-14px)}
+  36%{clip-path:inset(42% 0 0 0);transform:translateX(12px)}56%{clip-path:inset(20% 0 34% 0);transform:translateX(-7px)}
+  78%{clip-path:inset(0 0 70% 0);transform:translateX(5px)}100%{clip-path:inset(0);transform:none}}
+@keyframes cy-flash{0%{background:#18202a}12%{background:var(--panel)}30%{background:#141a22}46%{background:var(--panel)}100%{background:var(--panel)}}
+@media (prefers-reduced-motion:reduce){:root[data-skin="cyber"] :is(#np,#np *,#np::before,#ttl::before,#ttl::after){animation:none!important}}
