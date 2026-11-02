@@ -12,12 +12,14 @@ class PlayerControlsTests(unittest.TestCase):
 const assert=require('node:assert/strict');
 const nodes={};function $(id){return nodes[id]||(nodes[id]={dataset:{},setAttribute(k,v){this[k]=v},
  set textContent(value){throw Error('Updating the controls must preserve their SVG icons')}})}
+var LOCAL_CONTROL=true,startingUntil=0,running=()=>st.state==='PLAYING'||st.state==='PAUSED';
 var listening=false,busy=false,st={state:'PLAYING',output:'browser'};
 function update(){var p=RadioModel.player(st,{t:0,s:st},{listening,localControl:true,busy});
 '''+monitor+r'''
 }
 update();assert.equal($('pp')['aria-label'],'Stop radio');assert.equal($('pp').title,'Stop radio for all listeners');assert.equal($('pp').dataset.playing,'true');
 st.state='STOPPED';update();assert.equal($('pp')['aria-label'],'Start radio');assert.equal($('pp').dataset.playing,'false')
+st.state='STARTING';update();assert.equal($('pp')['aria-label'],'Starting…');
 st.state='STOPPING';update();assert.equal($('pp')['aria-label'],'Stopping…');
 '''],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)

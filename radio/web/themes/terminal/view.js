@@ -20,6 +20,7 @@ function num(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')
 function api(path,body){return core.api(path,body)}
 // ---- listening: the core plays the live stream on this device (core.audio); this theme draws its spectrum.
 var nextBusy=false;
+var startingUntil=0;  // the page's own Start click: until then a stopped radio does not end listening
 var listening=false;  // mirrors core.audio.listening
 function browser(){return st.output!=='speakers'}
 function lag(){return core.audio.lag()}
@@ -126,11 +127,11 @@ function player(){
     $('sp').textContent=sp.toFixed(1);$('splim').textContent=lim%1?lim.toFixed(1):lim;
     $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=p.speech.near?'var(--warn)':'var(--ok)'}
   $('voice-warn').textContent=p.voiceTone==='warn'?p.voiceText:'';  // the player names only a voice problem
-  var ppLabel=p.listen.label;
-  $('pp').dataset.playing=String(p.listen.playing);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=p.listen.title;
+  var ppLabel=p.listen.label,pending=LOCAL_CONTROL&&!running()&&Date.now()<startingUntil;if(pending)ppLabel='Starting…';
+  $('pp').dataset.playing=String(p.listen.playing);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=pending?ppLabel:p.listen.title;
   $('vol').hidden=!p.browser;
   $('pp').disabled=p.listen.disabled;
-  $('pp').setAttribute('aria-busy',String(p.listen.busy));
+  $('pp').setAttribute('aria-busy',String(p.listen.busy||pending));
   $('nx').disabled=p.next.disabled;
   $('nx').textContent=p.next.text;$('nx').setAttribute('aria-busy',String(p.next.busy));
   $('nx').setAttribute('aria-label',p.next.label);$('nx').title=p.next.title;
@@ -662,7 +663,7 @@ function applySnapshot(d){
     if(shownError&&$('er').textContent===shownError)$('er').textContent='';
     shownError='';
     st=d.status;catchupView(st.catchup);
-    if(!running()&&listening)unlisten();
+    if(!running()&&listening&&st.state!=='STARTING'&&Date.now()>startingUntil)unlisten();  // not while the Start button's radio is coming up
     if(d.audio_preset&&document.activeElement!==$('audio-preset')){
       $('audio-preset').value=d.audio_preset.selected;
       $('audio-preset').options[1].disabled=!d.audio_preset.personal_available;
@@ -693,8 +694,8 @@ $('tl').onclick=function(e){var q=e.target.closest('[data-q]');if(q){replay(q.da
   var h=e.target.closest('[data-id]');if(h){open[h.dataset.id]=!open[h.dataset.id];timeline()}};
 $('pp').onclick=function(){
   if(LOCAL_CONTROL){  // the one radio button: starts the radio (and listens, in a browser) or stops it for everyone
-    if(busy||st.state==='STOPPING')return;
-    if(running())cmd('stop');else{cmd('play');if(browser())core.audio.listen()}
+    if(busy||st.state==='STOPPING'||st.state==='STARTING'||(!running()&&Date.now()<startingUntil))return;
+    if(running())cmd('stop');else{startingUntil=Date.now()+15000;cmd('play');if(browser())core.audio.listen()}
     return}
   if(!running())return;
   if(!browser())return cmd(st.state==='PLAYING'?'pause':'resume');

@@ -194,7 +194,7 @@ var RadioModel=(function(){
     var len=ds.duration_sec||0,pos=o.position!=null?o.position:(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-(o.lag||0)*1000-heard.t)/1000:0);
     if(len)pos=Math.min(pos,len);
     var sp=(status.spoken_last_hour_sec||0)/60,lim=(status.speech_limit_sec||300)/60,near=sp>lim*0.8,vok=status.voicestudio==='ok';
-    var stopping=status.state==='STOPPING',lc=!!o.localControl,listen=lc?(stopping?'Stopping…':run?'Stop radio':'Start radio'):br?(o.listening?'Pause listening':'Listen'):(on?'Pause':'Play');
+    var stopping=status.state==='STOPPING',lc=!!o.localControl,starting=status.state==='STARTING',listen=lc?(stopping?'Stopping…':starting?'Starting…':run?'Stop radio':'Start radio'):br?(o.listening?'Pause listening':'Listen'):(on?'Pause':'Play');
     return {on:on,running:run,browser:br,frame:ds,
       airGlyph:on?'●':status.state==='PAUSED'?'❚❚':'○',
       airText:status.auto_paused?'waiting for a listener':on?(br&&!o.listening?'on air · not listening':'on air'):status.state==='PAUSED'?'paused':stopping?'stopping':'off air',
@@ -204,7 +204,7 @@ var RadioModel=(function(){
       position:pos,duration:len,progress:run&&len?Math.min(100,pos/len*100):0,timeText:run?(clockText(pos)+(len?' / '+clockText(len):'')):'',
       speech:{minutes:sp,limit:lim,near:near},
       voiceTone:!run?'off':!vok||near?'warn':'ok',voiceText:!run?'voice: off':!vok?'voice: unavailable':near?'voice: limit near':'voice: ready',
-      listen:{label:listen,title:lc&&run?'Stop radio for all listeners':listen,playing:lc?run:br?!!o.listening:on,busy:stopping,disabled:lc?stopping:!run},  // the one radio button: start / stop here; on the phone, this device's listening or the station's pause
+      listen:{label:listen,title:lc&&run?'Stop radio for all listeners':listen,playing:lc?run:br?!!o.listening:on,busy:stopping||starting,disabled:lc?stopping||starting:!run},  // the one radio button: start / stop here; on the phone, this device's listening or the station's pause
       next:{disabled:!on,busy:!!o.nextBusy,text:'▶▶',label:o.nextBusy?'Switching track':'Next',
         title:o.nextBusy?'Preparing the next track; playback continues':status.state==='PAUSED'?'Resume the radio to skip tracks':'Next'},
       skipNewsHidden:status.current_kind!=='news',
