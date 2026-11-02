@@ -31,7 +31,7 @@ assert.deepEqual(RadioModel.upcoming({upcoming:[{kind:'music',ref:'/m/c.mp3',tit
         page = page_source()
         start = page.index('// a thumbs up for one airing')
         rows = page[start:page.index('function backgroundError(', start)]
-        render = page[page.index('function timeline(){', start):page.index("$('history-more').onclick", start)]
+        render = page[page.index('function backgroundError(', start):page.index("$('history-more').onclick", start)]
         self.run_node((WEB / 'core/core.js').read_text() + (WEB / 'core/model.js').read_text() + rows + render + r'''
 const assert=require('node:assert/strict');
 function esc(s){return String(s)}var open={},appearance={formatTime:t=>t},items=[],planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false;
@@ -43,7 +43,7 @@ assert.match(song,/aria-label="Queued, number 2. Remove from the queue"/);assert
 try{timeline()}catch(e){}  // the rest of the timeline needs a page; the upcoming part is drawn first
 const up=$('upcoming').innerHTML;
 assert.ok(up.indexOf('queue 2 · A')<up.indexOf('queue 1 · B'),'queue 1 is nearest now');
-assert.match(up,/<span class="tm">then<\/span><span class="tx[^"]*" title="C"/,'the planned song is then');
+assert.match(up,/<span class="tm">then<\/span><span class="tx[^"]*"[^>]*title="C"/,'the planned song is then');
 assert.match(up,/<span class="tm">next<\/span><span class="tx">queue 1 · B/);
 assert.match(up,/aria-label="Remove A from the queue"/);
 ''')

@@ -61,6 +61,12 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 .title.typing{text-overflow:clip}                    /* no "…" while the new title is typed */
 .caret{display:inline-block;width:.14em;height:.85em;margin-left:.08em;background:var(--accent);vertical-align:-.08em}
 .caret[hidden]{display:none}                           /* display:inline-block above would otherwise win over [hidden]: the caret stayed on screen */
+/* waiting (view.js): a caret with no width between the typed text and the rest (transparent, so lines never reflow);
+   it blinks only while the station is still choosing or preparing */
+.wait-caret{display:inline-block;width:0;height:1em;margin-right:-2px;border-left:2px solid var(--accent);vertical-align:-.12em}
+.untyped{opacity:0}
+.wait-blink .wait-caret{animation:wait-blink 1.06s steps(1) infinite}
+@keyframes wait-blink{50%{opacity:0}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .title.mq #ttl{display:inline-block;animation:mq var(--dur) ease-in-out infinite;will-change:transform}
 @keyframes mq{0%,18%{transform:translateX(0)}50%,68%{transform:translateX(var(--mq))}100%{transform:translateX(0)}}

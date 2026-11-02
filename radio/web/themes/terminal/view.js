@@ -181,8 +181,8 @@ function voiceView(s){  // design system: VoiceSettings
     +'<div class="l">'+esc(s.hint)+'</div>'
     +'<div class="fb '+fb[0]+'" id="voice-fb" role="status" aria-live="polite">'+esc(fb[1])+'</div></div></section>'}
 function sampleState(st,err){sample.st=st;sample.err=err||'';clearInterval(sampleTick);
-  if(st==='busy'){sample.t0=Date.now();sampleTick=setInterval(function(){var f=$('voice-fb'),t=sampleFb();if(f){f.textContent=t[1]}},1000)}
-  settingsView(true)}
+  if(st==='busy'){sample.t0=Date.now();sampleTick=setInterval(function(){var f=$('voice-fb'),t=sampleFb();if(f&&!f.querySelector('.wait-caret')){f.textContent=t[1]}},1000)}
+  settingsView(true);if(st==='busy')waits.watch('voice-fb',function(){return sample.st==='busy'})}
 function playSample(){
   if(sample.st==='playing'){if(sampleAudio)sampleAudio.pause();sampleState('idle');return}
   if(sample.st==='busy')return;
@@ -323,6 +323,51 @@ function rerollButton(){
   var label='Choose another random track';
   return '<button type="button" class="reroll-track" data-reroll data-plan-action="reroll" aria-label="'+label+'" title="'+esc(r.reason||'Replace next track now')+'" aria-busy="'+rerollBusy+'"'+(!r.available||rerollBusy?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
 }
+// ---- waiting: while the station chooses (a reroll) or prepares (More news, a voice sample, a key check, the radio
+// starting), the waiting text pulses every 1.4 s in the theme's look, readable in between; the new text then arrives.
+// At most 3 pulse at once; none after 20 s, in a background tab or with reduced motion. Screen readers get only the
+// finished text. The look: RadioWaitFx from a theme's script, else CSS (.wait while pulsing, .swap.roll as the new
+// text comes: the theme's stylesheet); terminal: a caret (only with Timeline effect: Terminal line print).
+function waiter(o){  // o: {fx(), now(), later(fn,ms), quiet()}: the entries by element id, one timer that sleeps when none
+  var MAX=3,EVERY=1400,GIVE_UP=20000,entries=[],timer=null;
+  function wake(){if(!timer&&entries.length)timer=o.later(tick,EVERY)}
+  function tick(){timer=null;var t=o.now(),pulsing=0;
+    entries=entries.filter(function(e){var keep=e.pending()&&t-e.since<GIVE_UP;if(!keep){var el=$(e.id);if(el)o.fx().stop(el)}return keep});
+    entries.forEach(function(e){var el=$(e.id);if(el&&pulsing<MAX&&!o.quiet()){pulsing++;o.fx().pulse(el)}});
+    wake()}
+  return {watch:function(id,pending){
+      if(entries.some(function(e){return e.id===id}))return;
+      entries.push({id:id,pending:pending,since:o.now()});
+      var el=$(id);if(el&&!o.quiet()&&entries.length<=MAX)o.fx().begin(el);wake()},
+    active:function(id){return entries.some(function(e){return e.id===id})},count:function(){return entries.length},tick:tick}}
+var CSS_WAIT={begin:function(el){CSS_WAIT.pulse(el)},
+  pulse:function(el){el.classList.remove('wait');void el.offsetWidth;el.classList.add('wait')},
+  stop:function(el){el.classList.remove('wait')},
+  // old and new on top of each other in one line of the same height; the theme's .roll moves them
+  arrive:function(el,old,text,done){el.classList.remove('wait');el.style.height=el.offsetHeight+'px';el.classList.add('swap');
+    el.innerHTML='<span class="a" aria-hidden="true">'+esc(old)+'</span><span class="b" aria-hidden="true">'+esc(text)+'</span>';
+    void el.offsetWidth;el.classList.add('roll');
+    setTimeout(function(){el.classList.remove('swap','roll');el.style.height='';el.textContent=text;done()},520)},
+  fail:function(el,old){el.classList.remove('wait');el.textContent=old}};
+// terminal: the old text erased right to left behind a caret, the caret blinking while it waits, the new one typed;
+// the final text stays in place (what is not typed yet is transparent), so the line never reflows
+var CARET_WAIT=(function(){
+  function on(){return document.documentElement.dataset.timelineEffect==='line'}
+  function draw(el,text,shown){el.innerHTML='<span>'+esc(text.slice(0,shown))+'</span><i class="wait-caret" aria-hidden="true"></i><span class="untyped">'+esc(text.slice(shown))+'</span>'}
+  function run(el,text,from,to,each,max,done){var n=Math.abs(to-from),step=n?Math.min(each,max/n):0,i=0;
+    (function next(){draw(el,text,from+(to>from?i:-i));if(i++<n)setTimeout(next,step);else done()})()}
+  return {
+    begin:function(el){if(!on())return;var old=el.textContent;el.dataset.waitText=old;
+      run(el,old,old.length,0,50,450,function(){el.classList.add('wait-blink')})},
+    pulse:function(el){if(on()&&!el.querySelector('.wait-caret')){el.insertAdjacentHTML('beforeend','<i class="wait-caret" aria-hidden="true"></i>');el.classList.add('wait-blink')}},
+    stop:function(el){el.classList.remove('wait-blink');var c=el.querySelector('.wait-caret');if(c)c.remove()},
+    arrive:function(el,old,text,done){el.classList.remove('wait-blink');if(!on()){el.textContent=text;done();return}
+      run(el,text,0,text.length,32,600,function(){el.textContent=text;done()})},
+    fail:function(el,old){el.classList.remove('wait-blink');el.textContent=old}};
+})();
+function quietPage(){return document.hidden||matchMedia('(prefers-reduced-motion:reduce)').matches}
+var waits=waiter({fx:function(){return window.RadioWaitFx||(document.documentElement.dataset.skin?CSS_WAIT:CARET_WAIT)},
+  now:function(){return Date.now()},later:function(fn,ms){return setTimeout(fn,ms)},quiet:quietPage});
 function rerollNext(action,ref){
   if(action==='cancel'){rerollConfirm=null;timeline();return}
   var r=st.next_reroll;
@@ -330,7 +375,15 @@ function rerollNext(action,ref){
   if(action==='confirm'&&(rerollConfirm!==r.ref||ref!==r.ref))return;
   if(action!=='confirm'&&(st.announced_tracks||[]).includes(r.ref)&&!r.pending){rerollConfirm=r.ref;timeline();return}
   rerollConfirm=null;rerollBusy=true;rerollError='';directionView();timeline();
-  cmd('reroll-next',{ref:st.next_reroll.ref}).then(function(r){rerollError=r&&r.ok?'':r&&r.error||'Could not replace the next track. Try again.'}).finally(function(){rerollBusy=false;directionView();timeline()});
+  var row=$('next-title'),fx=null;
+  if(row&&row.isConnected&&!quietPage()){rerollFx={old:row.textContent};waits.watch('next-title',function(){return rerollBusy})}
+  cmd('reroll-next',{ref:st.next_reroll.ref}).then(function(r){rerollError=r&&r.ok?'':r&&r.error||'Could not replace the next track. Try again.';
+    if(!rerollFx)return;
+    var el=$('next-title'),old=rerollFx.old,text=r&&r.ok&&r.status?RadioModel.upcoming(r.status,'').title:old;
+    fx=window.RadioWaitFx||(document.documentElement.dataset.skin?CSS_WAIT:CARET_WAIT);
+    if(!el||!r||!r.ok||text===old){if(el)fx.fail(el,old);rerollFx=null;return}
+    rerollFx.arriving=true;fx.arrive(el,old,text,function(){rerollFx=null;timeline()})})
+  .finally(function(){rerollBusy=false;if(rerollFx&&!rerollFx.arriving)rerollFx=null;directionView();timeline()});
 }
 function planReadiness(r){return RadioModel.planReadiness(r)}
 function planGroups(rows){return RadioModel.planGroups(rows,st,planHorizon)}
@@ -613,6 +666,7 @@ function row(x){
     h+='</div>'}
   return h+'</div>'}
 function backgroundError(message){return RadioModel.backgroundError(message)}
+var rerollFx=null;  // {old}: a reroll's effect on the next row; the row is not redrawn until the new title has arrived
 function timeline(){
   if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
   var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
@@ -620,6 +674,7 @@ function timeline(){
   var CROSS='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   function atClock(at){return appearance.formatTime(new Date(at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'}))}
   var up=RadioModel.future(st,rerollError);futureRows=up.rows;
+  if(!rerollFx){  // the next row is mid-effect: the coming rows stay as drawn until the new title has arrived
   $('upcoming').hidden=!up.rows.length&&!up.queue.length||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;
   // the planned next above the queue, the queue nearest "now" (queue 1 plays next)
@@ -631,9 +686,10 @@ function timeline(){
     var tx=r.next?esc(r.title)+(r.pending?' <span class="l">· loading…</span>':trackLabels(r.tags)):(r.label==='then'?'then · ':'')+esc(r.title);
     var acts=r.skipped?'<button type="button" class="unskip" data-unskip="'+esc(r.key)+'" aria-label="Don\'t skip '+esc(r.title)+'">Don\'t skip</button>':
       (r.reroll?rerollButton():'')+(r.skippable?'<button type="button" class="rp" data-skip="'+esc(r.key)+'" title="Skip" aria-label="Skip '+esc(r.title)+'">'+CROSS+'</button>':'');
-    return '<div class="tg coming'+(r.skipped?' skipped':'')+'"><span class="tm">'+tm+'</span><span class="tx'+(r.pending?' pend':'')+'" title="'+esc(r.title)+'">'+tx+'</span><span class="acts">'+acts+'</span></div>'}).join('')+
+    return '<div class="tg coming'+(r.skipped?' skipped':'')+'"><span class="tm">'+tm+'</span><span class="tx'+(r.pending?' pend':'')+'"'+(r.next?' id="next-title"':'')+' title="'+esc(r.title)+'">'+tx+'</span><span class="acts">'+acts+'</span></div>'}).join('')+
     (up.error?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(up.error)+'</span></div>':'')+queued;
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
+  }
   var sc=$('tl').scrollTop;
   var tl=RadioModel.timeline({timeline:items,status:st},running()),aired=tl.entries,activity=tl.activity,background=tl.background;
   if(background&&(!timeline.backgroundNotice||timeline.backgroundNotice.text!==background))timeline.backgroundNotice={text:background,
@@ -690,6 +746,7 @@ function catchupView(info){
   $('catchup-build').disabled=c.disabled;
   $('catchup-build').title=c.title;
   $('catchup-status').textContent=c.status;
+  if(catchupBusy||['preparing','pending'].indexOf(info&&info.state)>=0)waits.watch('catchup-status',function(){return catchupBusy||['preparing','pending'].indexOf(st.catchup&&st.catchup.state)>=0});
 }
 $('catchup-build').onclick=async function(){
   catchupBusy=true;catchupMessage='';catchupView(st.catchup);
@@ -717,7 +774,10 @@ function applySnapshot(d){
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
     chartData=d.charts||{};chartsView();
-    items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();markView();pluginsView();settingsView();directionView();hooksView(d.hooks)
+    items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();markView();
+    if(keyFb.checking)waits.watch('llm-key-fb',function(){return !!keyFb.checking});
+    if(LOCAL_CONTROL&&(st.state==='STARTING'||!running()&&Date.now()<startingUntil))waits.watch('airtxt',function(){return st.state==='STARTING'||!running()&&Date.now()<startingUntil});
+    pluginsView();settingsView();directionView();hooksView(d.hooks)
 }
 core.subscribe(function(core,change){
   if(change==='snapshot')applySnapshot(core.snapshot);

@@ -110,3 +110,7 @@
 :root[data-skin] .ai .st{border-bottom:0}
 
 @media (prefers-reduced-motion:reduce){:root[data-skin] *{transition:none!important}}
+
+/* waiting (terminal/view.js): the new text arrives over the old one in a box of the same height; the theme's .roll moves them */
+:root[data-skin] .swap{position:relative;display:block;overflow:hidden}
+:root[data-skin] .swap .a,:root[data-skin] .swap .b{position:absolute;left:0;top:0;white-space:nowrap}

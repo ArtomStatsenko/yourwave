@@ -114,7 +114,7 @@ class CardThemeTests(unittest.TestCase):
     def test_card_themes_have_every_element_the_behavior_uses_once(self):
         from collections import Counter
         behavior = (WEB / "themes/terminal/view.js").read_text()
-        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb"}  # drawn by the script; rows and details only some themes have
+        used = set(re.findall(r"\$\('([A-Za-z0-9_-]+)'\)", behavior)) - {"llm-key", "voice-fb", "appearance-mode-row", "appearance-accent-row", "sp", "splim", "spb", "next-title"}  # drawn by the script; rows and details only some themes have
         cards = [n for n in THEMES if n != "terminal"]
         self.assertTrue(cards)
         for name in cards:
