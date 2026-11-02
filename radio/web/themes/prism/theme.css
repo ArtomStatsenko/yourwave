@@ -92,3 +92,13 @@
 
 /* the "Skipped" notice: black on the stage, a white frame, square */
 :root[data-skin="prism"] .toast{background:#000;border:1px solid #fff;border-radius:0}
+
+/* waiting: a thin white line with a cyan and a red edge sweeps under the text (the text itself stays clean); the
+   answer is wiped in from the left as the old text is wiped out to the right */
+@keyframes prism-sweep{0%{opacity:1;transform:translateX(-100%)}100%{opacity:1;transform:translateX(300%)}}
+:root[data-skin="prism"] .wait{position:relative}
+:root[data-skin="prism"] .wait::after{content:"";position:absolute;left:0;bottom:1px;width:34%;height:2px;background:#fff;
+  box-shadow:-2px 0 0 #25f4ee,2px 0 0 #fe2c55;opacity:0;animation:prism-sweep 1.1s linear}
+:root[data-skin="prism"] .swap .b{clip-path:inset(0 100% 0 0)}
+:root[data-skin="prism"] .swap.roll .a{clip-path:inset(0 0 0 100%);transition:clip-path .42s ease-in}
+:root[data-skin="prism"] .swap.roll .b{clip-path:inset(0);transition:clip-path .42s ease-out}
