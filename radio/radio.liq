@@ -119,10 +119,21 @@ def shuffle_sources(p) =
   keyed = list.append(list.mapi(fun (i, f) -> (2 * i, f), remote), list.mapi(fun (i, f) -> (2 * i + 1, f), local))
   list.map(snd, list.sort(fun (x, y) -> if fst(x) < fst(y) then -1 else 1 end, keyed))
 end
+# The round in air order from radio/shuffle.py (marked songs more often); its own shuffle if that does not answer.
+shuffle_cmd = environment.get(default="", "RADIO_SHUFFLE_CMD")
+def shuffle_round(p) =
+  if shuffle_cmd == "" or list.is_empty(p) then shuffle_sources(p) else
+    path = file.temp("round", ".txt")
+    file.write(data=string.concat(separator="\n", p), path)
+    lines = list.filter(fun (l) -> l != "", process.read.lines(timeout=10., log_errors=false, "#{shuffle_cmd} #{process.quote(path)}"))
+    file.remove(path)
+    if list.length(lines) >= list.length(p) then lines else shuffle_sources(p) end
+  end
+end
 def controlled_playlist(~id, ~prefetch=1, uri) =
   def load(uri) = list.map(fun (item) -> "annotate:plan_queue=\"#{id}\":#{item}", playlist.files(uri)) end
   files = ref(load(uri))
-  def ordered(p) = if shuffle_enabled() then shuffle_sources(p) else p end end
+  def ordered(p) = if shuffle_enabled() then shuffle_round(p) else p end end
   loop_reload = ref(fun () -> ())
   loaded = ref(false)
   holding = ref(false)

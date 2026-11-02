@@ -39,6 +39,7 @@ DEFAULT_CONFIG = """\
 path = "~/Music/Radio"
 source = "local"           # selected independently of the YouTube Music integration switch
 shuffle = true            # off: library order; queued tracks keep their place
+marked_boost = "3"        # a song marked in the last 30 days plays this many times a shuffle round: 2, 3 or 5
 crossfade_sec = 3.0
 target_lufs = -16.0
 max_boost_db = 4.0          # cap for quiet tracks

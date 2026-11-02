@@ -59,7 +59,8 @@ class Liquidsoap:
                    RADIO_SHUFFLE="1" if getattr(self, "music_shuffle", True) else "0",
                    RADIO_FALLBACK_M3U=str(self.fallback_m3u or ""), RADIO_START_PAUSED="1" if paused else "",
                    RADIO_YTMUSIC_COUNT=str(len(ytmusic.library()["tracks"])) if self.m3u.name == "ytmusic.m3u" else "0",
-                   RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]))
+                   RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]),
+                   RADIO_SHUFFLE_CMD=shlex.join([sys.executable, "-m", "radio.shuffle"]))
         self._end_orphan()
         self.proc = await asyncio.create_subprocess_exec(
             "liquidsoap", str(config.PKG_DIR / "radio.liq"), env=env,

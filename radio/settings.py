@@ -11,6 +11,8 @@ from . import chatgpt, config, editor, openrouter, plugins, public_news
 SETTINGS = {
     "music_shuffle": ("music", "shuffle", "Shuffle", "Shuffle the remaining library. Off follows library order. Prepared tracks and unplayed-track priority keep their place.", 0, 1, 1, ""),
     "music_source": ("music", "source", "Music source", "", 1, 20, None, ""),
+    "marked_boost": ("music", "marked_boost", "How much more often a marked song plays",
+                     "A song you marked in the last 30 days comes up this many times in a shuffle round, the plays spread apart; every other song still plays once.", 1, 1, None, ""),
     "news_detail": ("editor", "news_detail", "News detail", "For new retellings: the gist without lists of prices or specs. Discussion adds a host comment grounded in the source; reminders stay exact.", 0, 2, 1, ""),
     "reddit_communities": ("sources.reddit", "communities", "Reddit · Subreddits",
                            "Add one name or link at a time. Only the new subreddit is checked; up to 20 total.", 0, 4000, None, ""),
@@ -59,7 +61,8 @@ SOURCE_LISTS = {
 }
 
 
-CHOICES = {"music_source": ("local", "ytmusic"), "llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai"), "voice_engine": ("qwen3", "voicestudio")}
+CHOICES = {"marked_boost": ("2", "3", "5"), "music_source": ("local", "ytmusic"), "llm_provider": ("ollama", "openai", "openrouter", "deepseek", "xai"), "voice_engine": ("qwen3", "voicestudio")}
+BOOST_LABELS = {"2": "A little (×2)", "3": "More (×3)", "5": "Much more (×5)"}
 VOICE_LABELS = {"qwen3": "Qwen3-TTS · cloned voice", "voicestudio": "VoiceStudio · OmniVoice"}
 MODEL_ROWS = {"ollama": "ollama_model", "openai": "openai_model", "openrouter": "openrouter_model",
               "deepseek": "deepseek_model", "xai": "xai_model"}  # a text setting that is one of these: a drop-down on the page
@@ -172,6 +175,10 @@ def listing(cfg: dict) -> list[dict]:
             row['paragraph'] = True
         if k == MODEL_ROWS[provider]:
             row["options"] = c["ids"] or None  # None: a text field (a ChatGPT sign-in lists no models)
+        if k == "marked_boost":
+            row["labels"] = BOOST_LABELS
+            if _round_size(cfg) < 8:
+                row["note"] = "Needs at least 8 songs in the round."
         if k == "voice_engine":
             row["labels"] = VOICE_LABELS
             row["voice_state"] = _voice_state(live)
@@ -190,6 +197,15 @@ def listing(cfg: dict) -> list[dict]:
                                  else {"label": "Sign in with ChatGPT", "cmd": "chatgpt_login"})
         rows.append(row)
     return rows
+
+
+def _round_size(cfg: dict) -> int:
+    """Songs in the shuffle round of the music that plays now (its playlist file)."""
+    path = config.RUN_DIR / ("music.m3u" if music_source(cfg) == "local" else "ytmusic.m3u")
+    try:
+        return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#"))
+    except OSError:
+        return 0
 
 
 def music_source(cfg: dict) -> str:
