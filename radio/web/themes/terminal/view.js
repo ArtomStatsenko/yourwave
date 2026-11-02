@@ -746,7 +746,6 @@ function catchupView(info){
   $('catchup-build').disabled=c.disabled;
   $('catchup-build').title=c.title;
   $('catchup-status').textContent=c.status;
-  if(catchupBusy||['preparing','pending'].indexOf(info&&info.state)>=0)waits.watch('catchup-status',function(){return catchupBusy||['preparing','pending'].indexOf(st.catchup&&st.catchup.state)>=0});
 }
 $('catchup-build').onclick=async function(){
   catchupBusy=true;catchupMessage='';catchupView(st.catchup);
@@ -776,6 +775,7 @@ function applySnapshot(d){
     chartData=d.charts||{};chartsView();chartSetData=d.chart_set||chartSetData;
     items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();markView();chartSetView();
     if(keyFb.checking)waits.watch('llm-key-fb',function(){return !!keyFb.checking});
+    if(catchupBusy||['preparing','pending'].indexOf(st.catchup&&st.catchup.state)>=0)waits.watch('catchup-status',function(){return catchupBusy||['preparing','pending'].indexOf(st.catchup&&st.catchup.state)>=0});
     if(LOCAL_CONTROL&&(st.state==='STARTING'||!running()&&Date.now()<startingUntil))waits.watch('airtxt',function(){return st.state==='STARTING'||!running()&&Date.now()<startingUntil});
     pluginsView();settingsView();directionView();hooksView(d.hooks)
 }

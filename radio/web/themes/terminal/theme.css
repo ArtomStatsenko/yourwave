@@ -138,6 +138,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #upcoming .unskip,.toast button{border:0;min-height:44px;padding:0 8px;font-size:16px;color:var(--accent);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}
 .toast{position:sticky;bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:12px;padding:4px 4px 4px 14px;
   border:1px solid var(--ink);background:var(--bg)}.toast[hidden]{display:none}
+#chart-set-open{border:0;padding:0 4px;min-height:44px;color:var(--accent);text-decoration:underline;text-underline-offset:4px}  /* reads as a link */
 /* charts: place, title with plays and marks and a bar against the leader, the move since yesterday, the marks */
 .chart-tools{display:flex;gap:16px;align-items:center;flex-wrap:wrap;min-height:44px}
 #chart-windows{display:flex;gap:4px;flex-wrap:wrap}
@@ -394,5 +395,3 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
   :root[data-crt="on"][data-crt-ready] .program-editing main{height:calc(100dvh - 120px)}
 }
 
-/* the chart set block: Open Experiments reads as a link */
-#chart-set-open{border:0;padding:0 4px;min-height:44px;color:var(--accent);text-decoration:underline;text-underline-offset:4px}
