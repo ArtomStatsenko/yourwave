@@ -8,6 +8,32 @@ var RadioTheme=(function(theme){
   var GLYPHS='#@%&$<>/\\|!?~^*+=0123456789ABCDEFXYZ',DECODE_MS=520,SLICE_MS=460,BLOCKS=8,BLOCKS_MS=420,QUIET_AFTER_POWER_MS=1500;
   // the effect an event gets: 'decode' or 'decode-still' (a new title), 'slice' (a lost signal, the radio off or on), null
   function step(text){return text.length>48?'s':text.length>30?'m':''}  // the title's size step, as in prism
+  // text in boxes as wide as its letters (words unbreakable), noise in them for ms, resolving left to right if resolve;
+  // then the plain text again. The boxes keep the line as it is: no reflow while it runs
+  function scramble(el,text,ms,resolve,done){
+    var cells=[];el.classList.add('cy-dc');el.textContent='';
+    text.split(' ').forEach(function(word,i,words){var w=document.createElement('span');w.className='w';
+      Array.from(word).forEach(function(c){var b=document.createElement('i');b.textContent=c;b.dataset.c=c;w.appendChild(b);cells.push(b)});
+      el.appendChild(w);if(i<words.length-1)el.appendChild(document.createTextNode(' '))});
+    cells.forEach(function(b){b.style.width=b.getBoundingClientRect().width+'px'});
+    var start=performance.now();
+    (function tick(){var p=Math.min(1,(performance.now()-start)/ms);
+      if(!el.contains(cells[0]||el)){el.classList.remove('cy-dc');return}  // the page wrote new text meanwhile: it stays
+      if(p>=1){el.classList.remove('cy-dc');el.textContent=text;if(done)done();return}
+      cells.forEach(function(b,k){b.textContent=resolve&&k/cells.length<p-.08+Math.random()*.05?b.dataset.c:GLYPHS[Math.floor(Math.random()*GLYPHS.length)]});
+      setTimeout(tick,42)})()}
+  // waiting (terminal/view.js): a 320 ms burst of noise on the waiting text each pulse, readable in between; the new text
+  // decodes in; a failed reroll tears its row a little. Reduced: no bursts, the new text at once; Off, reduced motion: none
+  function waitMode(){return matchMedia('(prefers-reduced-motion:reduce)').matches?'off':appearance.glitch()}
+  function burst(el){if(waitMode()!=='on'||el.classList.contains('cy-dc'))return;scramble(el,el.textContent,320,false)}
+  window.RadioWaitFx={begin:burst,pulse:burst,stop:function(){},
+    arrive:function(el,old,text,done){if(waitMode()==='on')scramble(el,text,DECODE_MS,true,done);else{el.textContent=text;done()}},
+    fail:function(el,old){el.classList.remove('cy-dc');el.textContent=old;if(waitMode()!=='on')return;
+      var row=el.closest('.tg')||el,box=row.getBoundingClientRect(),colors=['var(--accent)','var(--alt)','var(--bad)'];
+      row.classList.remove('cy-slice-sm');void row.offsetWidth;row.classList.add('cy-slice-sm');setTimeout(function(){row.classList.remove('cy-slice-sm')},300);
+      for(var i=0;i<3;i++)(function(i){setTimeout(function(){var b=document.createElement('div'),w=20+Math.random()*90,h=3+Math.random()*10;b.className='cy-blk';
+        b.style.cssText='left:'+Math.random()*Math.max(0,box.width-w)+'px;top:'+Math.random()*Math.max(0,box.height-h)+'px;width:'+w+'px;height:'+h+'px;background:'+colors[i]+';opacity:.8';
+        row.appendChild(b);setTimeout(function(){b.remove()},70+Math.random()*130)},Math.random()*300)})(i)}};
   function effect(event,mode,reduced,hidden){
     if(reduced||hidden||mode==='off')return null;
     if(event==='title')return mode==='reduced'?'decode-still':'decode';

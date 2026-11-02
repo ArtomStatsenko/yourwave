@@ -119,6 +119,8 @@
 :root[data-skin="cyber"] .cy-dc i{font-style:normal;display:inline-block;overflow:hidden;white-space:pre;text-align:center;vertical-align:top}
 :root[data-skin="cyber"] .cy-dc .w{white-space:nowrap}
 :root[data-skin="cyber"] .cy-blk{position:absolute;z-index:2;pointer-events:none;mix-blend-mode:screen}
+:root[data-skin="cyber"] #upcoming .tg{position:relative}
+:root[data-skin="cyber"] .cy-slice-sm{animation:cy-jit .3s steps(1)}  /* a failed reroll: its row shakes a little, 3 blocks flash */
 @keyframes cy-ga{0%{opacity:1;clip-path:inset(8% 0 64% 0);transform:translate(-9px,0)}16%{clip-path:inset(52% 0 20% 0);transform:translate(7px,0)}
   32%{clip-path:inset(30% 0 40% 0);transform:translate(-5px,0)}50%{clip-path:inset(70% 0 6% 0);transform:translate(8px,0)}
   70%{clip-path:inset(14% 0 58% 0);transform:translate(-3px,0)}100%{opacity:0}}

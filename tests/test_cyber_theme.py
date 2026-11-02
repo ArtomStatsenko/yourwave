@@ -54,10 +54,11 @@ for(const [name,accent,panel,alt,badInk,badGround,muted] of ''' + json.dumps(pai
 
     def test_the_glitch_fires_on_events_and_never_with_reduced_motion_off_or_in_the_background(self):
         script = r'''
-var RadioTheme={mount(){}},RadioBars={wrap:(t,n)=>({mount:t.mount,bars:n})};
+var window={},RadioTheme={mount(){}},RadioBars={wrap:(t,n)=>({mount:t.mount,bars:n})};
 ''' + (WEB / 'themes/cyber/view.js').read_text() + r'''
 const assert=require('node:assert/strict'),e=RadioTheme.effect;
 assert.equal(RadioTheme.bars,24);
+assert.deepEqual(Object.keys(window.RadioWaitFx).sort(),['arrive','begin','fail','pulse','stop'],'its own waiting look');
 assert.deepEqual(['x'.repeat(30),'x'.repeat(31),'x'.repeat(48),'x'.repeat(49)].map(RadioTheme.step),['','m','m','s']);
 assert.equal(e('title','on',false,false),'decode');assert.equal(e('title','reduced',false,false),'decode-still');
 assert.equal(e('signal','on',false,false),'slice');assert.equal(e('power','on',false,false),'slice');
