@@ -57,7 +57,7 @@ def read(name, *, sender=None, hours=12, limit=120):
     result = sender('status', timeout=3)
     if result is not None and not result.get('ok'):
         return result
-    status = result['status'] if result else {'state': 'STOPPED'}
+    status = result['status'] if result else {'state': 'STOPPED', 'output': cfg['output']['mode']}
     if not result:
         db=store.connect()
         try:

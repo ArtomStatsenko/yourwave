@@ -27,7 +27,7 @@ const c={$ ,Audio,window:{AudioContext,addEventListener(){}},navigator:{mediaSes
   MediaMetadata:function(value){return value},KIND:{},
   document:{activeElement:null,documentElement:{dataset:{presentation:'calm'}}},localStorage:{getItem:()=>null,setItem(){}},requestAnimationFrame(){},
   setTitle:t=>title=t,media(){},f:String,musicSourceLabel:()=>'',musicSourceOptions:()=>'',
-  st:{state:'STOPPED',output:'browser'},stg:[],pls:[],ytStatus:{},musicChoice:'local',busy:false,
+  st:{state:'STOPPED',output:'both'},stg:[],pls:[],ytStatus:{},musicChoice:'local',busy:false,
   LOCAL_CONTROL:true,titleIsTrack:false,cmd:(...args)=>{commands.push(args);return Promise.resolve()},
   rerollNext(){},Date,console};
 vm.createContext(c);vm.runInContext(CORE+'\nvar core=RadioCore.create({localControl:true});\n'+AUDIO+'\n'+PLAYER+'\n'+HANDLERS,c);
@@ -49,6 +49,12 @@ $('pp').onclick();$('pp').onclick();assert.deepEqual(commands,[],'on the phone t
 c.busy=false;c.st={state:'PAUSED',output:'browser',auto_paused:true};c.player();
 assert.equal($('nx').disabled,true,'Next must not promise a skip while the radio is paused');
 c.st.state='PLAYING';c.player();assert.equal($('nx').disabled,false,'Other listeners can keep the station playing');
+commands=[];c.LOCAL_CONTROL=true;c.st={state:'STOPPED',output:'browser'};c.player();
+assert.equal($('pp')['aria-label'],'Starting…','the Mac page with the browser output: the page server starts the radio');
+assert.equal($('pp').disabled,true);assert.equal(title,'Starting radio…');$('pp').onclick();assert.deepEqual(commands,[]);
+c.st.state='PLAYING';c.player();const was=c.listening;assert.equal($('pp').disabled,false);
+$('pp').onclick();assert.equal(c.listening,!was);$('pp').onclick();assert.equal(c.listening,was);
+assert.deepEqual(commands,[],'its button only listens: the radio is not stopped for everyone');
 """
         core = core_source()  # the theme's player renders RadioModel.player() from core.heard()
         result = subprocess.run(['node', '-e', 'const CORE=' + json.dumps(core) + ';\nconst AUDIO=' + json.dumps(audio) + ';\nconst PLAYER=' +

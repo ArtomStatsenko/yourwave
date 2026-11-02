@@ -392,6 +392,31 @@ class SchedulingTests(unittest.TestCase):
         self.assertEqual(daemon.listeners(), 0)
         beat.unlink()
 
+    def test_the_radio_stops_a_while_after_the_last_page(self):
+        svc, stopped = self.svc, []
+        svc.state, svc.auto_paused = "PAUSED", True
+
+        async def stop():
+            svc.stopping = True
+            stopped.append(time.time())
+        svc.stop = stop
+
+        async def scenario():
+            task = asyncio.create_task(svc.listeners_loop())
+            for _ in range(8):  # a page asks for the status: the radio stays on
+                await svc.dispatch("status")
+                await asyncio.sleep(.2)
+            asked = bool(stopped)
+            await asyncio.wait_for(task, 5)  # the page is gone: it stops on its own
+            return asked
+
+        svc.engine = None
+        with patch.object(daemon, "IDLE_STOP_SEC", 1):
+            started = time.time()
+            self.assertFalse(asyncio.run(scenario()), "stopped while a page was asking")
+        self.assertEqual(len(stopped), 1)
+        self.assertGreater(stopped[0] - started, 2.2)
+
     def add(self, item_id, source, hours_ago, status="READY", played_minutes_ago=None):
         db = self.svc.db
         content.add_item(db, self.cfg, {"id": item_id, "topic": "T", "source": source, "url": "",

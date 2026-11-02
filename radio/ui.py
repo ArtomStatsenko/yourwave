@@ -1,5 +1,6 @@
 """Radio control UI on loopback, optionally shared through private Tailscale Serve.
 Every API call needs a per-run token and a trusted Host header."""
+import collections
 import html
 import json
 import queue
@@ -60,9 +61,14 @@ def static_file(url_path: str) -> Path | None:
 
 class Stream:
     """Fans the sink's mp3-over-UDP out to every /stream client and keeps the listener count in a heartbeat file
-    the daemon reads (auto-pause). mp3 decoders resync on frame headers, so a client may join mid-packet."""
+    the daemon reads (auto-pause). mp3 decoders resync on frame headers, so a client may join mid-packet.
+    A new client first gets the last BURST_SEC of the air: the browser starts playing at once instead of buffering
+    that long from live packets."""
+    BURST_SEC = 1.0
+
     def __init__(self, udp_port: int):
         self.clients: set[queue.Queue] = set()
+        self.recent: collections.deque = collections.deque()  # (arrival time, packet) of the last BURST_SEC
         self.lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 20)
@@ -73,7 +79,11 @@ class Stream:
     def _recv(self):
         while True:
             data = self.sock.recv(65536)
+            now = time.monotonic()
             with self.lock:
+                self.recent.append((now, data))
+                while self.recent[0][0] < now - self.BURST_SEC:
+                    self.recent.popleft()
                 for q in list(self.clients):
                     try:
                         q.put_nowait(data)
@@ -92,6 +102,10 @@ class Stream:
     def add(self) -> queue.Queue:
         q = queue.Queue(maxsize=4000)  # ~3 min of 192k mp3
         with self.lock:
+            now = time.monotonic()
+            for at, data in self.recent:
+                if at >= now - self.BURST_SEC:  # not the last second of a station that has since gone quiet
+                    q.put_nowait(data)
             self.clients.add(q)
         self.beat()
         return q
@@ -122,7 +136,7 @@ class Stream:
 
 
 def serve(port: int) -> None:
-    server = make_server(port)
+    server = make_server(port, autostart=True)
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"Yourwave UI: {url}  (Ctrl+C — закрыть интерфейс; радио продолжит играть)")
     webbrowser.open(url)
@@ -132,12 +146,27 @@ def serve(port: int) -> None:
         pass
 
 
-def make_server(port: int) -> ThreadingHTTPServer:
-    """The page server, not yet serving; server.token is the per-run API token the page gets."""
+def make_server(port: int, autostart: bool = False) -> ThreadingHTTPServer:
+    """The page server, not yet serving; server.token is the per-run API token the page gets.
+    autostart: with the browser output a Mac page keeps the radio on, starting a stopped one (it stops itself a minute
+    after the last page, daemon.IDLE_STOP_SEC), so the page's button only listens."""
     from .__main__ import send, start_daemon
     token = secrets.token_urlsafe(16)
     cfg = config.load()
     stream = Stream(cfg["output"]["stream_port"])
+    starting = threading.Lock()
+
+    def keep_radio():
+        if not autostart or cfg["output"]["mode"] != "browser" or not starting.acquire(blocking=False):
+            return
+
+        def start():
+            try:
+                if send("status") is None:
+                    start_daemon()
+            finally:
+                starting.release()
+        threading.Thread(target=start, daemon=True).start()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):  # keep the terminal quiet
@@ -172,6 +201,8 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 page = theme_page(theme) if {"embed", "standalone"} & q.keys() else (WEB / "shell.html").read_text(encoding="utf-8")
                 body = (page.replace("__TOKEN__", token).replace("__THEME__", theme)
                         .replace("__LOCAL_CONTROL__", str(self.server is server).lower()).encode())
+                if self.server is server:
+                    keep_radio()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
@@ -251,6 +282,8 @@ def make_server(port: int) -> ThreadingHTTPServer:
                 if not self._authorized():
                     return self._json({"error": "forbidden"}, 403)
                 result = control.read('snapshot', sender=send)
+                if self.server is server and result.get('ok') and result['status']['state'] == 'STOPPED':
+                    keep_radio()  # stopped while this page was away (a minute without a poll): on again
                 self._json(result, 200 if result.get('ok') else 503)
             elif self.path == '/api/capabilities':
                 if not self._authorized():

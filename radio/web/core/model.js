@@ -230,17 +230,20 @@ var RadioModel=(function(){
     var len=ds.duration_sec||0,pos=o.position!=null?o.position:(ds.elapsed_sec||0)+(ds.state==='PLAYING'?Math.max(0,now-(o.lag||0)*1000-heard.t)/1000:0);
     if(len)pos=Math.min(pos,len);
     var sp=(status.spoken_last_hour_sec||0)/60,lim=(status.speech_limit_sec||300)/60,near=sp>lim*0.8,vok=status.voicestudio==='ok';
-    var stopping=status.state==='STOPPING',lc=!!o.localControl,starting=status.state==='STARTING',listen=lc?(stopping?'Stopping…':starting?'Starting…':run?'Stop radio':'Start radio'):br?(o.listening?'Pause listening':'Listen'):(on?'Pause':'Play');
+    var stopping=status.state==='STOPPING',starting=status.state==='STARTING',
+      // the Mac page with the browser output keeps the radio on (the page server starts it): its button only listens
+      own=!!o.localControl&&status.output==='browser',lc=!!o.localControl&&!own,
+      listen=lc||own&&!run?(stopping?'Stopping…':starting||own?'Starting…':run?'Stop radio':'Start radio'):br?(o.listening?'Pause listening':'Listen'):(on?'Pause':'Play');
     return {on:on,running:run,browser:br,frame:ds,
       airGlyph:on?'●':status.state==='PAUSED'?'❚❚':'○',
       airText:status.auto_paused?'waiting for a listener':on?(br&&!o.listening?'on air · not listening':'on air'):status.state==='PAUSED'?'paused':stopping?'stopping':'off air',
       // only a track-to-track change is a track title (a theme may animate it); messages appear at once
-      title:run?(ds.current_kind==='news'||ds.current_kind==='teaser'?'Host edition':ds.current_title||'…'):stopping?'Stopping radio…':o.localControl?'Radio is off':'Start on your Mac',
+      title:run?(ds.current_kind==='news'||ds.current_kind==='teaser'?'Host edition':ds.current_title||'…'):stopping?'Stopping radio…':own?'Starting radio…':o.localControl?'Radio is off':'Start on your Mac',
       isTrack:run&&!!ds.current_title,
       position:pos,duration:len,progress:run&&len?Math.min(100,pos/len*100):0,timeText:run?(clockText(pos)+(len?' / '+clockText(len):'')):'',
       speech:{minutes:sp,limit:lim,near:near},
       voiceTone:!run?'off':!vok||near?'warn':'ok',voiceText:!run?'voice: off':!vok?'voice: unavailable':near?'voice: limit near':'voice: ready',
-      listen:{label:listen,title:lc&&run?'Stop radio for all listeners':listen,playing:lc?run:br?!!o.listening:on,busy:stopping||starting,disabled:lc?stopping||starting:!run},  // the one radio button: start / stop here; on the phone, this device's listening or the station's pause
+      listen:{label:listen,title:lc&&run?'Stop radio for all listeners':listen,playing:lc?run:br?!!o.listening:on,busy:stopping||starting||own&&!run,disabled:lc?stopping||starting:!run},  // the one radio button: start / stop here; on the phone, this device's listening or the station's pause
       next:{disabled:!on,busy:!!o.nextBusy,text:'▶▶',label:o.nextBusy?'Switching track':'Next',
         title:o.nextBusy?'Preparing the next track; playback continues':status.state==='PAUSED'?'Resume the radio to skip tracks':'Next'},
       skipNewsHidden:status.current_kind!=='news',

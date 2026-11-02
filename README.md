@@ -85,7 +85,7 @@ Editions depend on prepared content and the speech budget. Their displayed times
 - **Shape the sound.** Choose voices and a script provider, set the station name, and adjust speech limits. [Settings](docs/guide.md#settings).
 - **Try an experiment.** Enable two hosts or Coming up when you want them. [Timeline and experiments](docs/guide.md#timeline-and-experiments).
 
-**Listen / Pause** affects the current browser. **Stop radio** ends the shared station; starting and stopping it is controlled from the Mac. [Phone listening](docs/mobile-listening.md).
+**Listen / Pause** affects the current browser. With the `browser` output the station starts when a page opens on the Mac and stops a minute after the last page closes and nobody listens; with `speakers` or `both`, **Start radio** and **Stop radio** on the Mac control it. [Phone listening](docs/mobile-listening.md).
 
 ## At the terminal
 

@@ -47,6 +47,7 @@ NUMBER_WORD = re.compile(r"(ноль|один|одна|одно|одну|одн�
 
 
 UNAVAILABLE = "unavailable"  # a reroll pick YouTube does not serve: the next spare is tried
+IDLE_STOP_SEC = 60  # browser output: no page asking and no one listening this long -> the radio stops
 HEAR_EVERY_SEC = 180  # one song every 3 minutes: the library (~270 songs) is done in about a day, never at once
 ENERGY_PREFETCH = 2  # queue reserve, independent of the energy curve
 
@@ -70,6 +71,7 @@ class Service:
         self.session = uuid.uuid4().hex[:12]
         self.state = "STARTING"
         self.auto_paused, self.paused_at, self.heard_at = False, 0.0, time.time()
+        self.asked_at = time.time()  # the last status a page (or anyone) asked for
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
         self.chart_sets = {}  # plan block id -> what the host says and plays in a queued chart set (for the timeline)
         self.plan_cache, self.plan_gen, self.energy_cache = None, 0, (None, {})  # _plan_rows, _energy_profiles
@@ -340,9 +342,11 @@ class Service:
 
     async def listeners_loop(self) -> None:
         """Browser output: nobody listening for idle_pause_sec -> pause (no news airs, no speech budget is spent);
-        a page starts listening -> resume. A pause by command is never undone here."""
+        a page starts listening -> resume. A pause by command is never undone here. No page open either (none asks for
+        the status) for IDLE_STOP_SEC -> stop; a Mac page starts the radio again (ui.make_server's autostart).
+        Every quarter second: a page that starts listening hears the station at once."""
         while not self.stopping:
-            await asyncio.sleep(1)
+            await asyncio.sleep(.25)
             if listeners():
                 self.heard_at = time.time()
                 if self.auto_paused and self.state == "PAUSED":
@@ -352,6 +356,9 @@ class Service:
                 await self._pause()
                 self.auto_paused = True
                 log("no listeners: paused")
+            if time.time() - max(self.heard_at, self.asked_at) >= IDLE_STOP_SEC:
+                log("no page and no listener: stopped")
+                await self.stop()
 
     async def hearing_loop(self) -> None:
         """Vocal timing for songs LRCLIB does not know, by the local Whisper: one song every HEAR_EVERY_SEC, only when
@@ -2662,6 +2669,8 @@ class Service:
     async def dispatch(self, cmd: str, req: dict | None = None) -> dict:
         if cmd != 'status':
             self.plan_gen += 1  # a command may change what comes next: the plan is asked again
+        else:
+            self.asked_at = time.time()
         if cmd == 'catchup':
             if self.state not in ('PLAYING','PAUSED'):
                 return {'ok':False,'error':'Start the station before preparing catch-up.'}

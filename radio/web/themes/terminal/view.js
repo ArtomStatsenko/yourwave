@@ -843,7 +843,7 @@ $('tl').onclick=function(e){var mk=e.target.closest('[data-mark]');if(mk){toggle
   var dq=e.target.closest('[data-dq]');if(dq){unqueue(dq.dataset.dq);return}
   var h=e.target.closest('[data-id]');if(h){open[h.dataset.id]=!open[h.dataset.id];timeline()}};
 $('pp').onclick=function(){
-  if(LOCAL_CONTROL){  // the one radio button: starts the radio (and listens, in a browser) or stops it for everyone
+  if(LOCAL_CONTROL&&st.output!=='browser'){  // the one radio button: starts the radio (and listens, in a browser) or stops it for everyone
     if(busy||st.state==='STOPPING'||st.state==='STARTING'||(!running()&&Date.now()<startingUntil))return;
     if(running())cmd('stop');else{startingUntil=Date.now()+15000;cmd('play');if(browser())core.audio.listen()}
     return}

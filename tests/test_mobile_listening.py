@@ -140,7 +140,79 @@ class MobileControlTests(unittest.TestCase):
             server.server_close()
 
 
+class AutostartTests(unittest.TestCase):
+    """The browser output: a Mac page keeps the radio on, so its button only listens."""
+    def serve(self, autostart):
+        tmp = tempfile.TemporaryDirectory(prefix='radio-autostart-')
+        self.addCleanup(tmp.cleanup)
+        for name, value in [('DATA_DIR', Path(tmp.name)), ('RUN_DIR', Path(tmp.name) / 'run')]:
+            setting = patch.object(config, name, value)
+            setting.start()
+            self.addCleanup(setting.stop)
+        config.load()
+        for target, value in [('radio.__main__.send', None), ('radio.__main__.start_daemon', None)]:
+            p = patch(target, return_value=value)
+            p.start()
+            self.addCleanup(p.stop)
+        import radio.__main__ as main
+        self.start = main.start_daemon
+        with patch.object(ui, 'Stream'):
+            server = ui.make_server(0, autostart=autostart)
+        phone = ui.ThreadingHTTPServer(('127.0.0.1', 0), server.RequestHandlerClass)
+        for s in (server, phone):
+            threading.Thread(target=s.serve_forever, daemon=True).start()
+            self.addCleanup(s.server_close)
+            self.addCleanup(s.shutdown)
+        return server, phone
+
+    def get(self, server, path):
+        headers = {'Host': f'127.0.0.1:{server.server_port}'}
+        with urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{server.server_port}{path}', headers=headers), timeout=5) as r:
+            return r.read()
+
+    def started(self):
+        for _ in range(50):
+            if self.start.called:
+                return True
+            threading.Event().wait(.02)
+        return False
+
+    def test_a_mac_page_starts_a_stopped_radio(self):
+        server, _ = self.serve(True)
+        self.get(server, '/')
+        self.assertTrue(self.started())
+
+    def test_a_poll_starts_it_again_after_the_radio_stopped_itself(self):
+        server, _ = self.serve(True)
+        headers = {'Host': f'127.0.0.1:{server.server_port}', 'X-Radio-Token': server.token}
+        with urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{server.server_port}/api/status', headers=headers), timeout=5) as r:
+            status = json.load(r)['status']
+        self.assertEqual((status['state'], status['output']), ('STOPPED', 'browser'))
+        self.assertTrue(self.started())
+
+    def test_the_phone_and_a_plain_server_never_start_it(self):
+        _, phone = self.serve(True)
+        self.get(phone, '/')
+        self.assertFalse(self.started())
+        server, _ = self.serve(False)
+        self.get(server, '/')
+        self.assertFalse(self.started())
+
+
 class StreamTests(unittest.TestCase):
+    def test_a_new_listener_first_gets_the_last_second_of_the_air(self):
+        with patch.object(ui.threading, 'Thread'), patch.object(ui.socket, 'socket'):
+            stream = ui.Stream(0)
+        stream.beat = Mock()
+        stream.sock.recv.side_effect = [b'old', b'one', b'two', OSError]
+        clock = iter([0.0, 9.5, 10.0, 10.2, 20.0])  # packets at 0, 9.5 and 10 s; listeners join at 10.2 and 20 s
+        with patch.object(ui.time, 'monotonic', side_effect=lambda: next(clock)):
+            with self.assertRaises(OSError):
+                stream._recv()
+            joined, late = stream.add(), stream.add()
+        self.assertEqual([joined.get_nowait() for _ in range(joined.qsize())], [b'one', b'two'])
+        self.assertTrue(late.empty(), 'the station went quiet since: no old air')
+
     def test_broken_connection_still_removes_listener(self):
         packets = queue.Queue()
         packets.put(b'packet')
