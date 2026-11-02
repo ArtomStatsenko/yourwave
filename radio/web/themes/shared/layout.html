@@ -27,6 +27,7 @@
     <button role="tab" id="tab-tl" aria-controls="tl-panel" aria-selected="true" data-tab="tl">timeline</button>
     <button role="tab" id="tab-in" aria-controls="integrations" aria-selected="false" tabindex="-1" data-tab="in">sources</button>
     <button role="tab" id="tab-ex" aria-controls="experiments" aria-selected="false" tabindex="-1" data-tab="ex">experiments</button>
+    <button role="tab" id="tab-ch" aria-controls="charts" aria-selected="false" tabindex="-1" data-tab="ch">charts</button>
     <button role="tab" id="tab-st" aria-controls="stg" aria-selected="false" tabindex="-1" data-tab="st">settings</button>
   </div></div>
   <div id="tl-panel" role="tabpanel" aria-labelledby="tab-tl">
@@ -73,6 +74,11 @@
       <p id="hook-feedback" class="l" role="status"></p>
     </section>
 
+  </div>
+  <div id="charts" role="tabpanel" aria-labelledby="tab-ch" hidden>
+    <div class="chart-tools"><div id="chart-windows" role="group" aria-label="Chart period"></div><span id="chart-note" class="l"></span></div>
+    <ol id="chart-list" aria-label="Chart"></ol>
+    <p id="chart-empty" class="l" role="status"></p>
   </div>
   <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
     <section class="st" id="appearance" aria-labelledby="appearance-heading"><!--appearance--></section>

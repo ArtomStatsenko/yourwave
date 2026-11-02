@@ -29,7 +29,7 @@ command-line agent uses the same operations through `radio/control.py`.
 ### Snapshot
 
 `GET /api/status` answers `{ok, status, timeline, plugins, settings, ytmusic, audio_preset,
-music_source_choice, hooks}`:
+music_source_choice, hooks, charts}`:
 
 - `status`: the station now. `state` (`STARTING`, `PLAYING`, `PAUSED`, `STOPPING`, `STOPPED`), `auto_paused`,
   `paused_at`, `output` (`speakers`, `browser`, `both`), `current_kind`, `current_title`, `elapsed_sec`,
@@ -48,6 +48,9 @@ music_source_choice, hooks}`:
   for the special rows `connection`, `active`, `labels`, `key_field`, `action` (AI provider) or `voice_state`
   (voice engine).
 - `ytmusic`: `{connected, tracks, playlist}`; `audio_preset`: `{selected, personal_available}`.
+- `charts`: songs ranked by thumbs up, `{week, month, all}` (last 7 days, 30 days, all time), each `[{place, ref, title,
+  marks, plays, was}]`: most marks first, then by title; `plays` in the same window; `was` the place a day earlier
+  (`null`: not in that chart).
 
 Fields are added over time; a theme ignores what it does not know.
 

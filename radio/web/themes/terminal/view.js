@@ -571,7 +571,7 @@ var selectedRow=null;  // the row last tapped: its empty mark shows (on a touch 
 function toggleMark(id){
   var x=items.find(function(i){return String(i.id)===String(id)});if(!x)return;
   x.marked=!x.marked;player();timeline();
-  api('/api/cmd',{cmd:x.marked?'mark':'unmark',id:Number(id)}).then(function(r){if(r&&r.ok===false){$('er').textContent=r.error;refresh()}})
+  api('/api/cmd',{cmd:x.marked?'mark':'unmark',id:Number(id)}).then(function(r){if(r&&r.ok===false)$('er').textContent=r.error;refresh()})
     .catch(function(){$('er').textContent='the radio is not answering';refresh()})}
 function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
 function segmentHtml(s){return s.url?sourceAnchor(s,s.text):esc(s.text)}
@@ -689,12 +689,32 @@ function applySnapshot(d){
       if(!ytLoaded&&document.activeElement!==$('yt-playlist')){$('yt-playlist').value=d.ytmusic.playlist;ytLoaded=true}
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
+    chartData=d.charts||{};chartsView();
     items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)
 }
 core.subscribe(function(core,change){
   if(change==='snapshot')applySnapshot(core.snapshot);
   else if(change==='error'){shownError=core.error;$('er').textContent=shownError}});
 
+// Charts: drawn when the data or the window changes; rows that move slide to their new place (0.25 s, none with
+// reduced motion)
+var chartData={},chartWindow='week',chartShown='';
+function chartsView(){
+  var c=RadioModel.charts(chartData,chartWindow),key=JSON.stringify([chartWindow,c.rows]);
+  $('chart-windows').innerHTML=c.windows.map(function(w){return '<button type="button" data-window="'+w.key+'" aria-pressed="'+w.selected+'">'+esc(w.label)+'</button>'}).join('');
+  $('chart-note').textContent=c.note;$('chart-empty').textContent=c.empty;$('chart-empty').hidden=!c.empty;
+  if(key===chartShown)return;chartShown=key;
+  var list=$('chart-list'),before={};
+  list.querySelectorAll('[data-key]').forEach(function(li){before[li.dataset.key]=li.getBoundingClientRect().top});
+  list.innerHTML=c.rows.map(function(r){return '<li class="chart" data-key="'+esc(r.key)+'"><span class="n">'+r.place+'</span><div class="m"><span class="t">'+esc(r.title)+'</span><small>'+esc(r.detail)+'</small>'+
+    '<span class="s" aria-hidden="true"><i style="width:'+r.share+'%"></i></span></div><span class="mv '+r.move.dir+'" aria-label="'+esc(r.move.label)+'">'+esc(r.move.text)+'</span>'+
+    '<span class="cm" aria-label="'+esc(r.marksLabel)+'">'+THUMB+'<span aria-hidden="true">'+r.marks+'</span></span></li>'}).join('');
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  list.querySelectorAll('[data-key]').forEach(function(li){var was=before[li.dataset.key];if(was==null)return;
+    var dy=was-li.getBoundingClientRect().top;if(!dy)return;
+    li.style.transition='none';li.style.transform='translateY('+dy+'px)';li.getBoundingClientRect();
+    li.style.transition='transform .25s ease';li.style.transform=''})}
+$('chart-windows').onclick=function(e){var b=e.target.closest('[data-window]');if(b){chartWindow=b.dataset.window;chartsView()}};
 function selectTab(b){
   if(b.dataset.tab!=='tl'&&planDraft&&!dirBusy)$('plan-done').onclick();
   document.querySelectorAll('[data-tab]').forEach(function(t){var on=t===b;t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1;$(t.getAttribute('aria-controls')).hidden=!on});

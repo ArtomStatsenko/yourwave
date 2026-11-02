@@ -235,6 +235,23 @@ var RadioModel=(function(){
   }
   // "What I missed": whether it can be asked for now, why not (title) and how far it got (status).
   // info: status.catchup; busy: this page's request is on its way; message: that request's own error.
+  // ---- charts: songs ranked by thumbs up over a rolling window
+
+  var CHART_WINDOWS=[['week','Last 7 days'],['month','Last 30 days'],['all','All time']];
+  function counted(n,one,many){return n+' '+(n===1?one:many)}
+  // One window of /api/status charts as shown: windows (the choice), rows [{key, place, title, detail, share (% of the
+  // leader's marks), move {dir: up|down|same|new, text, label}, marks, marksLabel}], note, empty (nothing marked yet).
+  function charts(data,win){
+    var rows=(data&&data[win])||[],top=rows.length?rows[0].marks:1;
+    return {windows:CHART_WINDOWS.map(function(w){return {key:w[0],label:w[1],selected:w[0]===win}}),note:'updates as you mark',
+      empty:rows.length?'':'Nothing marked yet. Give a song a thumbs up and it is ranked here.',
+      rows:rows.map(function(r){var d=r.was==null?null:r.was-r.place;
+        return {key:r.ref,place:r.place,title:r.title,marks:r.marks,marksLabel:counted(r.marks,'mark','marks'),share:Math.round(r.marks/top*100),
+          detail:counted(r.plays,'play','plays')+' · '+counted(r.marks,'time marked','times marked'),
+          move:d===null?{dir:'new',text:'new',label:'New since yesterday'}:d>0?{dir:'up',text:'▲ '+d,label:'Up '+d+' since yesterday'}:
+            d<0?{dir:'down',text:'▼ '+(-d),label:'Down '+(-d)+' since yesterday'}:{dir:'same',text:'–',label:'Same place as yesterday'}}})}
+  }
+
   function catchup(info,running,busy,message){
     if(!info)return null;
     var active=['preparing','pending','ready','queued','playing'].includes(info.state);
@@ -249,5 +266,5 @@ var RadioModel=(function(){
     keySaved:keySaved,KEY_EMPTY:KEY_EMPTY,voice:voice,sampleFeedback:sampleFeedback,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,starsText:starsText,
-    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,queuePlace:queuePlace,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
+    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,queuePlace:queuePlace,charts:charts,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
 })();

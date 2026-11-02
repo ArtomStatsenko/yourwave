@@ -1,6 +1,6 @@
 """Shared validated operations for the browser API and the native radio CLI."""
 import time
-from . import catchup, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, store, telegram, tts, ytmusic
+from . import catchup, charts, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, store, telegram, tts, ytmusic
 from .timeline import timeline
 
 VOICE_SAMPLE = "Добрый вечер! Вы слушаете Персональное радио. Сейчас — коротко о новостях, а потом снова музыка."
@@ -74,7 +74,15 @@ def read(name, *, sender=None, hours=12, limit=120):
     return {'ok': True, 'status': status, 'timeline': timeline(), 'plugins': plugins.listing(cfg),
             'settings': settings.listing(cfg), 'ytmusic': ytmusic.status(),
             'audio_preset': config.audio_presets(), 'music_source_choice': settings.music_source(cfg),
-            'hooks': read('hooks')['hooks'] if plugins.on(cfg, 'track_previews') else None}
+            'hooks': read('hooks')['hooks'] if plugins.on(cfg, 'track_previews') else None, 'charts': read_charts()}
+
+
+def read_charts():
+    db = store.connect()
+    try:
+        return charts.listing(db)
+    finally:
+        db.close()
 
 
 def execute(body, *, sender=None, starter=None, port=8765):

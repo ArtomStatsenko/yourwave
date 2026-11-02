@@ -127,6 +127,20 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .rp svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
 #upcoming .queued-row .tm{color:var(--ink)}#upcoming .rp{opacity:1}  /* a queued song's ✕ is always there */
 #upcoming .tg+.tg{margin-top:6px}
+/* charts: place, title with plays and marks and a bar against the leader, the move since yesterday, the marks */
+.chart-tools{display:flex;gap:16px;align-items:center;flex-wrap:wrap;min-height:44px}
+#chart-windows{display:flex;gap:4px;flex-wrap:wrap}
+#chart-windows button{border:0;min-height:44px;padding:0 8px;color:var(--muted);font-size:16px}
+#chart-windows button[aria-pressed="true"]{color:var(--ink);text-decoration:underline;text-underline-offset:6px}
+#chart-note{margin-left:auto}#chart-empty[hidden]{display:none}
+#chart-list{list-style:none;margin:0;padding:0}
+.chart{display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;gap:12px;align-items:center;min-height:56px;padding:6px 0;border-bottom:1px solid var(--line)}
+.chart .n{color:var(--muted);text-align:right}.chart .m{min-width:0}.chart .t{overflow-wrap:anywhere}
+.chart small{display:block;color:var(--muted);font-size:16px;line-height:22px}
+.chart .s{display:block;height:3px;background:var(--line);margin-top:4px}.chart .s i{display:block;height:100%;background:var(--ink)}
+.chart .mv{color:var(--muted);font-size:16px;white-space:nowrap;text-align:right}.chart .mv.up{color:var(--ok)}.chart .mv.down{color:var(--warn)}
+.chart .cm{display:flex;align-items:center;gap:4px;font-size:16px}
+.chart .cm svg{width:20px;height:20px;fill:currentColor;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round}
 /* thumbs up: always shown when given; an empty one only on hover, keyboard focus or a tapped row (its place is kept) */
 .title-row{display:flex;align-items:center;gap:8px;min-width:0}.title-row .title{flex:1;min-width:0}
 .mk{display:grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;padding:0;border:0;color:var(--muted)}
