@@ -68,7 +68,7 @@ assert.notEqual(RadioModel.charts({},'month').empty,'');
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_every_theme_has_the_charts_tab_after_experiments(self):
-        for name in ['terminal', 'lime', 'synthwave', 'soft', 'prism']:
+        for name in ['terminal', 'lime', 'soft', 'prism', 'cyber']:
             with self.subTest(theme=name):
                 html = theme_html(name)
                 self.assertLess(html.index('id="tab-ex"'), html.index('id="tab-ch"'))

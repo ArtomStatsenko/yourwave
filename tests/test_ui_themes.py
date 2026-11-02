@@ -66,7 +66,7 @@ class SettingsSummaryTests(unittest.TestCase):
 
 
 # themes on the shared layout (themes/shared/layout.html): one DOM, terminal's arrangement; they differ only in CSS
-ON_LAYOUT = ["terminal", "lime", "synthwave", "soft", "prism", "cyber"]
+ON_LAYOUT = ["terminal", "lime", "soft", "prism", "cyber"]
 KEY = ["np", "air", "ttl", "mk", "viz", "pp", "nx", "fill", "time", "viz-controls", "music-source",
        "voice-warn", "tab-tl", "tab-st", "catchup-build", "plan-edit", "tl", "theme-select"]
 
@@ -110,7 +110,7 @@ class SlotTests(unittest.TestCase):
 
 
 class CardThemeTests(unittest.TestCase):
-    """Themes built on the terminal behavior (lime, synthwave, soft, prism): its elements, the shared bars, one look."""
+    """Themes built on the terminal behavior (lime, soft, prism, cyber): its elements, the shared bars, one look."""
     def test_card_themes_have_every_element_the_behavior_uses_once(self):
         from collections import Counter
         behavior = (WEB / "themes/terminal/view.js").read_text()
@@ -147,16 +147,20 @@ assert.deepEqual(went.pop(),['replace','/?theme=soft#st'],'once, to the saved th
 const here=loc('');
 const core=R.create({theme:'lime',location:here});
 assert.equal(JSON.stringify(core.themes()),JSON.stringify([{name:'lime',title:'Lime',current:true,modes:[],accent:false}]),'before the capabilities: this theme');
-core.capabilities={themes:['lime','soft','synthwave','terminal','new-look']};
-assert.equal(JSON.stringify(core.themes().map(t=>t.title)),JSON.stringify(['Lime','Soft','Synthwave','Terminal','New-look']));
+core.capabilities={themes:['cyber','lime','prism','soft','terminal','new-look']};
+assert.equal(JSON.stringify(core.themes().map(t=>t.title)),JSON.stringify(['Cyber','Lime','Prism','Soft','Terminal','New-look']));
 assert.equal(core.themes().filter(t=>t.current).length,1);
 const flags=Object.fromEntries(core.themes().map(t=>[t.name,JSON.stringify([t.modes,t.accent])]));
 assert.equal(flags.soft,JSON.stringify([['light','dark','system'],true]));
-assert.equal(flags.lime,JSON.stringify([[],false]));assert.equal(flags.synthwave,flags.lime);assert.equal(flags['new-look'],flags.lime);
+assert.equal(flags.lime,JSON.stringify([[],false]));assert.equal(flags.prism,flags.lime);assert.equal(flags.cyber,JSON.stringify([[],true]));assert.equal(flags['new-look'],flags.lime);
 assert.equal(core.themeNote,'Switching reloads the page and stops listening.');
-core.setTheme('synthwave');
-assert.equal(stored['yourwave.theme'],'synthwave','remembered in this browser');
-assert.deepEqual(went.pop(),['assign','/?theme=synthwave']);
+core.setTheme('prism');
+assert.equal(stored['yourwave.theme'],'prism','remembered in this browser');
+assert.deepEqual(went.pop(),['assign','/?theme=prism']);
+stored['yourwave.theme']='synthwave';  // a theme that is gone: the server answered /?theme=synthwave with terminal
+assert.equal(R.followSavedTheme('terminal',loc('?theme=synthwave')),false);
+assert.equal(stored['yourwave.theme'],'terminal','the choice becomes the theme shown');
+assert.equal(R.followSavedTheme('terminal',loc('')),false,'and no more redirects');
 """
 
 
@@ -201,7 +205,7 @@ sliders[0].value='0';sliders[0].type='range';listener({target:sliders[0]});asser
     def test_mode_and_accent_rows_follow_the_theme_flags(self):
         behavior = (WEB / "themes/terminal/view.js").read_text()
         picker = behavior[behavior.index("function themePicker(){"):behavior.index("core.subscribe(function(core,change){if(change==='capabilities')themePicker()});")]
-        for name in ("soft", "lime", "synthwave"):
+        for name in ("soft", "lime", "prism"):
             with self.subTest(theme=name):
                 html = theme_html(name)
                 rows = re.findall(r'id="(appearance-(?:mode|accent)-row)" hidden', html)
@@ -216,7 +220,7 @@ ROWS.forEach(id=>assert.equal(nodes[id].hidden,false,id+' shown'));
 """
                 result = subprocess.run(["node", "-e", f"const ROWS={json.dumps(rows)},NAME={json.dumps(name)};" + harness], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(len(rows), 2 if name == "soft" else 0)   # lime and synthwave: no rows at all
+                self.assertEqual(len(rows), 2 if name == "soft" else 0)   # lime and prism: no rows at all
 
 
     def test_themes_are_listed_remembered_and_followed_once(self):

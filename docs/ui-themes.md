@@ -74,7 +74,6 @@ in CSS only and keeping the reading order; each deviation is listed here:
 
 | Theme | What | Why |
 | --- | --- | --- |
-| synthwave | The player sits in a neon frame with a glow inside and 20px padding | The frame and glow are the theme's look; inside it the player keeps terminal's arrangement |
 | soft | The player sits on a raised panel, radius 30px, 24px padding | Soft's surfaces are raised or pressed; inside it the player keeps terminal's arrangement |
 | cyber | The player sits on a panel of its own with cut corners and a 1px line | The chamfered panel is the theme's look; inside it the player keeps terminal's arrangement |
 | prism | The whole page sits on a stage: a 1px frame, radius 6px, padding up to 32px | Prism is a lit stage; the blocks inside keep terminal's order |
@@ -148,7 +147,7 @@ and glow stay) for the rest of the browser session (`sessionStorage` `yourwave.c
 does not turn it back on in that session. A theme whose `core.themes()` entry has `modes` or `accent` puts the
 rows `id="appearance-mode-row"` (Mode) and `id="appearance-accent-row"` (Accent) after Theme, `hidden`; the shared
 behavior shows them from those flags. Soft has both (Light, Dark, System; six accents and a custom one, saved in this
-browser); cyber has Accent only (Yellow, Cyan, Red; dark only); lime, synthwave and prism have neither.
+browser); cyber has Accent only (Yellow, Cyan, Red; dark only); lime and prism have neither.
 
 ## Checking a theme
 

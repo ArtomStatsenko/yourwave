@@ -1,4 +1,4 @@
-/* The look the card themes share (lime, synthwave, soft, prism) on the shared layout (themes/shared/layout.html):
+/* The look the card themes share (lime, soft, prism, cyber) on the shared layout (themes/shared/layout.html):
    terminal's arrangement, from its stylesheet below, with the cards' look on top: their font, a spectrum of bars in the
    visualizer's slot, a round main button, tabs as pills, text actions in the accent, rows as tiles, 56×32 switches.
    Nothing here moves a block or changes the order. A theme sets its tokens on :root[data-skin="<name>"] and changes

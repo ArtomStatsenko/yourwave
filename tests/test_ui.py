@@ -71,6 +71,10 @@ class PageServerTests(unittest.TestCase):
         self.assertEqual(self.get('/ui/themes/lime/view.js')[0], 200)
         self.assertIn(b'theme:"terminal"', self.get('/')[1])              # terminal stays the default
         self.assertNotIn(b'data-skin', self.get('/')[1])
+        # a theme that is gone (synthwave was removed) opens terminal: the shell, its frame and the page on its own
+        self.assertIn(b'theme:"terminal"', self.get('/?theme=synthwave')[1])
+        self.assertIn(b'theme:"terminal"})', self.get('/?theme=synthwave&embed=1')[1])
+        self.assertIn(b'theme:"terminal"})', self.get('/?theme=synthwave&standalone')[1])
 
     def test_theme_markup_has_no_inline_handlers(self):
         """A theme lives inside mount(core, root): an inline on...="" handler cannot see its functions."""

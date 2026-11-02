@@ -8,15 +8,17 @@ var RadioCore=(function(){
   // Page themes (radio/web/themes/<name>), by folder name; one without a title here shows its name capitalized.
   // modes: the colour modes it offers (Settings → Appearance → Mode); accent: it lets the listener choose its accent.
   var THEMES={terminal:{title:'Terminal',modes:['system','light','dark'],accent:true},lime:{title:'Lime'},
-    synthwave:{title:'Synthwave'},soft:{title:'Soft',modes:['light','dark','system'],accent:true},cyber:{title:'Cyber',accent:true}},THEME_KEY='yourwave.theme';
+    soft:{title:'Soft',modes:['light','dark','system'],accent:true},cyber:{title:'Cyber',accent:true}},THEME_KEY='yourwave.theme';
   var THEME_NOTE='Switching reloads the page and stops listening.',SHELL_NOTE='Switching themes keeps the broadcast playing.';
   function savedTheme(){try{return localStorage.getItem(THEME_KEY)||''}catch(e){return ''}}
   // A page opened without ?theme= goes once to the theme this browser chose; the server still decides by ?theme=,
   // then [ui] theme, then terminal. Call it in the page's <head>, before anything is drawn. The address it goes to
   // carries ?theme=, so it never goes again (a theme that no longer exists is served as terminal there).
   function followSavedTheme(current,loc){
-    loc=loc||location;var saved=savedTheme();
-    if(/[?&]theme=/.test(loc.search)||!saved||saved===current)return false;
+    loc=loc||location;var saved=savedTheme(),asked=(loc.search.match(/[?&]theme=([^&#]*)/)||[])[1];
+    // the saved theme is no longer installed: the server answered with another; this one is the choice now
+    if(asked!==undefined&&saved&&decodeURIComponent(asked)===saved&&saved!==current)try{localStorage.setItem(THEME_KEY,current)}catch(e){}
+    if(asked!==undefined||!saved||saved===current)return false;
     loc.replace('/?theme='+encodeURIComponent(saved)+loc.hash);return true}
 
   // Colours (#rrggbb): WCAG contrast; the text colour on an accent fill (white or dark, whichever reads better); and the
