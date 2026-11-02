@@ -48,8 +48,18 @@ class SavedSettingsTests(unittest.TestCase):
         self.assertEqual(settings.base(self.cfg), defaults)
 
     def test_voice_state_checks_the_port_once(self):
+        settings._voice_seen.clear()
         with patch('radio.settings.urllib.request.urlopen', side_effect=OSError), \
                 patch('radio.tts.port_open', side_effect=[True, False]) as port_open:
             state = settings._voice_state(self.cfg)
         port_open.assert_called_once()
         self.assertEqual((state['state'], state['detail']), ('starting', 'Starting…'))
+
+    def test_the_voice_server_is_asked_at_most_every_15_seconds(self):
+        settings._voice_seen.clear()
+        with patch('radio.settings.urllib.request.urlopen', side_effect=OSError) as ask, \
+                patch('radio.tts.port_open', return_value=False), patch('radio.settings.time.time', side_effect=[100, 110, 116, 116]):
+            for _ in range(3):
+                state = settings._voice_state(self.cfg)
+        self.assertEqual(ask.call_count, 2, 'once, the poll 10 s later from memory, again after 15 s')
+        self.assertEqual(state['state'], 'down')

@@ -2,6 +2,7 @@
 per hour...), set from the UI. Like plugins.json: the values live in DATA_DIR/settings.json, config.toml only gives
 the defaults, and the daemon picks a change up live, without a restart."""
 import json
+import time
 import urllib.request
 from copy import deepcopy
 
@@ -216,12 +217,25 @@ def music_source(cfg: dict) -> str:
     return "mixed" if "local" in picked else "ytmusic"
 
 
+_voice_seen = {}  # (engine, url) -> (when, state): asked at most every 15 s, not on every poll of every page
+
+
 def _voice_state(live: dict) -> dict:
-    """Is the selected voice server answering? The radio starts it (and stops the other one)."""
-    from . import tts
+    """Is the selected voice server answering? The radio starts it (and stops the other one). The answer is kept
+    15 s: a page polls every 2 s, and a server that does not answer cost each poll up to a second."""
     v = live["voice"]
-    title = VOICE_LABELS[v["engine"]]
     url = v["mlx_audio_url"] if v["engine"] == "qwen3" else v["base_url"]
+    seen = _voice_seen.get((v["engine"], url))
+    if seen and time.time() - seen[0] < 15:
+        return seen[1]
+    state = _ask_voice(v, url)
+    _voice_seen[(v["engine"], url)] = (time.time(), state)
+    return state
+
+
+def _ask_voice(v: dict, url: str) -> dict:
+    from . import tts
+    title = VOICE_LABELS[v["engine"]]
     try:
         with urllib.request.urlopen(url.rstrip("/") + ("/" if v["engine"] == "qwen3" else "/health"), timeout=1):
             return {"state": "ready", "engine_title": title,

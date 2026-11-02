@@ -72,6 +72,7 @@ class Service:
         self.auto_paused, self.paused_at, self.heard_at = False, 0.0, time.time()
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
         self.chart_sets = {}  # plan block id -> what the host says and plays in a queued chart set (for the timeline)
+        self.plan_cache, self.plan_gen, self.energy_cache = None, 0, (None, {})  # _plan_rows, _energy_profiles
         self.replays_checked = 0.0  # when Liquidsoap's queue was last compared with them
         self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
         self.reroll_task = None
@@ -635,6 +636,7 @@ class Service:
                 self.last_error = ''
             return
         self.manual_skip_pending = False
+        self.plan_gen += 1  # a new song: the rest of the round has moved
         prev = self.current
         self.energy_seconds = self._energy_elapsed()
         if prev and prev["kind"] == "news":
@@ -2242,6 +2244,7 @@ class Service:
                     return None  # a newer click took over: drop this song, the finally deletes the file
                 uri = uri.removesuffix(replacement) + 'tmp:' + downloaded  # Liquidsoap removes it after airing
             rid = await self.engine.replace_music(expected, uri, slot['queue'], slot['rid'])
+            self.plan_gen += 1  # a reroll swaps in the background, after its command answered
             downloaded = None
             if expected in self.announced_tracks:
                 self.announced_tracks.remove(expected)
@@ -2506,6 +2509,12 @@ class Service:
         async with self.music_source_lock:
             await self._set_music_source()
 
+    def _energy_profiles(self):
+        """energy.profiles of the library, once per library (it was read for every song list a page asked for)."""
+        if self.energy_cache[0] is not self.files:
+            self.energy_cache = (self.files, energy.profiles(self.files))
+        return self.energy_cache[1]
+
     def _music_plan_rows(self, rows, probe=True, plan=()):
         current = self.current or {}
         now = time.time()
@@ -2516,7 +2525,7 @@ class Service:
             self.plan_metadata_missing = False
         blocks = sorted((r for r in plan if r['kind'] != 'music' and not r.get('skipped')
                          and r['status'] != 'QUEUED'), key=lambda r: r.get('expected_at') or r['at'])
-        energy_rows = energy.profiles(self.files) if plugins.on(self.cfg, 'energy_wave') else {}
+        energy_rows = self._energy_profiles() if plugins.on(self.cfg, 'energy_wave') else {}
         result = []
         for row in rows:
             if self.stopping or offset >= PLAN_HOURS * 3600:
@@ -2568,6 +2577,17 @@ class Service:
             cursor = cursor + seconds if cursor is not None and seconds > 0 else None
             offset += seconds
         return result
+
+    async def _plan_rows(self):
+        """Liquidsoap's music.plan (the rest of the round, ~100 KB for a library) kept until a song starts, a command
+        runs or 10 s pass: every open page's poll asked for it every 2 s, and it changes only then. Within the 10 s, a
+        set or a break the station queued on its own shows a moment late; the next song (next_music) is never cached."""
+        c = self.plan_cache
+        if c and c['gen'] == self.plan_gen and time.time() - c['at'] < 10:
+            return c['rows']
+        rows = await asyncio.wait_for(self.engine.music_plan(), .5)
+        self.plan_cache = {'gen': self.plan_gen, 'at': time.time(), 'rows': rows} if isinstance(rows, list) else None
+        return rows
 
     async def _warm_music_plan(self, rows):
         try:
@@ -2630,6 +2650,8 @@ class Service:
                 'from': self.source_overlap['from'] if phase == 'crossfade' else None}
 
     async def dispatch(self, cmd: str, req: dict | None = None) -> dict:
+        if cmd != 'status':
+            self.plan_gen += 1  # a command may change what comes next: the plan is asked again
         if cmd == 'catchup':
             if self.state not in ('PLAYING','PAUSED'):
                 return {'ok':False,'error':'Start the station before preparing catch-up.'}
@@ -2722,12 +2744,11 @@ class Service:
                     await self._forget_dropped_replays()
                     if ref:
                         status['upcoming'].append({'kind': 'music', 'ref': ref, 'title': music.label(self.db, ref), 'stage': 'music'})
-                        later = await asyncio.wait_for(self.engine.upcoming_music(), .5)
+                    rows = await self._plan_rows()
+                    if not isinstance(rows, list) and ref:  # an engine without music.plan: the songs' refs alone
                         # tentative: a reshuffle, a break or a reroll can change the order; only the next is certain
+                        later = await asyncio.wait_for(self.engine.upcoming_music(), .5)
                         status['upcoming_tracks'] = [{'ref': r, 'title': music.label(self.db, r)} for r in later]
-                        if plugins.on(self.cfg, 'air_direction'):
-                            status['broadcast_plan'] = self._broadcast_plan()
-                    rows = await asyncio.wait_for(self.engine.music_plan(),.5)
                     if isinstance(rows,list):
                         status['upcoming_tracks'] = self._music_plan_rows(rows,probe=False,
                             plan=(status.get('broadcast_plan') or {}).get('rows', []))
@@ -3239,7 +3260,6 @@ class Service:
             "music_source": self._music_source_state()['current'],
             "music_source_state": self._music_source_state(),
             "broadcast_plan": self._broadcast_plan() if plugins.on(self.cfg, 'air_direction') else None,
-            "direction": plan if plugins.on(self.cfg, 'air_direction') else [],
             "upcoming": self._upcoming(plan),
             "announced_tracks": list(self.announced_tracks),
             "next_reroll": self._reroll_state(),

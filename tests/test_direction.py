@@ -1034,7 +1034,7 @@ class DirectionTests(unittest.TestCase):
         self.assertFalse(any(r['kind'] == 'weather' and r['at'] == due for r in self.svc.status()['upcoming']))
         plugins.set_plugin('air_direction', False)
         status = self.svc.status()
-        self.assertEqual(status['direction'], [])
+        self.assertNotIn('direction', status)  # no page reads the plan's raw rows: broadcast_plan has what they show
         self.assertEqual([r['title'] for r in status['upcoming'] if r['stage'] == 'rotation'], ['one', 'two', 'three'])
         self.assertTrue(any(r['kind'] == 'weather' for r in status['upcoming']))
 

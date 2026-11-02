@@ -11,6 +11,8 @@ from pathlib import Path
 
 from . import config, ytmusic
 
+LOG_KEEP_BYTES = 10_000_000  # liquidsoap.log is moved to .1 at a start once it is over this
+
 
 class Liquidsoap:
     def __init__(self, m3u: Path, crossfade_sec: float, output: str = "device", record: str = "",
@@ -52,8 +54,11 @@ class Liquidsoap:
         if self.tail:  # a restart: the old reader would read the truncated file from its old offset (partial lines)
             self.tail.cancel()
         events.write_text("")
+        log = config.DATA_DIR / "logs/liquidsoap.log"
+        if log.exists() and log.stat().st_size > LOG_KEEP_BYTES:  # it only grew (98 MB in two weeks): one old copy kept
+            log.replace(log.with_name(log.name + ".1"))
         env = dict(os.environ, RADIO_EVENTS=str(events), RADIO_M3U=str(self.m3u), RADIO_LIQ_SOCK=str(self.sock), RADIO_XFADE=str(self.xfade),
-                   RADIO_LIQ_LOG=str(config.DATA_DIR / "logs/liquidsoap.log"), RADIO_OUTPUT=self.output,
+                   RADIO_LIQ_LOG=str(log), RADIO_OUTPUT=self.output,
                    RADIO_SINK_CMD=self.sink_command(), RADIO_DATA_DIR=str(config.DATA_DIR),
                    RADIO_MUSIC_SOURCE=getattr(self, "music_source", "ytmusic"),
                    RADIO_SHUFFLE="1" if getattr(self, "music_shuffle", True) else "0",
