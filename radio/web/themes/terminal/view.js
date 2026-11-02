@@ -104,15 +104,13 @@ function stationTerminal(live,heard){
   $('airtxt').textContent=frame.text;
   $('terminal-monitor').textContent=browser()?(listening?'MONITOR / LISTENING':'MONITOR / OFF'):'OUTPUT / LOCAL';
 }
+var shownError='';  // the poll error this page put in #er, cleared when a poll works again
 function player(){
   var p=RadioModel.player(st,core.heard(st),{listening:listening,localControl:LOCAL_CONTROL,busy:busy,nextBusy:nextBusy,lag:lag(),position:core.position(st)}),ds=p.frame;
   $('air').className=p.on?'':'off';$('air').textContent=p.airGlyph;
   $('airtxt').textContent=p.airText;
   stationTerminal(st,ds);
   setTitle(p.title,!(p.isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=p.isTrack;  // only a track-to-track change is typed
-  var now=RadioModel.timeline({timeline:items,status:st},running()).entries.find(function(x){return x.current});
-  $('mk').hidden=!(p.isTrack&&now&&now.kind==='music');
-  if(now){$('mk').dataset.id=now.id;$('mk').setAttribute('aria-pressed',String(!!now.marked))}
   media(ds);
   $('fill').style.width=p.progress+'%';
   $('time').textContent=p.timeText;
@@ -580,17 +578,22 @@ function skipRow(key,skip){
     .catch(function(){$('er').textContent='the radio is not answering'})}
 $('skip-undo').onclick=function(){var t=$('skip-toast'),r=futureRows.find(function(x){return x.skipped&&(x.ref&&x.ref===t.dataset.ref||x.id&&x.id===t.dataset.id)});
   if(r)skipRow(r.key,false);t.hidden=true}
+function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
+function segmentHtml(s){return s.url?sourceAnchor(s,s.text):esc(s.text)}
 // a thumbs up for one airing of a song (24px line icon, filled when given)
 var THUMB='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1H7zm0 0l3.2-6.2a1.7 1.7 0 0 1 3.2 1L12.6 10H18a2 2 0 0 1 2 2.4l-1.3 6a2 2 0 0 1-2 1.6H7"/></svg>';
 function markButton(x){return '<button type="button" class="mk" data-mark="'+esc(String(x.id))+'" aria-pressed="'+!!x.marked+'" aria-label="Thumbs up" title="Hear this more often">'+THUMB+'</button>'}
 var selectedRow=null;  // the row last tapped: its empty mark shows (on a touch screen there is no hover)
 function toggleMark(id){
   var x=items.find(function(i){return String(i.id)===String(id)});if(!x)return;
-  x.marked=!x.marked;player();timeline();
+  x.marked=!x.marked;markView();timeline();
   api('/api/cmd',{cmd:x.marked?'mark':'unmark',id:Number(id)}).then(function(r){if(r&&r.ok===false)$('er').textContent=r.error;refresh()})
     .catch(function(){$('er').textContent='the radio is not answering';refresh()})}
-function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
-function segmentHtml(s){return s.url?sourceAnchor(s,s.text):esc(s.text)}
+// the player's thumb: for the song on air now (the timeline's current entry)
+function markView(){
+  var now=RadioModel.timeline({timeline:items,status:st},running()).entries.find(function(x){return x.current});
+  $('mk').hidden=!(now&&now.kind==='music');
+  if(now){$('mk').dataset.id=now.id;$('mk').setAttribute('aria-pressed',String(!!now.marked))}}
 // one timeline entry from RadioModel.timeline(): kind, time, title, now, replay button, unfolded details
 function row(x){
   var id=String(x.id),c=x.current,ex=x.expandable,o=ex&&!!open[id];
@@ -699,7 +702,6 @@ $('catchup-build').onclick=async function(){
   finally{catchupBusy=false;catchupView(st.catchup);}
 };
 function refresh(){return core.refresh()}
-var shownError='';  // the poll error this page put in #er, cleared when a poll works again
 function applySnapshot(d){
     if(shownError&&$('er').textContent===shownError)$('er').textContent='';
     shownError='';
@@ -715,7 +717,7 @@ function applySnapshot(d){
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
     chartData=d.charts||{};chartsView();
-    items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();pluginsView();settingsView();directionView();hooksView(d.hooks)
+    items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();markView();pluginsView();settingsView();directionView();hooksView(d.hooks)
 }
 core.subscribe(function(core,change){
   if(change==='snapshot')applySnapshot(core.snapshot);

@@ -74,10 +74,10 @@ var RadioModel=(function(){
   // queue: the replays in the order they play [{place, kind, ref, title}]; they go first, so next is then the one after.
   function upcoming(status,localError){
     var tracks=status.upcoming_tracks||[],list=status.upcoming||[],replays=status.replay_queue||[];
-    function replay(x){return x.stage==='queued'&&replays.some(function(q){return q.kind===x.kind&&q.ref===x.ref})}
-    var queue=replays.map(function(q,i){var x=list.find(function(u){return replay(u)&&u.ref===q.ref});
+    function isReplay(x){return x.stage==='queued'&&replays.some(function(q){return q.kind===x.kind&&q.ref===x.ref})}
+    var queue=replays.map(function(q,i){var x=list.find(function(u){return isReplay(u)&&u.ref===q.ref});
       return {place:i+1,kind:q.kind,ref:q.ref,title:x&&x.title||String(q.ref).split('/').pop()}});
-    var next=list.find(function(x){return x.stage==='queued'&&!replay(x)})||list.find(function(x){return x.stage==='next'})||list.find(function(x){return x.stage==='music'});
+    var next=list.find(function(x){return x.stage==='queued'&&!isReplay(x)})||list.find(function(x){return x.stage==='next'})||list.find(function(x){return x.stage==='music'});
     var nr=status.next_reroll||{},pend=nr.pending;
     return {next:next||null,queue:queue,title:pend?pend.title:entryTitle(next&&next.kind,next&&next.title),pending:!!pend,
       tags:next?trackTags(next,status):null,
@@ -93,11 +93,11 @@ var RadioModel=(function(){
     var up=upcoming(status,localError),next=up.next,rows=[],songs=0,nextShown=false,done=false,now=planNow(status);
     var nextMusic=!!next&&next.kind==='music';
     if(next&&!nextMusic)rows.push({key:'next',label:'next',kind:next.kind,title:up.title,at:null,next:true,skippable:false,skipped:false});
-    (status.upcoming_tracks||[]).forEach(function(t,i){
+    (next?status.upcoming_tracks||[]:[]).forEach(function(t,i){  // nothing comes next (the station is off): no songs either
       if(done)return;
       var row={key:'song:'+i+':'+t.ref,label:'then',kind:'music',ref:t.ref,title:t.title,at:t.at||null,tentative:true,skippable:true,skipped:!!t.skipped};
       if(row.skipped){row.label='skipped';rows.push(row);return}
-      if(nextMusic&&!nextShown){nextShown=true;rows.push(Object.assign(row,{label:'next',next:true,title:up.title,tentative:false,pending:up.pending,reroll:up.reroll,tags:up.tags}));return}
+      if(nextMusic&&!nextShown&&t.ref===next.ref){nextShown=true;rows.push(Object.assign(row,{label:'next',next:true,title:up.title,tentative:false,pending:up.pending,reroll:up.reroll,tags:up.tags}));return}
       if(songs===FUTURE_SONGS){done=true;return}
       songs++;rows.push(row);
     });
