@@ -7,3 +7,12 @@
 
 /* the "Skipped" notice: a tile like the rows, its edge in the accent */
 :root[data-skin="lime"] .toast{background:var(--tile);border:1px solid rgba(200,255,61,.4);border-radius:var(--r-tile,12px)}
+
+/* waiting: a lime band sweeps across the text, readable in between; the answer rolls up and the new text rolls in */
+@keyframes lime-shine{from{background-position:130% 0}to{background-position:-30% 0}}
+:root[data-skin="lime"] .wait{background:linear-gradient(100deg,var(--ink) 0 38%,var(--accent) 50%,var(--ink) 62% 100%) 130% 0/300% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:lime-shine 1.1s ease-in-out}
+:root[data-skin="lime"] .swap :is(.a,.b){transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .32s}
+:root[data-skin="lime"] .swap .b{transform:translateY(100%);opacity:0}
+:root[data-skin="lime"] .swap.roll .a{transform:translateY(-100%);opacity:0}
+:root[data-skin="lime"] .swap.roll .b{transform:none;opacity:1}
