@@ -5,7 +5,7 @@
 // blocks over the panel (Reduced: no effect, only the still state). One effect at a time: a new event ends the last.
 // The words stay the core's: #ttl-sr has the title at once; the decode only draws #ttl, which screen readers skip.
 var RadioTheme=(function(theme){
-  var GLYPHS='▒░▓█#＠%&$<>/\\|01',DECODE_MS=520,SLICE_MS=460,BLOCKS=8,BLOCKS_MS=420,QUIET_AFTER_POWER_MS=1500;
+  var GLYPHS='#@%&$<>/\\|!?~^*+=0123456789ABCDEFXYZ',DECODE_MS=520,SLICE_MS=460,BLOCKS=8,BLOCKS_MS=420,QUIET_AFTER_POWER_MS=1500;
   // the effect an event gets: 'decode' or 'decode-still' (a new title), 'slice' (a lost signal, the radio off or on), null
   function effect(event,mode,reduced,hidden){
     if(reduced||hidden||mode==='off')return null;

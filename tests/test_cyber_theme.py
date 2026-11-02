@@ -39,6 +39,14 @@ for(const [name,accent,panel,alt,badInk,badGround,muted] of ''' + json.dumps(pai
             name, lowest = line.split()
             self.assertGreaterEqual(float(lowest), 4.5, name)
 
+    def test_the_noise_is_plain_ascii_and_no_block_glyphs_anywhere(self):
+        view = (WEB / 'themes/cyber/view.js').read_text()
+        glyphs = re.search(r"GLYPHS='((?:[^'\\]|\\.)*)'", view)[1]
+        self.assertTrue(glyphs and all(ord(c) < 128 for c in glyphs), glyphs)
+        for name in ('view.js', 'theme.css', 'index.html'):
+            text = (WEB / 'themes/cyber' / name).read_text()
+            self.assertFalse([c for c in text if 0x2580 <= ord(c) <= 0x259F], name)
+
     def test_no_text_under_16px(self):
         sizes = [int(s) for s in re.findall(r'font(?:-size)?:\s*(?:\d+\s+)?(\d+)px', CSS)]
         self.assertTrue(sizes)

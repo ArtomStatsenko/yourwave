@@ -109,6 +109,7 @@
 :root[data-skin="cyber"] #np.cy-slice #ttl::after{animation:cy-gb .46s steps(1) both}
 :root[data-skin="cyber"] #np.cy-slice .strip{animation:cy-tear .46s steps(1)}
 :root[data-skin="cyber"] #np.cy-slice::before{animation:cy-flash .46s steps(1)}
+:root[data-skin="cyber"] .cy-dc{font-kerning:none}  /* the boxes' widths add up to the plain text's: no jump at the end */
 :root[data-skin="cyber"] .cy-dc i{font-style:normal;display:inline-block;overflow:hidden;white-space:pre;text-align:center;vertical-align:top}
 :root[data-skin="cyber"] .cy-dc .w{white-space:nowrap}
 :root[data-skin="cyber"] .cy-blk{position:absolute;z-index:2;pointer-events:none;mix-blend-mode:screen}
