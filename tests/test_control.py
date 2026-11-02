@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from radio import config, control
+from radio import config, control, store
 
 
 class ControlTests(unittest.TestCase):
@@ -73,6 +73,7 @@ class ControlTests(unittest.TestCase):
                 stack.enter_context(patch.object(getattr(control, module), name, return_value=value))
             voice = Mock(); voice.health.return_value = True
             stack.enter_context(patch.object(control.tts, 'make_voice', return_value=voice))
+            db = store.connect(); db.execute("INSERT OR IGNORE INTO events(id,at,type,ref) VALUES(1,'2026-01-01T00:00:00+00:00','MUSIC_STARTED','track')"); db.close()
             body = {'name': 'ytmusic', 'on': True, 'key': 'station_name', 'value': 'python', 'provider': 'deepseek',
                     'cookie': 'private-cookie', 'id': 1, 'approved': True, 'kind': 'music', 'ref': 'track', 'action': 'add'}
             for name in control.OPERATIONS:

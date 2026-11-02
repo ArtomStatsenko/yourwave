@@ -38,7 +38,7 @@ music_source_choice, hooks}`:
   `error`), `replay_queue`, `broadcast_plan` (`rows`, `version`; Air direction only), `direction_timezone`,
   `music_source`, `music_source_state`, `ytmusic_active`, `catchup`, `spoken_last_hour_sec`, `speech_limit_sec`,
   `voicestudio`, `sources`, `last_error`, `news_ready`, `news_preparing`, `llm_calls`, `session`.
-- `timeline`: what aired in the last 12 hours, newest first: `{id, type, kind, time, title, ref, replayable,
+- `timeline`: what aired in the last 12 hours, newest first: `{id, type, kind, time, title, ref, replayable, marked,
   replay, outcome, parts: [{title, text, source, links: [{url, title, label, original, stars_total,
   stars_today}], segments}]}`. One host appearance is one entry: a teaser or editions back to back are folded
   into it, `event_ids` lists their events. In a host edition with news, `segments` is the story's text in pieces
@@ -76,6 +76,7 @@ are listed by `/api/capabilities`:
 | `chatgpt_logout`, `openrouter_logout` | | Sign out |
 | `voice_sample` | | Answer `{url}` of a short sample in the selected voice |
 | `hook_review` | `id`, `approved` | Approve or reject a track preview |
+| `mark`, `unmark` | `id` | Thumbs up for one airing of a song (`id`: its timeline entry), or take it back. Idempotent; answers `{id, marked}` |
 
 ## Audio
 

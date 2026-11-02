@@ -110,6 +110,9 @@ function player(){
   $('airtxt').textContent=p.airText;
   stationTerminal(st,ds);
   setTitle(p.title,!(p.isTrack&&titleIsTrack),ds.transition_sec*1000);titleIsTrack=p.isTrack;  // only a track-to-track change is typed
+  var now=RadioModel.timeline({timeline:items,status:st},running()).entries.find(function(x){return x.current});
+  $('mk').hidden=!(p.isTrack&&now&&now.kind==='music');
+  if(now){$('mk').dataset.id=now.id;$('mk').setAttribute('aria-pressed',String(!!now.marked))}
   media(ds);
   $('fill').style.width=p.progress+'%';
   $('time').textContent=p.timeText;
@@ -561,13 +564,23 @@ function ytConnect(browser){if(ytBusy||!$('yt-form').reportValidity())return;ytB
 $('yt-form').onsubmit=function(e){e.preventDefault();ytConnect('')};
 $('yt-chrome').onclick=function(){ytConnect('chrome')};
 function rk(x){return RadioModel.replayKind(x)}
+// a thumbs up for one airing of a song (24px line icon, filled when given)
+var THUMB='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1H7zm0 0l3.2-6.2a1.7 1.7 0 0 1 3.2 1L12.6 10H18a2 2 0 0 1 2 2.4l-1.3 6a2 2 0 0 1-2 1.6H7"/></svg>';
+function markButton(x){return '<button type="button" class="mk" data-mark="'+esc(String(x.id))+'" aria-pressed="'+!!x.marked+'" aria-label="Thumbs up" title="Hear this more often">'+THUMB+'</button>'}
+var selectedRow=null;  // the row last tapped: its empty mark shows (on a touch screen there is no hover)
+function toggleMark(id){
+  var x=items.find(function(i){return String(i.id)===String(id)});if(!x)return;
+  x.marked=!x.marked;player();timeline();
+  api('/api/cmd',{cmd:x.marked?'mark':'unmark',id:Number(id)}).then(function(r){if(r&&r.ok===false){$('er').textContent=r.error;refresh()}})
+    .catch(function(){$('er').textContent='the radio is not answering';refresh()})}
 function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
 function segmentHtml(s){return s.url?sourceAnchor(s,s.text):esc(s.text)}
 // one timeline entry from RadioModel.timeline(): kind, time, title, now, replay button, unfolded details
 function row(x){
   var id=String(x.id),c=x.current,ex=x.expandable,o=ex&&!!open[id];
   var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+x.kindLabel+'</span><span class="tx">'+esc(x.text)+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
-  var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
+  var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+(selectedRow===id?' sel':'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
+  if(x.kind==='music')h+=markButton(x);
   if(x.kind==='music'&&x.replayable)
     h+=x.queued?'<button class="rp on" data-dq="'+id+'" title="remove from the queue" aria-label="remove from the queue">queued ✕</button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
   h+='</div>';
@@ -689,7 +702,11 @@ $('tab-tl').parentNode.onkeydown=function(e){
   if(e.key==='ArrowRight')i=(i+1)%tabs.length;else if(e.key==='ArrowLeft')i=(i+tabs.length-1)%tabs.length;
   else if(e.key==='Home')i=0;else if(e.key==='End')i=tabs.length-1;else return;
   e.preventDefault();selectTab(tabs[i]);tabs[i].focus()};
-$('tl').onclick=function(e){var q=e.target.closest('[data-q]');if(q){replay(q.dataset.q);return}
+$('mk').innerHTML=THUMB;$('mk').onclick=function(){toggleMark(this.dataset.id)};
+$('tl').onclick=function(e){var mk=e.target.closest('[data-mark]');if(mk){toggleMark(mk.dataset.mark);return}
+  var it=e.target.closest('[data-history-id]');
+  if(it&&selectedRow!==it.dataset.historyId){var was=$('tl').querySelector('.it.sel');if(was)was.classList.remove('sel');selectedRow=it.dataset.historyId;it.classList.add('sel')}
+  var q=e.target.closest('[data-q]');if(q){replay(q.dataset.q);return}
   var dq=e.target.closest('[data-dq]');if(dq){unqueue(dq.dataset.dq);return}
   var h=e.target.closest('[data-id]');if(h){open[h.dataset.id]=!open[h.dataset.id];timeline()}};
 $('pp').onclick=function(){

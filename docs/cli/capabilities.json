@@ -109,6 +109,16 @@
         "ref"
       ]
     },
+    "mark": {
+      "fields": [
+        "id"
+      ]
+    },
+    "unmark": {
+      "fields": [
+        "id"
+      ]
+    },
     "replay": {
       "fields": [
         "kind",

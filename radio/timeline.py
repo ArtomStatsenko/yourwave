@@ -59,6 +59,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
     rows = db.execute("""SELECT id, at, type, ref, detail FROM events WHERE at>=? AND type IN
                          ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','REPLAY','REMINDER','WEATHER','GAP','MUSIC_TEASER')
                          ORDER BY id DESC LIMIT ?""", (since, limit)).fetchall()
+    marked = {m[0] for m in db.execute("SELECT event_id FROM marks WHERE event_id>=?", (rows[-1]["id"] if rows else 0,))}
     out = []
     for r in rows:
         # id = the event row: stable across refreshes, so the UI can keep a row expanded by it.
@@ -66,7 +67,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
         if r["type"] == "MUSIC_STARTED":
             p = Path(r["ref"])
             e.update(kind="music", title=music.label(db, r["ref"]), ref=r["ref"],
-                     replayable=p.exists() or r["ref"] in remote_refs)
+                     replayable=p.exists() or r["ref"] in remote_refs, marked=r["id"] in marked)
         elif r["type"] in ("PACKAGE_STARTED", "REPLAY"):
             pk = db.execute("SELECT p.*, i.topic, i.source, i.url, i.origin_json FROM packages p JOIN items i "
                             "ON i.id=p.item_id WHERE p.id=?", (r["ref"],)).fetchone()

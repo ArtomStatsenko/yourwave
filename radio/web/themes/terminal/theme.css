@@ -121,6 +121,14 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .it:hover .rp,.rp:focus-visible,.rp.on{opacity:1}
 @media (hover:none){.rp{opacity:1}}
 .rp.on{font-size:16px;color:var(--ok);cursor:pointer}.rp.on:hover{color:var(--accent)}
+/* thumbs up: always shown when given; an empty one only on hover, keyboard focus or a tapped row (its place is kept) */
+.title-row{display:flex;align-items:center;gap:8px;min-width:0}.title-row .title{flex:1;min-width:0}
+.mk{display:grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;padding:0;border:0;color:var(--muted)}
+.mk[hidden]{display:none}.mk:hover{border:0;color:var(--ink)}
+.mk svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mk[aria-pressed="true"]{color:var(--ink)}.mk[aria-pressed="true"] svg{fill:currentColor}
+.it .mk{margin:-8px 0}.it .mk[aria-pressed="false"]{visibility:hidden}
+.it:hover .mk,.it:focus-within .mk,.it.sel .mk{visibility:visible}
 .tm.ch{width:auto}
 .tm{width:56px;color:var(--muted);font-size:16px;flex:none;font-variant-numeric:tabular-nums}
 .k{display:none}

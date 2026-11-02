@@ -13,7 +13,7 @@ OPERATIONS = {
     'audio_preset': ['name'], 'reddit_community': ['action', 'value'], 'telegram_channel': ['action', 'value'],
     'ytmusic_connect': ['cookie', 'playlist', 'browser'], 'voice_sample': [], 'llm_key': ['provider', 'key'],
     'chatgpt_login': [], 'chatgpt_logout': [], 'openrouter_login': [], 'openrouter_logout': [],
-    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'],
+    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'mark': ['id'], 'unmark': ['id'],
     'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'],
     'direction': ['action', 'kind', 'ref', 'text', 'at', 'id', 'token', 'changes', 'version', 'remember_undo'],
 }
@@ -199,6 +199,21 @@ def execute(body, *, sender=None, starter=None, port=8765):
             resp = {'ok':True,'hooks':hooks.listing(db)}
         except (OSError,ValueError,TypeError) as error:
             return reply({'ok':False,'error':str(error)},400)
+        finally:
+            db.close()
+    elif cmd in ('mark', 'unmark'):  # a thumbs up for one airing of a song: the same song played again starts without it
+        db = store.connect()
+        try:
+            event = db.execute("SELECT ref FROM events WHERE id=? AND type='MUSIC_STARTED'", (int(body.get('id')),)).fetchone()
+            if not event:
+                raise ValueError('This song is no longer in the timeline')
+            if cmd == 'mark':
+                db.execute('INSERT OR IGNORE INTO marks(event_id,ref,at) VALUES(?,?,?)', (int(body['id']), event['ref'], store.iso(store.now())))
+            else:
+                db.execute('DELETE FROM marks WHERE event_id=?', (int(body['id']),))
+            resp = {'ok': True, 'id': int(body['id']), 'marked': cmd == 'mark'}
+        except (TypeError, ValueError) as error:
+            return reply({'ok': False, 'error': 'Choose a song from the timeline' if isinstance(error, TypeError) else str(error)}, 400)
         finally:
             db.close()
     elif cmd == "reroll-next":

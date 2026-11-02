@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS air_plan(
   id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '', text TEXT NOT NULL DEFAULT '',
   not_before TEXT, rank INTEGER, skipped INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'PENDING',
   rid TEXT, error TEXT);
+CREATE TABLE IF NOT EXISTS marks(
+  event_id INTEGER PRIMARY KEY, ref TEXT NOT NULL, at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS packages_status ON packages(status, played_at);
 CREATE INDEX IF NOT EXISTS items_state ON items(state, published_at);
 """
