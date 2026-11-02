@@ -24,7 +24,7 @@ class PrismLookTests(unittest.TestCase):
             ':root[data-skin="prism"] .title',
             ':root[data-skin="prism"] .bar i',
             ':root[data-skin="prism"] #pp',
-            ':root[data-skin="prism"] :is(#nx,#so,.ab):active',
+            ':root[data-skin="prism"] :is(#nx,.ab):active',
             ':root[data-skin="prism"] .tabs button[aria-selected="true"]::after',
             ':root[data-skin="prism"] :is(.pl[aria-pressed="true"] .sw,input[role=switch]:checked)::after',
         ]))

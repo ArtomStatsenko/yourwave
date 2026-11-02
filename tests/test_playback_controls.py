@@ -14,7 +14,7 @@ class PlaybackControlsTests(unittest.TestCase):
         harness = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
 let commands=[],audioCount=0,title='';const nodes={};
-function $(id){return nodes[id]||(nodes[id]={textContent:'',style:{},dataset:{},value:'1',
+function $(id){return nodes[id]||(nodes[id]={textContent:'',style:{},dataset:{},value:'1',querySelectorAll:()=>[],
   setAttribute(k,v){this[k]=v},removeAttribute(){}})}
 function Audio(){audioCount++;this.buffered={length:0};this.play=()=>Promise.resolve();
   this.pause=()=>{};this.load=()=>{};this.removeAttribute=()=>{this.src=''}}
@@ -27,34 +27,25 @@ const c={$ ,Audio,window:{AudioContext,addEventListener(){}},navigator:{mediaSes
   MediaMetadata:function(value){return value},KIND:{},
   document:{activeElement:null,documentElement:{dataset:{presentation:'calm'}}},localStorage:{getItem:()=>null,setItem(){}},requestAnimationFrame(){},
   setTitle:t=>title=t,media(){},f:String,musicSourceLabel:()=>'',musicSourceOptions:()=>'',
-  st:{state:'STOPPED',output:'browser'},pls:[],ytStatus:{},musicChoice:'local',busy:false,
+  st:{state:'STOPPED',output:'browser'},stg:[],pls:[],ytStatus:{},musicChoice:'local',busy:false,
   LOCAL_CONTROL:true,titleIsTrack:false,cmd:(...args)=>{commands.push(args);return Promise.resolve()},
   rerollNext(){},Date,console};
 vm.createContext(c);vm.runInContext(CORE+'\nvar core=RadioCore.create({localControl:true});\n'+AUDIO+'\n'+PLAYER+'\n'+HANDLERS,c);
-c.player();assert.equal($('so')['aria-label'],'Start radio');assert.equal($('pp').disabled,true);
-assert.equal($('station-controls').hidden,false);
-c.listen();media.actions.play();$('pp').onclick();assert.equal(audioCount,0);assert.deepEqual(commands,[]);
-$('so').onclick();assert.deepEqual(commands,[['play']]);assert.equal(audioCount,0);
+c.player();assert.equal($('pp')['aria-label'],'Start radio');assert.equal($('pp').disabled,false);
+c.listen();media.actions.play();assert.equal(audioCount,0);assert.deepEqual(commands,[]);
+$('pp').onclick();assert.deepEqual(commands,[['play']]);assert.equal(audioCount,1);assert.equal(c.listening,true);
 commands=[];c.st.state='PLAYING';c.player();
-assert.equal($('so')['aria-label'],'Stop radio');assert.equal($('pp').disabled,false);
-$('pp').onclick();assert.equal(audioCount,1);assert.equal(c.listening,true);assert.deepEqual(commands,[]);
-$('pp').onclick();assert.equal(c.listening,false);assert.deepEqual(commands,[]);
-$('so').onclick();assert.deepEqual(commands,[['stop']]);
-commands=[];c.LOCAL_CONTROL=false;c.player();assert.equal($('station-controls').hidden,true);
-$('so').onclick();assert.deepEqual(commands,[]);
-c.st.state='STOPPED';c.player();assert.equal(title,'Start on your Mac');
-media.actions.play();$('pp').onclick();assert.deepEqual(commands,[]);assert.equal(c.listening,false);
-c.st.state='STOPPING';c.player();assert.equal($('so').disabled,true);assert.equal($('pp').disabled,true);
+assert.equal($('pp')['aria-label'],'Stop radio');assert.equal($('pp').disabled,false);
+$('pp').onclick();assert.deepEqual(commands,[['stop']]);
+commands=[];c.busy=true;$('pp').onclick();assert.deepEqual(commands,[],'no second command while one is on its way');
+c.busy=false;c.st.state='STOPPING';c.player();assert.equal($('pp').disabled,true);$('pp').onclick();assert.deepEqual(commands,[]);
 assert.equal($('nx').disabled,true);assert.equal(title,'Stopping radio…');
-c.LOCAL_CONTROL=true;$('so').onclick();assert.deepEqual(commands,[]);
+commands=[];c.LOCAL_CONTROL=false;c.st={state:'STOPPED',output:'browser'};c.player();assert.equal(title,'Start on your Mac');
+assert.equal($('pp').disabled,true);media.actions.play();$('pp').onclick();assert.deepEqual(commands,[]);
 c.st={state:'PLAYING',output:'speakers'};c.player();$('pp').onclick();assert.deepEqual(commands,[['pause']]);
 commands=[];c.st.state='PAUSED';c.player();$('pp').onclick();assert.deepEqual(commands,[['resume']]);
-commands=[];c.st.state='STOPPED';c.player();$('pp').onclick();assert.deepEqual(commands,[]);
-c.st.state='PLAYING';c.busy=true;c.player();assert.equal($('so').disabled,true);assert.equal($('pp').disabled,true);
-$('so').onclick();$('pp').onclick();assert.deepEqual(commands,[]);
-c.st.output='browser';c.player();assert.equal($('pp').disabled,false);
-$('pp').onclick();assert.equal(c.listening,true);$('pp').onclick();assert.equal(c.listening,false);
-assert.deepEqual(commands,[],'device listening stays independent of pending station commands');
+commands=[];c.st.output='browser';c.st.state='PLAYING';c.player();assert.equal($('pp').disabled,false);
+$('pp').onclick();$('pp').onclick();assert.deepEqual(commands,[],'on the phone the button only toggles this device');
 c.busy=false;c.st={state:'PAUSED',output:'browser',auto_paused:true};c.player();
 assert.equal($('nx').disabled,true,'Next must not promise a skip while the radio is paused');
 c.st.state='PLAYING';c.player();assert.equal($('nx').disabled,false,'Other listeners can keep the station playing');

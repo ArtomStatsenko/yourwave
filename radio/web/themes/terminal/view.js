@@ -117,10 +117,9 @@ function player(){
   var select=$('music-source-select');
   if(select.dataset.ytEnabled!==String(ytEnabled)){select.innerHTML=musicSourceOptions(ytEnabled);select.dataset.ytEnabled=String(ytEnabled)}
   Array.prototype.forEach.call(select.querySelectorAll('input'),function(box){
-    if(document.activeElement!==box)box.checked=musicChoice==='mixed'||musicChoice===box.value;
-    box.disabled=busy});
+    if(document.activeElement!==box)box.checked=musicChoice==='mixed'||musicChoice===box.value});
   var shuffle=stg.find(function(x){return x.key==='music_shuffle'});
-  $('sh').setAttribute('aria-pressed',String(!!(shuffle&&shuffle.value)));$('sh').disabled=!shuffle;  // not while busy: the button would flicker under the cursor
+  $('sh').setAttribute('aria-pressed',String(!!(shuffle&&shuffle.value)));$('sh').disabled=!shuffle;  // busy never disables a player button: it would flicker under the cursor; the handlers ignore clicks while busy
   $('yt-summary').textContent='YouTube Music: '+(ytEnabled?'on':'off')+(ytStatus.connected?'':' · not connected');  // the song count is beside Connect
   if($('sp')){  // the speech details, where a theme shows them (Settings → Playback status); the voice state is the Voice block's
     var sp=p.speech.minutes,lim=p.speech.limit;
@@ -128,13 +127,10 @@ function player(){
     $('spb').style.width=Math.min(100,sp/lim*100)+'%';$('spb').style.background=p.speech.near?'var(--warn)':'var(--ok)'}
   $('voice-warn').textContent=p.voiceTone==='warn'?p.voiceText:'';  // the player names only a voice problem
   var ppLabel=p.listen.label;
-  $('pp').dataset.playing=String(p.listen.playing);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=ppLabel;
+  $('pp').dataset.playing=String(p.listen.playing);$('pp').setAttribute('aria-label',ppLabel);$('pp').title=p.listen.title;
   $('vol').hidden=!p.browser;
   $('pp').disabled=p.listen.disabled;
-  $('station-controls').hidden=p.station.hidden;
-  var soLabel=p.station.label;
-  $('so').setAttribute('aria-label',soLabel);$('so').title=p.station.title;$('so').setAttribute('aria-busy',String(p.station.busy));
-  $('so').disabled=p.station.disabled;
+  $('pp').setAttribute('aria-busy',String(p.listen.busy));
   $('nx').disabled=p.next.disabled;
   $('nx').textContent=p.next.text;$('nx').setAttribute('aria-busy',String(p.next.busy));
   $('nx').setAttribute('aria-label',p.next.label);$('nx').title=p.next.title;
@@ -696,19 +692,23 @@ $('tl').onclick=function(e){var q=e.target.closest('[data-q]');if(q){replay(q.da
   var dq=e.target.closest('[data-dq]');if(dq){unqueue(dq.dataset.dq);return}
   var h=e.target.closest('[data-id]');if(h){open[h.dataset.id]=!open[h.dataset.id];timeline()}};
 $('pp').onclick=function(){
-  if(!running()||(!browser()&&busy))return;
+  if(LOCAL_CONTROL){  // the one radio button: starts the radio (and listens, in a browser) or stops it for everyone
+    if(busy||st.state==='STOPPING')return;
+    if(running())cmd('stop');else{cmd('play');if(browser())core.audio.listen()}
+    return}
+  if(!running())return;
   if(!browser())return cmd(st.state==='PLAYING'?'pause':'resume');
   listening?unlisten():listen()};
 $('upcoming').onclick=function(e){var b=e.target.closest('[data-reroll]');if(b)rerollNext(b.dataset.reroll,b.dataset.ref)};
 $('upcoming').onkeydown=function(e){if(e.key==='Escape'&&rerollConfirm){e.preventDefault();rerollNext('cancel')}};
-$('music-source-select').onchange=function(){
+$('music-source-select').onchange=function(e){
+  if(busy){e.target.checked=!e.target.checked;return}  // a command is on its way: this click is not saved
   var picked=Array.prototype.filter.call(this.querySelectorAll('input'),function(box){return box.checked}).map(function(box){return box.value});
   if(!picked.length)picked=['local'];  // at least one source plays
   musicChoice=picked.length>1?'mixed':picked[0];cmd('setting',{key:'music_source',value:picked.join(',')})};
 $('nx').onclick=function(){cmd('next')};
 $('sh').onclick=function(){var s=stg.find(function(x){return x.key==='music_shuffle'});if(!s||busy)return;s.value=+!s.value;player();cmd('setting',{key:'music_shuffle',value:s.value})};
 $('sk').onclick=function(){cmd('skip-news')};
-$('so').onclick=function(){if(LOCAL_CONTROL&&!busy&&st.state!=='STOPPING')cmd(running()?'stop':'play')};
 // 2-second refresh: re-renders from state, so expanded rows (open) stay open
 setInterval(player,250);
 // the theme picker (Settings → Appearance): every theme the server has, this one selected

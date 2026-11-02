@@ -17,7 +17,7 @@
 
 /* raised: panels, buttons, the tabs not open; pressed: the open tab, the current row, fields, progress, switches */
 :root[data-skin="soft"] #np{padding:24px;border-radius:30px;background:var(--bg);box-shadow:var(--panel-shadow)}  /* the player: a raised panel */
-:root[data-skin="soft"] :is(#nx,#sh,#so,#sk,.ab,.tabs button,#yt-chrome,#yt-connect,#direction-form button,.source-add button){
+:root[data-skin="soft"] :is(#nx,#sh,#sk,.ab,.tabs button,#yt-chrome,#yt-connect,#direction-form button,.source-add button){
   border:0;background:var(--bg);box-shadow:var(--raised)}
 :root[data-skin="soft"] #pp{border:0;box-shadow:var(--raised)}
 :root[data-skin="soft"] #sh[aria-pressed="true"]{color:var(--accent-text);box-shadow:var(--pressed)}  /* on: pressed in, like the open tab */

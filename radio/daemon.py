@@ -205,8 +205,8 @@ class Service:
         config.SOCK.unlink(missing_ok=True)
         server = await asyncio.start_unix_server(self.handle_client, str(config.SOCK))
         config.SOCK.chmod(0o600)
-        # YouTube Music needs seconds for its first song: an opener goes first instead of silence or a local song.
-        opens = self.ytmusic_active and (not resumed or "ytmusic:" in resumed)
+        # A fresh start opens with the jingle (and voice, once rendered): sound at once, while the first song loads.
+        opens = not resumed or ("ytmusic:" in resumed and self.ytmusic_active)
         await self.engine.start(self.on_event, [line for line in (self._opener_line() if opens else "", resumed) if line])
         if self.stopping:  # stopped while starting
             await self.done.wait()

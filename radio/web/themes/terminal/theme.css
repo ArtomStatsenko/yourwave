@@ -67,9 +67,8 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #air{color:var(--accent)}
 #air.off{color:var(--muted)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-#station-controls[hidden]{display:none}
 .air-heading{display:flex;align-items:center;gap:12px}.air-caption{flex:1;min-width:0}
-#station-controls{margin-left:auto}#so{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;color:var(--muted)}#so:hover{color:var(--ink)}#so[aria-busy="true"] svg{opacity:.4}
+#pp[aria-busy="true"] svg{opacity:.4}
 #pp{display:grid;place-items:center;width:48px;height:44px;min-height:44px;padding:8px}#pp .pause-icon{display:none}#pp[data-playing="true"] .play-icon{display:none}#pp[data-playing="true"] .pause-icon{display:inline}
 .player-controls{display:grid;grid-template-columns:auto auto 112px minmax(100px,1fr) auto auto;gap:12px}
 .player-controls .bar{min-width:0}

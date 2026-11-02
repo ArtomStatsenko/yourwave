@@ -43,12 +43,12 @@
 :root[data-skin="prism"] #pp{width:58px;height:58px;border-radius:50%;background:#fff;color:#000;border-color:#fff;
   box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
 :root[data-skin="prism"] #pp:disabled{background:none;color:var(--muted);border-color:var(--edge);box-shadow:none}
-:root[data-skin="prism"] :is(#nx,#sh,#so){width:50px;height:50px;border-radius:50%;border-color:var(--edge)}
+:root[data-skin="prism"] :is(#nx,#sh){width:50px;height:50px;border-radius:50%;border-color:var(--edge)}
 
 /* held: a button, an icon or a tab splits a little wider while pressed (its shape, never its text) */
 :root[data-skin="prism"] :is(button,.tabs button){transition:--ab .14s ease-out}
 :root[data-skin="prism"]:not(.prism-error) :is(button,.tabs button):active{--ab:2.8px}
-:root[data-skin="prism"] :is(#nx,#so,.ab):active{box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
+:root[data-skin="prism"] :is(#nx,.ab):active{box-shadow:calc(var(--ab)*-1) 0 0 var(--c1),var(--ab) 0 0 var(--c2)}
 
 /* tabs: capitals, the open one white and bold with a 2px line under its text */
 :root[data-skin="prism"] .tabs button{position:relative;border-radius:0;font-size:17px;letter-spacing:.1em;padding:0 14px}
