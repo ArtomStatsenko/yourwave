@@ -49,7 +49,23 @@ def _path():
     return config.DATA_DIR / "plugins.json"
 
 
+_seen = (None, {})  # (the file as stat saw it, its values): read again only when it changes
+
+
 def _saved() -> dict:
+    """plugins.json's switches. Read again only when the file changes: plugins.on() runs hundreds of times a poll."""
+    global _seen
+    try:
+        st = _path().stat()
+    except FileNotFoundError:
+        return {}
+    key = (str(_path()), st.st_ino, st.st_mtime_ns, st.st_size)
+    if _seen[0] != key:
+        _seen = (key, _read())
+    return dict(_seen[1])
+
+
+def _read() -> dict:
     try:
         data = json.loads(_path().read_text(encoding="utf-8"))
         if not isinstance(data, dict):
