@@ -73,6 +73,7 @@ class Service:
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
         self.chart_sets = {}  # plan block id -> what the host says and plays in a queued chart set (for the timeline)
         self.plan_cache, self.plan_gen, self.energy_cache = None, 0, (None, {})  # _plan_rows, _energy_profiles
+        self.lock = None  # main()'s daemon.lock, released when the session has ended
         self.replays_checked = 0.0  # when Liquidsoap's queue was last compared with them
         self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
         self.reroll_task = None
@@ -213,6 +214,7 @@ class Service:
         if self.stopping:  # stopped while starting
             await self.done.wait()
             server.close()
+            self._release_lock()
             return
         self.state = "PLAYING"
         store.log_event(self.db, self.session, "SESSION_STARTED")
@@ -237,6 +239,14 @@ class Service:
         await self.done.wait()
         server.close()
         config.SOCK.unlink(missing_ok=True)
+        self._release_lock()
+
+    def _release_lock(self):
+        """The session is over and its socket gone: a new daemon may start now. This process can still wait a while
+        for a thread to end (a break being joined, a song being heard) before it exits; that work belonged to the
+        finished session and goes nowhere, and a Start in the meantime used to fail ('another radio daemon is running')."""
+        if self.lock:
+            fcntl.flock(self.lock, fcntl.LOCK_UN)
 
     async def stop(self) -> None:
         if self.stopping:
@@ -3287,6 +3297,7 @@ def main(output: str = "device") -> None:
         log("another radio daemon is running: not starting a second one")
         return
     svc = Service(cfg, output=output)
+    svc.lock = lock
 
     async def runner():
         loop = asyncio.get_running_loop()
