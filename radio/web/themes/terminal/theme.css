@@ -121,6 +121,12 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .it:hover .rp,.rp:focus-visible,.rp.on{opacity:1}
 @media (hover:none){.rp{opacity:1}}
 .rp.on{font-size:16px;color:var(--ok);cursor:pointer}.rp.on:hover{color:var(--accent)}
+/* a queued song: its place in a disc; pointing at it (or focus) turns the number into ✕ */
+.qd{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:16px;font-weight:600;line-height:1}
+.qd .qx,.rp.on:is(:hover,:focus-visible) .qn{display:none}.rp.on:is(:hover,:focus-visible) .qx{display:inline}
+.rp svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+#upcoming .queued-row .tm{color:var(--ink)}#upcoming .rp{opacity:1}  /* a queued song's ✕ is always there */
+#upcoming .tg+.tg{margin-top:6px}
 /* thumbs up: always shown when given; an empty one only on hover, keyboard focus or a tapped row (its place is kept) */
 .title-row{display:flex;align-items:center;gap:8px;min-width:0}.title-row .title{flex:1;min-width:0}
 .mk{display:grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;padding:0;border:0;color:var(--muted)}

@@ -582,7 +582,7 @@ function row(x){
   var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+(selectedRow===id?' sel':'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
   if(x.kind==='music')h+=markButton(x);
   if(x.kind==='music'&&x.replayable)
-    h+=x.queued?'<button class="rp on" data-dq="'+id+'" title="remove from the queue" aria-label="remove from the queue">queued ✕</button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
+    h+=x.queued?'<button class="rp on" data-dq="'+id+'" title="Queued, number '+x.queuePlace+'. Press to remove" aria-label="Queued, number '+x.queuePlace+'. Remove from the queue"><span class="qd"><span class="qn">'+x.queuePlace+'</span><span class="qx">✕</span></span></button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
   h+='</div>';
   if(o){h+='<div class="ex">';
     RadioModel.entryDetails(x).forEach(function(d){
@@ -599,9 +599,12 @@ function timeline(){
   var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
   function trackLabels(tags){if(!tags)return '';return (tags.announced?'<span class="l announced-track"> · announced</span>':'')}
   var up=RadioModel.upcoming(st,rerollError),next=up.next;
-  $('upcoming').hidden=!next||!!planDraft;
+  $('upcoming').hidden=!next&&!up.queue.length||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;
-  $('upcoming').innerHTML=next?'<div class="tg"><span class="tm">next</span><span class="tx'+(up.pending?' pend':'')+'" title="'+esc(up.title)+'">'+esc(up.title)+(up.pending?' <span class="l">· loading…</span>':trackLabels(up.tags))+'</span>'+(up.reroll?rerollButton():'')+'</div>'+(up.error?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(up.error)+'</span></div>':''):'';
+  // the planned next above the queue, the queue nearest "now" (queue 1 plays next)
+  var queued=up.queue.slice().reverse().map(function(q){return '<div class="tg queued-row"><span class="tm">'+(q.place===1?'next':'then')+'</span><span class="tx">queue '+q.place+' · '+esc(q.title)+'</span>'+
+    '<button type="button" class="rp" data-unqueue="'+esc(q.ref)+'" data-kind="'+esc(q.kind)+'" title="Remove from the queue" aria-label="Remove '+esc(q.title)+' from the queue"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'}).join('');
+  $('upcoming').innerHTML=(next?'<div class="tg"><span class="tm">'+(up.queue.length?'then':'next')+'</span><span class="tx'+(up.pending?' pend':'')+'" title="'+esc(up.title)+'">'+esc(up.title)+(up.pending?' <span class="l">· loading…</span>':trackLabels(up.tags))+'</span>'+(up.reroll?rerollButton():'')+'</div>'+(up.error?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(up.error)+'</span></div>':''):'')+queued;
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   var sc=$('tl').scrollTop;
   var tl=RadioModel.timeline({timeline:items,status:st},running()),aired=tl.entries,activity=tl.activity,background=tl.background;
@@ -717,7 +720,8 @@ $('pp').onclick=function(){
   if(!running())return;
   if(!browser())return cmd(st.state==='PLAYING'?'pause':'resume');
   listening?unlisten():listen()};
-$('upcoming').onclick=function(e){var b=e.target.closest('[data-reroll]');if(b)rerollNext(b.dataset.reroll,b.dataset.ref)};
+$('upcoming').onclick=function(e){var b=e.target.closest('[data-reroll]');if(b){rerollNext(b.dataset.reroll,b.dataset.ref);return}
+  var u=e.target.closest('[data-unqueue]');if(u)cmd('unqueue',{kind:u.dataset.kind,ref:u.dataset.unqueue})};
 $('upcoming').onkeydown=function(e){if(e.key==='Escape'&&rerollConfirm){e.preventDefault();rerollNext('cancel')}};
 $('music-source-select').onchange=function(e){
   if(busy){e.target.checked=!e.target.checked;return}  // a command is on its way: this click is not saved

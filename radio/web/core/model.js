@@ -16,7 +16,9 @@ var RadioModel=(function(){
   function isCurrent(x,items,running){var current=items.find(function(i){return i.kind!=='session'});return running&&(x===current||!!current&&(x.event_ids||[]).includes(current.id))}
   function replayKind(x){return 'music'}
   // A replay waiting in the station's real queue (it survives a reload; one that went on air drops out).
-  function isQueued(x,status){return (status.replay_queue||[]).some(function(q){return q.kind===replayKind(x)&&q.ref===x.ref})}
+  function isQueued(x,status){return queuePlace(x,status)>0}
+  // A song's place in the replay queue (1 plays first), 0 when it is not queued.
+  function queuePlace(x,status){return (status.replay_queue||[]).findIndex(function(q){return q.kind===replayKind(x)&&q.ref===x.ref})+1}
   function entryText(x){return entryTitle(x.kind,x.title)+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')}
   // The parts an entry unfolds into: a host edition's stories, or a reminder's own text.
   function entryParts(x){return x.parts||(x.kind==='reminder'?[{text:x.title,description:x.description,links:x.links||[]}]:[])}
@@ -52,7 +54,7 @@ var RadioModel=(function(){
   // One aired event as a timeline entry: the event's own fields plus current (on air now), queued (a replay
   // waiting), kindLabel, text (the title line) and expandable (it has details to unfold).
   function entry(x,items,running,status){
-    return Object.assign({},x,{current:isCurrent(x,items,running),queued:isQueued(x,status||{}),kindLabel:KINDS[x.kind],
+    return Object.assign({},x,{current:isCurrent(x,items,running),queued:isQueued(x,status||{}),queuePlace:queuePlace(x,status||{}),kindLabel:KINDS[x.kind],
       text:entryText(x),expandable:expandable(x)})}
   // The timeline for a snapshot: entries (newest first; the theme shows the first HISTORY_SHOWN until asked for
   // more), the radio's own starts (Activity), and a background error worth showing there. The server already
@@ -69,11 +71,15 @@ var RadioModel=(function(){
   // The next entry (a queued replay, the planned next block, or the next song), its title, the song's tags,
   // and the reroll state: pending (a picked song still loading) and the last reroll error.
   // localError: an error this page got from its own reroll request.
+  // queue: the replays in the order they play [{place, kind, ref, title}]; they go first, so next is then the one after.
   function upcoming(status,localError){
-    var tracks=status.upcoming_tracks||[],list=status.upcoming||[];
-    var next=list.find(function(x){return x.stage==='queued'})||list.find(function(x){return x.stage==='next'})||list.find(function(x){return x.stage==='music'});
+    var tracks=status.upcoming_tracks||[],list=status.upcoming||[],replays=status.replay_queue||[];
+    function replay(x){return x.stage==='queued'&&replays.some(function(q){return q.kind===x.kind&&q.ref===x.ref})}
+    var queue=replays.map(function(q,i){var x=list.find(function(u){return replay(u)&&u.ref===q.ref});
+      return {place:i+1,kind:q.kind,ref:q.ref,title:x&&x.title||String(q.ref).split('/').pop()}});
+    var next=list.find(function(x){return x.stage==='queued'&&!replay(x)})||list.find(function(x){return x.stage==='next'})||list.find(function(x){return x.stage==='music'});
     var nr=status.next_reroll||{},pend=nr.pending;
-    return {next:next||null,title:pend?pend.title:entryTitle(next&&next.kind,next&&next.title),pending:!!pend,
+    return {next:next||null,queue:queue,title:pend?pend.title:entryTitle(next&&next.kind,next&&next.title),pending:!!pend,
       tags:next?trackTags(next,status):null,
       reroll:!!(next&&next.kind==='music'&&status.next_reroll&&next.ref===status.next_reroll.ref),
       error:localError||nr.error||''};
@@ -243,5 +249,5 @@ var RadioModel=(function(){
     keySaved:keySaved,KEY_EMPTY:KEY_EMPTY,voice:voice,sampleFeedback:sampleFeedback,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,starsText:starsText,
-    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
+    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,queuePlace:queuePlace,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
 })();
