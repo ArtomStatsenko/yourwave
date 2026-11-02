@@ -11,7 +11,6 @@ PLUGINS = {
     "track_previews": ("Coming up", 'Close host editions with one later song hook, then introduce the first song. No standalone announcements between songs. Missing hooks use a short first-song introduction. Restart after installation.', lambda c: False),
     "ytmusic": ("YouTube Music", 'Make YouTube Music available as a music source. Select the active source in Settings.',
                 lambda c: False),
-    "mix_sources": ("Mix local and YouTube Music", 'Alternate songs from your local library and YouTube Music in one shuffle, whatever the music source setting says. Needs the YouTube Music integration. Switches at a track boundary.', lambda c: False),
     "github_trending": ("GitHub: releases", 'Recent stable releases from projects discovered through GitHub Trending. Popularity alone is not news.',
                         lambda c: c["sources"]["github_trending"]["enabled"]),
     "github_new": ("GitHub: new projects", 'Newly created public projects, dated by creation time rather than discovery time.',
@@ -43,7 +42,7 @@ PLUGINS = {
 SOURCE_PLUGIN = {"reddit": "reddit", "telegram": "telegram", "weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
 INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction", "reddit", "telegram"}
 
-EXPERIMENTS = {"holiday_previews", "reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "host_opinions", "track_previews", "energy_wave", "mix_sources"}
+EXPERIMENTS = {"holiday_previews", "reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "host_opinions", "track_previews", "energy_wave"}
 
 
 def _path():
@@ -79,8 +78,6 @@ def set_plugin(name: str, enabled: bool) -> None:
     if name == "ytmusic" and not enabled:
         from .settings import set_setting
         set_setting("music_source", "local")
-    if name == "mix_sources" and enabled and not state(config.load())["ytmusic"]:
-        raise ValueError("Enable the YouTube Music integration first.")
     if name == 'new_tracks':
         from .settings import set_setting
         set_setting('new_every_sets', int(enabled))

@@ -54,28 +54,27 @@ class ShuffleTests(unittest.TestCase):
         self.assertFalse(svc.engine.music_shuffle)
         self.assertEqual([c.args[0] for c in svc.engine.command.await_args_list], ['music.shuffle 0'] * 2)
 
-    def test_ui_switch_renders_and_saves_unchecked_as_zero(self):
+    def test_shuffle_lives_in_the_player_not_in_settings(self):
         source = theme_source()  # theme functions; the core and model run first
         view = source[source.index('function helpText('):source.index('function pluginButton(')] + source[source.index('function settingValue('):source.index("$('audio-preset').onchange=")]
-        handlers = source[source.index("$('stg').oninput="):source.index("$('stg').onkeydown=")]
+        click = source[source.index("$('sh').onclick="):source.index("\n", source.index("$('sh').onclick="))]
         harness = r'''
 const assert=require('node:assert/strict');
-const nodes={settings:{contains:()=>false},stg:{}};
+const nodes={settings:{contains:()=>false},stg:{},sh:{}};
 const $=id=>{assert(nodes[id],id);return nodes[id]};
 const document={activeElement:null},sample={st:'idle'},esc=String;
-let stg=[{key:'music_shuffle',value:1,hint:'Remaining library',step:1}],sent;
-const api=(url,body)=>{sent=body;return Promise.resolve({settings:stg})};
+let busy=false,stg=[{key:'music_shuffle',value:1,hint:'Remaining library',step:1}],sent,players=0;
+const player=()=>players++,cmd=(name,extra)=>{sent={cmd:name,...extra}};
 /* FUNCTIONS */
 settingsView(true);
-assert(nodes.settings.innerHTML.includes('role="switch"'));
-assert(nodes.settings.innerHTML.includes(' checked'));
-const input={type:'checkbox',checked:false,closest(){return this},dataset:{st:'music_shuffle'}};
-nodes.stg.oninput({target:input});
-nodes.stg.onchange({target:input});
+assert(!nodes.settings.innerHTML.includes('Shuffle'));
+nodes.sh.onclick();
 assert.deepEqual(sent,{cmd:'setting',key:'music_shuffle',value:0});
-settingsView(true);assert(!nodes.settings.innerHTML.includes(' checked'));
+assert.equal(stg[0].value,0);
+nodes.sh.onclick();
+assert.deepEqual(sent,{cmd:'setting',key:'music_shuffle',value:1});
 '''
-        result = subprocess.run(['node', '-e', core_source() + harness.replace('/* FUNCTIONS */', view + '\n' + handlers)], capture_output=True, text=True)
+        result = subprocess.run(['node', '-e', core_source() + harness.replace('/* FUNCTIONS */', view + '\n' + click)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_plan_keeps_engine_order_and_set_membership_and_accounts_for_voice(self):

@@ -112,10 +112,17 @@ end
 
 # Reorder only the unrequested files; keep currently playing and prefetched requests intact.
 shuffle_enabled = ref(environment.get(default="1", "RADIO_SHUFFLE") == "1")
+# Shuffle each source on its own, then alternate them; one source (or none left) is a plain shuffle.
+def shuffle_sources(p) =
+  remote = list.shuffle(list.filter(fun (f) -> string.contains(substring="ytmusic:", f), p))
+  local = list.shuffle(list.filter(fun (f) -> not string.contains(substring="ytmusic:", f), p))
+  keyed = list.append(list.mapi(fun (i, f) -> (2 * i, f), remote), list.mapi(fun (i, f) -> (2 * i + 1, f), local))
+  list.map(snd, list.sort(fun (x, y) -> if fst(x) < fst(y) then -1 else 1 end, keyed))
+end
 def controlled_playlist(~id, ~prefetch=1, uri) =
   def load(uri) = list.map(fun (item) -> "annotate:plan_queue=\"#{id}\":#{item}", playlist.files(uri)) end
   files = ref(load(uri))
-  def ordered(p) = if shuffle_enabled() then list.shuffle(p) else p end end
+  def ordered(p) = if shuffle_enabled() then shuffle_sources(p) else p end end
   loop_reload = ref(fun () -> ())
   loaded = ref(false)
   holding = ref(false)
@@ -137,7 +144,7 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
   end
   def reorder() =
     remaining = s.remaining_files()
-    pending = if shuffle_enabled() then list.shuffle(remaining) else
+    pending = if shuffle_enabled() then shuffle_sources(remaining) else
       list.filter(fun (f) -> list.mem(f, remaining), files())
     end
     s.reload(empty_queue=false, pending)

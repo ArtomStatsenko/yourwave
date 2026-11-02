@@ -23,8 +23,9 @@
 :root[data-skin] button{border-radius:var(--r-button,12px);font-family:var(--sans)}
 :root[data-skin] button:hover{border-color:var(--muted)}
 :root[data-skin] #pp{width:56px;height:56px;padding:0;border-radius:50%;background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+:root[data-skin] #sh[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
 :root[data-skin] #pp:disabled{background:none;color:var(--muted);border-color:var(--line)}
-:root[data-skin] :is(#nx,#so){width:48px;height:48px;min-height:48px;padding:0;display:grid;place-items:center;border-radius:50%;color:var(--ink);border:1px solid var(--line);font-size:16px}
+:root[data-skin] :is(#nx,#sh,#so){width:48px;height:48px;min-height:48px;padding:0;display:grid;place-items:center;border-radius:50%;color:var(--ink);border:1px solid var(--line);font-size:16px}
 :root[data-skin] #vol{accent-color:var(--accent)}
 :root[data-skin] .bar{height:5px;border-radius:5px;background:color-mix(in srgb,var(--ink) 16%,transparent)}
 :root[data-skin] .bar i{height:5px;border-radius:5px}

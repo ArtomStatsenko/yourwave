@@ -87,7 +87,7 @@ function setTitle(text,instant,duration){
 window.addEventListener('resize',function(){if(tfx.target!==null)fitTitle()});
 var titleIsTrack=false;
 function musicSourceLabel(status,enabled,yt,choice){return RadioModel.musicSourceLabel(status,enabled,yt,choice)}
-function musicSourceOptions(enabled){return '<option value="local">Local</option>'+(enabled?'<option value="ytmusic">YouTube Music</option>':'')}
+function musicSourceOptions(enabled){return '<label><input type="checkbox" value="local"> Local</label>'+(enabled?' <label><input type="checkbox" value="ytmusic"> YouTube Music</label>':'')}
 function terminalState(live,heard){
   if(live.state==='PLAYING'){
     var names={music:'MUSIC',news:'HOST',weather:'WEATHER',reminder:'REMINDER',id:'STATION ID',teaser:'HOST',gap:'HOST'};
@@ -116,8 +116,11 @@ function player(){
   $('music-source').textContent=musicSourceLabel(ds,ytEnabled,ytStatus,musicChoice);
   var select=$('music-source-select');
   if(select.dataset.ytEnabled!==String(ytEnabled)){select.innerHTML=musicSourceOptions(ytEnabled);select.dataset.ytEnabled=String(ytEnabled)}
-  if(!ytEnabled||document.activeElement!==select)select.value=ytEnabled?musicChoice:'local';
-  $('music-source-select').disabled=busy;
+  Array.prototype.forEach.call(select.querySelectorAll('input'),function(box){
+    if(document.activeElement!==box)box.checked=musicChoice==='mixed'||musicChoice===box.value;
+    box.disabled=busy});
+  var shuffle=stg.find(function(x){return x.key==='music_shuffle'});
+  $('sh').setAttribute('aria-pressed',String(!!(shuffle&&shuffle.value)));$('sh').disabled=!shuffle;  // not while busy: the button would flicker under the cursor
   $('yt-summary').textContent='YouTube Music: '+(ytEnabled?'on':'off')+(ytStatus.connected?'':' · not connected');  // the song count is beside Connect
   if($('sp')){  // the speech details, where a theme shows them (Settings → Playback status); the voice state is the Voice block's
     var sp=p.speech.minutes,lim=p.speech.limit;
@@ -240,9 +243,8 @@ function settingsView(force){  // force: after this page saved a value; the poll
   if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // preserve a sample in progress
   if(!force&&(box.contains(f)&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
   var m=RadioModel.settings(stg),prov=m.provider,model=m.model,voice=m.voice;
-  box.innerHTML=m.rows.filter(s=>!['host_character','cohost_character'].includes(s.key)).map(function(s){if(s.type==='ai')return aiView(prov,model)+(voice?voiceView(voice):'');
+  box.innerHTML=m.rows.filter(s=>!['host_character','cohost_character','music_shuffle'].includes(s.key)).map(function(s){if(s.type==='ai')return aiView(prov,model)+(voice?voiceView(voice):'');
     var character=['host_name','cohost_name'].includes(s.key)?m.rows.find(c=>c.key===s.key.replace('_name','_character')):null;
-    if(s.type==='switch')return '<div class="st"><div class="hd2"><label for="st-music_shuffle"><input type="checkbox" role="switch" id="st-music_shuffle" data-st="music_shuffle"'+(s.value?' checked':'')+' aria-describedby="hint-music_shuffle"> Shuffle</label>'+resetButton(s)+'</div>'+helpText(s.key,s.hint,s.title)+'</div>';
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label><span class="setting-actions">'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(s.valueText)+'</span>')+resetButton(s)+'</span></div>'
     +(s.type==='select'?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option'+(o===s.value?' selected':'')+'>'+esc(o)+'</option>'}).join('')+'</select>':s.type==='paragraph'?'<textarea rows="4" id="st-'+s.key+'" data-st="'+s.key+'" maxlength="'+s.max+'" aria-describedby="hint-'+s.key+'">'+esc(s.value)+'</textarea>':s.type==='text'?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range"'+(s.type==='stepped'?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(s.valueText)+'" aria-describedby="hint-'+s.key+'">')
@@ -699,8 +701,12 @@ $('pp').onclick=function(){
   listening?unlisten():listen()};
 $('upcoming').onclick=function(e){var b=e.target.closest('[data-reroll]');if(b)rerollNext(b.dataset.reroll,b.dataset.ref)};
 $('upcoming').onkeydown=function(e){if(e.key==='Escape'&&rerollConfirm){e.preventDefault();rerollNext('cancel')}};
-$('music-source-select').onchange=function(){musicChoice=this.value;cmd('setting',{key:'music_source',value:this.value})};
+$('music-source-select').onchange=function(){
+  var picked=Array.prototype.filter.call(this.querySelectorAll('input'),function(box){return box.checked}).map(function(box){return box.value});
+  if(!picked.length)picked=['local'];  // at least one source plays
+  musicChoice=picked.length>1?'mixed':picked[0];cmd('setting',{key:'music_source',value:picked.join(',')})};
 $('nx').onclick=function(){cmd('next')};
+$('sh').onclick=function(){var s=stg.find(function(x){return x.key==='music_shuffle'});if(!s||busy)return;s.value=+!s.value;player();cmd('setting',{key:'music_shuffle',value:s.value})};
 $('sk').onclick=function(){cmd('skip-news')};
 $('so').onclick=function(){if(LOCAL_CONTROL&&!busy&&st.state!=='STOPPING')cmd(running()?'stop':'play')};
 // 2-second refresh: re-renders from state, so expanded rows (open) stay open

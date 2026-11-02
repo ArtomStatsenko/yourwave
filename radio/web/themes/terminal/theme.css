@@ -73,7 +73,7 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 #pp{display:grid;place-items:center;width:48px;height:44px;min-height:44px;padding:8px}#pp .pause-icon{display:none}#pp[data-playing="true"] .play-icon{display:none}#pp[data-playing="true"] .pause-icon{display:inline}
 .player-controls{display:grid;grid-template-columns:auto auto 112px minmax(100px,1fr) auto auto;gap:12px}
 .player-controls .bar{min-width:0}
-#nx{width:48px;height:44px;min-height:44px;padding:8px}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
+#nx,#sh{width:48px;height:44px;min-height:44px;padding:8px}#sh{display:grid;place-items:center}#sh[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
 #time{white-space:nowrap;font-variant-numeric:tabular-nums}
 .player-status{gap:12px}
 #voice-warn:empty{display:none}  /* the player's voice line shows only a problem (unavailable, limit near) */

@@ -87,7 +87,7 @@ Browser output pauses after 30 seconds without listeners and resumes when one co
 
 For YouTube Music:
 
-The Integrations switch only makes the feature available. It does not select a music source. **Settings → Music source** independently selects Local or YouTube Music; YouTube Music appears only while its integration is enabled. Disabling the integration resets the selection to Local. Re-enabling leaves Local selected. Source changes take effect at a track boundary. The **Mix local and YouTube Music** experiment alternates the two libraries in one shuffle regardless of this setting; local songs keep playing if YouTube Music is unreachable. Energy wave is off while mixing, and unplayed-first picks from both libraries.
+The Integrations switch only makes the feature available. It does not select a music source. **Settings → Music source** independently ticks Local, YouTube Music or both; YouTube Music appears only while its integration is enabled. Disabling the integration resets the selection to Local. Re-enabling leaves Local selected. Source changes take effect at a track boundary. With several sources ticked, their libraries alternate in one shuffle, also with Shuffle on (each source is shuffled on its own); local songs keep playing if YouTube Music is unreachable. Energy wave is off while mixing, and unplayed-first picks from both libraries.
 
 ```sh
 brew install yt-dlp
@@ -113,7 +113,7 @@ Unprepared news waits if the editor is disabled, unavailable, or at its request 
 
 ## Settings
 
-**Shuffle** is a saved, standard setting, enabled by default. Changes apply live to the remaining library: off follows local file order or the YouTube Music playlist order; on shuffles each library round. The current song, prepared requests, manual inserts, and unplayed-track priority keep their place.
+**Shuffle** is a saved toggle in the player controls (the crossed-arrows button beside Next), enabled by default. Changes apply live to the remaining library: off follows local file order or the YouTube Music playlist order; on shuffles each library round. The current song, prepared requests, manual inserts, and unplayed-track priority keep their place.
 
 **Experiments → Coming up** introduces two prepared songs about once an hour, at a song boundary, within 25 seconds. Missing hooks use voice only; uncertain hooks wait under **Music hooks**, with Listen / Approve / Reject. Confident lyric alignments can air automatically. The local library is analyzed one song at a time at background priority; YouTube files are analyzed when prepared for playback. Next during an announcement starts its first promised song. Shuffle preserves prepared songs; reroll changes only the next song and cancels an announcement that has not aired. Source changes, pause and disabling the experiment cancel pending announcements. The switch defaults off; after installing this version, restart the station and UI once.
 

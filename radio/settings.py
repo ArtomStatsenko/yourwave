@@ -78,6 +78,11 @@ def _clamp(key: str, value) -> int | str | list[str]:
         text = " ".join(str(value).split())[:hi]  # one line: the host reads it aloud
         if len(text) < lo:
             raise ValueError(f"{key}: enter {lo}-{hi} characters")
+        if key == "music_source":  # several sources are mixed: "local,ytmusic"
+            picked = set(text.replace(",", " ").split())
+            if not picked or not picked <= set(CHOICES[key]):
+                raise ValueError(f"{key}: one or more of {', '.join(CHOICES[key])}")
+            return ",".join(s for s in CHOICES[key] if s in picked)
         if key in CHOICES and text not in CHOICES[key]:
             raise ValueError(f"{key}: one of {', '.join(CHOICES[key])}")
         return text
@@ -112,7 +117,7 @@ def set_setting(key: str, value) -> None:
         number = _clamp(key, value)
     except (TypeError, ValueError, OverflowError) as e:
         raise ValueError(str(e) if SETTINGS[key][6] is None else f"{key}: a number is expected")
-    if key == "music_source" and number == "ytmusic" and not plugins.on(config.load(), "ytmusic"):
+    if key == "music_source" and "ytmusic" in str(number).split(",") and not plugins.on(config.load(), "ytmusic"):
         raise ValueError("Enable the YouTube Music integration before selecting it as a source.")
     with config.file_lock(_path()):
         saved = _saved()
@@ -188,10 +193,11 @@ def listing(cfg: dict) -> list[dict]:
 
 
 def music_source(cfg: dict) -> str:
-    selected = _saved().get("music_source", cfg["music"].get("source", "local"))
-    if not plugins.on(cfg, "ytmusic"):
+    """What plays: local, ytmusic, or mixed (every picked source in one shuffle)."""
+    picked = _saved().get("music_source", cfg["music"].get("source", "local")).split(",")
+    if not plugins.on(cfg, "ytmusic") or "ytmusic" not in picked:
         return "local"
-    return "mixed" if plugins.on(cfg, "mix_sources") else selected
+    return "mixed" if "local" in picked else "ytmusic"
 
 
 def _voice_state(live: dict) -> dict:
