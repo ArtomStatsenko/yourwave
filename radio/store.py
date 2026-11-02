@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS marks(
   event_id INTEGER PRIMARY KEY, ref TEXT NOT NULL, at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS packages_status ON packages(status, played_at);
 CREATE INDEX IF NOT EXISTS items_state ON items(state, published_at);
+-- catch-up's count, on every poll, looked through all events and packages for each recent story
+CREATE INDEX IF NOT EXISTS events_type_ref ON events(type, ref);
+CREATE INDEX IF NOT EXISTS packages_item ON packages(item_id);
 """
 
 

@@ -1,7 +1,7 @@
 // Yourwave page core: talks to the radio's API and keeps the shared state. No look and no DOM: a theme
 // (radio/web/themes/<name>/view.js) renders from it. Contract: docs/ui-themes.md.
 var RadioCore=(function(){
-  var POLL_MS=2000;
+  var POLL_MS=2000,HIDDEN_POLL_MS=10000;  // a hidden page (a background tab) asks less often
   // What each kind of air entry is called, the same in every theme (and in the phone's Media Session).
   var KINDS={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air',chart:'chart'};
 
@@ -120,7 +120,7 @@ var RadioCore=(function(){
     var shell=typeof window!=='undefined'&&window.parent!==window&&(function(){try{return window.parent.radioShell}catch(e){return null}})();
     if(shell)return shell.lend(window,options.theme);
     var token=options.token||'',fetchImpl=options.fetch||function(url,init){return fetch(url,init)};
-    var listeners=[],sequence=0,applied=0,timer=null,history=[];  // history: recent statuses, about 30 s
+    var listeners=[],sequence=0,applied=0,timer=null,polled=0,history=[];  // history: recent statuses, about 30 s
     var core={
       localControl:!!options.localControl,  // false on the phone port: play and stop belong to the Mac
       snapshot:null,      // the last /api/status answer: {status, timeline, plugins, settings, ...}
@@ -183,13 +183,13 @@ var RadioCore=(function(){
 
     // One poll. A late answer never replaces a newer one; a failed poll keeps the last good snapshot.
     core.refresh=function(){
-      var mine=++sequence;
+      var mine=++sequence;polled=Date.now();
       return core.api('/api/status').then(function(d){
         if(mine<applied)return;
         if(!d.status)throw Error(d.error||'the page cannot reach the radio');
         applied=mine;core.error='';core.snapshot=d;
         history.push({t:Date.now(),s:d.status});while(history.length>2&&history[1].t<Date.now()-30000)history.shift();
-        core.audio.watchdog();emit('snapshot')})
+        emit('snapshot')})
       .catch(function(error){if(mine>=applied){core.error=error.message||'the page cannot reach the radio';emit('error')}})};
 
     core.audio=createAudio(core,emit);
@@ -209,10 +209,15 @@ var RadioCore=(function(){
         Object.keys(c.operations).forEach(function(name){core.commands[name]=function(fields){return core.command(name,fields)}});
         emit('capabilities')}).catch(function(){})};
 
-    // Polls every 2 s from now on; the first answer comes at once.
-    // Start polling; a theme starting a core that already runs (the shell's) gets a fresh snapshot at once instead of
+    // Polls every 2 s from now on, a hidden page every 10 s and at once when shown again; the stream watchdog keeps
+    // its 2 s. A theme starting a core that already runs (the shell's) gets a fresh snapshot at once instead of
     // waiting for the next poll.
-    core.start=function(){if(!timer)timer=setInterval(core.refresh,POLL_MS);core.refresh();core.loadCapabilities();return core};
+    function hidden(){return typeof document!=='undefined'&&document.hidden}
+    function shown(){if(timer&&!hidden())core.refresh()}
+    core.start=function(){
+      if(!timer){timer=setInterval(function(){core.audio.watchdog();if(!hidden()||Date.now()-polled>=HIDDEN_POLL_MS)core.refresh()},POLL_MS);
+        if(typeof document!=='undefined')document.addEventListener('visibilitychange',shown)}
+      core.refresh();core.loadCapabilities();return core};
     core.stop=function(){clearInterval(timer);timer=null};
     return core;
   }

@@ -74,6 +74,30 @@ class FramesTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
 
+HIDDEN = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+let every=null,shown=null,polls=0,checks=0,t=0;
+const document={hidden:false,addEventListener:(k,f)=>{if(k==='visibilitychange')shown=f}};
+const c={console,Promise,JSON,Math,Array,Object,String,Error,Date:{now:()=>t},setInterval:f=>{every=f;return 1},document,
+  matchMedia:()=>({matches:false,addEventListener(){}}),localStorage:{getItem:()=>null,setItem(){}},
+  fetch:url=>{if(url==='/api/status')polls++;return Promise.resolve({json:()=>Promise.resolve({status:{state:'PLAYING'}})})}};
+vm.createContext(c);vm.runInContext(CORE+';this.RadioCore=RadioCore',c);
+const core=c.RadioCore.create({}).start();core.audio.watchdog=()=>checks++;
+const step=()=>{t+=2000;every()};
+step();assert.equal(polls,2,'shown: a poll every 2 s');
+document.hidden=true;step();step();step();step();assert.equal(polls,2,'hidden: no poll for 10 s');
+step();assert.equal(polls,3,'then one');assert.equal(checks,6,'the stream watchdog keeps its 2 s');
+document.hidden=false;shown();assert.equal(polls,4,'shown again: at once');
+"""
+
+
+class HiddenPollTests(unittest.TestCase):
+    def test_a_hidden_page_polls_every_10_seconds(self):
+        result = subprocess.run(["node", "-e", "const CORE=" + json.dumps((WEB / "core/core.js").read_text()) + ";" + HIDDEN],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+
 class LendTests(unittest.TestCase):
     def test_a_theme_in_the_shell_borrows_its_core_and_gives_back_what_it_took(self):
         result = subprocess.run(["node", "-e", "const CORE=" + json.dumps((WEB / "core/core.js").read_text()) + ";" + LEND],

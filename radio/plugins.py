@@ -85,7 +85,9 @@ def state(cfg: dict) -> dict[str, bool]:
 
 
 def on(cfg: dict, name: str) -> bool:
-    return state(cfg)[name]
+    if name in ('new_tracks', 'news_reactions'):  # they also depend on settings
+        return state(cfg)[name]
+    return _saved().get(name, bool(PLUGINS[name][2](cfg)))  # one switch, not all of them: hundreds of calls a poll
 
 
 def set_plugin(name: str, enabled: bool) -> None:

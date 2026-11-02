@@ -47,6 +47,17 @@ class StatusLoadTests(unittest.TestCase):
         self.assertNotIn('direction', status)
 
 
+class PluginSwitchTests(unittest.TestCase):
+    def test_one_switch_reads_as_the_whole_state(self):
+        cfg = config.load()
+        for name, value in (('air_direction', True), ('track_previews', False), ('news_reactions', True)):
+            plugins.set_plugin(name, value)
+            self.addCleanup(plugins.set_plugin, name, not value)
+        self.assertEqual({n: plugins.on(cfg, n) for n in plugins.PLUGINS}, plugins.state(cfg))
+        with self.assertRaises(KeyError):
+            plugins.on(cfg, 'no_such_plugin')
+
+
 class LogTests(unittest.TestCase):
     def test_a_big_liquidsoap_log_is_moved_aside_at_a_start(self):
         log = config.DATA_DIR / 'logs/liquidsoap.log'
