@@ -220,6 +220,16 @@ class EnergyWaveTests(unittest.TestCase):
             self.assertEqual(svc.resume_offset[str(self.files[0])], 40)
             self.assertEqual(svc._energy_elapsed(), 160)
 
+    def test_the_resumed_song_is_not_a_second_history_row(self):
+        svc, song = self.svc, str(self.files[0])
+        count = lambda: svc.db.execute("SELECT count(*) FROM events WHERE type='MUSIC_STARTED' AND ref=?", (song,)).fetchone()[0]
+        svc.state, svc.resume_offset = 'PLAYING', {song: 40}
+        with patch.object(svc, '_song_seconds', return_value=180):
+            svc.on_event({'kind': 'music', 'ref': song})
+            self.assertEqual((count(), svc.current['ref']), (0, song), 'it was logged when it first started')
+            svc.on_event({'kind': 'music', 'ref': song})
+        self.assertEqual(count(), 1, 'a later play of it is a play')
+
     def test_wave_is_queued_only_when_enabled_and_local(self):
         self.svc.state = 'PLAYING'
         self.svc.current = {'kind': 'music', 'ref': str(self.files[0]), 'duration': 300, 'started': time.time()}

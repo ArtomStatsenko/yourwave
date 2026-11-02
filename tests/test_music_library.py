@@ -56,6 +56,20 @@ class MusicLibraryTests(unittest.TestCase):
         self.assertEqual(Liquidsoap(playlist, 3).music_choices('ytmusic:abcdefghijk'),
                          {'ytmusic:abcdefghijk': valid})
 
+    def test_songs_keep_their_times_while_an_edition_waits_in_the_queue(self):
+        import wave
+        edition = self.root / 'edition.wav'
+        with wave.open(str(edition), 'wb') as w:
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(8000); w.writeframes(b'\0\0' * 8000 * 30)
+        at = datetime(2026, 10, 26, 9, 30, tzinfo=timezone.utc)
+        self.svc.state = 'PLAYING'
+        self.svc.current = {'kind': 'music', 'started': at.timestamp(), 'duration': 180}
+        rows = [{'kind': 'news', 'ref': 'p1', 'uri': f'annotate:plan_queue="news",kind="news",ref="p1",liq_fade_in="0.1":{edition}', 'duration': 0},
+                {'kind': 'music', 'ref': 'one', 'duration': 180}]
+        with patch('radio.daemon.time.time', return_value=at.timestamp()):
+            songs = self.svc._music_plan_rows(rows)
+        self.assertEqual(songs[0]['at'], store.iso(at + timedelta(seconds=210)), 'after the song on air and the 30 s edition')
+
     def test_music_estimates_shift_future_editions_at_song_boundaries(self):
         at = datetime(2026, 10, 26, 9, 30, tzinfo=timezone.utc)
         self.svc.state = 'PLAYING'

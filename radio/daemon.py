@@ -11,6 +11,7 @@ import time
 import uuid
 import sys
 import signal
+import subprocess
 from datetime import datetime, timedelta, timezone
 from itertools import zip_longest
 from pathlib import Path
@@ -680,6 +681,7 @@ class Service:
         self.fresh_queued.pop(m.get("ref") or "", None)
         self.energy_queued.discard(m.get('ref') or '')
         self.next_track = ""
+        resumed = (m.get("ref") or "") in self.resume_offset  # logged when it first started, before the restart
         played = self.resume_offset.pop(m.get("ref") or "", 0.0)
         self.resume_offset.clear()  # only the first track can be the resumed song
         self.current = {"kind": m.get("kind") or "music", "ref": m.get("ref") or m.get("filename", ""),
@@ -759,7 +761,8 @@ class Service:
             if s := music.song(self.db, self.current["ref"]):
                 self.set_songs.append(s)
             self.current["duration"] = self._song_seconds(self.current["ref"])
-            store.log_event(self.db, self.session, "MUSIC_STARTED", self.current["ref"])
+            if not resumed:  # a resumed song once more was a second history row and a second play in the charts
+                store.log_event(self.db, self.session, "MUSIC_STARTED", self.current["ref"])
             if self.current['kind'] == 'music':
                 if not self.current['ref'].startswith('ytmusic:'):
                     self.energy_played.add(self.current['ref'])
@@ -2555,6 +2558,8 @@ class Service:
                     ref = json.loads(match.group(1))
             kind = row.get('kind') or ('music' if ref in self.library else '')
             seconds = row.get('duration',0)
+            if not seconds and kind != 'music' and uri:
+                seconds = self._queued_seconds(uri)
             if row.get('skipped'):  # shown in its place, takes no time
                 result.append({'ref': ref, 'title': music.label(self.db, ref), 'set': False, 'skipped': True,
                                'at': iso(datetime.fromtimestamp(cursor, timezone.utc)) if cursor is not None else None})
@@ -2594,6 +2599,17 @@ class Service:
             cursor = cursor + seconds if cursor is not None and seconds > 0 else None
             offset += seconds
         return result
+
+    def _queued_seconds(self, uri):
+        """A queued host edition's length: Liquidsoap's plan has none for it, and without it every later song lost its
+        time while an edition waited. Its file does not change while queued: measured once."""
+        path = re.sub(r'^annotate:(?:[^=,:]+="(?:[^"\\]|\\.)*",?)*:', '', uri)
+        if path not in self.plan_durations:
+            try:
+                self.plan_durations[path] = (None, audio.duration(Path(path)) if Path(path).is_file() else 0)
+            except (OSError, subprocess.SubprocessError):
+                self.plan_durations[path] = (None, 0)
+        return self.plan_durations[path][1]
 
     async def _plan_rows(self):
         """Liquidsoap's music.plan (the rest of the round, ~100 KB for a library) kept until a song starts, a command
