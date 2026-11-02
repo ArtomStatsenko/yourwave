@@ -165,7 +165,7 @@ var RadioModel=(function(){
     var expected=!music&&r.expected_at&&Math.abs(Date.parse(r.expected_at)-Date.parse(r.at))>=60000?r.expected_at:null;
     return {title:r.edition?'Host edition':r.title||r.kind,readiness:r.skipped?'skipped':planReadiness(r)||(music?'':'scheduled'),
       detail:r.edition||music?'':r.content_title||'',expectedAt:expected,
-      editable:!r.locked&&!music,skippable:['news','weather','reminder'].includes(r.kind)};
+      editable:!r.locked&&!music,skippable:['news','weather','reminder','chart'].includes(r.kind)};
   }
 
   // ---- settings: the station's adjustable values, the AI provider and the voice
@@ -282,6 +282,15 @@ var RadioModel=(function(){
             d<0?{dir:'down',text:'▼ '+(-d),label:'Down '+(-d)+' since yesterday'}:{dir:'same',text:'–',label:'Same place as yesterday'}}})}
   }
 
+  // The chart set block (Charts): its words and whether it can be used (a plan block: it needs Air direction).
+  function chartSet(settings,airDirection){
+    var s=settings||{size:5,weekly:false,day:'fri',time:'18:00'};
+    return {size:s.size,weekly:s.weekly,day:s.day,time:s.time,disabled:!airDirection,
+      sizes:[3,5,10].map(function(n){return {value:n,label:'Top '+n}}),
+      days:[['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']].map(function(d){return {value:d[0],label:d[1]}}),
+      caption:'The host introduces it and counts down from '+s.size,note:airDirection?'':'Needs Air direction in Experiments'};
+  }
+
   function catchup(info,running,busy,message){
     if(!info)return null;
     var active=['preparing','pending','ready','queued','playing'].includes(info.state);
@@ -296,5 +305,5 @@ var RadioModel=(function(){
     keySaved:keySaved,KEY_EMPTY:KEY_EMPTY,voice:voice,sampleFeedback:sampleFeedback,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,starsText:starsText,
-    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,queuePlace:queuePlace,charts:charts,future:future,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
+    OLD_STARS_NOTE:OLD_STARS_NOTE,entryDetails:entryDetails,entry:entry,timeline:timeline,queuePlace:queuePlace,charts:charts,chartSet:chartSet,future:future,HISTORY_SHOWN:HISTORY_SHOWN,upcoming:upcoming,trackTags:trackTags};
 })();

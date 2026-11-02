@@ -80,6 +80,16 @@
     <div class="chart-tools"><div id="chart-windows" role="group" aria-label="Chart period"></div><span id="chart-note" class="l"></span></div>
     <ol id="chart-list" aria-label="Chart"></ol>
     <p id="chart-empty" class="l" role="status"></p>
+    <section id="chart-set" class="st" aria-labelledby="chart-set-heading">
+      <h2 id="chart-set-heading">Chart set on air</h2>
+      <label for="chart-set-size">Size</label><select id="chart-set-size" aria-describedby="chart-set-caption"></select>
+      <p class="l" id="chart-set-caption"></p>
+      <p class="l" id="chart-set-note" hidden><span id="chart-set-note-text"></span> <button type="button" id="chart-set-open">Open Experiments</button></p>
+      <div class="row"><button type="button" id="chart-set-play" aria-describedby="chart-set-note-text">Play after this song</button></div>
+      <label for="chart-set-weekly"><input type="checkbox" role="switch" id="chart-set-weekly" aria-describedby="chart-set-note-text"> Every week</label>
+      <div class="row"><label for="chart-set-day">Day</label><select id="chart-set-day"></select><label for="chart-set-time">Time</label><input id="chart-set-time" type="time" step="60"></div>
+      <p class="l" id="chart-set-status" role="status" aria-live="polite"></p>
+    </section>
   </div>
   <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
     <section class="st" id="appearance" aria-labelledby="appearance-heading"><!--appearance--></section>

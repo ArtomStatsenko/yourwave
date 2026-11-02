@@ -57,7 +57,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
     since = store.iso(store.now() - timedelta(hours=hours))
     # Station IDs play but stay out of the timeline: a few seconds of call sign is not an entry worth a row.
     rows = db.execute("""SELECT id, at, type, ref, detail FROM events WHERE at>=? AND type IN
-                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','REPLAY','REMINDER','WEATHER','GAP','MUSIC_TEASER')
+                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','REPLAY','REMINDER','WEATHER','GAP','MUSIC_TEASER','CHART')
                          ORDER BY id DESC LIMIT ?""", (since, limit)).fetchall()
     marked = {m[0] for m in db.execute("SELECT event_id FROM marks WHERE event_id>=?", (rows[-1]["id"] if rows else 0,))}
     out = []
@@ -109,6 +109,15 @@ def _build(db, hours: int, limit: int) -> list[dict]:
                         e["description"] = detail["description"]
                     elif isinstance(detail.get("links"), list):
                         e["links"] = detail["links"]
+        elif r['type'] == 'CHART':  # a chart set: what the host said, as said, and the songs counted down
+            try:
+                info = json.loads(r['detail'] or '')
+            except ValueError:
+                info = {}
+            info = info if isinstance(info, dict) else {}
+            e.update(kind='chart', title=info.get('title') or 'Chart', parts=[{
+                'text': '\n\n'.join(x for x in [info.get('intro', ''), *info.get('lines', [])] if isinstance(x, str) and x),
+                'description': ' · '.join(s for s in info.get('songs', []) if isinstance(s, str)), 'links': []}])
         elif r['type'] == 'MUSIC_TEASER':
             e.update(kind='host', title='Coming up', parts=[{'text': r['detail'], 'links': []}])
         elif r["type"] == "GAP":
@@ -117,7 +126,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
             e.update(kind="session", title="broadcast started")
         out.append(e)
     for e in out:
-        if e.get('parts') and e['type'] != 'MUSIC_TEASER':
+        if e.get('parts') and e['type'] not in ('MUSIC_TEASER', 'CHART'):  # these keep their own titles
             e['title'] = edition_title(part['source'] for part in e['parts'])
         e.pop("_at", None)
         e.pop("_topics", None)

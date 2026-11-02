@@ -1,6 +1,6 @@
 """Shared validated operations for the browser API and the native radio CLI."""
 import time
-from . import catchup, charts, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, store, telegram, tts, ytmusic
+from . import catchup, charts, chartset, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, store, telegram, tts, ytmusic
 from .timeline import timeline
 
 VOICE_SAMPLE = "Добрый вечер! Вы слушаете Персональное радио. Сейчас — коротко о новостях, а потом снова музыка."
@@ -13,7 +13,7 @@ OPERATIONS = {
     'audio_preset': ['name'], 'reddit_community': ['action', 'value'], 'telegram_channel': ['action', 'value'],
     'ytmusic_connect': ['cookie', 'playlist', 'browser'], 'voice_sample': [], 'llm_key': ['provider', 'key'],
     'chatgpt_login': [], 'chatgpt_logout': [], 'openrouter_login': [], 'openrouter_logout': [],
-    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'],
+    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'], 'chart_set': ['action', 'size', 'weekly', 'day', 'time'],
     'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'],
     'direction': ['action', 'kind', 'ref', 'text', 'at', 'id', 'token', 'changes', 'version', 'remember_undo'],
 }
@@ -74,7 +74,7 @@ def read(name, *, sender=None, hours=12, limit=120):
     return {'ok': True, 'status': status, 'timeline': timeline(), 'plugins': plugins.listing(cfg),
             'settings': settings.listing(cfg), 'ytmusic': ytmusic.status(),
             'audio_preset': config.audio_presets(), 'music_source_choice': settings.music_source(cfg),
-            'hooks': read('hooks')['hooks'] if plugins.on(cfg, 'track_previews') else None, 'charts': read_charts()}
+            'hooks': read('hooks')['hooks'] if plugins.on(cfg, 'track_previews') else None, 'charts': read_charts(), 'chart_set': chartset.load()}
 
 
 def read_charts():
@@ -224,6 +224,16 @@ def execute(body, *, sender=None, starter=None, port=8765):
             return reply({'ok': False, 'error': 'Choose a song from the timeline' if isinstance(error, TypeError) else str(error)}, 400)
         finally:
             db.close()
+    elif cmd == 'chart_set':  # save: the size and Every week (a file); play: a set after this song (the station)
+        if body.get('action') == 'save':
+            try:
+                resp = {'ok': True, 'chart_set': chartset.save({k: body[k] for k in ('size', 'weekly', 'day', 'time') if k in body})}
+            except ValueError as error:
+                return reply({'ok': False, 'error': str(error)}, 400)
+        elif body.get('action') == 'play':
+            resp = send(cmd, timeout=10, size=body.get('size'))
+        else:
+            return reply({'ok': False, 'error': 'Choose save or play'}, 400)
     elif cmd in ('skip', 'unskip'):
         resp = send(cmd, timeout=90, ref=str(body.get('ref', '')))
     elif cmd == "reroll-next":

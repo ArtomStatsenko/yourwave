@@ -393,3 +393,6 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
   :root[data-crt="on"][data-crt-ready]::before{border-radius:26px}
   :root[data-crt="on"][data-crt-ready] .program-editing main{height:calc(100dvh - 120px)}
 }
+
+/* the chart set block: Open Experiments reads as a link */
+#chart-set-open{border:0;padding:0 4px;min-height:44px;color:var(--accent);text-decoration:underline;text-underline-offset:4px}

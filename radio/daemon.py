@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 from . import broadcast_clock, audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
 from . import editor, public_news, reddit, telegram
-from . import catchup, energy, hooks, previews
+from . import catchup, chartset, energy, hooks, previews
 from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
@@ -71,6 +71,7 @@ class Service:
         self.state = "STARTING"
         self.auto_paused, self.paused_at, self.heard_at = False, 0.0, time.time()
         self.replays = {}  # replay_id -> {kind, ref, rid}: replays waiting in Liquidsoap's queue
+        self.chart_sets = {}  # plan block id -> what the host says and plays in a queued chart set (for the timeline)
         self.replays_checked = 0.0  # when Liquidsoap's queue was last compared with them
         self.reroll_pending, self.reroll_error = None, None  # a reroll loading in the background; its failure
         self.reroll_task = None
@@ -704,6 +705,13 @@ class Service:
             store.log_event(self.db, self.session, self.current["kind"].upper(), self.current["ref"],
                             self.reminder_text.pop(self.current["ref"], ""))
             log(self.current["kind"], "on air")
+        elif self.current['kind'] == 'chart':
+            self.id_pending = False
+            self.current['duration'] = audio.duration(Path(m['filename'])) if m.get('filename') else 0
+            key, _, part = self.current['ref'].partition('#')
+            if part == '0' and (info := self.chart_sets.pop(key, None)):
+                store.log_event(self.db, self.session, 'CHART', key, json.dumps(info, ensure_ascii=False))
+            log('chart set on air:', self.current['ref'])
         elif self.current['kind'] == 'teaser':
             job = self.db.execute('SELECT * FROM music_previews WHERE id=?', (self.current['ref'],)).fetchone()
             self.preview_job, self.id_pending = None, False
@@ -2270,7 +2278,47 @@ class Service:
             blocks.append({'kind': 'reminder', 'ref': '', 'title': 'Reminder'})
         return blocks
 
+    def _chart_weekly(self):
+        """Every week (Charts): the next weekly set becomes a plan block a day ahead, one per date (a skip stays)."""
+        settings = chartset.load()
+        when = chartset.next_weekly(settings, now(), self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'))
+        if when and when - now() <= timedelta(hours=24):
+            self.db.execute("INSERT OR IGNORE INTO air_plan(id,kind,ref,text,not_before) VALUES(?,?,?,?,?)",
+                            ('direction:chart:' + when.date().isoformat(), 'chart', str(settings['size']), chartset.title(settings['size']), iso(when)))
+
+    async def _chart_set(self, key, size):
+        """A chart set: the week's top songs counted down, each after a host line (the first line opens the set);
+        all of it queued at once, so it plays through from the next song boundary."""
+        songs = chartset.countdown(self.db, size, now())
+        if not songs:
+            raise ValueError('No song was marked this week')
+        language = self.cfg['voice'].get('language', 'ru')
+        weekday = now().astimezone(ZoneInfo(self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'))).weekday()
+        station = self.cfg['broadcast']['station_name']
+        names = chartset.WEEKDAYS_EN if language.startswith('en') else chartset.WEEKDAYS_RU
+        words = await asyncio.to_thread(self.editor.chart_set, station, size, names[weekday], songs, language) \
+            or chartset.template(station, size, weekday, songs, language)
+        lines = [words['intro'] + ' ' + words['lines'][0], *words['lines'][1:]]
+        wavs = [await asyncio.to_thread(self._say, line) for line in lines]
+        current = self.db.execute('SELECT * FROM air_plan WHERE id=?', (key,)).fetchone()
+        if not plugins.on(self.cfg, 'air_direction') or not direction.allowed(current, {key: dict(current)}, now()):
+            self.db.execute("UPDATE air_plan SET status='PENDING' WHERE id=?", (key,))
+            return False
+        rids, m = [], self.cfg['music']
+        for i, (wav, song) in enumerate(zip(wavs, songs)):
+            rids.append(await self.engine.push_replay(wav, 'chart', f'{key}#{i}', 0.0, key))
+            row = self.db.execute('SELECT lufs FROM tracks WHERE path=?', (song['ref'],)).fetchone()
+            gain = min(m['max_boost_db'], m['target_lufs'] - row['lufs']) if row and row['lufs'] is not None else 0.0
+            rids.append(await self.engine.push_replay(song['ref'] if song['ref'].startswith('ytmusic:') else Path(song['ref']),
+                                                      'music', song['ref'], gain, key))
+        self.chart_sets[key] = {'title': chartset.title(size), 'intro': words['intro'], 'lines': words['lines'],
+                                'songs': [f"{s['place']}. {s['title']}" for s in songs]}
+        self.db.execute("UPDATE air_plan SET status='QUEUED',rid=?,error=NULL WHERE id=?", (','.join(rids), key))
+        log('chart set queued:', key, len(songs), 'songs')
+        return True
+
     async def _direction_tick(self):
+        self._chart_weekly()
         job = self.db.execute("SELECT * FROM air_plan WHERE (id LIKE 'direction:%' OR id LIKE 'section:%') AND id NOT LIKE 'section:news:%' AND id NOT LIKE 'section:music:%' AND kind!='news' AND status='PENDING' "
                               "AND skipped=0 AND not_before<=? ORDER BY not_before,id LIMIT 1", (iso(now()),)).fetchone()
         if not job:
@@ -2336,6 +2384,8 @@ class Service:
                 except (ValueError, TypeError, KeyError):
                     speech = text
                 wav = await asyncio.to_thread(self._render_notice, speech)
+            elif kind == 'chart':
+                return await self._chart_set(key, int(ref or 5))
             else:
                 raise ValueError('Unknown block type')
             current = self.db.execute('SELECT * FROM air_plan WHERE id=?', (key,)).fetchone()
@@ -2368,7 +2418,8 @@ class Service:
             self.queued_break = self.queued_clock = None
             self.id_pending = False
             return
-        await self.engine.remove(row['rid'])
+        for rid in str(row['rid']).split(','):  # a chart set queues its lines and songs together
+            await self.engine.remove(rid)
         if row['kind'] == 'news':
             self.db.execute("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", (row['ref'],))
             self.queued_break = None
@@ -2632,6 +2683,17 @@ class Service:
             return await self.unqueue(str((req or {}).get("kind", "")), str((req or {}).get("ref", "")))
         if cmd == 'reroll-next':
             return await self._reroll_next(str((req or {}).get('ref', '')))
+        if cmd == 'chart_set':  # Play after this song: a chart set as a plan block now (it airs at the next song boundary)
+            if not plugins.on(self.cfg, 'air_direction'):
+                return {'ok': False, 'error': 'Needs Air direction in Experiments'}
+            size = (req or {}).get('size')
+            if size not in chartset.SIZES:
+                return {'ok': False, 'error': 'Choose Top 3, 5 or 10'}
+            if not chartset.countdown(self.db, size, now()):
+                return {'ok': False, 'error': 'No song was marked this week'}
+            key = direction.insert(self.db, self.cfg, 'chart', str(size), chartset.title(size), now(), iso(now()))
+            self.wake.set()
+            return {'ok': True, 'id': key}
         if cmd in ('skip', 'unskip'):  # a coming song, this time only; marks and the replay queue are untouched
             ref = str((req or {}).get('ref', '')).strip()
             if not ref or '\n' in ref:
@@ -2737,6 +2799,9 @@ class Service:
             return music.label(self.db, ref)
         if kind == "news":
             return 'Host edition'
+        if kind == "chart":
+            row = self.db.execute('SELECT text FROM air_plan WHERE id=?', (ref.partition('#')[0],)).fetchone()
+            return row['text'] if row else 'Chart'
         return {"id": "Station ID", "reminder": "Reminder", "weather": "Weather", "teaser": "Coming up"}.get(kind, kind)
 
     def _clock_rows(self, at=None):
@@ -3008,7 +3073,7 @@ class Service:
                 raise ValueError('Invalid block order')
             if row and row['kind'] == 'music':
                 raise ValueError('Music fills the gaps automatically; edit a host section instead')
-            if not row or row.get('locked') and not (row['kind'] in ('news', 'weather', 'reminder') and change.get('skip_only') is True and change.get('skipped') is True):
+            if not row or row.get('locked') and not (row['kind'] in ('news', 'weather', 'reminder', 'chart') and change.get('skip_only') is True and change.get('skipped') is True):
                 raise ValueError('This block is already selected or preparing. Try another block.')
             if row['kind'] == 'reminder' and change.get('skipped') and not row.get('skipped') and change.get('skip_confirmed') is not True:
                 raise ValueError('Confirm skipping this reminder')

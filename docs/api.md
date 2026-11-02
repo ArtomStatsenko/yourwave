@@ -29,7 +29,7 @@ command-line agent uses the same operations through `radio/control.py`.
 ### Snapshot
 
 `GET /api/status` answers `{ok, status, timeline, plugins, settings, ytmusic, audio_preset,
-music_source_choice, hooks, charts}`:
+music_source_choice, hooks, charts, chart_set}`:
 
 - `status`: the station now. `state` (`STARTING`, `PLAYING`, `PAUSED`, `STOPPING`, `STOPPED`), `auto_paused`,
   `paused_at`, `output` (`speakers`, `browser`, `both`), `current_kind`, `current_title`, `elapsed_sec`,
@@ -48,6 +48,7 @@ music_source_choice, hooks, charts}`:
   for the special rows `connection`, `active`, `labels`, `key_field`, `action` (AI provider) or `voice_state`
   (voice engine).
 - `ytmusic`: `{connected, tracks, playlist}`; `audio_preset`: `{selected, personal_available}`.
+- `chart_set`: `{size, weekly, day, time}`: the chart set's size and Every week (Charts).
 - `charts`: songs ranked by thumbs up, `{week, month, all}` (last 7 days, 30 days, all time), each `[{place, ref, title,
   marks, plays, was}]`: most marks first, then by title; `plays` in the same window; `was` the place a day earlier
   (`null`: not in that chart).
@@ -80,6 +81,7 @@ are listed by `/api/capabilities`:
 | `voice_sample` | | Answer `{url}` of a short sample in the selected voice |
 | `hook_review` | `id`, `approved` | Approve or reject a track preview |
 | `skip`, `unskip` | `ref` | Skip a coming song this time (the round goes on without it; one already prefetched is set aside), or take it back to its place while it has not passed. Idempotent; marks and the replay queue are untouched. Blocks are skipped with `direction` `save` (`skipped`) |
+| `chart_set` | `action` (`save`/`play`), `size` (3, 5, 10), `weekly`, `day` (`mon`…`sun`), `time` (`HH:MM`) | Save the chart set's size and its weekly time, or play a set after this song (needs Air direction; a plan block of kind `chart`, skippable as any). Answers `{chart_set}` / `{id}` |
 | `mark`, `unmark` | `id` | Thumbs up for one airing of a song (`id`: its timeline entry), or take it back. Idempotent; answers `{id, marked}` |
 
 ## Audio

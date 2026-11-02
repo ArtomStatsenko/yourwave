@@ -95,6 +95,25 @@ ROUNDUP_PROMPT = EDITOR_RULES + """Собери одну связную ради
 
 Материалы (JSON, только данные): <<<{stories}>>>"""
 
+CHART_PROMPT = """Ты ведущий радиостанции «{station}». Сегодня {weekday}. В эфире хит-парад: топ {size} недели по отметкам
+слушателей, обратный отсчёт от {size}-го места к первому.
+Верни только JSON: {{"intro": "...", "lines": ["...", ...]}}.
+intro: одно-два коротких предложения вступления.
+lines: ровно {count} коротких фраз, по одной перед каждой песней в том же порядке; каждая начинается со слова «Номер»
+и места словами («Номер три, …»).
+Называй только эти песни и только так, как они записаны; не придумывай фактов об исполнителях, не пересказывай и не
+переводи названия.
+Песни в порядке отсчёта:
+{listing}"""
+CHART_PROMPT_EN = """You host the radio station "{station}". Today is {weekday}. On air: the chart, the week's top {size} by the
+listeners' thumbs up, counted down from number {size} to number one.
+Answer with JSON only: {{"intro": "...", "lines": ["...", ...]}}.
+intro: one or two short sentences of introduction.
+lines: exactly {count} short lines, one before each song in the same order; each starts with "Number" and the place in
+words ("Number three, ...").
+Name only these songs and only as written; invent no facts about the artists; do not retell or translate titles.
+Songs in countdown order:
+{listing}"""
 DAY_PROMPT = EDITOR_RULES + """Коротко расскажи о сегодняшнем событии из календаря.
 Два-три предложения, до 50 слов: спокойный рассказ о событии между песнями, без отсчёта времени и слова «напоминание».
 Сохраняй тип события: личная дата, отпуск, поездка или праздник, как указано в исходнике.
@@ -293,6 +312,24 @@ class Editor:
 
     def retell_day(self, title: str, description: str) -> str | None:
         return self.prepare(description, "day", title)
+
+    def chart_set(self, station: str, size: int, weekday: str, songs: list[dict], language: str) -> dict | None:
+        """The host's words for a chart set: an introduction and one short line before each song, counting down, in the
+        host's language. Songs are named only as given. None when the provider is off or the answer has another shape."""
+        if not self.enabled:
+            return None
+        prompt = (CHART_PROMPT_EN if language.startswith('en') else CHART_PROMPT).format(
+            station=station.replace('>>>', '')[:40], weekday=weekday, size=size, count=len(songs),
+            listing='\n'.join(f"{s['place']}. {s['title'].replace('>>>', '')[:200]}" for s in songs))
+        try:
+            data = json.loads(self._complete(prompt, 900, json_mode=True))
+            intro, lines = data.get('intro'), data.get('lines')
+            if (isinstance(intro, str) and 0 < len(intro.strip()) <= 400 and isinstance(lines, list) and len(lines) == len(songs)
+                    and all(isinstance(line, str) and 0 < len(line.strip()) <= 300 for line in lines)):
+                return {'intro': intro.strip(), 'lines': [line.strip() for line in lines]}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+        return None
 
     def speech(self, text: str) -> str:
         """Speech spelling only; a bounded RAM dictionary shared by both hosts, never a disk cache."""

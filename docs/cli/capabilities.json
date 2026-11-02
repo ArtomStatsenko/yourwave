@@ -129,6 +129,15 @@
         "ref"
       ]
     },
+    "chart_set": {
+      "fields": [
+        "action",
+        "size",
+        "weekly",
+        "day",
+        "time"
+      ]
+    },
     "replay": {
       "fields": [
         "kind",

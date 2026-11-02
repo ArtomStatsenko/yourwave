@@ -133,7 +133,7 @@ def insert(db, cfg, kind, ref, text, at, due):
             db.execute('INSERT INTO air_plan(id,kind,ref,not_before,rank) VALUES(?,?,?,?,?)',
                        (p['id'], 'news', p['id'], store.iso(when), -1))
         return item_id
-    if kind not in ('news', 'weather', 'music', 'jingle', 'reminder'):
+    if kind not in ('news', 'weather', 'music', 'jingle', 'reminder', 'chart'):
         raise ValueError('Unknown block type')
     db.execute('INSERT INTO air_plan(id,kind,ref,text,not_before) VALUES(?,?,?,?,?)',
                (key, kind, ref, text, store.iso(when)))

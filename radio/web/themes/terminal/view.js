@@ -683,7 +683,7 @@ function timeline(){
   // farthest at the top, the nearest right above the queue and now
   $('upcoming').innerHTML=up.rows.slice().reverse().map(function(r){
     var tm=r.next?(up.queue.length?'then':'next'):(r.at?(r.tentative?'~':'')+atClock(r.at):'');
-    var tx=r.next?esc(r.title)+(r.pending?' <span class="l">· loading…</span>':trackLabels(r.tags)):(r.label==='then'?'then · ':'')+esc(r.title);
+    var tx=r.next?esc(r.title)+(r.pending?' <span class="l">· loading…</span>':trackLabels(r.tags)):(r.label==='then'?'then · ':r.label==='chart'?'chart · ':'')+esc(r.title);
     var acts=r.skipped?'<button type="button" class="unskip" data-unskip="'+esc(r.key)+'" aria-label="Don\'t skip '+esc(r.title)+'">Don\'t skip</button>':
       (r.reroll?rerollButton():'')+(r.skippable?'<button type="button" class="rp" data-skip="'+esc(r.key)+'" title="Skip" aria-label="Skip '+esc(r.title)+'">'+CROSS+'</button>':'');
     return '<div class="tg coming'+(r.skipped?' skipped':'')+'"><span class="tm">'+tm+'</span><span class="tx'+(r.pending?' pend':'')+'"'+(r.next?' id="next-title"':'')+' title="'+esc(r.title)+'">'+tx+'</span><span class="acts">'+acts+'</span></div>'}).join('')+
@@ -773,8 +773,8 @@ function applySnapshot(d){
       if(!ytLoaded&&document.activeElement!==$('yt-playlist')){$('yt-playlist').value=d.ytmusic.playlist;ytLoaded=true}
       if(!ytBusy&&!ytMessage&&d.ytmusic.connected)$('yt-state').textContent=d.ytmusic.tracks+' songs connected';
     }
-    chartData=d.charts||{};chartsView();
-    items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();markView();
+    chartData=d.charts||{};chartsView();chartSetData=d.chart_set||chartSetData;
+    items=d.timeline||[];pls=d.plugins||[];stg=d.settings||[];musicChoice=d.music_source_choice||'local';player();timeline();markView();chartSetView();
     if(keyFb.checking)waits.watch('llm-key-fb',function(){return !!keyFb.checking});
     if(LOCAL_CONTROL&&(st.state==='STARTING'||!running()&&Date.now()<startingUntil))waits.watch('airtxt',function(){return st.state==='STARTING'||!running()&&Date.now()<startingUntil});
     pluginsView();settingsView();directionView();hooksView(d.hooks)
@@ -801,6 +801,29 @@ function chartsView(){
     var dy=was-li.getBoundingClientRect().top;if(!dy)return;
     li.style.transition='none';li.style.transform='translateY('+dy+'px)';li.getBoundingClientRect();
     li.style.transition='transform .25s ease';li.style.transform=''})}
+// the chart set: saved as it changes; Play after this song asks the station for a set now
+var chartSetData=null;
+function chartSetView(){
+  var c=RadioModel.chartSet(chartSetData,pls.some(function(p){return p.name==='air_direction'&&p.on}));
+  if(document.activeElement!==$('chart-set-size'))$('chart-set-size').innerHTML=c.sizes.map(function(s){return '<option value="'+s.value+'"'+(s.value===c.size?' selected':'')+'>'+s.label+'</option>'}).join('');
+  if(document.activeElement!==$('chart-set-day'))$('chart-set-day').innerHTML=c.days.map(function(d){return '<option value="'+d.value+'"'+(d.value===c.day?' selected':'')+'>'+d.label+'</option>'}).join('');
+  if(document.activeElement!==$('chart-set-time'))$('chart-set-time').value=c.time;
+  $('chart-set-weekly').checked=c.weekly;$('chart-set-caption').textContent=c.caption;
+  $('chart-set-note').hidden=!c.note;$('chart-set-note-text').textContent=c.note;
+  ['chart-set-play','chart-set-weekly','chart-set-day','chart-set-time'].forEach(function(id){$(id).disabled=c.disabled;$(id).setAttribute('aria-disabled',String(c.disabled))})}
+function chartSetSave(change){
+  api('/api/cmd',Object.assign({cmd:'chart_set',action:'save'},change)).then(function(d){
+    if(d&&d.ok){chartSetData=d.chart_set;$('chart-set-status').textContent='Saved'}else $('chart-set-status').textContent=d&&d.error||'Could not save';chartSetView()})
+  .catch(function(){$('chart-set-status').textContent='the radio is not answering'})}
+$('chart-set-size').onchange=function(){chartSetSave({size:Number(this.value)})};
+$('chart-set-weekly').onchange=function(){chartSetSave({weekly:this.checked})};
+$('chart-set-day').onchange=function(){chartSetSave({day:this.value})};
+$('chart-set-time').onchange=function(){if(this.value)chartSetSave({time:this.value.slice(0,5)})};
+$('chart-set-open').onclick=function(){selectTab($('tab-ex'));$('tab-ex').focus()};
+$('chart-set-play').onclick=function(){$('chart-set-status').textContent='Preparing the chart set…';
+  api('/api/cmd',{cmd:'chart_set',action:'play',size:Number($('chart-set-size').value)}).then(function(d){
+    $('chart-set-status').textContent=d&&d.ok?'The host is preparing it; it plays after this song':d&&d.error||'Could not start the chart set';refresh()})
+  .catch(function(){$('chart-set-status').textContent='the radio is not answering'})};
 $('chart-windows').onclick=function(e){var b=e.target.closest('[data-window]');if(b){chartWindow=b.dataset.window;chartsView()}};
 function selectTab(b){
   if(b.dataset.tab!=='tl'&&planDraft&&!dirBusy)$('plan-done').onclick();

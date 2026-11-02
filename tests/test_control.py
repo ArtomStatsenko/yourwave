@@ -81,6 +81,8 @@ class ControlTests(unittest.TestCase):
                     data = {**body, 'cmd': name}
                     if name == 'direction':
                         data['action'] = 'catalog'
+                    if name == 'chart_set':
+                        data['action'] = 'save'
                     result, code = control.execute(data, sender=sender, starter=sender)
                     self.assertEqual(code, 200)
                     self.assertTrue(result['ok'], result)

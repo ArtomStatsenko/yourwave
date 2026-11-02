@@ -43,7 +43,7 @@
 
 /* text actions: More news, Activity, Edit, Undo, Done, Show earlier, Show later */
 :root[data-skin] #catchup-build,:root[data-skin] #plan-edit,:root[data-skin] #plan-undo,:root[data-skin] #plan-done,
-:root[data-skin] #history-more,:root[data-skin] #plan-later,:root[data-skin] #activity summary{
+:root[data-skin] #history-more,:root[data-skin] #plan-later,:root[data-skin] #activity summary,:root[data-skin] #chart-set-open{
   border:0;background:none;min-height:44px;padding:0 12px;font-size:16px;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center}
 :root[data-skin] #plan-undo,:root[data-skin] #history-more,:root[data-skin] #plan-later{color:var(--muted)}
 :root[data-skin] #history-more{width:100%;justify-content:center}
@@ -92,11 +92,13 @@
 :root[data-skin] input[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--ink);transition:transform .15s}
 :root[data-skin] input[role=switch]:checked{background:var(--accent);border-color:var(--accent)}
 :root[data-skin] input[role=switch]:checked::after{transform:translateX(24px);background:var(--accent-ink)}
+:root[data-skin] input[role=switch]:disabled{opacity:.4;cursor:default}
+:root[data-skin] .st :is(select,input):disabled{opacity:.5;cursor:default}
 :root[data-skin] .st label:has(input[role=switch]){width:100%;justify-content:space-between;flex-direction:row-reverse}
 
 /* forms */
 :root[data-skin] .st{border-bottom:1px solid var(--line)}
-:root[data-skin] .st input[type=url],:root[data-skin] .st input[type=password],:root[data-skin] .st input[type=text],
+:root[data-skin] .st input[type=url],:root[data-skin] .st input[type=password],:root[data-skin] .st input[type=text],:root[data-skin] .st input[type=time],
 :root[data-skin] .st select,:root[data-skin] .st textarea,:root[data-skin] #direction-controls input,
 :root[data-skin] #direction-controls select,:root[data-skin] #direction-controls textarea{
   font:17px/1.4 var(--sans);min-height:44px;padding:8px 12px;border-radius:var(--r-input,10px);border:1px solid var(--line);color:var(--ink);

@@ -3,7 +3,7 @@
 var RadioCore=(function(){
   var POLL_MS=2000;
   // What each kind of air entry is called, the same in every theme (and in the phone's Media Session).
-  var KINDS={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air'};
+  var KINDS={music:'song',news:'host edition',host:'host',id:'jingle',reminder:'reminder',weather:'weather',session:'on air',chart:'chart'};
 
   // Page themes (radio/web/themes/<name>), by folder name; one without a title here shows its name capitalized.
   // modes: the colour modes it offers (Settings → Appearance → Mode); accent: it lets the listener choose its accent.
