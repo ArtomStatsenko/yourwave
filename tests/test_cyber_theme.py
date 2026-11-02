@@ -58,6 +58,7 @@ var RadioTheme={mount(){}},RadioBars={wrap:(t,n)=>({mount:t.mount,bars:n})};
 ''' + (WEB / 'themes/cyber/view.js').read_text() + r'''
 const assert=require('node:assert/strict'),e=RadioTheme.effect;
 assert.equal(RadioTheme.bars,24);
+assert.deepEqual(['x'.repeat(30),'x'.repeat(31),'x'.repeat(48),'x'.repeat(49)].map(RadioTheme.step),['','m','m','s']);
 assert.equal(e('title','on',false,false),'decode');assert.equal(e('title','reduced',false,false),'decode-still');
 assert.equal(e('signal','on',false,false),'slice');assert.equal(e('power','on',false,false),'slice');
 assert.equal(e('signal','reduced',false,false),null,'reduced: only the still state');

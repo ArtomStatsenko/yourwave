@@ -24,7 +24,13 @@
 :root[data-skin="cyber"] h1:has(#air.off){color:var(--muted)}
 :root[data-skin="cyber"] #air{display:inline-block;width:8px;height:8px;margin-right:4px;font-size:0;vertical-align:middle;background:currentColor;
   clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
-:root[data-skin="cyber"] .title{position:relative;padding-left:16px;text-transform:uppercase;line-height:1.15}
+/* the title wraps, up to three lines, a step smaller for 31–48 and over 48 characters (view.js sets data-size before a
+   decode, so the block keeps its height through it); the accent bar runs the block's height */
+:root[data-skin="cyber"] .title{position:relative;padding-left:16px;text-transform:uppercase;line-height:1.05;white-space:normal;
+  text-overflow:clip;overflow-wrap:anywhere}
+:root[data-skin="cyber"] .title[data-size="m"]{font-size:clamp(26px,4vw,34px)}
+:root[data-skin="cyber"] .title[data-size="s"]{font-size:clamp(22px,3.4vw,28px)}
+:root[data-skin="cyber"] #ttl{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
 :root[data-skin="cyber"] .title::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:4px;background:var(--accent)}
 :root[data-skin="cyber"] #np:has(#air.off) .title::before{background:var(--line)}
 :root[data-skin="cyber"][data-signal="lost"] .title::before{background:var(--bad)}

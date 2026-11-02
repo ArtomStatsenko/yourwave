@@ -7,6 +7,7 @@
 var RadioTheme=(function(theme){
   var GLYPHS='#@%&$<>/\\|!?~^*+=0123456789ABCDEFXYZ',DECODE_MS=520,SLICE_MS=460,BLOCKS=8,BLOCKS_MS=420,QUIET_AFTER_POWER_MS=1500;
   // the effect an event gets: 'decode' or 'decode-still' (a new title), 'slice' (a lost signal, the radio off or on), null
+  function step(text){return text.length>48?'s':text.length>30?'m':''}  // the title's size step, as in prism
   function effect(event,mode,reduced,hidden){
     if(reduced||hidden||mode==='off')return null;
     if(event==='title')return mode==='reduced'?'decode-still':'decode';
@@ -45,9 +46,12 @@ var RadioTheme=(function(theme){
       var fx=effect(event,appearance.glitch(),motion.matches,document.hidden);stop();
       if(fx==='slice'){ttl.dataset.t=ttl.textContent;void np.offsetWidth;np.classList.add('cy-slice');later(function(){np.classList.remove('cy-slice')},SLICE_MS);blocks()}
       else if(fx)decode(shown,fx==='decode-still')}
+    var box=ttl.parentNode;
+    function size(text){box.dataset.size=step(text);box.title=text}  // the whole title on hover when three lines cut it
+    size(shown);
     observer=new MutationObserver(function(){
       var next=ttl.textContent;if(next===shown)return;
-      var first=!shown;shown=next;
+      var first=!shown;shown=next;size(next);
       if(!first&&Date.now()-poweredAt>QUIET_AFTER_POWER_MS)fire('title')});  // the first title, and the one a power change brings, just appear
     observer.observe(ttl,{childList:true,characterData:true,subtree:true});
     core.subscribe(function(core,change){
@@ -57,5 +61,5 @@ var RadioTheme=(function(theme){
       var running=core.running();
       if(wasRunning!==null&&running!==wasRunning){poweredAt=Date.now();fire('power')}
       wasRunning=running})}
-  return {mount:mount,bars:theme.bars,effect:effect};
+  return {mount:mount,bars:theme.bars,effect:effect,step:step};
 })(RadioBars.wrap(RadioTheme,24));
