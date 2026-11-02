@@ -72,3 +72,11 @@
 /* the "Skipped" notice: a raised panel, no line */
 :root[data-skin="soft"] .toast{background:var(--bg);border:0;border-radius:16px;box-shadow:var(--panel-shadow)}
 :root[data-skin="soft"] .toast button{color:var(--accent-text)}
+
+/* waiting: the text breathes between soft and sharp; the answer comes in out of the blur */
+@keyframes soft-breathe{0%,100%{opacity:.45;filter:blur(2.5px)}50%{opacity:.85;filter:blur(1px)}}
+:root[data-skin="soft"] .wait{animation:soft-breathe 1.4s ease-in-out infinite}
+:root[data-skin="soft"] .swap :is(.a,.b){transition:opacity .4s,filter .4s}
+:root[data-skin="soft"] .swap .b{opacity:0;filter:blur(3px)}
+:root[data-skin="soft"] .swap.roll .a{opacity:0}
+:root[data-skin="soft"] .swap.roll .b{opacity:1;filter:none}
