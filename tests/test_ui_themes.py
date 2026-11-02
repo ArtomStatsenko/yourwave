@@ -88,6 +88,17 @@ class LayoutTests(unittest.TestCase):
                 self.assertEqual(order(theme_html(name)), KEY)
 
 
+class ControlsRowTests(unittest.TestCase):
+    def test_no_theme_places_the_player_controls_by_column(self):
+        # a grid by position moved every later control when Shuffle joined the row (the progress bar got 0px)
+        for name in THEMES:
+            with self.subTest(theme=name):
+                css = (WEB / "themes" / name / "theme.css").read_text()
+                for sels, body in re.findall(r"([^{}@]+)\{([^{}]*)\}", css):
+                    if ".player-controls" in sels:
+                        self.assertNotRegex(body, r"grid-(template|column|row)|display:grid", sels.strip())
+
+
 class SlotTests(unittest.TestCase):
     def test_every_card_theme_keeps_its_spectrum_slot_between_36_and_120px(self):
         for name in [n for n in ON_LAYOUT if n != "terminal"]:

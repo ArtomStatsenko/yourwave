@@ -70,8 +70,9 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
 .air-heading{display:flex;align-items:center;gap:12px}.air-caption{flex:1;min-width:0}
 #pp[aria-busy="true"] svg{opacity:.4}
 #pp{display:grid;place-items:center;width:48px;height:44px;min-height:44px;padding:8px}#pp .pause-icon{display:none}#pp[data-playing="true"] .play-icon{display:none}#pp[data-playing="true"] .pause-icon{display:inline}
-.player-controls{display:grid;grid-template-columns:auto auto 112px minmax(100px,1fr) auto auto;gap:12px}
-.player-controls .bar{min-width:0}
+.player-controls{gap:12px}  /* .row's flex: each control keeps its own size, so adding one moves none of the others */
+.player-controls .bar{flex:1 1 100px;min-width:100px}
+.player-controls #vol{flex:0 1 112px;min-width:0}
 #nx,#sh{width:48px;height:44px;min-height:44px;padding:8px}#sh{display:grid;place-items:center}#sh[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}#nx[aria-busy="true"]{opacity:1;color:var(--muted);cursor:progress}
 #time{white-space:nowrap;font-variant-numeric:tabular-nums}
 .player-status{gap:12px}
@@ -84,12 +85,11 @@ h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:
   .player-status .lim{max-width:none;min-width:40px}
 }
 @media(max-width:800px){
-  .player-controls{grid-template-columns:auto auto minmax(0,1fr);gap:8px}
+  .player-controls{gap:8px}
   .player-controls button{font-size:16px;padding:8px 12px;white-space:nowrap}
-  .player-controls #vol{width:100%;max-width:112px;min-width:0}
-  .player-controls .bar{grid-column:1 / -1;grid-row:2}
-  .player-controls #time{grid-column:1;grid-row:3;font-size:16px}
-  .player-controls #viz-controls{grid-column:2 / -1;grid-row:3;justify-self:end}
+  .player-controls .bar{flex-basis:100%}  /* the buttons above, the progress on a line of its own, time and visual below */
+  .player-controls #time{font-size:16px}
+  .player-controls #viz-controls{margin-left:auto}
   .player-controls #viz-controls button{min-width:44px;min-height:44px;padding:8px 4px}
 }
 .bar{flex:1;min-width:140px;height:4px;background:var(--line)}.bar i{display:block;height:4px;background:var(--accent);width:0}
