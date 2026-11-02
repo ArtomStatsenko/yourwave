@@ -2240,6 +2240,44 @@ class Service:
             return {'ok': False, 'error': fail}
         return await self.dispatch('status')
 
+    async def _reroll_song(self, ref):
+        """🎲 on any coming song (the program editor): that play becomes a random song not in the plan, and every other
+        song keeps its place. The next song goes the way of reroll-next (its checks, a YouTube download)."""
+        if ref == (self._next_music_slot() or {}).get('ref'):
+            return await self._reroll_next(ref)
+        rows = await self._plan_rows()
+        row = next((r for r in rows if _row_ref(r) == ref and r.get('kind') == 'music' and not r.get('skipped')), None) \
+            if isinstance(rows, list) else None
+        if not row:
+            return {'ok': False, 'error': 'This song is no longer coming up'}
+        fresh = bool(row.get('set'))  # a new-tracks or energy-wave song: in the fresh queue, resolved before it airs
+        shown = [r['ref'] for r in self._music_plan_rows(rows, probe=False)]  # the timeline's hours, not the whole round
+        excluded = {*shown, (self.current or {}).get('ref'), self.reroll_pending, *self.fresh_queued,
+                    *(r['ref'] for r in self.replays.values())}
+        # a song for the fresh queue loads at once: no YouTube download inside an engine command
+        choices = {r: line for r, line in self.engine.music_choices(ref).items()
+                   if r in self.library and r not in excluded and not (fresh and r.startswith('ytmusic:'))}
+        if not choices:
+            return {'ok': False, 'error': 'No other track is available'}
+        new = random.choice(list(choices))
+        if fresh:
+            if not (rid := self.fresh_queued.get(ref)):
+                return {'ok': False, 'error': 'This song is no longer coming up'}
+            try:
+                self.fresh_queued[new] = await self.engine.replace_music(ref, 'annotate:plan_queue="fresh":' + choices[new], 'fresh', rid)
+            except ValueError as error:
+                return {'ok': False, 'error': str(error)}
+            self.fresh_queued.pop(ref, None)
+            self.energy_queued.discard(ref)
+        else:
+            queue = re.search(r'plan_queue="([^"]+)"', row.get('uri', ''))
+            if not queue or queue.group(1) not in ('music', 'local_music') or \
+                    await self.engine.swap_music(queue.group(1), ref, choices[new]) != 'OK':
+                return {'ok': False, 'error': 'This song is no longer coming up'}
+        self.plan_gen += 1
+        log('reroll:', Path(ref).name, '->', Path(new).name)
+        return await self.dispatch('status')
+
     def _reroll_failed(self, new, old, reason):
         return f"Could not load “{music.label(self.db, new)}”: {reason}. Keeping “{music.label(self.db, old)}”."
 
@@ -2550,12 +2588,8 @@ class Service:
         for row in rows:
             if self.stopping or offset >= PLAN_HOURS * 3600:
                 break
-            ref = row.get('ref','')
+            ref = _row_ref(row)
             uri = row.get('uri','')
-            if not ref:
-                match = re.search(r'(?:^annotate:|,)ref=("(?:[^"\\\r\n]|\\.)*")',uri)
-                if match:
-                    ref = json.loads(match.group(1))
             kind = row.get('kind') or ('music' if ref in self.library else '')
             seconds = row.get('duration',0)
             if not seconds and kind != 'music' and uri:
@@ -2740,6 +2774,8 @@ class Service:
             return await self.unqueue(str((req or {}).get("kind", "")), str((req or {}).get("ref", "")))
         if cmd == 'reroll-next':
             return await self._reroll_next(str((req or {}).get('ref', '')))
+        if cmd == 'reroll':
+            return await self._reroll_song(str((req or {}).get('ref', '')))
         if cmd == 'chart_set':  # Play after this song: a chart set as a plan block now (it airs at the next song boundary)
             if not plugins.on(self.cfg, 'air_direction'):
                 return {'ok': False, 'error': 'Needs Air direction in Experiments'}
@@ -3301,6 +3337,17 @@ class Service:
             "direction_timezone": self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'),
             "replay_queue": [{"kind": r["kind"], "ref": r["ref"]} for r in self.replays.values()],
         }
+
+
+def _row_ref(row) -> str:
+    """A music.plan row's song: rows of the round not yet requested carry it only in their playlist line."""
+    if row.get('ref'):
+        return row['ref']
+    match = re.search(r'(?:^annotate:|,)ref=("(?:[^"\\\r\n]|\\.)*")', row.get('uri', ''))
+    try:
+        return json.loads(match.group(1)) if match else ''
+    except json.JSONDecodeError:
+        return ''
 
 
 def listeners() -> int:

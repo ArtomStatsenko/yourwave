@@ -67,6 +67,7 @@ are listed by `/api/capabilities`:
 | `pause`, `resume` | | Pause the station for every listener (speakers output) |
 | `next`, `skip-news` | | Next track; skip the host edition on air |
 | `reroll-next` | `ref` | Replace the next song with another random one |
+| `reroll` | `ref` | Replace any coming song (the next one as `reroll-next`) with a random song not in the plan; the others keep their places |
 | `replay`, `unqueue` | `kind`, `ref` | Play an aired song again at the next boundary; take it off the queue |
 | `catchup` | | Prepare a "What I missed" host edition |
 | `direction` | `action`, `kind`, `ref`, `text`, `at`, `id`, `token`, `changes`, `version`, `remember_undo` | Air direction: catalog, insert, save the plan, undo |

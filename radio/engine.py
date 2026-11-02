@@ -226,6 +226,12 @@ class Liquidsoap:
             raise ValueError('The next track changed. Try again.' if result == 'STALE' else 'Could not load another track. Try again.')
         return result
 
+    async def swap_music(self, queue: str, expected: str, uri: str) -> str:
+        """A later song of a playlist's round becomes another (its playlist line): 'OK', or 'STALE' once it is gone."""
+        if queue not in ('music', 'local_music'):
+            raise ValueError('Invalid music queue')
+        return await self.command(queue + '.swap ' + json.dumps({'ref': expected, 'uri': uri}, ensure_ascii=False))
+
     async def remove(self, rid: str, queue: str = "news") -> None:
         # Also works on a request already prefetched for the next break, but misses one the queue is resolving at
         # that moment (right after a transition: off the queue, not yet prefetched, invisible to news.pending).

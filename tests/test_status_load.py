@@ -47,6 +47,32 @@ class StatusLoadTests(unittest.TestCase):
         self.assertNotIn('direction', status)
 
 
+class RerollAnySongTests(unittest.TestCase):
+    def test_a_later_song_becomes_one_not_in_the_plan_and_the_others_stay(self):
+        svc = Service(config.load(), tts=MockTTS(), output='x')
+        line = lambda ref: f'annotate:kind="music",ref="{ref}":{ref}'
+        plan = [{'ref': '/m/next.mp3', 'uri': 'annotate:plan_queue="music":' + line('/m/next.mp3'), 'kind': 'music', 'duration': 0},
+                {'ref': '/m/f1.mp3', 'uri': 'annotate:plan_queue="fresh":' + line('/m/f1.mp3'), 'kind': 'music', 'set': True, 'duration': 0},
+                {'ref': '', 'uri': 'annotate:plan_queue="music":' + line('/m/c.mp3'), 'kind': 'music', 'duration': 0}]
+        songs = ['/m/next.mp3', '/m/f1.mp3', '/m/c.mp3', '/m/new.mp3', 'ytmusic:abcdefghijk']
+        svc.library = set(songs)
+        svc.fresh_queued = {'/m/f1.mp3': '5'}
+        svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value='/m/next.mp3'),
+                          music_plan=AsyncMock(return_value=plan), pending=AsyncMock(return_value=['5']),
+                          music_choices=Mock(return_value={r: line(r) for r in songs}),
+                          swap_music=AsyncMock(return_value='OK'), replace_music=AsyncMock(return_value='77'))
+        with patch.object(svc, '_next_music_slot', return_value={'ref': '/m/next.mp3'}), \
+             patch('radio.daemon.random.choice', side_effect=lambda c: sorted(c)[0]):
+            self.assertTrue(asyncio.run(svc.dispatch('reroll', {'ref': '/m/c.mp3'}))['ok'])
+            svc.engine.swap_music.assert_awaited_once_with('music', '/m/c.mp3', line('/m/new.mp3'))
+            self.assertTrue(asyncio.run(svc.dispatch('reroll', {'ref': '/m/f1.mp3'}))['ok'])
+            svc.engine.replace_music.assert_awaited_once_with(
+                '/m/f1.mp3', 'annotate:plan_queue="fresh":' + line('/m/new.mp3'), 'fresh', '5')
+            self.assertEqual(svc.fresh_queued, {'/m/new.mp3': '77'}, 'a fresh-queue song loads now: no YouTube pick')
+            answer = asyncio.run(svc.dispatch('reroll', {'ref': '/m/gone.mp3'}))
+        self.assertEqual(answer, {'ok': False, 'error': 'This song is no longer coming up'})
+
+
 class PluginSwitchTests(unittest.TestCase):
     def test_one_switch_reads_as_the_whole_state(self):
         cfg = config.load()

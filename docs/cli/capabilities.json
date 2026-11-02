@@ -109,6 +109,11 @@
         "ref"
       ]
     },
+    "reroll": {
+      "fields": [
+        "ref"
+      ]
+    },
     "mark": {
       "fields": [
         "id"

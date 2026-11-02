@@ -211,6 +211,19 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
       "OK"
     else "STALE" end
   end
+  # Timeline 🎲 on a later song of the round: that one play becomes another song (its playlist line), the rest stay
+  def swap(k, u) =
+    rest = s.remaining_files()
+    i = list.index(fun (f) -> uri_ref(f) == k, rest)
+    if i < list.length(rest) and not holding() and not list.mem(k, skipped()) then
+      s.reload(empty_queue=false, list.mapi(fun (j, f) -> if j == i then "annotate:plan_queue=\"#{id}\":#{u}" else f end, rest))
+      "OK"
+    else "STALE" end
+  end
+  server.register("#{id}.swap", fun (arg) -> begin
+    let json.parse (p : {ref: string, uri: string}) = arg
+    swap(p.ref, p.uri)
+  end)
   # each song this playlist starts brings the set-aside ones a place nearer; one whose turn has passed is gone
   s.on_track(synchronous=true, fun (_) -> begin
     aside := list.filter(fun (a) -> fst(a) >= 0, list.map(fun (a) -> (fst(a) - 1, snd(a)), aside()))

@@ -13,7 +13,7 @@ OPERATIONS = {
     'audio_preset': ['name'], 'reddit_community': ['action', 'value'], 'telegram_channel': ['action', 'value'],
     'ytmusic_connect': ['cookie', 'playlist', 'browser'], 'voice_sample': [], 'llm_key': ['provider', 'key'],
     'chatgpt_login': [], 'chatgpt_logout': [], 'openrouter_login': [], 'openrouter_logout': [],
-    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'], 'chart_set': ['action', 'size', 'weekly', 'day', 'time'],
+    'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'reroll': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'], 'chart_set': ['action', 'size', 'weekly', 'day', 'time'],
     'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'],
     'direction': ['action', 'kind', 'ref', 'text', 'at', 'id', 'token', 'changes', 'version', 'remember_undo'],
 }
@@ -236,7 +236,7 @@ def execute(body, *, sender=None, starter=None, port=8765):
             return reply({'ok': False, 'error': 'Choose save or play'}, 400)
     elif cmd in ('skip', 'unskip'):
         resp = send(cmd, timeout=90, ref=str(body.get('ref', '')))
-    elif cmd == "reroll-next":
+    elif cmd in ("reroll-next", "reroll"):
         resp = send(cmd, timeout=45, ref=str(body.get("ref", "")))
     elif cmd == "direction":
         resp = send(cmd, timeout=10, **{k: v for k, v in body.items() if k != "cmd"})

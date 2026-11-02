@@ -611,6 +611,38 @@ class RerollTests(unittest.TestCase):
         self.clock.stop()
         asyncio.run(scenario())
 
+    def test_engine_swaps_one_later_song_and_keeps_the_rest_of_the_round(self):
+        tone = config.DATA_DIR / 'swap-tone.wav'
+        with wave.open(str(tone), 'wb') as out:
+            out.setparams((2, 2, 44100, 0, 'NONE', 'not compressed'))
+            out.writeframes(b'\1\0\1\0' * 44100 * 20)
+        m3u = config.RUN_DIR / 'swap.m3u'
+        uris = {f'track-{i}': f'annotate:kind="music",ref="track-{i}":{tone}' for i in range(8)}
+        m3u.write_text('\n'.join(list(uris.values())[:7]) + '\n')  # track-7 is not in the round
+
+        async def scenario(engine):
+            events = []
+            try:
+                await engine.start(events.append)
+                deadline = time.monotonic() + 10
+                before = []
+                while len(before) < 6 and time.monotonic() < deadline:
+                    await asyncio.sleep(.1)
+                    if events:
+                        await engine.command('pause')
+                        before = await engine.upcoming_music()
+                self.assertEqual(len(before), 6)
+                self.assertEqual(await engine.swap_music('music', before[3], uris['track-7']), 'OK')
+                self.assertEqual(await engine.upcoming_music(), [*before[:3], 'track-7', *before[4:]])
+                self.assertEqual(await engine.swap_music('music', before[3], uris['track-7']), 'STALE', 'it is no longer there')
+            finally:
+                await engine.stop()
+
+        self.clock.stop()
+        with patch.dict(os.environ, RADIO_FILE_SYNC='realtime'), \
+             patch('radio.engine.ytmusic.library', return_value={'tracks': []}):
+            asyncio.run(scenario(Liquidsoap(m3u, .1, str(config.DATA_DIR / 'swap-output.wav'))))
+
     def test_engine_reroll_preserves_every_later_track_in_shuffle(self):
         tone = config.DATA_DIR / 'tail-tone.wav'
         with wave.open(str(tone), 'wb') as out:
