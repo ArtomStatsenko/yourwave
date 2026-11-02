@@ -585,7 +585,7 @@ function backgroundError(message){return RadioModel.backgroundError(message)}
 function timeline(){
   if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
   var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
-  function trackLabels(tags){if(!tags)return '';return (tags.announced?'<span class="l announced-track"> · announced</span>':'')+(tags.set?'<span class="l"> · set</span>':'')+(tags.energy?'<span class="l"> · energy '+esc(tags.energy)+'/5'+(tags.genre?' · '+esc(tags.genre):'')+'</span>':'')}
+  function trackLabels(tags){if(!tags)return '';return (tags.announced?'<span class="l announced-track"> · announced</span>':'')}
   var up=RadioModel.upcoming(st,rerollError),next=up.next;
   $('upcoming').hidden=!next||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;

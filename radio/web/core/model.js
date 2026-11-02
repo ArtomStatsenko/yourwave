@@ -74,18 +74,18 @@ var RadioModel=(function(){
     var next=list.find(function(x){return x.stage==='queued'})||list.find(function(x){return x.stage==='next'})||list.find(function(x){return x.stage==='music'});
     var nr=status.next_reroll||{},pend=nr.pending;
     return {next:next||null,title:pend?pend.title:entryTitle(next&&next.kind,next&&next.title),pending:!!pend,
-      tags:next?trackTags(next,status,tracks.length&&tracks[0].ref===next.ref&&tracks[0].set):null,
+      tags:next?trackTags(next,status):null,
       reroll:!!(next&&next.kind==='music'&&status.next_reroll&&next.ref===status.next_reroll.ref),
       error:localError||nr.error||''};
   }
-  // A song's tags in the plan: announced by the host, part of a set, its energy and genre.
+  // A song's tags in the plan: announced by the host.
   // announced: refs still unclaimed this render (a song announced once is tagged once).
-  function trackTags(x,status,isSet,announced){
+  function trackTags(x,status,announced){
     if(!x||x.kind&&x.kind!=='music')return null;
     announced=announced||(status.announced_tracks||[]).slice();
-    var i=announced.indexOf(x.ref),profile=(status.upcoming_tracks||[]).find(function(t){return t.ref===x.ref});
+    var i=announced.indexOf(x.ref);
     if(i>=0)announced.splice(i,1);
-    return {announced:i>=0,set:!!isSet,energy:profile&&profile.energy?profile.energy:null,genre:profile&&profile.energy&&profile.genre?profile.genre:''};
+    return {announced:i>=0};
   }
 
   // ---- the plan (Air direction): what is scheduled for the next hours

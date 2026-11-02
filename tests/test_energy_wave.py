@@ -238,7 +238,7 @@ class EnergyWaveTests(unittest.TestCase):
             queued.assert_awaited_once()
             self.assertTrue(queued.await_args.kwargs['wave'])
 
-    def test_plan_exposes_ratings_and_ui_escapes_genre_labels(self):
+    def test_plan_exposes_ratings_but_ui_shows_no_energy_labels(self):
         self.svc.library = set(map(str, self.files))
         plugins.set_plugin('energy_wave', True)
         row = self.svc._music_plan_rows([{'ref': str(self.files[0]), 'kind': 'music', 'duration': 180}])[0]
@@ -249,10 +249,8 @@ class EnergyWaveTests(unittest.TestCase):
 const status={upcoming_tracks:[{ref:'song',energy:3,genre:'<rock>'}],announced_tracks:[]};
 const esc=s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;');
 FUNCTION
-const labels=x=>trackLabels(RadioModel.trackTags(x,status,true));
-assert(labels({ref:'song'}).includes('energy 3/5'));
-assert(labels({ref:'song'}).includes('&lt;rock&gt;'));
-assert(!labels({ref:'song'}).includes('<rock>'));
+const labels=x=>trackLabels(RadioModel.trackTags(x,status));
+assert.equal(labels({ref:'song'}),'');
 assert.equal(labels({kind:'news',ref:'song'}),'');
 '''
         result = subprocess.run(['node', '-e', harness.replace('FUNCTION', function)], capture_output=True, text=True)
