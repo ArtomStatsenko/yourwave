@@ -3276,8 +3276,8 @@ class Service:
                 seen.add(r.get('item_id'))
         if self.current and self.current['kind'] == 'music' and not self.id_pending and not self.queued_break:
             remaining = max(0, self.current.get('duration', 0) - ((self.paused_at if self.state == 'PAUSED' else time.time()) - self.current['started']))
-            if self._waiting_break(remaining):
-                result.append({'kind': 'news', 'title': 'Host edition', 'stage': 'next'})
+            if pkgs := self._waiting_break(remaining):  # members: the plan block it is, shown once
+                result.append({'kind': 'news', 'title': 'Host edition', 'stage': 'next', 'members': [p['id'] for p in pkgs]})
         result += rotation[:3]
         result += sorted(scheduled, key=lambda r: r['at'])[:3]
         return result

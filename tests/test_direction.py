@@ -923,9 +923,9 @@ class DirectionTests(unittest.TestCase):
         return pid
 
     def test_next_previews_ready_edition_before_late_assembly(self):
-        self.next_fixture()
+        pid = self.next_fixture()
         with patch('radio.daemon.time.time', return_value=1000):
-            self.assertTrue(any(r['stage'] == 'next' and r['title'] == 'Host edition' for r in self.svc.status()['upcoming']))
+            self.assertTrue(any(r['stage'] == 'next' and r['title'] == 'Host edition' and pid in r['members'] for r in self.svc.status()['upcoming']))
             asyncio.run(self.svc.schedule())
         self.svc.engine.push_news.assert_not_awaited()
 

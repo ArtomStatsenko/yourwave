@@ -106,6 +106,7 @@ var RadioModel=(function(){
     ((status.broadcast_plan||{}).rows||[]).forEach(function(r,i){
       var at=Date.parse(r.expected_at||r.at);
       if(r.kind==='music'||r.status==='QUEUED'||!(at>=now&&at<=now+BLOCK_HOURS*3600e3))return;
+      if(next&&!nextMusic&&(next.members||[]).some(function(m){return (r.members||[]).concat(r.content_members||[]).indexOf(m)>=0}))return;  // it is next
       var p=planRow(r);
       rows.push({key:'block:'+r.id,label:r.kind,kind:r.kind,id:r.id,rank:i,planAt:r.at,locked:!!r.locked,title:p.title,at:r.expected_at||r.at,
         tentative:!!p.expectedAt,skippable:p.skippable,skipped:!!r.skipped});

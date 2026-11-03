@@ -97,6 +97,11 @@ const many={state:'PLAYING',upcoming:[{kind:'news',title:'Host edition',stage:'n
   broadcast_plan:{rows:Array.from({length:12},(_,i)=>({id:'w'+i,kind:'weather',title:'W'+i,at:at(3+i),status:'PENDING'}))}};
 const g=RadioModel.future(many,'');
 assert.equal(g.rows.length,8);assert.equal(g.rows[0].label,'next');assert.equal(g.rows[0].skippable,false,'a break about to start is not skipped here');
+const waiting={state:'PLAYING',upcoming:[{kind:'news',title:'Host edition',stage:'next',members:['reddit:t3_a#1']}],upcoming_tracks:[song('B',1)],
+  broadcast_plan:{rows:[{id:'section:news:clock:1',kind:'news',title:'Host edition',at:at(2),status:'READY',members:['section:news:clock:1','reddit:t3_a#1']},
+    {id:'section:news:clock:2',kind:'news',title:'Host edition',at:at(30),status:'PENDING',members:['section:news:clock:2']}]}};
+assert.deepEqual(RadioModel.future(waiting,'').rows.map(r=>[r.label,r.id||'']),[['next',''],['then',''],['news','section:news:clock:2']],
+  'the waiting edition is one row: next, not its plan block again');
 """)
 
 if __name__ == '__main__':
