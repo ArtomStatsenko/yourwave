@@ -674,18 +674,19 @@ function timeline(){
   var CROSS='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   function atClock(at){return appearance.formatTime(new Date(at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'}))}
   var up=RadioModel.future(st,rerollError);futureRows=up.rows;
+  var shown=up.rows.filter(function(r){return r.next});  // only the next row; later songs and blocks are edited in Edit
   if(!rerollFx){  // the next row is mid-effect: the coming rows stay as drawn until the new title has arrived
-  $('upcoming').hidden=!up.rows.length&&!up.queue.length||!!planDraft;
+  $('upcoming').hidden=!shown.length&&!up.queue.length||!!planDraft;
   var rerollFocused=$('upcoming').contains(document.activeElement)&&document.activeElement.hasAttribute('data-reroll'),rerollAction=rerollFocused?document.activeElement.dataset.reroll:null;
   // the planned next above the queue, the queue nearest "now" (queue 1 plays next)
   var queued=up.queue.slice().reverse().map(function(q){return '<div class="tg queued-row"><span class="tm">'+(q.place===1?'next':'then')+'</span><span class="tx">queue '+q.place+' · '+esc(q.title)+'</span>'+
     '<button type="button" class="rp" data-unqueue="'+esc(q.ref)+'" data-kind="'+esc(q.kind)+'" title="Remove from the queue" aria-label="Remove '+esc(q.title)+' from the queue">'+CROSS+'</button></div>'}).join('');
   // farthest at the top, the nearest right above the queue and now
-  $('upcoming').innerHTML=up.rows.slice().reverse().map(function(r){
+  $('upcoming').innerHTML=shown.map(function(r){
     var tm=r.next?(up.queue.length?'then':'next'):(r.at?(r.tentative?'~':'')+atClock(r.at):'');
     var tx=r.next?esc(r.title)+(r.pending?' <span class="l">· loading…</span>':trackLabels(r.tags)):(r.label==='then'?'then · ':r.label==='chart'?'chart · ':'')+esc(r.title);
     var acts=r.skipped?'<button type="button" class="unskip" data-unskip="'+esc(r.key)+'" aria-label="Don\'t skip '+esc(r.title)+'">Don\'t skip</button>':
-      (r.reroll?rerollButton():'')+(r.skippable?'<button type="button" class="rp" data-skip="'+esc(r.key)+'" title="Skip" aria-label="Skip '+esc(r.title)+'">'+CROSS+'</button>':'');
+      (r.reroll?rerollButton():'')+(r.skippable&&!r.next?'<button type="button" class="rp" data-skip="'+esc(r.key)+'" title="Skip" aria-label="Skip '+esc(r.title)+'">'+CROSS+'</button>':'');
     return '<div class="tg coming'+(r.skipped?' skipped':'')+'"><span class="tm">'+tm+'</span><span class="tx'+(r.pending?' pend':'')+'"'+(r.next?' id="next-title"':'')+' title="'+esc(r.title)+'">'+tx+'</span><span class="acts">'+acts+'</span></div>'}).join('')+
     (up.error?'<div class="tg"><span class="tm"></span><span class="tx up-err" role="alert">'+esc(up.error)+'</span></div>':'')+queued;
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
