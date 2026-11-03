@@ -71,7 +71,7 @@ To check the audio tools, music directory, and voice backend, including synthesi
 - **Host links:** song announcements, time checks, reminders, and introductions between tracks. Speech length and hourly budgets are configurable.
 - **Browser control:** listening, a broadcast timeline, settings, integrations, and experiments.
 
-Browser output pauses after 30 seconds without listeners and resumes when one connects. The schedule continues to follow wall time; expired editions do not accumulate. Next switches music and cancels a pending automatic insert. Station IDs are eligible at hourly boundaries after 30 minutes without identification.
+Songs cross into each other in 2.25 s (`[music] crossfade_sec`); **Next** crosses in 0.2 s, quick but not a cut. Browser output pauses after 30 seconds without listeners and resumes when one connects. The schedule continues to follow wall time; expired editions do not accumulate. Next switches music and cancels a pending automatic insert. Station IDs are eligible at hourly boundaries after 30 minutes without identification.
 
 ### Adding songs while it plays
 
