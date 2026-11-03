@@ -42,10 +42,10 @@ const api=()=>Promise.resolve(result),refresh=()=>{},player=()=>{},setTimeout=()
 (async()=>{
   const switching=cmd('next');assert.equal(nextBusy,true);
   await switching;assert.equal(nextBusy,false);
-  assert.equal(catchUps,1);
-  result={ok:false};await cmd('next');assert.equal(catchUps,1);
-  result={ok:true};await cmd('reroll-next');assert.equal(catchUps,1);
-  await cmd('next');assert.equal(catchUps,2);
+  assert.equal(catchUps,2,'at the press and again after the reply');
+  result={ok:false};await cmd('next');assert.equal(catchUps,3,'a refused next only jumped at the press');
+  result={ok:true};await cmd('reroll-next');assert.equal(catchUps,3);
+  await cmd('next');assert.equal(catchUps,5);
   assert.equal(busy,false);
 })().catch(e=>{console.error(e);process.exitCode=1});
 """], check=True, capture_output=True, text=True)

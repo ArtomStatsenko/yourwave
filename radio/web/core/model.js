@@ -247,7 +247,6 @@ var RadioModel=(function(){
       listen:{label:listen,title:lc&&run?'Stop radio for all listeners':listen,playing:lc?run:br?!!o.listening:on,busy:stopping||starting||own&&!run,disabled:lc?stopping||starting:!run},  // the one radio button: start / stop here; on the phone, this device's listening or the station's pause
       next:{disabled:!on,busy:!!o.nextBusy,text:'▶▶',label:o.nextBusy?'Switching track':'Next',
         title:o.nextBusy?'Preparing the next track; playback continues':status.state==='PAUSED'?'Resume the radio to skip tracks':'Next'},
-      skipNewsHidden:status.current_kind!=='news',
       error:backgroundError(status.last_error)?'':status.last_error||''};
   }
   // Where the music comes from now, in a few words (switching between YouTube Music and local files included).

@@ -52,6 +52,7 @@ class MarkViewTests(unittest.TestCase):
         page = page_source()
         start = page.index('// a thumbs up for one airing')
         script = page[start:page.index('function backgroundError(', start)]
+        script += page[page.index('function trackSource('):page.index('var rerollFx=null;')]
         harness = r'''
 const assert=require('node:assert/strict');
 function esc(s){return String(s)}var open={},st={state:'PLAYING'},appearance={formatTime:t=>t};

@@ -30,7 +30,6 @@
 :root[data-skin] .bar{height:5px;border-radius:5px;background:color-mix(in srgb,var(--ink) 16%,transparent)}
 :root[data-skin] .bar i{height:5px;border-radius:5px}
 :root[data-skin] #time{font-size:16px}
-:root[data-skin] #sk{font-size:16px;padding:8px 16px;min-height:44px}
 :root[data-skin] #er:empty{display:none}
 
 /* tabs: words, the open one filled with the accent */

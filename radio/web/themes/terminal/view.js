@@ -136,7 +136,6 @@ function player(){
   $('nx').disabled=p.next.disabled;
   $('nx').textContent=p.next.text;$('nx').setAttribute('aria-busy',String(p.next.busy));
   $('nx').setAttribute('aria-label',p.next.label);$('nx').title=p.next.title;
-  $('sk').hidden=p.skipNewsHidden;
   $('er').textContent=p.error||shownError;  // a lost connection stays said until a poll works again
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
@@ -802,7 +801,7 @@ $('activity').onkeydown=function(e){if(e.key==='Escape'){this.open=false;this.qu
 $('tl').ondragover=function(e){if(planDrag!==null){e.preventDefault();e.dataTransfer.dropEffect='none'}};
 $('tl').ondrop=function(e){e.preventDefault();planDrag=null};
 function cmd(name,extra){
-  if(busy)return Promise.resolve(null);busy=true;nextBusy=name==='next';player();
+  if(busy)return Promise.resolve(null);busy=true;nextBusy=name==='next';player();if(name==='next')catchUp();  // jump to the live edge at the press: the reply (100-200 ms) is not waited for
   var body={cmd:name};for(var k in extra||{})body[k]=extra[k];
   return api('/api/cmd',body).then(function(r){if(r&&r.ok===false)$('er').textContent=r.error||'did not work';return r})
     .catch(function(){$('er').textContent='the radio is not answering';return null})
@@ -937,7 +936,6 @@ $('music-source-select').onchange=function(e){
   musicChoice=picked.length>1?'mixed':picked[0];cmd('setting',{key:'music_source',value:picked.join(',')})};
 $('nx').onclick=function(){cmd('next')};
 $('sh').onclick=function(){var s=stg.find(function(x){return x.key==='music_shuffle'});if(!s||busy)return;s.value=+!s.value;player();cmd('setting',{key:'music_shuffle',value:s.value})};
-$('sk').onclick=function(){cmd('skip-news')};
 // 2-second refresh: re-renders from state, so expanded rows (open) stay open
 setInterval(player,250);
 // the theme picker (Settings → Appearance): every theme the server has, this one selected
