@@ -370,6 +370,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .chart .n{text-align:left}.chart-tools button:first-child{padding-left:0}  /* the chart numbers and the first range start at the content edge */
 #tl .tg,#upcoming .tg{padding-left:0}#plan-edit{padding-right:0}  /* rows and the Edit link line up with the content edge */
 #direction-list .acts:not(:has(.rp,.unskip)){padding-right:44px}  /* the next song has no ✕: its dice still stands in the dice column */
+/* Settings → Sounds: a slot is a title with its hint, the files that play now, an Upload button, one status line */
+#sounds .sound{padding:12px 0 4px;border-top:1px solid var(--line)}#sounds .sound-h{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+#sounds .sound p{margin:4px 0}.sound-f{display:flex;align-items:center;gap:4px 12px;min-height:44px}.sound-f .n{flex:1;min-width:0;overflow-wrap:anywhere}
+.sound-f button,.sound-up span{min-height:44px;padding:0 8px;border:0;background:none;color:var(--accent);text-decoration:underline;text-underline-offset:4px;font:inherit;font-size:16px;cursor:pointer;display:inline-flex;align-items:center}
+.sound-up{position:relative}.sound-up input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}.sound-up input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}.sound-up input:disabled+span{opacity:.5}
+.sound-msg{min-height:24px}
 /* row actions (thumb, dice, ✕, ↺, queue disc) share one 44px slot, centred, so the icons of every row line up in two columns */
 .it .mk,.it .rp,#upcoming .rp,#upcoming .reroll-track,#direction-list .reroll-track{display:inline-grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;margin:-8px 0;padding:0;line-height:1}
 #upcoming .acts{gap:0;padding-right:44px}  /* the dice of next stands in the dice/thumb column, the right slot stays empty */#upcoming .tg{align-items:center}

@@ -313,6 +313,42 @@ $('hook-review').onclick=async function(e){
     }
   }catch(error){$('hook-feedback').textContent=error.message||'Could not load the hook.';}finally{button.disabled=false;}
 };
+// ---- Settings → Sounds: own files per slot replace the Base sound; Listen plays a file here, Upload and Remove apply live
+var soundList=[],soundKey='',soundMsg={},soundBusy=null,soundUrl=null,soundPlaying='';
+function soundsView(list,force){
+  if(list)soundList=list;
+  var key=JSON.stringify([soundList,soundMsg,soundBusy,soundPlaying]);if(key===soundKey&&!force)return;soundKey=key;
+  var box=$('sound-list');if(!force&&box.contains(document.activeElement)&&document.activeElement.type==='file')return;
+  function file(slot,name,own){var on=soundPlaying===slot+'/'+name;
+    return '<div class="sound-f"><span class="n">'+esc(name)+'</span><button type="button" data-sound-play="'+esc(slot)+'" data-name="'+esc(name)+'" aria-pressed="'+on+'">'+(on?'Stop':'Listen')+'</button>'+(own?'<button type="button" data-sound-remove="'+esc(slot)+'" data-name="'+esc(name)+'" aria-label="Remove '+esc(name)+'">Remove</button>':'')+'</div>'}
+  box.innerHTML=soundList.map(function(s){var own=s.own||[],base=s.base||[],busy=soundBusy===s.slot;
+    return '<div class="sound" data-slot="'+esc(s.slot)+'"><div class="sound-h"><b>'+esc(s.title)+'</b><span class="l">'+esc(s.hint||'')+'</span></div>'
+      +'<p class="l">'+(own.length?'Playing your '+(own.length===1?'file':own.length+' files')+':':base.length?'Playing Base:':'Nothing plays here until you add a file.')+'</p>'
+      +(own.length?own.map(function(n){return file(s.slot,n,true)}).join(''):base.map(function(n){return file(s.slot,n,false)}).join(''))
+      +'<div class="sound-f"><label class="sound-up"><input type="file" multiple accept=".mp3,.m4a,.flac,.wav,audio/*" data-sound-file="'+esc(s.slot)+'"'+(soundBusy?' disabled':'')+' aria-label="Upload files for '+esc(s.title)+'"><span>'+(busy?'Uploading…':'Upload')+'</span></label></div>'
+      +'<p class="l sound-msg" role="status" aria-live="polite">'+esc(soundMsg[s.slot]||'')+'</p></div>'}).join('')}
+async function soundUpload(slot,files){
+  soundBusy=slot;soundMsg[slot]='';soundsView(null,true);
+  try{for(var i=0;i<files.length;i++){
+    soundMsg[slot]='Uploading '+files[i].name+'…';soundsView(null,true);
+    var r=await core.fetch('/api/sound?slot='+encodeURIComponent(slot)+'&name='+encodeURIComponent(files[i].name),{method:'POST',body:files[i]}).then(function(x){return x.json()});
+    if(!r||!r.ok){soundMsg[slot]=files[i].name+': '+((r&&r.error)||'Could not upload. Try again.');break}
+    soundList=r.sounds;soundMsg[slot]=files.length>1&&i<files.length-1?'':'Added '+r.name}
+  }catch(e){soundMsg[slot]='Could not upload. Try again.'}
+  soundBusy=null;soundsView(null,true)}
+function soundStop(){var a=$('sound-audio');a.pause();a.removeAttribute('src');a.load();if(soundUrl){URL.revokeObjectURL(soundUrl);soundUrl=null}soundPlaying=''}
+$('sounds').onclick=async function(e){
+  var play=e.target.closest('[data-sound-play]'),rm=e.target.closest('[data-sound-remove]');if(!play&&!rm)return;
+  var slot=(play||rm).dataset[play?'soundPlay':'soundRemove'],name=(play||rm).dataset.name;
+  if(rm){soundMsg[slot]='';if(soundPlaying===slot+'/'+name)soundStop();
+    var r=await cmd('sound_remove',{slot:slot,name:name});if(r&&r.ok){soundList=r.sounds;soundMsg[slot]='Removed '+name}else soundMsg[slot]=(r&&r.error)||'Could not remove. Try again.';soundsView(null,true);return}
+  if(soundPlaying===slot+'/'+name){soundStop();soundsView(null,true);return}
+  soundStop();soundMsg[slot]='';
+  try{var res=await core.fetch('/sound?slot='+encodeURIComponent(slot)+'&name='+encodeURIComponent(name));if(!res.ok)throw Error();
+    soundUrl=URL.createObjectURL(await res.blob());var a=$('sound-audio');a.src=soundUrl;a.onended=function(){soundStop();soundsView(null,true)};await a.play();soundPlaying=slot+'/'+name}
+  catch(err){soundStop();soundMsg[slot]='This file cannot be played here.'}
+  soundsView(null,true)};
+$('sounds').onchange=function(e){var input=e.target.closest('[data-sound-file]');if(!input||!input.files.length)return;var files=Array.prototype.slice.call(input.files);input.value='';soundUpload(input.dataset.soundFile,files)};
 function localInput(iso,seconds){var d=iso?new Date(iso):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+(seconds?':'+String(d.getSeconds()).padStart(2,'0'):'')}
 function directionType(){var b=dirBlocks[+$('direction-block').value],text=!!b&&b.kind==='text';$('direction-text').hidden=!text;$('direction-text-label').hidden=!text;$('direction-text').required=text}
 function directionCatalog(){return api('/api/cmd',{cmd:'direction',action:'catalog'}).then(function(d){if(!d.ok)throw Error(d.error);dirBlocks=d.blocks||[];
@@ -813,7 +849,7 @@ function applySnapshot(d){
     if(keyFb.checking)waits.watch('llm-key-fb',function(){return !!keyFb.checking});
     if(catchupBusy||['preparing','pending'].indexOf(st.catchup&&st.catchup.state)>=0)waits.watch('catchup-status',function(){return catchupBusy||['preparing','pending'].indexOf(st.catchup&&st.catchup.state)>=0});
     if(LOCAL_CONTROL&&(st.state==='STARTING'||!running()&&Date.now()<startingUntil))waits.watch('airtxt',function(){return st.state==='STARTING'||!running()&&Date.now()<startingUntil});
-    pluginsView();settingsView();directionView();hooksView(d.hooks)
+    pluginsView();settingsView();directionView();hooksView(d.hooks);soundsView(d.sounds)
 }
 core.subscribe(function(core,change){
   if(change==='snapshot')applySnapshot(core.snapshot);
