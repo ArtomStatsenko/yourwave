@@ -830,7 +830,7 @@ class SchedulingTests(unittest.TestCase):
         reopened = store.connect()
         try:
             e = next(e for e in timeline._build(reopened, 12, 50) if e["kind"] == "reminder")
-            self.assertEqual(e["title"], spoken[0])
+            self.assertEqual((e["title"], e["text"]), ("Созвон", spoken[0]))  # the row's short name; what the host said
             self.assertEqual(e["description"], task["description"])
         finally:
             reopened.close()

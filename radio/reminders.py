@@ -337,6 +337,22 @@ def holiday_due(events: list[dict], at: datetime, history: list) -> dict | None:
     return min(candidates, key=lambda r: (r['holiday_date'], r['key']), default=None)
 
 
+def label(r: dict, short: str | None) -> str:
+    """How the timeline names a reminder: the editor's short wording, else its cleaned title or description cut to a
+    few words, else "Reminder"."""
+    if short:
+        return short
+    text = clean_title(r.get("title", "")) or clean_title(r.get("description", ""))
+    if not text:
+        return "Reminder"
+    return text if len(text) <= 40 else text[:40].rsplit(" ", 1)[0].rstrip(" .,;:") + "…"
+
+
+def original(r: dict) -> str:
+    """The reminder as the calendar or Todoist gave it, word for word: its title and description."""
+    return "\n\n".join(x for x in (r.get("title", ""), r.get("description", "")) if x and x.strip())
+
+
 def clean_title(title: str) -> str:
     title = re.sub(r"https?://\S+", "", title)
     title = re.sub(r"[←-⯿\U0001f000-\U0001faff️]", "", title)

@@ -21,7 +21,7 @@ var RadioModel=(function(){
   function queuePlace(x,status){return (status.replay_queue||[]).findIndex(function(q){return q.kind===replayKind(x)&&q.ref===x.ref})+1}
   function entryText(x){return entryTitle(x.kind,x.title)+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')}
   // The parts an entry unfolds into: a host edition's stories, or a reminder's own text.
-  function entryParts(x){return x.parts||(x.kind==='reminder'?[{text:x.title,description:x.description,links:x.links||[]}]:[])}
+  function entryParts(x){return x.parts||(x.kind==='reminder'?[{text:x.text||x.title,description:x.description,links:x.links||[]}]:[])}
   function expandable(x){return entryParts(x).some(function(p){return p.text||p.description||(p.links||[]).length})}
 
   // "★ 12.3k (+45 today) · original description" for a GitHub source; '' without numbers.

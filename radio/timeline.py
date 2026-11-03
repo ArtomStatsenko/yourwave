@@ -105,6 +105,8 @@ def _build(db, hours: int, limit: int) -> list[dict]:
                     detail = None
                 if isinstance(detail, dict) and isinstance(detail.get("text"), str):
                     e["title"] = detail["text"]
+                    if isinstance(detail.get("title"), str):  # since short names: the row's name, what was said, the original
+                        e.update(title=detail["title"], text=detail["text"], original=detail.get("original", ""))
                     if isinstance(detail.get("description"), str):
                         e["description"] = detail["description"]
                     elif isinstance(detail.get("links"), list):

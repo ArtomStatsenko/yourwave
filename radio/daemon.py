@@ -136,6 +136,8 @@ class Service:
         self.next_weather_read = 0.0
         self.reminders_due: dict[str, dict] = {}   # key -> reminder waiting for a song boundary
         self.reminder_text: dict[str, str] = {}    # key -> what the host says, for the timeline
+        self.reminder_titles: dict[str, str | None] = {}  # key -> the editor's short wording (None: it gave none)
+        self.reminder_titles_retry = 0.0  # after a failed ask, the next one waits
         self.queued_reminders: dict[str, tuple] = {}  # timed reminders can expire before the song ends
         self.fresh_missing: set[str] = set()
         self.fresh_queued: dict[str, str] = {}  # path -> request id of new songs waiting in Liquidsoap's fresh queue
@@ -1543,11 +1545,27 @@ class Service:
         while not self.stopping:
             try:
                 await self._reminders_tick()
+                await self._name_reminders()
                 await self._weather_tick()
             except Exception as e:
                 self.last_error = f"reminders: {e}"
                 log("reminders error:", e)
             await asyncio.sleep(30)
+
+    async def _name_reminders(self) -> None:
+        """The short wording of each coming reminder, asked in the background once (Editor.short_title caches it),
+        so the plan and the timeline never wait for the editor."""
+        if time.time() < self.reminder_titles_retry:
+            return
+        for r in self._reminder_candidates(now(), timedelta(hours=PLAN_HOURS)):
+            if r["key"] in self.reminder_titles or r["kind"] not in ("task", "event"):
+                continue
+            try:
+                self.reminder_titles[r["key"]] = await asyncio.to_thread(self.editor.short_title, r.get("title", ""), r.get("description", ""))
+            except Exception as error:
+                self.reminder_titles_retry = time.time() + 600
+                log("reminder title:", type(error).__name__)
+                return
 
     async def _expire_reminders(self) -> None:
         for key, (rid, r) in list(self.queued_reminders.items()):
@@ -1788,8 +1806,9 @@ class Service:
                 self.db.execute("INSERT OR REPLACE INTO reminders(key, fired_at) VALUES(?,?)", (key, iso(now())))
             self.reminders_due.pop(key, None)
             self.reminder_text[key] = r.get("summary", text)
-            if r["kind"] == "task" and r.get("description"):
-                self.reminder_text[key] = json.dumps({"text": text, "description": r["description"]}, ensure_ascii=False)
+            if r["kind"] in ("task", "event"):  # the timeline: a short name, what was said, the original word for word
+                self.reminder_text[key] = json.dumps({"text": text, "title": reminders.label(r, self.reminder_titles.get(key)), "original": reminders.original(r),
+                                                      **({"description": r["description"]} if r["kind"] == "task" and r.get("description") else {})}, ensure_ascii=False)
             self.id_pending = True  # one insert at a time, like a station ID
             log(r["kind"], "queued:", text)
             return True
@@ -3021,7 +3040,7 @@ class Service:
                 continue
             edit_id = 'reminder:' + key
             edit = changes.get(edit_id, {})
-            result.append({'id': edit_id, 'kind': 'reminder', 'title': reminders.clean_title(r['title']) or 'Reminder', 'ref': key, 'members': [edit_id],
+            result.append({'id': edit_id, 'kind': 'reminder', 'title': reminders.label(r, self.reminder_titles.get(key)), 'original': reminders.original(r), 'ref': key, 'members': [edit_id],
                            'ends': iso(reminders.until(r)),
                            'at': edit.get('not_before') or iso(r.get('remind_at', r['start'] - lead)), 'not_before': edit.get('not_before'),
                            'duration': 30, 'estimated': False, 'locked': key in self.queued_reminders,

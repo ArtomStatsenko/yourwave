@@ -24,6 +24,8 @@ PRONUNCIATION_PROMPT = """Подготовь произношение иност
 """
 
 PROMPT_VERSION = 10
+REMINDER_TITLE_PROMPT = ("Name this calendar or to-do reminder in 2 to 5 words for a timeline row. Use the language of the "
+                         "reminder itself. No quotes, no date or time, no final period; answer with the words only.\nReminder: ")
 NEWS_DETAIL = (
     {"label": "Brief", "instruction": "Одно-два коротких предложения, до 30 слов.", "words": 35, "tokens": 200},
     {"label": "Standard", "instruction": "Два-три предложения, до 60 слов.", "words": 65, "tokens": 400},
@@ -309,6 +311,19 @@ class Editor:
             self._cache(prompt, target(self.cfg)).unlink(missing_ok=True)
             raise ValueError('The catch-up script exceeds the edition speech budget; try again.')
         return text
+
+    def short_title(self, title: str, description: str) -> str | None:
+        """A few words naming a reminder for its timeline row, in the reminder's own language. Cached by its text, so
+        each reminder is asked once; None when the editor is off or its answer is not a short name."""
+        if not self.enabled:
+            return None
+        prompt = REMINDER_TITLE_PROMPT + json.dumps({"title": title, "description": description[:1500]}, ensure_ascii=False)
+        cached = self._cache(prompt, target(self.cfg))
+        if not cached.exists():
+            text = " ".join(self._complete(prompt, 60, timeout=60).split()).strip(' "\'«»“”.')
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            cached.write_text(text if 0 < len(text.split()) <= 8 and len(text) <= 60 else "", encoding="utf-8")
+        return cached.read_text(encoding="utf-8") or None
 
     def retell_day(self, title: str, description: str) -> str | None:
         return self.prepare(description, "day", title)

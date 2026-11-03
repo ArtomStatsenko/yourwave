@@ -35,7 +35,7 @@ music_source_choice, hooks, charts, chart_set, sounds}`:
   `paused_at`, `output` (`speakers`, `browser`, `both`), `current_kind`, `current_title`, `elapsed_sec`,
   `duration_sec`, `transition_sec`, `upcoming` (queued and next blocks, each with a `stage`), `upcoming_tracks`
   (the next songs, tentative after the first), `announced_tracks`, `next_reroll` (`ref`, `available`, `pending`,
-  `error`), `replay_queue`, `broadcast_plan` (`rows`, `version`; Air direction only), `direction_timezone`,
+  `error`), `replay_queue`, `broadcast_plan` (`rows`, `version`; Air direction only; a reminder row's `content_title` is its short name and `original` its text word for word), `direction_timezone`,
   `music_source`, `music_source_state`, `ytmusic_active`, `catchup`, `spoken_last_hour_sec`, `speech_limit_sec`,
   `voicestudio`, `sources`, `last_error`, `news_ready`, `news_preparing`, `llm_calls`, `session`.
 - `timeline`: what aired in the last 12 hours, newest first: `{id, type, kind, time, title, ref, replayable, marked,
@@ -43,6 +43,9 @@ music_source_choice, hooks, charts, chart_set, sounds}`:
   stars_today}], segments}]}`. One host appearance is one entry: a teaser or editions back to back are folded
   into it, `event_ids` lists their events. In a host edition with news, `segments` is the story's text in pieces
   (`{text}` or `{text, url}` where the words name one of its sources); `label` is how a link is named.
+  A reminder (`kind: reminder`, aired since short names) has `title` (a few words from the script editor in the
+  reminder's language, else its cleaned title cut short, else "Reminder"), `text` (what the host said) and `original`
+  (the calendar or Todoist title and description word for word, joined by a blank line).
 - `plugins`: `{name, title, description, on, section, available, unavailable_reason}`.
 - `settings`: `{key, title, hint, value, default, min, max, step, unit, options, value_labels, multiline}`, and
   for the special rows `connection`, `active`, `labels`, `key_field`, `action` (AI provider) or `voice_state`
