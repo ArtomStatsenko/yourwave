@@ -152,7 +152,7 @@ class PreviewTests(unittest.TestCase):
                         patch('radio.daemon.host.set_opener',return_value='Возвращаемся к музыке.') as opener, \
                         patch('radio.daemon.audio.render_package',return_value=0):
                     self.assertIsNotNone(self.svc._assemble_break([package],store.now(),True,('Artist','First')))
-                self.assertEqual(opener.call_args.args[1],None if enabled else ('Artist','First'))
+                self.assertEqual(opener.call_args.args[0],None if enabled else ('Artist','First'))
 
     def test_push_timeout_is_cancelled_by_id_before_retry(self):
         plugins.set_plugin('track_previews',True);self.svc.preview_enabled=True

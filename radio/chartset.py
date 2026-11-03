@@ -71,5 +71,5 @@ def template(station: str, size: int, weekday: int, songs: list[dict], language:
     if language.startswith('en'):
         intro = f"It's {WEEKDAYS_EN[weekday]}, time for the {station} Top {size} of the week, from your thumbs up."
         return {'intro': intro, 'lines': [f"Number {s['place']}: {s['title']}." for s in songs]}
-    intro = f"{WEEKDAYS_RU[weekday].capitalize()}, время хит-парада {station}: топ {size} недели по вашим отметкам."
+    intro = f"{WEEKDAYS_RU[weekday].capitalize()}, а значит хит-парад {station}. Топ {size} недели по вашим отметкам."
     return {'intro': intro, 'lines': [f"Номер {s['place']}: {s['title']}." for s in songs]}

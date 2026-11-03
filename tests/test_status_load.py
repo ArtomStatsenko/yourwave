@@ -86,12 +86,26 @@ class SkipSetSongTests(unittest.TestCase):
                           upcoming_music=AsyncMock(return_value=[]), remove=AsyncMock(), command=AsyncMock(return_value='STALE'),
                           push_replay=AsyncMock(return_value='9'))
         asyncio.run(svc.dispatch('status'))  # a page has asked once: the next song is known
+        svc.engine.pending.return_value = ['5', '6', '7']  # it was still downloading: the remove missed it
+        plan.insert(1, {'ref': 'ytmusic:bbbbbbbbbbb', 'uri': line('ytmusic:bbbbbbbbbbb', 'fresh'), 'kind': 'music', 'set': True, 'duration': 60})
         self.assertTrue(asyncio.run(svc.dispatch('skip', {'ref': 'ytmusic:bbbbbbbbbbb'}))['ok'])
-        svc.engine.remove.assert_awaited_once_with('6', 'fresh')
         svc.engine.command.assert_not_awaited()  # not looked for in the round
         tracks = asyncio.run(svc.dispatch('status'))['status']['upcoming_tracks']
         self.assertEqual([(t['ref'], bool(t.get('skipped'))) for t in tracks],
-                         [('ytmusic:aaaaaaaaaaa', False), ('ytmusic:bbbbbbbbbbb', True), ('ytmusic:ccccccccccc', False), ('/m/round.mp3', False)])
+                         [('ytmusic:aaaaaaaaaaa', False), ('ytmusic:bbbbbbbbbbb', True), ('ytmusic:ccccccccccc', False), ('/m/round.mp3', False)],
+                         'one row for it, struck through')
+        self.assertEqual([c.args for c in svc.engine.remove.await_args_list][-1], ('6', 'fresh'), 'taken off again')
+        self.assertGreaterEqual(svc.engine.remove.await_count, 2)
+        svc.engine.pending.return_value = ['5', '7']
+        plan.pop(1)
+        asyncio.run(svc.dispatch('status'))
+        self.assertEqual(svc.fresh_removing, {})
+        async def got_through():  # the skipped song started anyway: it is skipped at once
+            svc.fresh_removing = {'ytmusic:ddddddddddd': '8'}
+            svc.on_event({'kind': 'music', 'ref': 'ytmusic:ddddddddddd'})
+            await asyncio.sleep(0)
+        asyncio.run(got_through())
+        svc.engine.command.assert_awaited_with('skip')
         with patch.object(svc, '_local_files', return_value=[]), patch('radio.daemon.music.unaired_new', return_value=[]):
             svc.ytmusic_active = False
             self.assertNotIn('ytmusic:bbbbbbbbbbb', svc._pick_new(), 'no later set brings it this run')

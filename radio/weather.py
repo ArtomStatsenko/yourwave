@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 INTERVAL = timedelta(hours=3)
 # FM-style framing around the checked core "Город: плюс N градусов, условия." (the speech check reads all of it).
-OPENERS = ("Заглянем за окно. ", "Пара слов о погоде. ", "А на улице тем временем так. ", "Сверимся с небом. ", "")
+OPENERS = ("Теперь погода. ", "Что за окном: ", "По погоде: ", "Пара слов о погоде. ", "")
 WET = {51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99}
 SNOW = {71, 73, 75, 77, 85, 86}
 CONDITIONS = {

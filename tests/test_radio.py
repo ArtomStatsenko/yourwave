@@ -857,7 +857,7 @@ class SchedulingTests(unittest.TestCase):
                 self.assertFalse(asyncio.run(svc._remind(300)))
                 svc.set_started = time.time()
                 self.assertFalse(asyncio.run(svc._remind(20)))
-                self.assertEqual(rendered, ["Сегодня — День радио."])
+                self.assertEqual(rendered, ["Сегодня, кстати, День радио."])
                 self.assertEqual(pushed, [])
                 pid = svc.db.execute("SELECT id FROM packages WHERE item_id LIKE 'system:day:%'").fetchone()[0]
                 svc.on_event({'kind': 'news', 'ref': pid})
@@ -1051,12 +1051,14 @@ class SchedulingTests(unittest.TestCase):
         songs = [(a, a.lower()) for a in "ABACD"]
         backs = {host.back_sell(songs, {}, f"s{i}") for i in range(40)}
         self.assertIn(None, backs)                                        # sometimes no back-sell at all
-        self.assertTrue(any(b and "«A», «C», «D». Последней прозвучала «d»." in b for b in backs))
-        self.assertTrue(any(b and b.endswith("«A», «C», «D».") for b in backs))  # the set, artists only
+        self.assertTrue(any(b and "«A», «C», «D»" in b and "«d»" in b for b in backs))  # the artists and the last song
+        self.assertTrue(any(b and "«A», «C», «D»" in b and "«d»" not in b for b in backs))  # the artists only
+        self.assertFalse(any(b and ("Последней прозвучала" in b or "музыкальный блок" in b) for b in backs))
         self.assertFalse(any(b and " и «" in b for b in backs))  # never "X и Y": it sounds like a joint track
         self.assertTrue(any(b and "«D»" in b and "«A»" not in b for b in backs))  # just the last song
-        opens = {host.set_opener(20, ("A", "t"), {}, f"s{i}") for i in range(40)}
+        opens = {host.set_opener(("A", "t"), {}, f"s{i}") for i in range(40)}
         self.assertTrue(any("«A»" in o for o in opens) and any("«A»" not in o for o in opens))
+        self.assertTrue(all("«A»" in host.set_opener(("A", "t"), {}, f"s{i}", novelty=True) for i in range(10)), 'a new song is named')
         self.assertEqual(host.back_sell([], {}, "s"), None)
 
     def test_settings_apply_before_the_first_job(self):

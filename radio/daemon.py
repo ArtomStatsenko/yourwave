@@ -35,9 +35,9 @@ BREAK_SEP = "|"         # a break airs several packages as one request: ref = th
 WEATHER_JOINS_SEC = 300  # a news section this soon after a weather slot airs in the same edition
 GAP_LEAD_SEC = 12       # gap filler: the next song must be loaded this long before the current one ends
 GAP_EVERY_SEC = 600     # gap filler: at most one line this often
-GAP_LINES = ("YouTube Music не успел загрузить следующую песню, так что пока — из моей фонотеки.",
-             "Связь с YouTube Music сегодня неторопливая: пока она догружает трек, ставлю песню из своей коллекции.",
-             "Следующий трек из YouTube Music ещё в пути — а пока послушаем кое-что из местной фонотеки.")
+GAP_LINES = ("YouTube Music тормозит, так что пока песня из моей фонотеки.",
+             "Следующий трек ещё грузится. Чтобы не молчать, поставлю что-нибудь своё.",
+             "Пока YouTube думает, послушаем вот это.")
 PLAN_HOURS = 12         # how far ahead the plan shows (and lets you edit) sections, reminders and weather
 RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
@@ -146,6 +146,7 @@ class Service:
         self.fresh_queued: dict[str, str] = {}  # path -> request id of new songs waiting in Liquidsoap's fresh queue
         self.fresh_aside: dict[str, int] = {}  # a new song skipped this time (Timeline ✕) -> its place among them, shown there
         self.fresh_passed: set[str] = set()  # new songs skipped this run: not put ahead again (the shuffle may play them)
+        self.fresh_removing: dict[str, str] = {}  # skipped new songs whose request is still to be taken off the queue
         self.energy_queued = set()
         self.energy_played = set()
         self.energy_seconds = 0.0
@@ -751,6 +752,9 @@ class Service:
             self.db.execute("UPDATE music_previews SET status='PLAYED',played_at=? WHERE id=? AND status='PLAYING'", (iso(now()),prev['ref']))
         self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (m.get("replay_id") or "",))
         self.replays.pop(m.get("replay_id") or "", None)  # on air now: no longer queued
+        if (m.get("ref") or "") in self.fresh_removing and m.get("kind") == "music":  # skipped, but it got through
+            del self.fresh_removing[m["ref"]]
+            asyncio.get_running_loop().create_task(self.engine.command('skip'))
         if self.fresh_queued.pop(m.get("ref") or "", None) is not None:  # a new song aired: a skipped one's turn moves up
             self.fresh_aside = {ref: place - 1 for ref, place in self.fresh_aside.items() if place > 0}
         self.energy_queued.discard(m.get('ref') or '')
@@ -1768,8 +1772,8 @@ class Service:
                 if day is None or day["key"] != key:
                     self.reminders_due.pop(key)
                     continue
-                text = r.get("text") if r.get("holiday_preview") else ("Сегодня — {title}.", "К слову, сегодня — {title}.",
-                        "Ещё одна примета сегодняшнего дня — {title}.")[r["count"]].format(title=r["title"])
+                text = r.get("text") if r.get("holiday_preview") else ("Сегодня, кстати, {title}.", "И да, сегодня {title}.",
+                        "Сегодня {title}.")[r["count"]].format(title=r["title"])
             else:
                 text = reminders.say(r, air, host.span_words)
             if text is None:
@@ -1997,6 +2001,13 @@ class Service:
         log("energy-wave set queued:" if wave else "new tracks queued:", len(files), "songs")
 
     async def _forget_dropped_fresh(self) -> None:
+        if self.fresh_removing:  # a skipped new song Liquidsoap was still resolving: off the queue once it is in it
+            pending = await asyncio.wait_for(self.engine.pending('fresh'), .5)
+            for ref, rid in list(self.fresh_removing.items()):
+                if rid in pending:
+                    await self.engine.remove(rid, 'fresh')
+                else:
+                    del self.fresh_removing[ref]
         if not self.fresh_queued:
             self.fresh_missing.clear()
             return
@@ -2164,7 +2175,7 @@ class Service:
                     owners.append(p["id"])
                 prev = p["id"].split(":")[0]
             if links:
-                segs.append((host.set_opener(None, None if plugins.on(self.cfg, 'track_previews') else first,
+                segs.append((host.set_opener(None if plugins.on(self.cfg, 'track_previews') else first,
                                              self.recent_jingles, seed, novelty), False))
                 owners.append(seed)
             speakers = [None] * len(segs)
@@ -2670,7 +2681,7 @@ class Service:
 
     def _music_plan_rows(self, rows, probe=True, plan=()):
         if self.fresh_aside:  # a skipped new song stays in its place among them, marked
-            rows = list(rows)
+            rows = [r for r in rows if not (r.get('set') and _row_ref(r) in self.fresh_aside)]  # not still listed as coming
             start = next((i for i, r in enumerate(rows) if r.get('set')), len([r for r in rows if r.get('kind') != 'music']))
             for ref, place in sorted(self.fresh_aside.items(), key=lambda x: x[1]):
                 rows.insert(min(start + place, len(rows)), {'ref': ref, 'uri': '', 'kind': 'music', 'set': True, 'skipped': True})
@@ -2895,7 +2906,9 @@ class Service:
                 await self._cancel_preview()  # a "Coming up" prepared for the next song no longer fits, as on a reroll
             if cmd == 'skip' and ref in self.fresh_queued:  # a new song put ahead (Unplayed tracks first): off its queue
                 place = list(self.fresh_queued).index(ref)
-                await self.engine.remove(self.fresh_queued.pop(ref), 'fresh')
+                rid = self.fresh_queued.pop(ref)
+                await self.engine.remove(rid, 'fresh')
+                self.fresh_removing[ref] = rid  # one still downloading cannot be taken off yet: tried again (_forget_dropped_fresh)
                 self.energy_queued.discard(ref)
                 self.fresh_aside[ref] = place
                 self.fresh_passed.add(ref)

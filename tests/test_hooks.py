@@ -112,7 +112,7 @@ class HookTests(unittest.TestCase):
         later=hooks.ready(self.db,'two',self.song)
         self.assertEqual(result['hook_ids'],[later['id']])
         self.assertEqual(result['announced_refs'],['one','two'])
-        self.assertEqual(said,['А сейчас — One.','Позже в этом музыкальном блоке — Two.'])
+        self.assertEqual(said,['Сейчас будет One.','А чуть позже Two.'])
         with wave.open(result['audio_path']) as stream:
             self.assertEqual((stream.getframerate(),stream.getnchannels()),(44100,2))
             self.assertAlmostEqual(stream.getnframes()/44100,17,places=1)

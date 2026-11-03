@@ -371,7 +371,7 @@ class DirectionTests(unittest.TestCase):
         self.assertFalse(asyncio.run(self.svc._remind(30)))                 # not before its new time
         self.clock.return_value = start + timedelta(minutes=5)
         self.assertTrue(asyncio.run(self.svc._remind(30)))
-        self.assertIn('шесть минут назад', self.svc.reminder_text[r['key']])  # airs 30 s later
+        self.assertIn('шесть минут назад', self.svc.reminder_text[r['key']].lower())  # airs 30 s later
         self.assertIn(r['key'], self.svc.queued_reminders)
         rows = self.svc._broadcast_plan()['rows']
         self.assertEqual(next(x for x in rows if x['kind'] == 'reminder')['status'], 'QUEUED')

@@ -7,7 +7,7 @@ from . import audio, config, hooks
 
 
 def render(db, snapshot, titles, say):
-    first = say('А сейчас — ' + titles[0] + '.')
+    first = say('Сейчас будет ' + titles[0] + '.')
     speech = audio.duration(first)
     if not 0 < speech <= 25:
         return None
@@ -17,7 +17,7 @@ def render(db, snapshot, titles, say):
     if row:
         seconds = audio.duration(Path(row['clip']))
         if 5 <= seconds <= 12:
-            voice = say('Позже в этом музыкальном блоке — ' + titles[1] + '.')
+            voice = say('А чуть позже ' + titles[1] + '.')
             later_speech = audio.duration(voice)
             if later_speech > 0 and speech + later_speech + seconds <= 25:
                 pieces.extend([voice, Path(row['clip'])])

@@ -30,11 +30,18 @@ def time_words(dt: datetime) -> str:
 # follows another one). The intro jingle opens the break instead of the phrase.
 SECTIONS = {"github": ("github_intro", "GitHub."), "horizon": ("horizon_intro", "Новости технологий.")}
 
+# Lines as a person says them (docs/host-phrases.md): no run-up before the point, no slogans, no announcer words.
 OPENERS = [
-    "{time}. Вы слушаете {station}.",
-    "На часах {time}, это {station}.",
-    "{station}, {time}. Несколько слов между треками.",
-    "{time}, с вами {station}. Коротко о главном.",
+    "{time}, {station}.",
+    "На часах {time}. Это {station}.",
+    "{station}, время {time}.",
+    "{time}. Немного новостей, и снова музыка.",
+    "Уже {time}. Прервёмся ненадолго.",
+]
+STARTUPS = [
+    "Привет, это {station}. Первая песня почти загрузилась.",
+    "{station} в эфире. Секунду, первый трек догружается.",
+    "Это {station}. Пока грузится первая песня, просто здороваюсь.",
 ]
 
 
@@ -50,7 +57,8 @@ def _quoted(station: str) -> str:
 
 def startup(station: str) -> str:
     """Said at the start while YouTube Music loads the first song (pre-rendered: the voice may still be starting)."""
-    return f"В эфире {_quoted(station)}. Первая песня уже на подходе — YouTube Music её догружает, а мы пока здороваемся."
+    # one a day: the opener is rendered once and named by its text, so every call must give the same one
+    return STARTUPS[datetime.now().toordinal() % len(STARTUPS)].format(station=_quoted(station))
 
 
 def opener(air_time: datetime, station: str, recent: dict, seed: str) -> str:
@@ -61,31 +69,29 @@ def opener(air_time: datetime, station: str, recent: dict, seed: str) -> str:
 # ---- music sets: back-sell what just played, forward-sell the set that starts after the break ----
 # Live, not a template read every time: each break picks one shape (stable per break), from saying nothing
 # to naming the last song.
-# A set is named as a set: "Вы слушали X и Y" sounded like one song by both artists.
-BACK_SELLS = ["Это был музыкальный блок: {names}.", "Вы слушали подборку: {names}.", "В этом блоке звучали песни {names}."]
-LAST_SONG = ["Вы слушали {artist} — «{title}».", "Это был трек «{title}», исполнитель — {artist}.",
-             "Прозвучала песня «{title}» в исполнении {artist}."]  # no verb that agrees with the artist's gender
+# Several artists are a list ("играли X, Y и Z" sounded like one song by both, so commas only).
+# No verb agrees with an artist or a title (their gender is unknown) and names stay in the nominative.
+BACK_SELLS = ["У нас звучали {names}.", "{names}: вот кто был в эфире последние минуты.", "Перед новостями играли {names}."]
+BACK_SELLS_LAST = ["Чуть раньше играли {names}, а только что «{title}».", "Вы слушали {names}. А закончили мы на «{title}»."]
+LAST_SONG = ["Это {artist}, «{title}».", "Вы слушали «{title}», {artist}.", "Это {artist} с песней «{title}».",
+             "{artist}, «{title}» — вот что сейчас играло.", "Только что звучала песня «{title}». Это {artist}."]
 SET_OPENERS = [
-    "Дальше — {minutes} музыки без перерыва.",
-    "А теперь — {minutes} музыки нон-стоп.",
-    "Впереди {minutes} музыки без перерыва, оставайтесь с нами.",
-    "Возвращаемся к музыке.",
-    "А теперь снова музыка.",
-    "Отлично! Впереди {minutes} музыки без перерыва.",
-    "[laughter] Ну что, возвращаемся к музыке.",  # VoiceStudio tag: a short, natural chuckle
+    "И снова музыка.",
+    "Всё, возвращаемся к музыке.",
+    "На этом всё, дальше музыка.",
+    "Новостей пока хватит.",
+    "[laughter] Ну всё, хватит разговоров.",  # VoiceStudio tag: a short, natural chuckle
 ]
-NEW_SET_OPENERS = [
-    "А теперь — новинки нашей библиотеки: {minutes} музыки, которой ещё не было в эфире.",
-    "Новинки! Впереди {minutes} свежей музыки без перерыва.",
-    "А теперь только новое: {minutes} музыки, которую вы ещё не слышали.",
-]
-FIRST_SONG = [" Начинаем с {artist}, «{title}».", " Первой прозвучит «{title}», {artist}.", " Открывает сет {artist}."]
+FIRST_SONG = [" Дальше {artist}, «{title}».", " Сейчас будет {artist}.", " Следующий трек «{title}», {artist}.",
+              " А сейчас {artist} с песней «{title}»."]
+NEW_FIRST_SONG = [" Дальше кое-что новое: {artist}, «{title}».", " Этого трека в эфире ещё не было: «{title}», {artist}.",
+                  " Свежее в фонотеке: {artist}."]
 
 # Short, as a DJ says it between songs: no "playlist" or "selection" talk.
 # [laughter] / [surprise-ah] are VoiceStudio tags (a chuckle, an "А,"); [sigh] turns the clip into noise: never use it.
-MUSIC_LINKS = ["А мы продолжаем.", "Продолжаем.", "Дальше — снова музыка.", "Не переключайтесь.",
-               "[laughter] А мы продолжаем!"]
-FACT_LEADS = ["", "Кстати, ", "[surprise-ah] Кстати, "]
+MUSIC_LINKS = ["Едем дальше.", "Слушаем дальше.", "Дальше ещё музыка.", "И следующая.",
+               "[laughter] Так, что там у нас дальше."]
+FACT_LEADS = ["", "Кстати, ", "[surprise-ah] Кстати, ", "Между прочим, "]
 _COMMON_STARTS = {"этот", "эта", "это", "эту", "этой", "песня", "песню", "трек", "альбом", "клип", "впервые", "в", "на",
                   "по", "за", "изначально", "когда", "у"}
 
@@ -150,19 +156,19 @@ def back_sell(songs: list[tuple[str, str]], recent: dict, seed: str) -> str | No
     if len(seen) < 2:  # one artist all set long: name the last song, not "a block of X"
         a, t = songs[-1]
         return _rotate(LAST_SONG, "host_last", recent, seed).format(artist=_quoted(a), title=_title(t))
-    text = _rotate(BACK_SELLS, "host_back", recent, seed).format(names=", ".join(_quoted(n) for n in seen))
-    return text + (f" Последней прозвучала «{_title(songs[-1][1])}»." if shape == 2 else "")
+    names = ", ".join(_quoted(n) for n in seen)
+    if shape == 2:
+        return _rotate(BACK_SELLS_LAST, "host_back_last", recent, seed).format(names=names, title=_title(songs[-1][1]))
+    return _rotate(BACK_SELLS, "host_back", recent, seed).format(names=names)
 
 
-def set_opener(minutes: int | None, first: tuple[str, str] | None, recent: dict, seed: str, novelty: bool = False) -> str:
-    """The set announcement, sometimes with the first song (not always: then it sounds read off a card)."""
-    if minutes is None:
-        choices = (["А теперь — новинки нашей библиотеки.", "Дальше — новая музыка."] if novelty
-                   else [line for line in SET_OPENERS if '{minutes}' not in line])
-        text = _rotate(choices, 'host_new' if novelty else 'host_set', recent, seed)
-    else:
-        text = (_rotate(NEW_SET_OPENERS, "host_new", recent, seed) if novelty
-                else _rotate(SET_OPENERS, "host_set", recent, seed)).format(minutes=minutes_words(minutes))
-    if first and _shape(seed, "first", [1, 2]):  # 2 of 3 breaks name it
-        text += _rotate(FIRST_SONG, "host_first", recent, seed).format(artist=_quoted(first[0]), title=_title(first[1]))
+def set_opener(first: tuple[str, str] | None, recent: dict, seed: str, novelty: bool = False) -> str:
+    """Back to the music, sometimes with the next song (not always: then it sounds read off a card); a song new to
+    the station is said to be new."""
+    text = _rotate(SET_OPENERS, "host_set", recent, seed)
+    if first and (novelty or _shape(seed, "first", [1, 2])):  # 2 of 3 breaks name it; a new one always
+        lines, role = (NEW_FIRST_SONG, "host_new") if novelty else (FIRST_SONG, "host_first")
+        text += _rotate(lines, role, recent, seed).format(artist=_quoted(first[0]), title=_title(first[1]))
+    elif novelty:
+        text += " Дальше кое-что новое."
     return text

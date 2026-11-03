@@ -1,8 +1,9 @@
 # What the host says, and when
 
 Draft for review. Covers every templated line on air (the editor's retellings of news are covered by `radio/editor.py`).
-Each moment lists: when it plays, what plays now, the problem with it, and proposed lines. Nothing here is in the code
-yet: the station keeps the current lines until a set of proposals is chosen.
+Each moment lists when it plays, the lines it had, the problem with them, and the lines it says now (the proposals,
+on air). Reminder lines keep a dash right before the title (see below), so on air they read «Через пятнадцать минут у
+тебя — стендап.»; a line that starts with the title gets a capital letter.
 
 ## Rules for every line
 
@@ -27,6 +28,7 @@ writing". It was written for English prose, so these are its rules adapted to Ru
 - **Names stay in the nominative.** «от Макс Корж» and «за carbonara» cannot be inflected correctly. Use apposition
   instead: «Это Макс Корж с песней «Неважно»», «Макс Корж, «Неважно»».
 - **Latin names in «quotes».** The voice then reads them as English words, not spelled out (`host._quoted`).
+- **A dash, never a colon, right before a reminder title.** After «минут:» the voice turns some titles into noise (measured).
 - **Times and numbers in words.** `host.time_words`, `span_words`.
 - **Voice tags.** `[laughter]` (a short chuckle) and `[surprise-ah]` (an «А,»). Not `[sigh]`: it turns the clip into
   noise. At most one tag in a line, and only in some variants.

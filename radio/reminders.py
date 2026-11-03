@@ -329,7 +329,7 @@ def holiday_due(events: list[dict], at: datetime, history: list) -> dict | None:
                 when = {1: 'Завтра', 3: 'Через три дня', 4: 'Через четыре дня', 5: 'Через пять дней'}[days]
                 text = f'{when} — {title}.'
                 if greeting:
-                    text += ' Ещё есть время придумать поздравление.' if phase == 'early' else 'Можно подготовить пару тёплых слов.'
+                    text += ' Ещё есть время придумать поздравление.' if phase == 'early' else ' Можно заранее подумать о подарке.'
                 candidates.append({'key': key, 'title': title, 'description': '', 'count': 0, 'kind': 'day',
                                    'start': midnight, 'holiday_preview': True, 'text': text, 'holiday_date': occ.date()})
         except ValueError:
@@ -423,25 +423,28 @@ def todoist_due(tasks: list[dict], now: datetime, lead: timedelta, local=None, *
 # ---------------------------------------------------------------------------------------------------- spoken text
 LATE = timedelta(minutes=15)  # a reminder moved past the start still airs until the end, or this long after a start
 
+# Said straight, as a friend would (docs/host-phrases.md): no "a quick check of the calendar" before it. A dash, never a
+# colon, right before a title: after "минут:" the voice turns some titles into noise (measured).
 BEFORE = {
-    "event": ("Кстати, через {when} — {title}. Самое время потихоньку закругляться.",
-              "Небольшая сверка с календарём: через {when} у тебя — {title}.",
-              "Пока играет музыка, напомню: через {when} — {title}."),
-    "task": ("И про дела: через {when} по плану — {title}.",
-             "Загляну в список дел: через {when} пора браться — {title}.",
-             "Через {when} в планах — {title}. Можно уже готовиться."),
+    "event": ("Через {when} у тебя — {title}.",
+              "Не забудь, через {when} — {title}.",
+              "Через {when} — {title}. Можно потихоньку собираться.",
+              "Напомню — {title} через {when}."),
+    "task": ("Через {when} по плану — {title}.",
+             "Из списка дел — {title}, через {when}.",
+             "Через {when} пора будет заняться — {title}."),
 }
 NOW = {
-    "event": ("А вот и время — {title}. Начинается прямо сейчас.",
-              "Часы подсказывают: прямо сейчас — {title}."),
-    "task": ("Пора: по плану прямо сейчас — {title}.",
-             "Самое время взяться за дело — {title}."),
+    "event": ("{title} начинается прямо сейчас.",
+              "Всё, пора, прямо сейчас — {title}."),
+    "task": ("По плану сейчас — {title}.",
+             "Пора браться, сейчас по плану — {title}."),
 }
 LATER = {
-    "event": ("Если ты ещё не там — {title} уже идёт, с начала прошло {when}.",
-              "Маленькое напоминание вдогонку: уже {when} как идёт — {title}."),
-    "task": ("Время для этого подошло {when} назад, но ещё не поздно — {title}.",
-             "Вдогонку из списка дел — {title}. По плану было {when} назад."),
+    "event": ("{title} идёт уже {when}. Ещё успеваешь.",
+              "Вдогонку — {title}, уже {when} как началось."),
+    "task": ("{when} назад по плану — {title}. Ещё не поздно.",
+             "Вдогонку из списка дел — {title}. Это было {when} назад."),
 }
 
 
@@ -460,7 +463,8 @@ def say(r: dict, at: datetime, span_words) -> str | None:
     lines = (BEFORE if minutes > 0 else NOW if minutes == 0 else LATER)[r["kind"] if r["kind"] == "task" else "event"]
     pick = int(hashlib.sha256(str(r.get("key") or title).encode()).hexdigest(), 16) % len(lines)
     # A dash, not a colon, before the title: the voice turns "минут: Название" into noise for some titles (measured).
-    return lines[pick].format(when=span_words(abs(minutes)), title=title)
+    text = lines[pick].format(when=span_words(abs(minutes)), title=title)
+    return text[:1].upper() + text[1:]  # a line may start with the title
 
 
 def plain(r: dict, at: datetime, span_words) -> str:
