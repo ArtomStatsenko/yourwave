@@ -30,6 +30,28 @@ class YouTubeMusicTests(unittest.TestCase):
         with patch.object(ytmusic, "run", return_value=json.dumps(self.data)):
             return ytmusic.connect(self.cookie)
 
+    def test_a_song_youtube_refuses_is_remembered_for_a_day_and_kept_out_of_sets(self):
+        self.connect()
+        with patch.object(ytmusic, "run", side_effect=ytmusic.Unavailable("This YouTube song is unavailable")):
+            with self.assertRaises(ytmusic.Unavailable):
+                ytmusic.resolve("dQw4w9WgXcQ")
+        self.assertEqual(ytmusic.unavailable(), {"ytmusic:dQw4w9WgXcQ"})
+        self.assertEqual(list((ytmusic.directory() / "audio").glob("*.webm")), [], "no empty download left")
+        with patch.object(ytmusic, "run", side_effect=ValueError("YouTube is rate-limiting requests; try later")):
+            with self.assertRaises(ValueError):
+                ytmusic.resolve("dQw4w9WgXcQ")
+        from radio.daemon import Service
+        from radio.tts import MockTTS
+        svc = Service(config.load(), tts=MockTTS(), output="x")
+        self.addCleanup(svc.db.close)
+        svc.ytmusic_active, svc.music_mixed = True, False
+        svc.intro_rooms = {"ytmusic:dQw4w9WgXcQ": None}
+        with patch.object(ytmusic, "unavailable", return_value=set()):
+            self.assertEqual(svc._pick_new(), ["ytmusic:dQw4w9WgXcQ"], "unrefused, it would be in the set")
+        self.assertEqual(svc._pick_new(), [], "it would hold the set at its first place")
+        with patch("radio.ytmusic.time.time", return_value=time.time() + ytmusic.UNAVAILABLE_RECHECK_SEC + 1):
+            self.assertEqual(ytmusic.unavailable(), set(), "a day later it is tried again")
+
     def test_feature_can_be_enabled_before_connecting_in_settings(self):
         from radio import plugins
         self.assertFalse(ytmusic.status()['connected'])

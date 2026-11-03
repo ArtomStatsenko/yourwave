@@ -1931,6 +1931,7 @@ class Service:
             self.fresh_aside.clear()  # the set is over: a song skipped in it may come in a later one
         excluded = {(self.current or {}).get('ref', ''), *self.fresh_passed}
         excluded.update(r['ref'] for r in self.replays.values() if r['kind'] == 'music')
+        excluded |= ytmusic.unavailable()  # a song YouTube refused would hold the set at its first place
         found = [f for f in found if str(f) in self.intro_rooms and str(f) not in excluded]
         wave = not self.ytmusic_active and plugins.on(self.cfg, 'energy_wave')
         if wave:

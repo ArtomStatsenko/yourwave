@@ -8,6 +8,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -23,6 +24,31 @@ class Unavailable(ValueError):
 
 def directory():
     return config.DATA_DIR / "ytmusic"
+
+
+UNAVAILABLE_RECHECK_SEC = 24 * 3600  # a song YouTube would not serve stays out of sets this long, then is tried again
+
+
+def mark_unavailable(vid: str) -> None:
+    """Remembers that YouTube refused this song (removed, private, not in this country), for the sets."""
+    path = directory() / "unavailable.json"
+    path.parent.mkdir(mode=0o700, exist_ok=True)
+    with config.file_lock(path):
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            data = {}
+        data[vid] = time.time()
+        path.write_text(json.dumps(data))
+
+
+def unavailable() -> set[str]:
+    """The songs YouTube refused within UNAVAILABLE_RECHECK_SEC, as ytmusic: refs."""
+    try:
+        data = json.loads((directory() / "unavailable.json").read_text())
+    except (OSError, ValueError):
+        return set()
+    return {"ytmusic:" + vid for vid, at in data.items() if isinstance(at, (int, float)) and time.time() - at < UNAVAILABLE_RECHECK_SEC}
 
 
 def library():
@@ -242,6 +268,10 @@ def resolve(vid):
         except (ValueError, TypeError, sqlite3.Error):
             pass  # missing credits must not discard an otherwise playable song
         return str(out.resolve())  # Liquidsoap owns and removes the file after the track.
+    except Unavailable:
+        out.unlink(missing_ok=True)
+        mark_unavailable(vid)
+        raise
     except Exception:
         out.unlink(missing_ok=True)
         raise
