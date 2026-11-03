@@ -41,6 +41,7 @@ GAP_LINES = ("YouTube Music не успел загрузить следующу�
 PLAN_HOURS = 12         # how far ahead the plan shows (and lets you edit) sections, reminders and weather
 RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
+NEXT_FADE_SEC = .2       # Next: the quick soft cross between what plays and what comes (radio.liq manual_fade)
 LIBRARY_CHECK_SEC = 30   # how often the music folder is looked at for added songs
 
 
@@ -94,6 +95,7 @@ class Service:
         self.assembling = self.rerolling = False
         self.schedule_lock = asyncio.Lock()
         self.handoff_lock = asyncio.Lock()
+        self.unsettled = None  # while Next switches: removed requests whose check waits for after the switch (_remove)
         self.plan_undo = None
         self.schedule_generation = 0
         self.preview_job = None
@@ -319,11 +321,11 @@ class Service:
         await self._cancel_preview()
         async with self.handoff_lock:
             if self.gap_rid:
-                await self.engine.remove(self.gap_rid)
+                await self._remove(self.gap_rid)
                 self.gap_rid, self.id_pending = None, False
             if self.queued_break:
                 rid, ids = self.queued_break
-                await self.engine.remove(rid)
+                await self._remove(rid)
                 self.db.executemany("UPDATE packages SET status='READY' WHERE id=? AND status='QUEUED'", [(key,) for key in ids])
                 self.db.execute("UPDATE air_plan SET status=?,rid=NULL WHERE rid=? AND status='QUEUED'", (status, rid))
                 self.queued_break = self.queued_clock = None
@@ -430,6 +432,15 @@ class Service:
                 log('hooks:', type(error).__name__)
             await asyncio.sleep(30)
 
+    async def _remove(self, rid: str) -> None:
+        """Takes a request off the news queue. While Next switches, one remove command; its check (Liquidsoap.remove
+        looks twice, 50 ms apart) runs after the switch, so Next is heard at once."""
+        if self.unsettled is None:
+            await self.engine.remove(rid)
+        else:
+            await self.engine.command(f"news.remove {rid}")
+            self.unsettled.append(rid)
+
     async def _cancel_preview(self):
         if not self.preview_job:
             return
@@ -437,7 +448,7 @@ class Service:
         await self.engine.command('previews.cancel ' + job['id'])
         try:
             if job.get('rid'):
-                await self.engine.remove(job['rid'])
+                await self._remove(job['rid'])
         finally:
             self.preview_job = None
             self.db.execute("UPDATE music_previews SET status='CANCELLED',rid=NULL WHERE id=? AND status='QUEUED'", (job['id'],))
@@ -2924,12 +2935,13 @@ class Service:
                 return {'ok': False, 'error': 'The radio is paused. Resume playback before skipping a track.'}
             current = self.current
             self.manual_switch = True
+            self.unsettled = []
             try:
                 await self._cancel_automatic()
                 if current and current['kind'] == 'music':
                     if self.queued_reminders:
                         for key, (rid, notice) in list(self.queued_reminders.items()):
-                            await self.engine.remove(rid)
+                            await self._remove(rid)
                             self.reminders_due[key] = notice
                             self.reminder_text.pop(key, None)
                             self.db.execute("UPDATE air_plan SET status='PENDING',rid=NULL WHERE rid=? AND status='QUEUED'", (rid,))
@@ -2938,7 +2950,7 @@ class Service:
                     await self.engine.wait_music()
                 if self.current is current:
                     self.skip_flag = bool(current and current['kind'] == 'news')
-                    self.next_transition_sec = .1
+                    self.next_transition_sec = NEXT_FADE_SEC
                     self.manual_skip_pending = True
                     await self.engine.command('skip')
             except Exception:
@@ -2946,13 +2958,16 @@ class Service:
                 self.next_transition_sec = None
                 raise
             finally:
+                unsettled, self.unsettled = self.unsettled, None
+                for rid in unsettled:
+                    await self.engine.remove(rid)
                 self.manual_switch = False
         elif cmd == "skip-news":
             if not (self.current and self.current["kind"] == "news"):
                 return {"ok": False, "error": "no bulletin is on air"}
             self.skip_flag = True
             await self._cancel_preview()
-            self.next_transition_sec = .1
+            self.next_transition_sec = NEXT_FADE_SEC
             try:
                 await self.engine.command("skip")
             except Exception:

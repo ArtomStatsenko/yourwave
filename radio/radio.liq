@@ -491,13 +491,14 @@ def ducked(t, s) =
   amplify(gain, s)
 end
 manual_skip = ref(false)
+manual_fade = 0.2  # Next: a quick soft cross, not a cut (daemon NEXT_FADE_SEC)
 def transition(a, b) =
   if manual_skip() then
     manual_skip := false
-    ending = max_duration(0.1, a.source)
-    cross.simple(fade_in=0.1, fade_out=0.1,
-                 initial_fade_in_metadata=[("liq_fade_in", "0.1"), ("liq_fade_in_delay", "0.")],
-                 initial_fade_out_metadata=[("liq_fade_out", "0.1"), ("liq_fade_out_delay", "0.")], ending, b.source)
+    ending = max_duration(manual_fade, a.source)
+    cross.simple(fade_in=manual_fade, fade_out=manual_fade,
+                 initial_fade_in_metadata=[("liq_fade_in", "#{manual_fade}"), ("liq_fade_in_delay", "0.")],
+                 initial_fade_out_metadata=[("liq_fade_out", "#{manual_fade}"), ("liq_fade_out_delay", "0.")], ending, b.source)
   elsif b.metadata["kind"] == "teaser" then
     # The set preview continues the edition; finish the host's words before its hook.
     t = max(0., source.duration(a.source) - 0.1)

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
-from radio import config, content, direction, plugins, store, weather
+from radio import config, content, daemon, direction, plugins, store, weather
 from radio.daemon import Service
 from radio.tts import MockTTS
 
@@ -929,6 +929,23 @@ class DirectionTests(unittest.TestCase):
             asyncio.run(self.svc.schedule())
         self.svc.engine.push_news.assert_not_awaited()
 
+    def test_next_switches_before_it_checks_what_it_took_off_the_queue(self):
+        self.next_fixture()
+        order = []
+        async def command(cmd):
+            order.append(cmd)
+        async def remove(rid, queue='news'):
+            order.append('check ' + rid)
+        self.svc.engine.command.side_effect = command
+        self.svc.engine.remove = remove
+        self.svc.queued_break, self.svc.gap_rid = ('42', []), '7'
+        with patch('radio.daemon.time.time', return_value=1000):
+            self.assertTrue(asyncio.run(self.svc.dispatch('next'))['ok'])
+        self.assertEqual(order, ['news.remove 7', 'news.remove 42', 'skip', 'check 7', 'check 42'])
+        self.assertIsNone(self.svc.unsettled)
+        asyncio.run(self.svc._remove('9'))
+        self.assertEqual(order[-1], 'check 9', 'outside Next a removal is checked at once, as before')
+
     def test_next_keeps_ready_edition_out_of_the_skip_path(self):
         pid = self.next_fixture()
         order = []
@@ -976,7 +993,7 @@ class DirectionTests(unittest.TestCase):
         asyncio.run(self.svc.dispatch('next'))
         with patch('radio.daemon.audio.duration', return_value=180):
             self.svc.on_event({'kind': 'music', 'ref': '/tmp/next.wav'})
-            self.assertEqual(self.svc.status()['transition_sec'], .1)
+            self.assertEqual(self.svc.status()['transition_sec'], daemon.NEXT_FADE_SEC)
             self.svc.on_event({'kind': 'music', 'ref': '/tmp/later.wav'})
             self.assertEqual(self.svc.status()['transition_sec'], self.cfg['music']['crossfade_sec'])
 
