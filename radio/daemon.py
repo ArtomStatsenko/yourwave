@@ -754,6 +754,7 @@ class Service:
         self.replays.pop(m.get("replay_id") or "", None)  # on air now: no longer queued
         if (m.get("ref") or "") in self.fresh_removing and m.get("kind") == "music":  # skipped, but it got through
             del self.fresh_removing[m["ref"]]
+            log('skipped new track got through, skipping it:', m['ref'])
             asyncio.get_running_loop().create_task(self.engine.command('skip'))
         if self.fresh_queued.pop(m.get("ref") or "", None) is not None:  # a new song aired: a skipped one's turn moves up
             self.fresh_aside = {ref: place - 1 for ref, place in self.fresh_aside.items() if place > 0}
@@ -2019,6 +2020,9 @@ class Service:
             if rid in missing & self.fresh_missing and self.fresh_queued.get(ref) == rid:
                 del self.fresh_queued[ref]
                 self.energy_queued.discard(ref)
+                # gone without airing (it did not load): not put ahead again this run, or it is tried every 5 s
+                self.fresh_passed.add(ref)
+                log('new track dropped, not loaded:', ref)
         self.fresh_missing = missing
 
     async def _clear_fresh(self) -> None:
@@ -2912,6 +2916,7 @@ class Service:
             return {'ok': True, 'id': key}
         if cmd in ('skip', 'unskip'):  # a coming song, this time only; marks and the replay queue are untouched
             ref = str((req or {}).get('ref', '')).strip()
+            log(cmd + ':', ref)
             if not ref or '\n' in ref:
                 return {'ok': False, 'error': 'Choose a coming song'}
             if ref == self.next_track:
@@ -2979,6 +2984,7 @@ class Service:
         elif cmd == "resume" and self.state == "PAUSED":
             await self._resume()
         elif cmd == "next":
+            log('next:', (self.current or {}).get('ref', ''))  # what was on: a switch that follows is not the listener's
             if self.state == 'PAUSED':
                 return {'ok': False, 'error': 'The radio is paused. Resume playback before skipping a track.'}
             current = self.current

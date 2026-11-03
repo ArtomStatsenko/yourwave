@@ -114,6 +114,18 @@ class SkipSetSongTests(unittest.TestCase):
         self.assertEqual((svc.fresh_queued.get('ytmusic:bbbbbbbbbbb'), svc.fresh_aside, svc.fresh_passed), ('9', {}, set()))
 
 
+class DroppedNewSongTests(unittest.TestCase):
+    def test_a_new_song_that_does_not_load_is_not_put_ahead_again(self):
+        svc = Service(config.load(), tts=MockTTS(), output='x')
+        svc.fresh_queued = {'ytmusic:K8v_DaCcORQ': '199'}
+        svc.engine = Mock(pending=AsyncMock(return_value=[]))
+        asyncio.run(svc._forget_dropped_fresh())
+        self.assertIn('ytmusic:K8v_DaCcORQ', svc.fresh_queued, 'one look may miss a request being handed over')
+        asyncio.run(svc._forget_dropped_fresh())
+        self.assertEqual(svc.fresh_queued, {})
+        self.assertIn('ytmusic:K8v_DaCcORQ', svc.fresh_passed, 'else it is queued again every few seconds')
+
+
 class SongLinkTests(unittest.TestCase):
     def test_a_link_about_a_song_does_not_air_after_the_next_one(self):
         from radio import content
