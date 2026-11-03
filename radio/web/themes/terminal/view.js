@@ -722,7 +722,7 @@ function markView(){
 // one timeline entry from RadioModel.timeline(): kind, time, title, now, replay button, unfolded details
 function row(x){
   var id=String(x.id),c=x.current,ex=x.expandable,o=ex&&!!open[id];
-  var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+x.kindLabel+'</span><span class="tx">'+esc(x.text)+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
+  var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+(String(x.kindLabel).toLowerCase()===String(x.text).toLowerCase()&&!c?'':x.kindLabel)+'</span><span class="tx">'+esc(x.text)+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
   var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+(selectedRow===id?' sel':'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
   if(x.kind==='music')h+=markButton(x);
   if(x.kind==='music'&&x.replayable)

@@ -61,6 +61,7 @@
 :root[data-skin] .tg .tx{grid-column:2;font-size:18px}
 :root[data-skin] button.tg:hover{background:none}
 :root[data-skin] .it:is(.reminder,.weather) > .hd .k{display:block;padding-left:22px;font-size:16px;color:var(--muted)}  /* the model's kind label, where the title does not already say it */
+:root[data-skin] .it .k:empty,:root[data-skin] .it:is(.reminder,.weather) > .hd .k:empty{display:none}  /* no label when the title already is the label */
 :root[data-skin] .it.cur .tx::before{color:var(--accent)}
 :root[data-skin] .it.reminder .tx::before{color:var(--muted)}
 :root[data-skin] .it.weather .tx::before{content:none}
