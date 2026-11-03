@@ -386,7 +386,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 #direction-list .plan-inline{padding-right:0;gap:0}#direction-list .plan-inline button{width:44px;height:44px;display:inline-grid;place-items:center}
 #direction-list .plan-inline button[aria-label="Confirm skip reminder"]{width:auto;min-width:64px}
 #direction-list .plan-inline button svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
-#direction-list .plan-readiness{margin-left:6px;font-weight:400}
+#direction-list .plan-labels{margin-left:6px;font-weight:400}
 /* row actions (thumb, dice, ✕, ↺, queue disc) share one 44px slot, centred, so the icons of every row line up in two columns */
 .it .mk,.it .rp,#upcoming .rp,#upcoming .reroll-track,#direction-list .reroll-track{display:inline-grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;margin:-8px 0;padding:0;line-height:1}
 #upcoming .acts{gap:0;padding-right:44px}  /* the dice of next stands in the dice/thumb column, the right slot stays empty */#upcoming .tg{align-items:center}

@@ -92,14 +92,14 @@ var requests=[],response;function api(path,body){requests.push(body);return Prom
  planDraft[0].title='Host edition · Weather';planDraft[0].expected_at=new Date(at+120e3).toISOString();
  st.broadcast_plan.rows[0].expected_at=planDraft[0].expected_at;
  directionView();var html=$('direction-list').innerHTML;planDraft[0].title='Host edition';delete planDraft[0].expected_at;delete st.broadcast_plan.rows[0].expected_at;
- assert(/Host edition( <span class="l plan-readiness">[^<]*<\/span>)?<span class="l plan-expected"> · expected ~06:02<\/span><\/button>/.test(html),'readiness follows the title');
- assert(!html.includes('class="l plan-detail"'),'An edition with expected time uses no detail row');
+ assert(html.includes('>~06:02</button>'),'the time column shows the expected time with ~');assert(!html.includes('expected ~'),'no expected text in the row');
+ assert(!html.includes('class="l plan-detail"'),'labels sit after the title, no detail cell');
  planDraft.push({id:'reminder:test',kind:'reminder',title:'Reminder',content_title:'Standup',estimated:false,
    at:new Date(at).toISOString(),expected_at:new Date(at+120e3).toISOString()});
  st.broadcast_plan.rows=structuredClone(planDraft);directionView();
  const reminder=$('direction-list').innerHTML.split('data-plan-key="reminder:test"')[1].split('class="plan-inline"')[0];
- assert(reminder.includes('>06:00</button>'));assert(!reminder.includes('>~06:00'));
- assert(reminder.includes('Standup · expected ~06:02'));
+ assert(reminder.includes('>~06:02</button>'));assert(!reminder.includes('>06:00<'));
+ assert(reminder.includes('Standup')&&!reminder.includes('expected'),'the content name is a muted label after the title');
  planDraft.pop();st.broadcast_plan.rows=structuredClone(planDraft);directionView();
  assert.ok(!html.includes('data-plan-key="music-between"'),'Music filler is hidden from the program');
  assert.ok(html.includes('data-plan-index="2" data-plan-key="clock:1"'),'Visible rows retain their original edit indices');
