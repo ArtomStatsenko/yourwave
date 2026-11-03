@@ -148,7 +148,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #chart-windows button[aria-pressed="true"]{color:var(--ink);text-decoration:underline;text-underline-offset:6px}
 #chart-note{margin-left:auto}#chart-empty[hidden]{display:none}
 #chart-list{list-style:none;margin:0;padding:0}
-.chart{display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;gap:12px;align-items:center;min-height:56px;padding:6px 0;border-bottom:1px solid var(--line)}
+.chart:not(.it){display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;gap:12px;align-items:center;min-height:56px;padding:6px 0;border-bottom:1px solid var(--line)}
 .chart .n{color:var(--muted);text-align:right}.chart .m{min-width:0}.chart .t{overflow-wrap:anywhere}
 .chart small{display:block;color:var(--muted);font-size:16px;line-height:22px}
 .chart .s{display:block;height:3px;background:var(--line);margin-top:4px}.chart .s i{display:block;height:100%;background:var(--ink)}
