@@ -246,6 +246,19 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
       else request.destroy(r) end
     end
   end
+  # A song just added to the music folder (its playlist line): in every later round; with now, in this one too, at a
+  # random place of the rest (shuffle off: at its end), so the songs before it keep their places
+  server.register("#{id}.add", fun (arg) -> begin
+    let json.parse (p : {uri: string, now: bool}) = arg
+    item = "annotate:plan_queue=\"#{id}\":#{p.uri}"
+    files := list.append(files(), [item])
+    if p.now and loaded() and not holding() then
+      rest = s.remaining_files()
+      i = if shuffle_enabled() then random.int(min=0, max=list.length(rest) + 1) else list.length(rest) end
+      s.reload(empty_queue=false, list.insert(i, item, rest))
+    end
+    "OK"
+  end)
   server.register("#{id}.reload", fun (arg) -> begin
     files := load(if string.trim(arg) == "" then uri else string.trim(arg) end)
     s.reload(ordered(files()))

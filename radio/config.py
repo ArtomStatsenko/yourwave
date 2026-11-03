@@ -12,6 +12,15 @@ ASSETS_DIR = PKG_DIR.parent / "assets"
 RUN_DIR = DATA_DIR / "run"
 SOCK = RUN_DIR / "radio.sock"
 AUDIO_EXTS = {".mp3", ".m4a", ".flac", ".wav"}
+SOUND_SLOTS = ("stinger_in", "stinger_out", "bed", "separator", "station_id", "reminder", "github_intro", "horizon_intro")
+
+
+def own_sounds(slot: str) -> list[Path]:
+    """The station's own files for a [jingles] slot (DATA_DIR/sounds/<slot>, radio/sounds.py): any replace Base."""
+    try:
+        return sorted(f for f in (DATA_DIR / "sounds" / slot).iterdir() if f.suffix.lower() in AUDIO_EXTS and not f.name.startswith("."))
+    except FileNotFoundError:
+        return []
 
 
 @contextmanager
@@ -210,15 +219,19 @@ def load(*, audio_preset: str | None = None) -> dict:
         raise ValueError("music.source must be local or ytmusic")
     if type(cfg['editor']['news_detail']) is not int or not 0 <= cfg['editor']['news_detail'] <= 2:
         raise ValueError('editor.news_detail must be 0, 1 or 2')
-    for k in ("stinger_in", "stinger_out", "bed", "separator", "station_id", "reminder", "github_intro", "horizon_intro"):
+    cfg["sounds_base"] = {}  # the configured files of each slot, played while the slot has none of its own
+    for k in SOUND_SLOTS:
+        own = own_sounds(k)
         if k.endswith("_intro") and not cfg["jingles"].get(k):
-            cfg["jingles"][k] = []
+            cfg["sounds_base"][k] = []
+            cfg["jingles"][k] = own
             continue
         p = PKG_DIR.parent / Path(cfg["jingles"][k]).expanduser()
         files = sorted(f for f in p.iterdir() if f.suffix.lower() in AUDIO_EXTS) if p.is_dir() else [p]
-        if not files or not files[0].exists():
+        if (not files or not files[0].exists()) and not own:
             raise ValueError(f"no audio for jingles.{k}: {p}; install Base with python3 tools/install_base_audio.py or configure your own files")
-        cfg["jingles"][k] = files
+        cfg["sounds_base"][k] = files
+        cfg["jingles"][k] = own or files
     b = cfg["broadcast"]
     for key in ('host_character', 'cohost_character'):
         if not isinstance(b[key], str) or len(b[key]) > 1200:

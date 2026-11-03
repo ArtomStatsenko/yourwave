@@ -155,6 +155,12 @@
         "ref"
       ]
     },
+    "sound_remove": {
+      "fields": [
+        "slot",
+        "name"
+      ]
+    },
     "direction": {
       "fields": [
         "action",

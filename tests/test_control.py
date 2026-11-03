@@ -83,6 +83,8 @@ class ControlTests(unittest.TestCase):
                         data['action'] = 'catalog'
                     if name == 'chart_set':
                         data['action'] = 'save'
+                    if name == 'sound_remove':
+                        data.update(slot='station_id', name='gone.wav')  # removing a file that is not there is fine
                     result, code = control.execute(data, sender=sender, starter=sender)
                     self.assertEqual(code, 200)
                     self.assertTrue(result['ok'], result)

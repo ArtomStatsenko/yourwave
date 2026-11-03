@@ -112,6 +112,45 @@ class MusicLibraryTests(unittest.TestCase):
         kept.unlink()
         self.assertEqual(music.unaired_new(self.svc.db, [kept], 14), [])
 
+    def test_a_song_added_to_the_folder_joins_once_copied_and_measured(self):
+        folder = self.root / 'music'
+        folder.mkdir()
+        (config.RUN_DIR).mkdir(parents=True, exist_ok=True)
+        (config.RUN_DIR / 'ytmusic.m3u').write_text('#EXTM3U\n')  # the daemon writes it at start
+        old = folder / 'old.wav'
+        old.touch()
+        self.svc.cfg['music']['path'] = folder
+        self.svc.files, self.svc.library, self.svc.intro_rooms = [old], {str(old)}, {str(old): None}
+        self.svc.engine = Liquidsoap(config.RUN_DIR / 'ytmusic.m3u', 3, 'x', fallback_m3u=config.RUN_DIR / 'music.m3u')
+        self.svc.engine.add_music = AsyncMock(return_value='OK')
+        def measure(db, files, stop):
+            for f in files:
+                db.execute('INSERT INTO tracks(path, sig, lufs, ok, tail_sec) VALUES(?,?,-16,1,0.5)', (str(f), music._sig(f)))
+        seen, folders = {}, {}
+        tick = lambda: asyncio.run(self.svc._library_tick(seen, folders))
+        with patch('radio.daemon.music.measure_missing', side_effect=measure) as measured, \
+             patch('radio.daemon.music.scan', wraps=music.scan) as scanned, \
+             patch.object(self.svc, '_new_set_due', return_value=False):
+            tick()
+            new = folder / 'new.wav'
+            new.write_bytes(b'1')
+            tick()
+            self.svc.engine.add_music.assert_not_awaited()  # it may still be copying
+            tick()
+            measured.assert_called_once_with(unittest.mock.ANY, [new], self.svc.stop_measure)
+            self.svc.engine.add_music.assert_awaited_once()
+            playlist, line = self.svc.engine.add_music.await_args.args
+            self.assertEqual((playlist, self.svc.engine.add_music.await_args.kwargs), ('local_music', {'now': True}))
+            self.assertIn(f'ref="{new}"', line)
+            self.assertEqual((self.svc.files, str(new) in self.svc.library, str(new) in self.svc.intro_rooms), ([new, old], True, True))
+            looks = scanned.call_count
+            tick()
+            self.assertEqual(scanned.call_count, looks, 'nothing changed: only the folder times are read')
+        with patch('radio.daemon.music.measure_missing', side_effect=measure), patch.object(self.svc, '_new_set_due', return_value=True):
+            (folder / 'next.wav').write_bytes(b'1')
+            tick(); tick()
+            self.assertEqual(self.svc.engine.add_music.await_args.kwargs, {'now': False}, 'Unplayed tracks first plays it next')
+
     def test_missing_measured_file_does_not_stop_the_rest_of_the_library(self):
         gone, kept = self.root / 'gone.wav', self.root / 'kept.wav'
         for song in (gone, kept):

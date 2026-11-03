@@ -41,6 +41,7 @@ GAP_LINES = ("YouTube Music не успел загрузить следующу�
 PLAN_HOURS = 12         # how far ahead the plan shows (and lets you edit) sections, reminders and weather
 RESUME_WITHIN_SEC = 300  # a restart this soon continues the session: its id, the music set and the song
 RESUME_TAIL_SEC = 15     # a song this close to its end is not resumed: the next one starts instead
+LIBRARY_CHECK_SEC = 30   # how often the music folder is looked at for added songs
 
 
 NUMBER_WORD = re.compile(r"(ноль|один|одна|одно|одну|одного|двух|трёх|трех|четыре|пять|шесть|семь|восемь|девять|десять|\w+надцать|"
@@ -233,6 +234,7 @@ class Service:
         asyncio.create_task(self.gap_loop())
         asyncio.create_task(self.preview_loop())
         asyncio.create_task(self.hook_loop())
+        asyncio.create_task(self.library_loop())
         if not self.mock_voice:
             asyncio.create_task(self.hearing_loop())
         if not self.mock_voice:
@@ -438,6 +440,61 @@ class Service:
             self.preview_job = None
             self.db.execute("UPDATE music_previews SET status='CANCELLED',rid=NULL WHERE id=? AND status='QUEUED'", (job['id'],))
             self.id_pending = False
+
+    async def library_loop(self):
+        """Songs added to the music folder join the station once copied and measured, without a restart: with
+        Unplayed tracks first they come next (_pick_new); else at a random place of this round (radio.liq add)."""
+        seen = {}  # path -> size and time at the last look: a file still being copied changes between looks
+        folders = {}  # folder -> its time: a file added or renamed changes it, so most looks read only these
+        while not self.stopping:
+            await asyncio.sleep(LIBRARY_CHECK_SEC)
+            try:
+                await self._library_tick(seen, folders)
+            except Exception as error:
+                log('library:', type(error).__name__, error)
+
+    async def _library_tick(self, seen: dict, folders: dict) -> None:
+        def times(paths):
+            out = {}
+            for d in paths:
+                try:
+                    out[d] = os.stat(d).st_mtime_ns
+                except FileNotFoundError:
+                    pass
+            return out
+        if folders and not seen and times(folders) == folders:
+            return
+        root = self.cfg['music']['path']
+        folders.clear()
+        folders.update(times([d for d, _, _ in await asyncio.to_thread(lambda: list(os.walk(root, followlinks=True)))]))
+        known = {str(f) for f in self.files}
+        sigs = {}
+        for f in await asyncio.to_thread(music.scan, self.cfg['music']['path']):
+            try:
+                sigs[str(f)] = music._sig(f)
+            except FileNotFoundError:
+                continue
+        new = {p: sig for p, sig in sigs.items() if p not in known}
+        settled = [Path(p) for p, sig in new.items() if seen.get(p) == sig]
+        seen.clear()
+        seen.update(new)
+        if not settled:
+            return
+        await asyncio.to_thread(music.measure_missing, store.connect(), settled, self.stop_measure)
+        m = self.cfg['music']
+        files = sorted({*self.files, *settled})
+        rooms = music.write_m3u(self.db, files, config.RUN_DIR / 'music.m3u', m['target_lufs'], m['max_boost_db'], m['crossfade_sec'], True)
+        added = [str(f) for f in settled if str(f) in rooms]  # a file that cannot be decoded stays out
+        self.files = files
+        for ref in added:
+            lines = self.engine.music_choices(ref)
+            for playlist in ('local_music', 'music') if self.music_mixed else ('local_music',):
+                await self.engine.add_music(playlist, lines[ref], now=not self._new_set_due())
+            self.library.add(ref)
+            self.intro_rooms[ref] = rooms[ref]
+            seen.pop(ref, None)
+        self.plan_gen += 1
+        log('library:', len(added), 'new songs' + ('' if len(added) == len(settled) else f', {len(settled) - len(added)} unplayable'))
 
     async def preview_loop(self):
         while not self.stopping:
@@ -1125,6 +1182,11 @@ class Service:
 
     def _live_settings(self) -> None:
         settings.apply(self.cfg, self.defaults)
+        sounds = {k: config.own_sounds(k) or self.cfg["sounds_base"][k] for k in config.SOUND_SLOTS}
+        if any(self.cfg["jingles"][k] != v for k, v in sounds.items()):  # own sounds added or removed on the page
+            self.cfg["jingles"].update(sounds)
+            self._refresh_audio_cache()  # prepared editions are rebuilt with them
+            log("sounds:", ", ".join(f"{k} {'own' if config.own_sounds(k) else 'Base'}" for k in config.SOUND_SLOTS))
         if not self.mock_voice and self.cfg["voice"]["engine"] != self.voice_engine:
             # The voice engine switched on the Settings tab: new phrases use it; voice_loop starts its server
             self.voice_engine = self.cfg["voice"]["engine"]

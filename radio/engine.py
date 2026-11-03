@@ -224,6 +224,12 @@ class Liquidsoap:
                 return choices
         return {}
 
+    async def add_music(self, playlist: str, line: str, now: bool) -> str:
+        """A new song's playlist line joins the playlist's later rounds; with now, also the rest of this one."""
+        if playlist not in ('music', 'local_music'):
+            raise ValueError('Invalid music playlist')
+        return await self.command(playlist + '.add ' + json.dumps({'uri': line, 'now': now}))
+
     async def replace_music(self, expected: str, uri: str, queue: str = 'music', rid: str = '') -> str:
         if queue not in ('music', 'local_music', 'news', 'fresh'):
             raise ValueError('Invalid music queue')

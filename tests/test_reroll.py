@@ -643,6 +643,41 @@ class RerollTests(unittest.TestCase):
              patch('radio.engine.ytmusic.library', return_value={'tracks': []}):
             asyncio.run(scenario(Liquidsoap(m3u, .1, str(config.DATA_DIR / 'swap-output.wav'))))
 
+    def test_a_song_added_to_the_folder_joins_this_round_only_when_asked_and_moves_no_other(self):
+        tone = config.DATA_DIR / 'add-tone.wav'
+        with wave.open(str(tone), 'wb') as out:
+            out.setparams((2, 2, 44100, 0, 'NONE', 'not compressed'))
+            out.writeframes(b'\1\0\1\0' * 44100 * 20)
+        m3u = config.RUN_DIR / 'add.m3u'
+        line = lambda ref: f'annotate:kind="music",ref="{ref}":{tone}'
+        m3u.write_text('\n'.join(line(f'track-{i}') for i in range(7)) + '\n')
+
+        async def scenario(engine):
+            events = []
+            try:
+                await engine.start(events.append)
+                deadline = time.monotonic() + 10
+                before = []
+                while len(before) < 6 and time.monotonic() < deadline:
+                    await asyncio.sleep(.1)
+                    if events:
+                        await engine.command('pause')
+                        before = await engine.upcoming_music()
+                self.assertEqual(len(before), 6)
+                self.assertEqual(await engine.add_music('music', line('later'), now=False), 'OK')
+                self.assertEqual(await engine.upcoming_music(), before, 'Unplayed first plays it: this round stays')
+                self.assertEqual(await engine.add_music('music', line('now'), now=True), 'OK')
+                after = await engine.upcoming_music()
+                self.assertIn('now', after)
+                self.assertEqual([r for r in after if r != 'now'], before, 'the other songs keep their order')
+            finally:
+                await engine.stop()
+
+        self.clock.stop()
+        with patch.dict(os.environ, RADIO_FILE_SYNC='realtime'), \
+             patch('radio.engine.ytmusic.library', return_value={'tracks': []}):
+            asyncio.run(scenario(Liquidsoap(m3u, .1, str(config.DATA_DIR / 'add-output.wav'))))
+
     def test_engine_reroll_preserves_every_later_track_in_shuffle(self):
         tone = config.DATA_DIR / 'tail-tone.wav'
         with wave.open(str(tone), 'wb') as out:

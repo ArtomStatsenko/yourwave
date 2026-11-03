@@ -3,10 +3,12 @@ Every API call needs a per-run token and a trusted Host header."""
 import collections
 import html
 import json
+import mimetypes
 import queue
 import re
 import secrets
 import socket
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -15,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import chatgpt, config, openrouter
-from . import hooks, store, control
+from . import hooks, sounds, store, control
 
 WEB = Path(__file__).with_name("web")  # core/ (no look) and themes/<name>/ (index.html, theme.css, view.js)
 STATIC_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -257,6 +259,23 @@ def make_server(port: int, autostart: bool = False) -> ThreadingHTTPServer:
                 self.wfile.write(body)
             elif self.path.split("?")[0] == "/stream":
                 self._stream()
+            elif self.path.split('?')[0] == '/sound':  # a sound slot's file, own or Base, to listen to on the page
+                if not self._authorized():
+                    return self._json({'error': 'forbidden'}, 403)
+                query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                try:
+                    path = sounds.path(query.get('slot', [''])[0], query.get('name', [''])[0])
+                    body = path.read_bytes() if path else None
+                except (OSError, ValueError):
+                    body = None
+                if body is None:
+                    return self._json({'error': 'unavailable'}, 404)
+                self.send_response(200)
+                self.send_header('Content-Type', mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                self.wfile.write(body)
             elif self.path.split('?')[0] == '/hook-preview.wav':
                 if not self._authorized():
                     return self._json({'error':'forbidden'},403)
@@ -295,8 +314,22 @@ def make_server(port: int, autostart: bool = False) -> ThreadingHTTPServer:
         def _stream(self):
             stream.serve(self)
 
+        def _upload_sound(self):
+            """POST /api/sound?slot=<slot>&name=<file name>, the file as the body: one of the station's own sounds."""
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if not 0 < length <= sounds.MAX_BYTES:
+                    return self._json({"ok": False, "error": "The file is empty or larger than 50 MB"}, 413)
+                name = sounds.add(query.get("slot", [""])[0], query.get("name", [""])[0], self.rfile.read(length))
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                return self._json({"ok": False, "error": str(error)}, 400)
+            self._json({"ok": True, "name": name, "sounds": sounds.listing(config.load())})
+
         def do_POST(self):
             nonlocal cfg
+            if self.path.split("?")[0] == "/api/sound" and self._trusted_host() and self._authorized():
+                return self._upload_sound()
             if self.path != "/api/cmd" or not self._trusted_host() or not self._authorized():
                 return self._json({"error": "forbidden"}, 403)
             try:

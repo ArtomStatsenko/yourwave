@@ -22,6 +22,7 @@ Yourwave turns the music on your Mac into a personal radio station. Between song
 
 - **Local first.** Speech and the default script editor (Ollama) run on your Mac. The Python app uses only the standard library: there is nothing to `pip install`.
 - **A real broadcast.** Liquidsoap mixes the songs with crossfades and lowers the song under the host's voice. FFmpeg processes the voice and the whole station like a radio does: compression, a de-esser and a limiter.
+- **Your sound.** Upload your own intro, outro, speech bed, separator, reminder sound or station ID in **Settings → Sounds**. A slot without your own files plays Base.
 - **Yours to steer.** Use the dice to replace the next song, or, in the editor, any coming song; skip a block, move an edition, or insert your own text. The station has a CLI and an HTTP API for scripts and agents.
 
 ## Quick start
@@ -81,7 +82,7 @@ To try changes on a separate development station, set `RADIO_DATA_DIR`; see [Con
 
 | | What your station does |
 | --- | --- |
-| **Music** | Your local files, a connected YouTube Music playlist, or both in one shuffle. Unheard songs can go first; the *Energy wave* experiment rises and eases with listening time. |
+| **Music** | Your local files, a connected YouTube Music playlist, or both in one shuffle. Unheard songs can go first; the *Energy wave* experiment rises and eases with listening time. Songs you copy into the folder join without a restart. |
 | **Host editions** | Main and short editions at `:00` and `:30`, placed at song boundaries. The host speaks over the end of a song, as on the radio. A second host is an experiment. |
 | **Reminders** | Calendar events and Todoist tasks, read aloud ahead of time, with the details kept in the timeline. |
 | **Timeline** | What aired, with an unfolded transcript and the source links for each edition, what airs next, and a 👍 for songs you want more often. |

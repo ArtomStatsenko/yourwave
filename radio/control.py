@@ -1,6 +1,6 @@
 """Shared validated operations for the browser API and the native radio CLI."""
 import time
-from . import catchup, charts, chartset, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, store, telegram, tts, ytmusic
+from . import catchup, charts, chartset, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, sounds, store, telegram, tts, ytmusic
 from .timeline import timeline
 
 VOICE_SAMPLE = "Добрый вечер! Вы слушаете Персональное радио. Сейчас — коротко о новостях, а потом снова музыка."
@@ -14,7 +14,7 @@ OPERATIONS = {
     'ytmusic_connect': ['cookie', 'playlist', 'browser'], 'voice_sample': [], 'llm_key': ['provider', 'key'],
     'chatgpt_login': [], 'chatgpt_logout': [], 'openrouter_login': [], 'openrouter_logout': [],
     'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'reroll': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'], 'chart_set': ['action', 'size', 'weekly', 'day', 'time'],
-    'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'],
+    'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'], 'sound_remove': ['slot', 'name'],
     'direction': ['action', 'kind', 'ref', 'text', 'at', 'id', 'token', 'changes', 'version', 'remember_undo'],
 }
 READS = ('status', 'snapshot', 'settings', 'plugins', 'experiments', 'timeline', 'queue', 'hooks', 'ytmusic', 'audio', 'capabilities')
@@ -74,7 +74,8 @@ def read(name, *, sender=None, hours=12, limit=120):
     return {'ok': True, 'status': status, 'timeline': timeline(), 'plugins': plugins.listing(cfg),
             'settings': settings.listing(cfg), 'ytmusic': ytmusic.status(),
             'audio_preset': config.audio_presets(), 'music_source_choice': settings.music_source(cfg),
-            'hooks': read('hooks')['hooks'] if plugins.on(cfg, 'track_previews') else None, 'charts': read_charts(), 'chart_set': chartset.load()}
+            'hooks': read('hooks')['hooks'] if plugins.on(cfg, 'track_previews') else None, 'charts': read_charts(), 'chart_set': chartset.load(),
+            'sounds': sounds.listing(cfg)}
 
 
 def read_charts():
@@ -198,6 +199,12 @@ def execute(body, *, sender=None, starter=None, port=8765):
         except ValueError as e:
             return reply({"ok": False, "error": str(e)}, 400)
         resp = {"ok": True, "settings": settings.listing(cfg)}
+    elif cmd == 'sound_remove':  # one of the station's own sounds (they are added by upload, /api/sound)
+        try:
+            sounds.remove(str(body.get('slot', '')), str(body.get('name', '')))
+        except (OSError, ValueError) as error:
+            return reply({'ok': False, 'error': str(error)}, 400)
+        resp = {'ok': True, 'sounds': sounds.listing(cfg)}
     elif cmd == 'hook_review':
         db = store.connect()
         try:

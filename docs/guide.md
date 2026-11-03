@@ -73,6 +73,31 @@ To check the audio tools, music directory, and voice backend, including synthesi
 
 Browser output pauses after 30 seconds without listeners and resumes when one connects. The schedule continues to follow wall time; expired editions do not accumulate. Next switches music and cancels a pending automatic insert. Station IDs are eligible at hourly boundaries after 30 minutes without identification.
 
+### Adding songs while it plays
+
+Copy songs into the music folder at any time; no restart is needed. About every 30 seconds the station checks the folder's modification times, which costs almost nothing. When a folder has changed, it looks for new files. A file joins once its size has stayed the same between two checks, so a copy in progress is never picked up. The station then measures it once (loudness, quiet ending, vocals) and adds it:
+
+- With **Unplayed tracks first** on, it plays among the next songs, newest first.
+- With it off, it takes a random place in the rest of the current round (with Shuffle off, the round's end). Songs before it keep their places, and the songs after it shift by its length.
+
+A file FFmpeg cannot decode is left out.
+
+### Your own sounds
+
+Every sound the station plays around speech has a slot. **Settings → Sounds** lists the slots: there you can upload a file into a slot, listen to it, or remove it. A slot that has files of its own plays them in rotation, one per use, instead of Base. An empty slot plays Base, or the file set in `[jingles]` in `config.toml`.
+
+| Slot | Plays |
+| --- | --- |
+| Intro (`stinger_in`) | At the start of a host edition |
+| Outro (`stinger_out`) | At the end of an edition, before the music |
+| Speech bed (`bed`) | Quietly under the host's voice |
+| Separator (`separator`) | Between the blocks of an edition |
+| Reminder (`reminder`) | Before a calendar or Todoist reminder |
+| Station ID (`station_id`) | Between songs, with **Station IDs** on |
+| GitHub intro, Horizon intro | At the start of those sections |
+
+The files live in `~/Library/Application Support/PersonalRadioClaude/sounds/<slot>/`. You can also copy MP3, M4A, FLAC or WAV files there directly. An upload is accepted up to 50 MB, and only if FFmpeg finds audio in it. Changes apply without a restart: editions that are already prepared are rebuilt with the new sounds.
+
 ## Integrations
 
 | Integration | Content | Setup |

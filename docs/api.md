@@ -14,7 +14,7 @@ command-line agent uses the same operations through `radio/control.py`.
 
 - `GET /` returns the selected theme's `index.html` with the per-run token in place of `__TOKEN__` and
   `true`/`false` in place of `__LOCAL_CONTROL__` (start and stop allowed on this port). The page is `no-store`.
-- Every `/api/*` request and `/hook-preview.wav` needs the header `X-Radio-Token: <token>`; a missing or wrong
+- Every `/api/*` request, `/hook-preview.wav` and `/sound` need the header `X-Radio-Token: <token>`; a missing or wrong
   token is 403. The token changes whenever `radio ui` restarts, so a page from an earlier run must reload.
 - Every request needs a trusted `Host` header: `127.0.0.1:<port>` or `localhost:<port>`, or on the phone port the
   exact `[output] control_host`. Anything else is 403, so another site cannot reach the API through DNS rebinding.
@@ -29,7 +29,7 @@ command-line agent uses the same operations through `radio/control.py`.
 ### Snapshot
 
 `GET /api/status` answers `{ok, status, timeline, plugins, settings, ytmusic, audio_preset,
-music_source_choice, hooks, charts, chart_set}`:
+music_source_choice, hooks, charts, chart_set, sounds}`:
 
 - `status`: the station now. `state` (`STARTING`, `PLAYING`, `PAUSED`, `STOPPING`, `STOPPED`), `auto_paused`,
   `paused_at`, `output` (`speakers`, `browser`, `both`), `current_kind`, `current_title`, `elapsed_sec`,
@@ -52,6 +52,8 @@ music_source_choice, hooks, charts, chart_set}`:
 - `charts`: songs ranked by thumbs up, `{week, month, all}` (last 7 days, 30 days, all time), each `[{place, ref, title,
   marks, plays, was}]`: most marks first, then by title; `plays` in the same window; `was` the place a day earlier
   (`null`: not in that chart).
+- `sounds`: the sound slots, `[{slot, title, hint, own, base}]`: `own` and `base` are file names; a slot with any
+  `own` files plays them instead of Base (`radio/sounds.py`).
 
 Fields are added over time; a theme ignores what it does not know.
 
@@ -68,6 +70,7 @@ are listed by `/api/capabilities`:
 | `next`, `skip-news` | | Next track; skip the host edition on air |
 | `reroll-next` | `ref` | Replace the next song with another random one |
 | `reroll` | `ref` | Replace any coming song (the next one as `reroll-next`) with a random song not in the plan; the others keep their places |
+| `sound_remove` | `slot`, `name` | Remove one of the station's own sounds; an empty slot plays Base again |
 | `replay`, `unqueue` | `kind`, `ref` | Play an aired song again at the next boundary; take it off the queue |
 | `catchup` | | Prepare a "What I missed" host edition |
 | `direction` | `action`, `kind`, `ref`, `text`, `at`, `id`, `token`, `changes`, `version`, `remember_undo` | Air direction: catalog, insert, save the plan, undo |
@@ -87,9 +90,14 @@ are listed by `/api/capabilities`:
 
 ## Audio
 
-- `GET /stream`: the live air as MP3, no length, no ranges, same origin as the page (Web Audio can analyze it).
+- `GET /stream`: the live air as AAC (ADTS), no length, no ranges, same origin as the page (Web Audio can analyze it).
   A client may join between frames. Listening counts as a listener for auto-pause.
 - `GET /voice-sample.wav`: the last voice sample. `GET /hook-preview.wav?id=<id>` (token): a track preview clip.
+- `GET /sound?slot=<slot>&name=<file>` (token): one of a slot's files, own or Base, to listen to.
+- `POST /api/sound?slot=<slot>&name=<file name>` (token), the file as the body (up to 50 MB): saves one of the
+  station's own sounds in `sounds/<slot>/` of the data folder once FFmpeg reads it as audio. Answers
+  `{ok, name, sounds}`; 400 with `{ok: false, error}` for an unknown slot, a name without an audio extension or a
+  file without audio. The station uses it from its next edition; prepared editions are rebuilt.
 
 ## Page files
 
