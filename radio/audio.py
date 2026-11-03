@@ -16,6 +16,9 @@ XF_IN, XF_OUT = 0.3, 0.5  # overlaps: body starts this long before the logo's lo
 RAMP_SEC = 0.5   # duck/unduck ramp
 BED_OPEN_DB = -6.0
 FMT = "aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo"
+# The host as on air, after the voice is at -16 LUFS: no rumble under 80 Hz, softer sibilants, an even level
+# (3:1 over -20 dB, the loss made up) and a little presence for clarity.
+VOICE = "highpass=f=80,deesser=i=0.3,acompressor=threshold=0.1:ratio=3:attack=5:release=120:makeup=2,equalizer=f=3000:t=q:w=1:g=2"
 
 
 def _ffmpeg(*args, timeout=300) -> str:
@@ -221,7 +224,7 @@ def render_notice(voice: Path, chime: Path, out_wav: Path) -> None:
     gain = lambda p, extra=0.0: f"volume={-16 - (lufs(p) or -16) + extra:.2f}dB"
     delay = max(0.0, cb - ca - 0.4)
     graph = (f"[0]atrim={ca:.3f}:{cb:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(chime, -3)},afade=t=out:st={max(0.0, cb - ca - 0.5):.3f}:d=0.5[c];"
-             f"[1]atrim={va:.3f}:{vb:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(voice)},adelay={int(delay * 1000)}:all=1[v];"
+             f"[1]atrim={va:.3f}:{vb:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(voice)},{VOICE},adelay={int(delay * 1000)}:all=1[v];"
              f"[c][v]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.89,{FMT}[out]")  # static gains: loudnorm misreads 4 s
     tmp = out_wav.with_suffix(".tmp.wav")
     _ffmpeg("-y", "-i", str(chime), "-i", str(voice), "-filter_complex", graph, "-map", "[out]", "-c:a", "pcm_s16le", str(tmp))
@@ -244,7 +247,7 @@ def render_link(voices: list[Path], out_wav: Path, jingle: Path, jingle_max_sec:
     gain = lambda p: f"volume={-16 - (lufs(p) or -16) + _by_ear(p):.2f}dB"
     ja, jb = active_span(jingle)
     j_chain, _, j_len = _prepared(len(voices), jingle, min(jingle_max_sec, jb - ja + 1.0))
-    chain = "".join(f"[{i}]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(v)},adelay={int(starts[i] * 1000)}:all=1[v{i}];"
+    chain = "".join(f"[{i}]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(v)},{VOICE},adelay={int(starts[i] * 1000)}:all=1[v{i}];"
                     for i, (v, (a, b)) in enumerate(zip(voices, spans)))
     n = len(voices)
     graph = (chain + f"{j_chain},{gain(jingle)},adelay={int(t_jingle * 1000)}:all=1[j];"
@@ -315,7 +318,7 @@ def render_package(voices: list[Path], out_wav: Path, bed_gain_db: float, jingle
     chain = []
     for i, v in enumerate(voices):
         a, b = spans[i]
-        chain.append(f"[{4 + i}]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(v)},"
+        chain.append(f"[{4 + i}]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(v)},{VOICE},"
                      f"adelay={int(starts[i] * 1000)}:all=1[v{i}];")
     # Each phrase is placed at its own time, so a separator may overlap the edges of phrases.
     chain.append("".join(f"[v{i}]" for i in range(n)) + f"amix=inputs={n}:normalize=0,apad=whole_dur={body}[v];")
@@ -329,7 +332,7 @@ def render_package(voices: list[Path], out_wav: Path, bed_gain_db: float, jingle
             chain.append(f"[s{i}]adelay={int(t * 1000)}:all=1[sd{i}];")
             mix.append(f"[sd{i}]")
     if lead:
-        chain.append(f"[{4 + n}]atrim={la:.3f}:{lb:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(lead)}[ld];")
+        chain.append(f"[{4 + n}]atrim={la:.3f}:{lb:.3f},asetpts=PTS-STARTPTS,{FMT},{gain(lead)},{VOICE}[ld];")
     graph = "".join(chain) + (
         f"[1]atrim=0:{bed_len:.3f},asetpts=N/SR/TB,{FMT},{gain(bed)},"
         f"volume='{_bed_gain_expr(shift + LEAD_SEC, shift + v1, BED_OPEN_DB, bed_gain_db)}':eval=frame,"

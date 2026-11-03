@@ -60,8 +60,8 @@ def static_file(url_path: str) -> Path | None:
 
 
 class Stream:
-    """Fans the sink's mp3-over-UDP out to every /stream client and keeps the listener count in a heartbeat file
-    the daemon reads (auto-pause). mp3 decoders resync on frame headers, so a client may join mid-packet.
+    """Fans the sink's AAC-over-UDP (ADTS) out to every /stream client and keeps the listener count in a heartbeat file
+    the daemon reads (auto-pause). AAC decoders resync on ADTS frame headers, so a client may join mid-packet.
     A new client first gets the last BURST_SEC of the air: the browser starts playing at once instead of buffering
     that long from live packets."""
     BURST_SEC = 1.0
@@ -100,7 +100,7 @@ class Stream:
         f.write_text(json.dumps({"n": len(self.clients), "t": time.time()}))
 
     def add(self) -> queue.Queue:
-        q = queue.Queue(maxsize=4000)  # ~3 min of 192k mp3
+        q = queue.Queue(maxsize=4000)  # minutes of 128k AAC
         with self.lock:
             now = time.monotonic()
             for at, data in self.recent:
@@ -116,11 +116,11 @@ class Stream:
         self.beat()
 
     def serve(self, handler):
-        # Live MP3 has no length or ranges; a listener may join between frames.
+        # A live stream has no length or ranges; a listener may join between frames.
         q = self.add()
         try:
             handler.send_response(200)
-            handler.send_header("Content-Type", "audio/mpeg")
+            handler.send_header("Content-Type", "audio/aac")
             handler.send_header("Cache-Control", "no-store")
             handler.end_headers()
             while True:

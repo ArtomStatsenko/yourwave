@@ -212,7 +212,7 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
     else "STALE" end
   end
   # Timeline 🎲 on a later song of the round: that one play becomes another song (its playlist line), the rest stay
-  def swap(k, u) =
+  def swap_song(k, u) =
     rest = s.remaining_files()
     i = list.index(fun (f) -> uri_ref(f) == k, rest)
     if i < list.length(rest) and not holding() and not list.mem(k, skipped()) then
@@ -222,7 +222,7 @@ def controlled_playlist(~id, ~prefetch=1, uri) =
   end
   server.register("#{id}.swap", fun (arg) -> begin
     let json.parse (p : {ref: string, uri: string}) = arg
-    swap(p.ref, p.uri)
+    swap_song(p.ref, p.uri)
   end)
   # each song this playlist starts brings the set-aside ones a place nearer; one whose turn has passed is gone
   s.on_track(synchronous=true, fun (_) -> begin
@@ -464,6 +464,19 @@ radio = amplify(1., radio)  # per-track gain from the liq_amplify annotation (me
 def spoken(m) =
   m["kind"] == "news" or m["kind"] == "reminder" or m["kind"] == "weather"
 end
+# The host over a song's ending: from the talk-up point the song steps down under the voice (to duck, over
+# duck_ramp s) and fades out over the rest of its window, instead of fading away before the first phrase is over.
+duck = 0.3
+duck_ramp = 0.4
+def ducked(t, s) =
+  start = ref(-1.)
+  def gain() =
+    if start() < 0. then start := source.time(s) end
+    e = source.time(s) - start()
+    if e < t then 1. elsif e < t + duck_ramp then 1. - (1. - duck) * (e - t) / duck_ramp else duck end
+  end
+  amplify(gain, s)
+end
 manual_skip = ref(false)
 def transition(a, b) =
   if manual_skip() then
@@ -485,8 +498,8 @@ def transition(a, b) =
       t = if a.metadata["liq_talk_up"] != "" then float_of_string(a.metadata["liq_talk_up"]) else max(0., da - 1.5) end
       in_md = list.add(("liq_fade_in_delay", "#{t}"), list.assoc.remove("liq_fade_in_delay", b.metadata))
       out_md = list.add(("liq_fade_out_delay", "#{t}"), list.assoc.remove("liq_fade_out_delay", a.metadata))
-      cross.simple(fade_in=xfade, fade_out=xfade, initial_fade_in_metadata=in_md, initial_fade_out_metadata=out_md,
-                   a.source, b.source)
+      cross.simple(fade_in=xfade, fade_out=max(xfade, da - t), ending_map=fun (s) -> ducked(t, s),
+                   initial_fade_in_metadata=in_md, initial_fade_out_metadata=out_md, a.source, b.source)
     else
       # The next track starts where it always did, xfade + 1 s before the end, whatever both windows are: a long
       # start window (a song the host can talk over) would otherwise start it earlier. After a talkover break the

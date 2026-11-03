@@ -14,6 +14,13 @@ from . import config, ytmusic
 LOG_KEEP_BYTES = 10_000_000  # liquidsoap.log is moved to .1 at a start once it is over this
 
 
+# The station sound, as FM stations have it: three bands (to 200 Hz, to 2.5 kHz, above) each 2:1 over -24 dB, so
+# songs and the host sit at one even level; +2.5 dB makes up what -16 LUFS material loses in it.
+BAND = "-90/-90,-24/-24,0/-12"
+MASTER = (f"mcompand=args='0.005,0.1 6 {BAND} 200 | 0.003,0.08 6 {BAND} 2500 | 0.001,0.05 6 {BAND} 20000',"
+          "volume=2.5dB")
+
+
 class Liquidsoap:
     def __init__(self, m3u: Path, crossfade_sec: float, output: str = "device", record: str = "",
                  sink: dict | None = None, fallback_m3u: Path | None = None):
@@ -81,16 +88,16 @@ class Liquidsoap:
         raise RuntimeError("liquidsoap did not start, see logs/liquidsoap.log")
 
     def sink_command(self) -> str:
-        """ffmpeg reading Liquidsoap's raw PCM: true-peak-safe limiter (-1.5 dB) -> speakers and/or the browser
-        stream (+ recording). The stream is mp3 over local UDP to the UI server, which fans it out to its pages:
-        UDP never blocks or fails the sink when no page is listening."""
-        lim = "alimiter=limit=0.84:attack=5:release=50:level=false"
+        """ffmpeg reading Liquidsoap's raw PCM: the station's multiband sound and a true-peak-safe limiter (-1.5 dB)
+        -> speakers and/or the browser stream (+ recording). The stream is AAC (ADTS) over local UDP to the UI server,
+        which fans it out to its pages: UDP never blocks or fails the sink when no page is listening."""
+        lim = f"{MASTER},alimiter=limit=0.84:attack=5:release=50:level=false"
         mode = self.sink["mode"]
         outs = []
         if mode in ("speakers", "both"):
             outs.append(["-f", "audiotoolbox", "-"])
         if mode in ("browser", "both"):
-            outs.append(["-c:a", "libmp3lame", "-b:a", self.sink["stream_bitrate"], "-f", "mp3",
+            outs.append(["-c:a", "aac_at", "-b:a", self.sink["stream_bitrate"], "-f", "adts",
                          f"udp://127.0.0.1:{self.sink['stream_port']}?pkt_size=1316"])
         if self.record:
             outs.append(["-c:a", "pcm_s16le", "-y", self.record])
