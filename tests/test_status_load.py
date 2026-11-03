@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 from tests import test_radio  # noqa: F401  (an isolated data folder)
-from radio import config, engine, plugins
+from radio import config, engine, plugins, store
 from radio.daemon import Service
 from radio.tts import MockTTS
 
@@ -98,6 +98,20 @@ class SkipSetSongTests(unittest.TestCase):
         self.assertTrue(asyncio.run(svc.dispatch('unskip', {'ref': 'ytmusic:bbbbbbbbbbb'}))['ok'])
         self.assertEqual(svc.engine.push_replay.await_args.args[0], 'ytmusic:bbbbbbbbbbb')
         self.assertEqual((svc.fresh_queued.get('ytmusic:bbbbbbbbbbb'), svc.fresh_aside, svc.fresh_passed), ('9', {}, set()))
+
+
+class SongLinkTests(unittest.TestCase):
+    def test_a_link_about_a_song_does_not_air_after_the_next_one(self):
+        from radio import content
+        svc = Service(config.load(), tts=MockTTS(), output='x')
+        svc.on_event({'kind': 'music', 'ref': '/m/a.mp3'})
+        content.add_item(svc.db, svc.cfg, {'id': 'system:music-link:s:1', 'topic': 'Музыкальная пауза', 'speak_topic': False,
+                                           'source': 'music_facts', 'url': '', 'published_at': store.now(),
+                                           'body': 'Прозвучала песня A.'}, kind='announcement')
+        status = lambda: svc.db.execute("SELECT p.status FROM packages p WHERE p.item_id='system:music-link:s:1'").fetchone()[0]
+        self.assertIn(status(), ('PENDING', 'READY'))
+        svc.on_event({'kind': 'music', 'ref': '/m/b.mp3'})  # no break after A: B started
+        self.assertEqual(status(), 'SKIPPED')
 
 
 class PluginSwitchTests(unittest.TestCase):

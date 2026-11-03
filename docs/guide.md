@@ -77,7 +77,7 @@ Songs cross into each other in 2.25 s (`[music] crossfade_sec`); **Next** crosse
 
 Copy songs into the music folder at any time; no restart is needed. About every 30 seconds the station checks the folder's modification times, which costs almost nothing. When a folder has changed, it looks for new files. A file joins once its size has stayed the same between two checks, so a copy in progress is never picked up. The station then measures it once (loudness, quiet ending, vocals) and adds it:
 
-- With **Unplayed tracks first** on, it plays among the next songs, newest first.
+- With **Unplayed tracks first** on, it is put ahead: within the next two songs, newest first.
 - With it off, it takes a random place in the rest of the current round (with Shuffle off, the round's end). Songs before it keep their places, and the songs after it shift by its length.
 
 A file FFmpeg cannot decode is left out.
@@ -127,7 +127,7 @@ Todoist reminders require both a date and a time. Original descriptions and link
 
 LRCLIB lyrics help choose speech windows around vocals. Optional Music stories use exact matches from MusicBrainz and Wikidata, with cached results and template-based host links. Enabling them sends artist and track names to those services.
 
-Music stories prepare for the next clock edition independently of news availability. News sources keep separate statuses and retry intervals. **Unplayed tracks first** puts unheard songs from the active local or YouTube Music library ahead of repeats, without waiting for a clock slot or a minimum number of songs. Local tracks are ordered newest first; YouTube Music keeps the source playlist order. Once those tracks have aired, normal shuffle continues. The current song finishes, manual replays and timed inserts keep their priority, and switching sources removes pending priority tracks from the previous source. The legacy `new_every_sets` setting now means 0 = off, any positive value = on. This works without news or Host links, and a new edition does not discard the remaining priority songs. Weather and calendar dates also work independently of Host links. Pause, playback order, and speech limits remain shared station constraints.
+Music stories prepare for the next clock edition independently of news availability. News sources keep separate statuses and retry intervals. **Unplayed tracks first** puts unheard songs from the active local or YouTube Music library ahead of repeats, without waiting for a clock slot or a minimum number of songs. Local tracks are ordered newest first; YouTube Music keeps the source playlist order. There are no batches: two unheard songs wait ahead at a time and the next one joins as one airs, so a song added to the folder comes up within two songs, and a YouTube song has a song's time to load. A song YouTube refuses (removed, private, another region) is left out for a day. ✕ on one skips it this time and it is not put ahead again until a restart; the shuffle may still play it. Once every song has aired, normal shuffle continues. The current song finishes, manual replays and timed inserts keep their priority, and switching sources removes pending priority tracks from the previous source. The legacy `new_every_sets` setting now means 0 = off, any positive value = on. This works without news or Host links, and a new edition does not discard the remaining priority songs. Weather and calendar dates also work independently of Host links. Pause, playback order, and speech limits remain shared station constraints.
 
 Experimental public Reddit and Telegram news adapters are documented separately in [public-news.md](public-news.md) (Russian).
 
@@ -171,7 +171,6 @@ path = "~/Music/Radio"
 
 [broadcast]
 station_name = "Yourwave"
-music_set_minutes = 20
 max_break_speech_sec = 120
 max_spoken_seconds_per_rolling_hour = 300
 

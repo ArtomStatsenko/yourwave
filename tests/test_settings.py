@@ -36,13 +36,13 @@ class SavedSettingsTests(unittest.TestCase):
                     self.assertEqual(settings.base(self.cfg), defaults)
 
     def test_infinite_number_is_rejected_and_does_not_replace_saved_settings(self):
-        settings.set_setting('music_set_minutes', 35)
+        settings.set_setting('lead_min', 35)
         original = (self.root / 'settings.json').read_text()
         for value in (float('inf'), float('-inf'), '1e999'):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'number is expected'):
-                settings.set_setting('music_set_minutes', value)
+                settings.set_setting('lead_min', value)
         self.assertEqual((self.root / 'settings.json').read_text(), original)
-        (self.root / 'settings.json').write_text('{"music_set_minutes": 1e999}')
+        (self.root / 'settings.json').write_text('{"lead_min": 1e999}')
         defaults = settings.base(self.cfg)
         settings.apply(self.cfg, defaults)
         self.assertEqual(settings.base(self.cfg), defaults)

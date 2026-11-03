@@ -81,7 +81,6 @@ cohost_character = "A friendly skeptic. Values reliability, privacy and everyday
 station_name = "Yourwave"  # said in host links; a Latin name is voiced in «quotes» (reads as English)
 host_links = true           # news break: back-sell of the last songs, time check, ... set opener for the next music
 talkover_share = 0.5        # without lyrics: share of bulletins that end with the host talking over the next song's start
-music_set_minutes = 20      # length of new-tracks selections; editions follow :00/:30 clock slots
 max_break_speech_sec = 120  # one break gathers the ready bulletins up to this much speech (rolling-hour limit applies)
 new_every_sets = 1          # legacy name: 0 disables unplayed-track priority, any positive value enables it
 station_id_every_songs = 0  # legacy key: 0 disables; positive enables clock ID opportunities (30 min cooldown)

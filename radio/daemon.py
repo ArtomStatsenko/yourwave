@@ -53,6 +53,7 @@ UNAVAILABLE = "unavailable"  # a reroll pick YouTube does not serve: the next sp
 IDLE_STOP_SEC = 60  # browser output: no page asking and no one listening this long -> the radio stops
 HEAR_EVERY_SEC = 180  # one song every 3 minutes: the library (~270 songs) is done in about a day, never at once
 ENERGY_PREFETCH = 2  # queue reserve, independent of the energy curve
+NEW_AHEAD = 2  # Unplayed tracks first: this many new songs wait ahead, so a YouTube one loads while the one before plays
 
 
 def log(*a):
@@ -143,8 +144,8 @@ class Service:
         self.queued_reminders: dict[str, tuple] = {}  # timed reminders can expire before the song ends
         self.fresh_missing: set[str] = set()
         self.fresh_queued: dict[str, str] = {}  # path -> request id of new songs waiting in Liquidsoap's fresh queue
-        self.fresh_aside: dict[str, int] = {}  # a set song skipped this time (Timeline ✕) -> its place in the set
-        self.fresh_passed: set[str] = set()  # set songs skipped this run: no later set brings them (the shuffle may)
+        self.fresh_aside: dict[str, int] = {}  # a new song skipped this time (Timeline ✕) -> its place among them, shown there
+        self.fresh_passed: set[str] = set()  # new songs skipped this run: not put ahead again (the shuffle may play them)
         self.energy_queued = set()
         self.energy_played = set()
         self.energy_seconds = 0.0
@@ -750,7 +751,8 @@ class Service:
             self.db.execute("UPDATE music_previews SET status='PLAYED',played_at=? WHERE id=? AND status='PLAYING'", (iso(now()),prev['ref']))
         self.db.execute("UPDATE air_plan SET status='PLAYED',rid=NULL WHERE id=?", (m.get("replay_id") or "",))
         self.replays.pop(m.get("replay_id") or "", None)  # on air now: no longer queued
-        self.fresh_queued.pop(m.get("ref") or "", None)
+        if self.fresh_queued.pop(m.get("ref") or "", None) is not None:  # a new song aired: a skipped one's turn moves up
+            self.fresh_aside = {ref: place - 1 for ref, place in self.fresh_aside.items() if place > 0}
         self.energy_queued.discard(m.get('ref') or '')
         self.next_track = ""
         resumed = (m.get("ref") or "") in self.resume_offset  # logged when it first started, before the restart
@@ -832,6 +834,8 @@ class Service:
             self.set_started = self.set_started or self.current["started"]
             if s := music.song(self.db, self.current["ref"]):
                 self.set_songs.append(s)
+            # a song link not aired by now said "that was ..." about the song before: it must not follow this one
+            self.db.execute("UPDATE packages SET status='SKIPPED' WHERE status IN ('PENDING','READY') AND item_id LIKE 'system:music-link:%'")
             self.current["duration"] = self._song_seconds(self.current["ref"])
             if not resumed:  # a resumed song once more was a second history row and a second play in the charts
                 store.log_event(self.db, self.session, "MUSIC_STARTED", self.current["ref"])
@@ -1276,7 +1280,7 @@ class Service:
             return
         slot = self._clock_slot(now() + timedelta(seconds=max(0, remaining)))
         current = self.current
-        if not immediate and not self.fresh_queued and self._new_set_due():
+        if not immediate and len(self.fresh_queued) < NEW_AHEAD and not self.energy_queued and self._new_set_due():
             new = await asyncio.to_thread(self._pick_new)
             async with self.handoff_lock:
                 if (generation != self.schedule_generation or self.current is not current
@@ -1918,8 +1922,7 @@ class Service:
         return self.files
 
     def _pick_new(self) -> list[Path | str]:
-        """Unplayed tracks of the active source, ahead of the shuffle; local files are newest first."""
-        b = self.cfg["broadcast"]
+        """Unplayed tracks of the active source, ahead of the shuffle (up to NEW_AHEAD waiting); local files newest first."""
         if self.ytmusic_active:
             aired = {r[0] for r in self.db.execute("SELECT DISTINCT ref FROM events WHERE type='MUSIC_STARTED'")}
             found = [f"ytmusic:{t['id']}" for t in ytmusic.library()['tracks'] if f"ytmusic:{t['id']}" not in aired]
@@ -1927,11 +1930,9 @@ class Service:
                 found += music.unaired_new(self.db, self._local_files())
         else:
             found = music.unaired_new(self.db, self._local_files())
-        if not self.fresh_queued:
-            self.fresh_aside.clear()  # the set is over: a song skipped in it may come in a later one
-        excluded = {(self.current or {}).get('ref', ''), *self.fresh_passed}
+        excluded = {(self.current or {}).get('ref', ''), *self.fresh_passed, *self.fresh_queued}
         excluded.update(r['ref'] for r in self.replays.values() if r['kind'] == 'music')
-        excluded |= ytmusic.unavailable()  # a song YouTube refused would hold the set at its first place
+        excluded |= ytmusic.unavailable()  # a song YouTube refused never loads: it would hold its place ahead
         found = [f for f in found if str(f) in self.intro_rooms and str(f) not in excluded]
         wave = not self.ytmusic_active and plugins.on(self.cfg, 'energy_wave')
         if wave:
@@ -1939,13 +1940,7 @@ class Service:
             wave = len(known) >= 2
             if wave:
                 found = self._energy_order(found)
-        picked, total = [], 0.0
-        for f in found:
-            picked.append(f)
-            total += self._song_seconds(str(f))
-            if (wave and len(picked) >= ENERGY_PREFETCH) or total >= b["music_set_minutes"] * 60:
-                break
-        return picked
+        return found[:max(0, (ENERGY_PREFETCH if wave else NEW_AHEAD) - len(self.fresh_queued))]
 
     def _energy_elapsed(self):
         current = self.current or {}
@@ -1999,7 +1994,7 @@ class Service:
             if wave:
                 self.energy_queued.add(str(f))
         store.log_event(self.db, self.session, 'ENERGY_WAVE_QUEUED' if wave else 'NEW_TRACKS_QUEUED', detail=str(len(files)))
-        log("energy-wave set queued:" if wave else "new-tracks set queued:", len(files), "songs")
+        log("energy-wave set queued:" if wave else "new tracks queued:", len(files), "songs")
 
     async def _forget_dropped_fresh(self) -> None:
         if not self.fresh_queued:
@@ -2674,7 +2669,7 @@ class Service:
         return self.energy_cache[1]
 
     def _music_plan_rows(self, rows, probe=True, plan=()):
-        if self.fresh_aside:  # a skipped set song stays in its place in the set, marked
+        if self.fresh_aside:  # a skipped new song stays in its place among them, marked
             rows = list(rows)
             start = next((i for i, r in enumerate(rows) if r.get('set')), len([r for r in rows if r.get('kind') != 'music']))
             for ref, place in sorted(self.fresh_aside.items(), key=lambda x: x[1]):
@@ -2898,7 +2893,7 @@ class Service:
                 return {'ok': False, 'error': 'Choose a coming song'}
             if ref == self.next_track:
                 await self._cancel_preview()  # a "Coming up" prepared for the next song no longer fits, as on a reroll
-            if cmd == 'skip' and ref in self.fresh_queued:  # a song of the set (Unplayed tracks first): off its queue
+            if cmd == 'skip' and ref in self.fresh_queued:  # a new song put ahead (Unplayed tracks first): off its queue
                 place = list(self.fresh_queued).index(ref)
                 await self.engine.remove(self.fresh_queued.pop(ref), 'fresh')
                 self.energy_queued.discard(ref)
@@ -2907,7 +2902,7 @@ class Service:
                 self.plan_gen += 1
                 return await self.dispatch('status')
             if cmd == 'unskip' and ref in self.fresh_aside:
-                # shortcut: it goes back at the end of the set, not at its old place; enough for a set of a few songs
+                # shortcut: it goes back after the new songs already ahead, not at its old place; there are only two
                 del self.fresh_aside[ref]
                 self.fresh_passed.discard(ref)
                 await self._queue_fresh([Path(ref) if ref in self.files_set() else ref])

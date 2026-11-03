@@ -148,7 +148,7 @@ class NewsReliabilityTests(unittest.TestCase):
         at = store.now().replace(minute=10, second=0, microsecond=0)  # outside the news edition's window
 
         async def queue(files):
-            svc.fresh_queued = {str(files[0]): '7'}
+            svc.fresh_queued = {str(files[0]): '7', '/tmp/second.wav': '8'}  # the songs ahead are full (NEW_AHEAD)
 
         with patch.object(daemon.plugins, 'on', side_effect=lambda cfg, name: name == 'new_tracks'), \
              patch.object(svc, '_pick_new', return_value=[Path('/tmp/new.wav')]), \

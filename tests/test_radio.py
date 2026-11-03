@@ -509,7 +509,6 @@ class SchedulingTests(unittest.TestCase):
         self.fake_engine(pushed)
         self.svc._assemble_break = lambda pkgs, air, links, first, room, novelty: (Path("/tmp/break.wav"), 0)
         self.cfg["broadcast"]["station_id_every_songs"] = 0
-        self.cfg["broadcast"]["music_set_minutes"] = 20
         self.add("a", "chatgpt", 1)
         self.add("github:b", "github_trending", 1)
         self.svc.on_event({"kind": "music", "ref": "/m/1.mp3"})
@@ -657,7 +656,7 @@ class SchedulingTests(unittest.TestCase):
         old = songs[0]
         os.utime(old, (time.time() - 40 * 86400,) * 2)                       # added long ago: not new
         b = self.cfg["broadcast"]
-        b.update(new_every_sets=2, new_days=14, new_min_tracks=3, music_set_minutes=1, station_id_every_songs=0)
+        b.update(new_every_sets=2, new_days=14, new_min_tracks=3, station_id_every_songs=0)
         self.svc.defaults = radio_settings.base(self.cfg)  # these edits stand for config.toml values
         self.svc.files = songs
         self.svc.intro_rooms = {str(f): None for f in songs}
@@ -1077,22 +1076,22 @@ class SchedulingTests(unittest.TestCase):
         svc, d = self.svc, settings.base(self.cfg)
         try:
             settings.apply(svc.cfg, d)
-            self.assertEqual(svc.cfg["broadcast"]["music_set_minutes"], d["music_set_minutes"])   # nothing saved: config.toml
-            settings.set_setting("music_set_minutes", 35)
+            self.assertEqual(svc.cfg["reminders"]["lead_min"], d["lead_min"])   # nothing saved: config.toml
+            settings.set_setting("lead_min", 35)
             settings.set_setting("max_spoken_seconds_per_rolling_hour", 100000)                 # clamped to the maximum
             settings.set_setting("new_every_sets", "0")                                          # 0 = off is allowed
             settings.apply(svc.cfg, d)
-            self.assertEqual((svc.cfg["broadcast"]["music_set_minutes"], svc.cfg["broadcast"]["new_every_sets"],
+            self.assertEqual((svc.cfg["reminders"]["lead_min"], svc.cfg["broadcast"]["new_every_sets"],
                               svc.cfg["broadcast"]["max_spoken_seconds_per_rolling_hour"]), (35, 0, 900))
-            row = {r["key"]: r for r in settings.listing(config.load())}["music_set_minutes"]
-            self.assertEqual((row["value"], row["default"]), (35, d["music_set_minutes"]))
+            row = {r["key"]: r for r in settings.listing(config.load())}["lead_min"]
+            self.assertEqual((row["value"], row["default"]), (35, d["lead_min"]))
             with self.assertRaises(ValueError):
                 settings.set_setting("nope", 1)
             with self.assertRaises(ValueError):
-                settings.set_setting("music_set_minutes", "abc")
-            settings.reset("music_set_minutes")                                                  # one back to config.toml
+                settings.set_setting("lead_min", "abc")
+            settings.reset("lead_min")                                                  # one back to config.toml
             settings.apply(svc.cfg, d)
-            self.assertEqual(svc.cfg["broadcast"]["music_set_minutes"], d["music_set_minutes"])
+            self.assertEqual(svc.cfg["reminders"]["lead_min"], d["lead_min"])
             self.assertEqual(svc.cfg["broadcast"]["new_every_sets"], 0)
             settings.set_setting("station_name", "  Ночной \n  эфир ")                         # a text: one line
             settings.apply(svc.cfg, d)
@@ -1107,15 +1106,6 @@ class SchedulingTests(unittest.TestCase):
         finally:
             path.unlink(missing_ok=True)
             settings.apply(svc.cfg, d)
-
-    def test_new_track_set_length_does_not_move_host_editions(self):
-        from radio import settings
-        before = self.svc._clock_rows()
-        for length in (20, 40):
-            settings.set_setting('music_set_minutes', length)
-            self.svc._live_settings()
-            self.assertEqual(self.svc._clock_rows(), before)
-        (config.DATA_DIR / 'settings.json').unlink(missing_ok=True)
 
     def test_plugin_switches(self):
         from radio import plugins

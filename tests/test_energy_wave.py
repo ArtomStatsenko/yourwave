@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from radio import config, energy, music, plugins, settings, store
+from radio import config, daemon, energy, music, plugins, settings, store
 from radio.daemon import Service
 from radio.engine import Liquidsoap
 from radio.tts import MockTTS
@@ -166,7 +166,7 @@ class EnergyWaveTests(unittest.TestCase):
         cfg = self.svc.cfg
         with patch('radio.music.unaired_new', return_value=self.files), patch.object(self.svc, '_song_seconds', return_value=240):
             plain = self.svc._pick_new()
-            self.assertEqual(plain, self.files[:5])
+            self.assertEqual(plain, self.files[:daemon.NEW_AHEAD])
             plugins.set_plugin('energy_wave', True)
             ordered = self.svc._pick_new()
             self.assertEqual(len(ordered), 2)
