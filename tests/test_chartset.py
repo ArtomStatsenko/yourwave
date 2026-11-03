@@ -6,6 +6,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
+from zoneinfo import ZoneInfo
 
 from tests import test_radio  # noqa: F401  (an isolated data folder)
 from radio import chartset, config, plugins, store
@@ -114,6 +115,27 @@ class ChartSetOnAirTests(unittest.TestCase):
         self.svc.db.execute("DELETE FROM air_plan")
         self.svc._chart_weekly()
         self.assertEqual(self.svc.db.execute("SELECT COUNT(*) FROM air_plan").fetchone()[0], 0, 'more than a day away: not yet')
+
+
+    def test_a_block_not_aired_yet_follows_the_settings_and_a_skip_on_a_valid_day_stays(self):
+        chartset.save({'weekly': True, 'day': 'sat', 'time': '09:00', 'size': 5})
+        self.svc._chart_weekly()
+        row = lambda: self.svc.db.execute("SELECT * FROM air_plan WHERE id='direction:chart:2026-11-07'").fetchone()
+        self.svc.db.execute("UPDATE air_plan SET skipped=1 WHERE id='direction:chart:2026-11-07'")
+        self.svc.db.execute("INSERT INTO air_plan(id,kind,ref,status) VALUES('direction:chart:2026-11-03','chart','5','PLAYED')")
+        self.svc._chart_weekly()
+        self.assertEqual(row()['skipped'], 1, 'nothing changed: the skip stays')
+        chartset.save({'time': '10:30', 'size': 10})
+        self.svc._chart_weekly()
+        self.assertEqual((row()['skipped'], row()['ref']), (1, '10'))
+        self.assertEqual(datetime.fromisoformat(row()['not_before']).astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%a %H:%M'), 'Sat 10:30')
+        chartset.save({'day': 'fri'})  # the old Saturday block must not air
+        self.svc._chart_weekly()
+        self.assertIsNone(row())
+        self.assertEqual(self.svc.db.execute("SELECT status FROM air_plan WHERE id='direction:chart:2026-11-03'").fetchone()[0], 'PLAYED', 'what aired stays')
+        chartset.save({'weekly': False})
+        self.svc._chart_weekly()
+        self.assertEqual(self.svc.db.execute("SELECT COUNT(*) FROM air_plan WHERE status='PENDING'").fetchone()[0], 0)
 
 
 class ChartSetBlockTests(unittest.TestCase):

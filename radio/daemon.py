@@ -2446,9 +2446,21 @@ class Service:
         return blocks
 
     def _chart_weekly(self):
-        """Every week (Charts): the next weekly set becomes a plan block a day ahead, one per date (a skip stays)."""
+        """Every week (Charts): the next weekly set becomes a plan block a day ahead, one per date (a skip stays).
+        A block not aired yet follows the settings: on a day they no longer name it is dropped, and when they change
+        it takes their time and size (a block moved in the editor keeps its time until then)."""
         settings = chartset.load()
-        when = chartset.next_weekly(settings, now(), self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'))
+        zone = ZoneInfo(self.cfg['weather'].get('timezone', 'Asia/Ho_Chi_Minh'))
+        changed, self.chart_settings = settings != getattr(self, 'chart_settings', settings), settings
+        for row in self.db.execute("SELECT id FROM air_plan WHERE id LIKE 'direction:chart:%' AND status='PENDING'").fetchall():
+            day = datetime.fromisoformat(row['id'].removeprefix('direction:chart:')).date()
+            if not settings['weekly'] or day.weekday() != chartset.DAYS.index(settings['day']):
+                self.db.execute("DELETE FROM air_plan WHERE id=?", (row['id'],))
+            elif changed:
+                at = datetime.combine(day, datetime.strptime(settings['time'], '%H:%M').time(), zone)
+                self.db.execute("UPDATE air_plan SET not_before=?,ref=?,text=? WHERE id=?",
+                                (iso(at), str(settings['size']), chartset.title(settings['size']), row['id']))
+        when = chartset.next_weekly(settings, now(), zone.key)
         if when and when - now() <= timedelta(hours=24):
             self.db.execute("INSERT OR IGNORE INTO air_plan(id,kind,ref,text,not_before) VALUES(?,?,?,?,?)",
                             ('direction:chart:' + when.date().isoformat(), 'chart', str(settings['size']), chartset.title(settings['size']), iso(when)))
