@@ -143,6 +143,8 @@ class Service:
         self.queued_reminders: dict[str, tuple] = {}  # timed reminders can expire before the song ends
         self.fresh_missing: set[str] = set()
         self.fresh_queued: dict[str, str] = {}  # path -> request id of new songs waiting in Liquidsoap's fresh queue
+        self.fresh_aside: dict[str, int] = {}  # a set song skipped this time (Timeline ✕) -> its place in the set
+        self.fresh_passed: set[str] = set()  # set songs skipped this run: no later set brings them (the shuffle may)
         self.energy_queued = set()
         self.energy_played = set()
         self.energy_seconds = 0.0
@@ -1908,6 +1910,9 @@ class Service:
         b = self.cfg["broadcast"]
         return plugins.on(self.cfg, "new_tracks") and b["new_every_sets"] > 0
 
+    def files_set(self) -> set[str]:
+        return {str(f) for f in self.files}
+
     def _local_files(self) -> list[Path]:
         self.files = [f for f in self.files if f.is_file()]
         return self.files
@@ -1922,7 +1927,9 @@ class Service:
                 found += music.unaired_new(self.db, self._local_files())
         else:
             found = music.unaired_new(self.db, self._local_files())
-        excluded = {(self.current or {}).get('ref', '')}
+        if not self.fresh_queued:
+            self.fresh_aside.clear()  # the set is over: a song skipped in it may come in a later one
+        excluded = {(self.current or {}).get('ref', ''), *self.fresh_passed}
         excluded.update(r['ref'] for r in self.replays.values() if r['kind'] == 'music')
         found = [f for f in found if str(f) in self.intro_rooms and str(f) not in excluded]
         wave = not self.ytmusic_active and plugins.on(self.cfg, 'energy_wave')
@@ -2666,6 +2673,11 @@ class Service:
         return self.energy_cache[1]
 
     def _music_plan_rows(self, rows, probe=True, plan=()):
+        if self.fresh_aside:  # a skipped set song stays in its place in the set, marked
+            rows = list(rows)
+            start = next((i for i, r in enumerate(rows) if r.get('set')), len([r for r in rows if r.get('kind') != 'music']))
+            for ref, place in sorted(self.fresh_aside.items(), key=lambda x: x[1]):
+                rows.insert(min(start + place, len(rows)), {'ref': ref, 'uri': '', 'kind': 'music', 'set': True, 'skipped': True})
         current = self.current or {}
         now = time.time()
         at = self.paused_at if self.state == 'PAUSED' else now
@@ -2885,6 +2897,21 @@ class Service:
                 return {'ok': False, 'error': 'Choose a coming song'}
             if ref == self.next_track:
                 await self._cancel_preview()  # a "Coming up" prepared for the next song no longer fits, as on a reroll
+            if cmd == 'skip' and ref in self.fresh_queued:  # a song of the set (Unplayed tracks first): off its queue
+                place = list(self.fresh_queued).index(ref)
+                await self.engine.remove(self.fresh_queued.pop(ref), 'fresh')
+                self.energy_queued.discard(ref)
+                self.fresh_aside[ref] = place
+                self.fresh_passed.add(ref)
+                self.plan_gen += 1
+                return await self.dispatch('status')
+            if cmd == 'unskip' and ref in self.fresh_aside:
+                # shortcut: it goes back at the end of the set, not at its old place; enough for a set of a few songs
+                del self.fresh_aside[ref]
+                self.fresh_passed.discard(ref)
+                await self._queue_fresh([Path(ref) if ref in self.files_set() else ref])
+                self.plan_gen += 1
+                return await self.dispatch('status')
             if await self.engine.command(f'music.{cmd} {ref}', timeout=85) != 'OK':  # queued YouTube songs load again, as on a reroll
                 return {'ok': False, 'error': 'This song is no longer coming up'}
             return await self.dispatch('status')

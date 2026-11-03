@@ -73,6 +73,33 @@ class RerollAnySongTests(unittest.TestCase):
         self.assertEqual(answer, {'ok': False, 'error': 'This song is no longer coming up'})
 
 
+class SkipSetSongTests(unittest.TestCase):
+    def test_a_set_song_is_skipped_off_its_queue_shown_in_place_and_back_on_dont_skip(self):
+        svc = Service(config.load(), tts=MockTTS(), output='x')
+        line = lambda ref, queue: f'annotate:plan_queue="{queue}":annotate:kind="music",ref="{ref}":{ref}'
+        plan = [{'ref': 'ytmusic:aaaaaaaaaaa', 'uri': line('ytmusic:aaaaaaaaaaa', 'fresh'), 'kind': 'music', 'set': True, 'duration': 60},
+                {'ref': 'ytmusic:ccccccccccc', 'uri': line('ytmusic:ccccccccccc', 'fresh'), 'kind': 'music', 'set': True, 'duration': 60},
+                {'ref': '/m/round.mp3', 'uri': line('/m/round.mp3', 'music'), 'kind': 'music', 'duration': 60}]
+        svc.fresh_queued = {'ytmusic:aaaaaaaaaaa': '5', 'ytmusic:bbbbbbbbbbb': '6', 'ytmusic:ccccccccccc': '7'}
+        svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value='ytmusic:aaaaaaaaaaa'),
+                          music_plan=AsyncMock(return_value=plan), pending=AsyncMock(return_value=['5', '7']),
+                          upcoming_music=AsyncMock(return_value=[]), remove=AsyncMock(), command=AsyncMock(return_value='STALE'),
+                          push_replay=AsyncMock(return_value='9'))
+        asyncio.run(svc.dispatch('status'))  # a page has asked once: the next song is known
+        self.assertTrue(asyncio.run(svc.dispatch('skip', {'ref': 'ytmusic:bbbbbbbbbbb'}))['ok'])
+        svc.engine.remove.assert_awaited_once_with('6', 'fresh')
+        svc.engine.command.assert_not_awaited()  # not looked for in the round
+        tracks = asyncio.run(svc.dispatch('status'))['status']['upcoming_tracks']
+        self.assertEqual([(t['ref'], bool(t.get('skipped'))) for t in tracks],
+                         [('ytmusic:aaaaaaaaaaa', False), ('ytmusic:bbbbbbbbbbb', True), ('ytmusic:ccccccccccc', False), ('/m/round.mp3', False)])
+        with patch.object(svc, '_local_files', return_value=[]), patch('radio.daemon.music.unaired_new', return_value=[]):
+            svc.ytmusic_active = False
+            self.assertNotIn('ytmusic:bbbbbbbbbbb', svc._pick_new(), 'no later set brings it this run')
+        self.assertTrue(asyncio.run(svc.dispatch('unskip', {'ref': 'ytmusic:bbbbbbbbbbb'}))['ok'])
+        self.assertEqual(svc.engine.push_replay.await_args.args[0], 'ytmusic:bbbbbbbbbbb')
+        self.assertEqual((svc.fresh_queued.get('ytmusic:bbbbbbbbbbb'), svc.fresh_aside, svc.fresh_passed), ('9', {}, set()))
+
+
 class PluginSwitchTests(unittest.TestCase):
     def test_one_switch_reads_as_the_whole_state(self):
         cfg = config.load()
