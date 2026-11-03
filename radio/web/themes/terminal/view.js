@@ -722,7 +722,7 @@ function markView(){
 // one timeline entry from RadioModel.timeline(): kind, time, title, now, replay button, unfolded details
 function row(x){
   var id=String(x.id),c=x.current,ex=x.expandable,o=ex&&!!open[id];
-  var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+(String(x.kindLabel).toLowerCase()===String(x.text).toLowerCase()&&!c?'':x.kindLabel)+'</span><span class="tx">'+esc(x.text)+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
+  var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+(String(x.kindLabel).toLowerCase()===String(x.text).toLowerCase()&&!c?'':x.kindLabel)+'</span><span class="tx">'+esc(x.text)+trackSource(x.kind==='music'?x.ref:'')+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
   var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+(selectedRow===id?' sel':'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
   if(x.kind==='music')h+=markButton(x);
   if(x.kind==='music'&&x.replayable)
@@ -738,6 +738,8 @@ function row(x){
     h+='</div>'}
   return h+'</div>'}
 function backgroundError(message){return RadioModel.backgroundError(message)}
+// where a song comes from, after its title: YouTube Music songs carry a ytmusic: ref, the rest are files on this Mac
+function trackSource(ref){return ref?'<span class="l track-src"> · '+(String(ref).indexOf('ytmusic:')===0?'YouTube Music':'Local')+'</span>':''}
 var rerollFx=null;  // {old}: a reroll's effect on the next row; the row is not redrawn until the new title has arrived
 function timeline(){
   if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
@@ -755,7 +757,7 @@ function timeline(){
   // farthest at the top, the nearest right above the queue and now
   $('upcoming').innerHTML=shown.map(function(r){
     var tm=r.next?(up.queue.length?'then':'next'):(r.at?(r.tentative?'~':'')+atClock(r.at):'');
-    var tx=r.next?esc(r.title)+(r.pending?' <span class="l">· loading…</span>':trackLabels(r.tags)):(r.label==='then'?'then · ':r.label==='chart'?'chart · ':'')+esc(r.title);
+    var tx=r.next?esc(r.title)+(r.pending?' <span class="l">· loading…</span>':trackLabels(r.tags))+trackSource(r.kind==='music'?r.ref:''):(r.label==='then'?'then · ':r.label==='chart'?'chart · ':'')+esc(r.title);
     var acts=r.skipped?'<button type="button" class="unskip" data-unskip="'+esc(r.key)+'" aria-label="Don\'t skip '+esc(r.title)+'">Don\'t skip</button>':
       (r.reroll?rerollButton():'')+(r.skippable&&!r.next?'<button type="button" class="rp" data-skip="'+esc(r.key)+'" title="Skip" aria-label="Skip '+esc(r.title)+'">'+CROSS+'</button>':'');
     return '<div class="tg coming'+(r.skipped?' skipped':'')+'"><span class="tm">'+tm+'</span><span class="tx'+(r.pending?' pend':'')+'"'+(r.next?' id="next-title"':'')+' title="'+esc(r.title)+'">'+tx+'</span><span class="acts">'+acts+'</span></div>'}).join('')+
