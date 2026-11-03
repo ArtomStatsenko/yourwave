@@ -21,8 +21,8 @@ var RadioModel=(function(){
   function queuePlace(x,status){return (status.replay_queue||[]).findIndex(function(q){return q.kind===replayKind(x)&&q.ref===x.ref})+1}
   function entryText(x){return entryTitle(x.kind,x.title)+(x.replay?' · replay':'')+(x.outcome==='SKIPPED'?' · skipped':'')}
   // The parts an entry unfolds into: a host edition's stories, or a reminder's own text.
-  function entryParts(x){return x.parts||(x.kind==='reminder'?[{text:x.text||x.title,description:x.description,links:x.links||[]}]:[])}
-  function expandable(x){return entryParts(x).some(function(p){return p.text||p.description||(p.links||[]).length})}
+  function entryParts(x){return x.parts||(x.kind==='reminder'?[{text:x.text||x.title,original:x.original||'',description:x.description,links:x.links||[]}]:[])}
+  function expandable(x){return entryParts(x).some(function(p){return p.text||p.original||p.description||(p.links||[]).length})}
 
   // "★ 12.3k (+45 today) · original description" for a GitHub source; '' without numbers.
   function starsText(ln){return ln.stars_total?'★ '+num(ln.stars_total)+(ln.stars_today?' (+'+num(ln.stars_today)+' today)':'')+(ln.original?' · '+ln.original:''):''}
@@ -37,7 +37,7 @@ var RadioModel=(function(){
     P.forEach(function(p){(p.segments||[]).forEach(function(s){if(s.url)used.add(s.url)})});
     return P.map(function(p,k){
       var d={title:P.length>1&&p.title&&!['news','host'].includes(x.kind)?(k+1)+'. '+p.title:'',
-        segments:p.text?p.segments||[{text:p.text}]:null,sources:[],description:p.description||'',links:[],oldStars:false};
+        segments:p.text?p.segments||[{text:p.text}]:null,sources:[],original:p.original||'',description:p.description||'',links:[],oldStars:false};
       if(p.text&&news)(p.links||[]).forEach(function(ln){
         if(/^https?:\/\//.test(ln.url)&&!used.has(ln.url)){d.sources.push({url:ln.url,label:ln.label});used.add(ln.url)}});
       (p.links||[]).forEach(function(ln){

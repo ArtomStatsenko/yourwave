@@ -381,6 +381,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 #np .air-caption{display:block}
 .track-src{white-space:nowrap}
 .air-caption #music-source{white-space:nowrap}@media(max-width:520px){.air-caption #music-source{display:block}.air-caption #music-source:not(:empty):before{content:none}}  /* narrow: the source takes its own line */
+.original{white-space:pre-wrap;overflow-wrap:anywhere}
 /* row actions (thumb, dice, ✕, ↺, queue disc) share one 44px slot, centred, so the icons of every row line up in two columns */
 .it .mk,.it .rp,#upcoming .rp,#upcoming .reroll-track,#direction-list .reroll-track{display:inline-grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;margin:-8px 0;padding:0;line-height:1}
 #upcoming .acts{gap:0;padding-right:44px}  /* the dice of next stands in the dice/thumb column, the right slot stays empty */#upcoming .tg{align-items:center}

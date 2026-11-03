@@ -732,6 +732,7 @@ function row(x){
     RadioModel.entryDetails(x).forEach(function(d){
       if(d.title)h+='<p class="l pt">'+esc(d.title)+'</p>';
       if(d.segments)h+='<p class="sub">'+d.segments.map(segmentHtml).join('')+(d.sources.length?' · '+d.sources.map(function(s){return sourceAnchor(s,s.label)}).join(' · '):'')+'</p>';
+      if(d.original)h+='<p class="l">Original</p><p class="sub original">'+esc(d.original)+'</p>';  // a reminder as the calendar had it, word for word
       if(d.description)h+='<p class="sub">'+linkedText(d.description)+'</p>';
       d.links.forEach(function(ln){if(ln.label)h+='<p>'+sourceAnchor(ln,ln.label)+'</p>';if(ln.stars)h+='<p class="l">'+esc(ln.stars)+'</p>'});
       if(d.oldStars)h+='<p class="l">'+esc(RadioModel.OLD_STARS_NOTE)+'</p>'});
