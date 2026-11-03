@@ -84,6 +84,9 @@ Browser output pauses after 30 seconds without listeners and resumes when one co
 | Todoist | Tasks with a due date and time | Set `reminders.todoist_token` |
 | Open-Meteo | A short weather update at most every three hours | Set `weather.city` |
 | YouTube Music | A connected playlist | Install `yt-dlp`, enable the integration, connect a playlist, then select YouTube Music in Settings → Music source |
+| Reddit · Telegram | Public subreddits and channels | Experiments; edit the lists in Sources → News sources ([public-news.md](public-news.md)) |
+| LRCLIB · MusicBrainz · Wikidata | Lyrics timing for speech windows; verified music stories | Lyrics are automatic; enable Music stories |
+| Tailscale | The station on your phone | [mobile-listening.md](mobile-listening.md) |
 
 For YouTube Music:
 
