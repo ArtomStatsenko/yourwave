@@ -431,7 +431,7 @@ function planTrackRow(r,title,time){var ti=+r.id.slice(6),tracks=st.upcoming_tra
     isNext?rerollButton():diceButton('data-track-reroll="'+ti+'"','Replace this song',busy,trackReroll.busy!==null||rerollBusy)
       +'<button type="button" class="rp" data-track-skip="'+ti+'" title="Skip" aria-label="Skip '+esc(title)+'">'+CROSS+'</button>';
   var error=isNext?rerollError:trackReroll.error&&trackReroll.error.i===ti?trackReroll.error.text:'';
-  return '<div class="it music'+(r.skipped?' skipped':'')+'" data-plan-key="'+esc(r.id)+'"'+(r.at?' data-plan-at="'+esc(r.at)+'"':'')+'><div class="hd"><div class="tg"><span class="tm plan-time">'+esc(time)+'</span><span class="tx" title="'+esc(title)+'">'+'<span class="track-title" id="track-title-'+ti+'">'+esc(title)+'</span> <span class="l track-labels">'+(r.announced?'announced':'')+(r.set?(r.announced?' · ':'')+'set':'')+'</span></span></div><span class="acts">'+acts+'</span></div>'
+  return '<div class="it music'+(r.skipped?' skipped':'')+'" data-plan-key="'+esc(r.id)+'"'+(r.at?' data-plan-at="'+esc(r.at)+'"':'')+'><div class="hd"><div class="tg"><span class="tm plan-time">'+esc(time)+'</span><span class="tx" title="'+esc(title)+'">'+'<span class="track-title" id="track-title-'+ti+'">'+esc(title)+'</span> <span class="l track-labels">'+(r.announced?'announced':'')+(r.set?(r.announced?' · ':'')+'new':'')+'</span></span></div><span class="acts">'+acts+'</span></div>'
     +(error?'<p class="l err track-err">'+esc(error)+'</p>':'')+'</div>'}
 function rerollNext(action,ref){
   if(action==='cancel'){rerollConfirm=null;timeline();directionView();return}

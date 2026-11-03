@@ -382,7 +382,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .track-src{white-space:nowrap}
 .air-caption #music-source{white-space:nowrap}@media(max-width:520px){.air-caption #music-source{display:block}.air-caption #music-source:not(:empty):before{content:none}}  /* narrow: the source takes its own line */
 .original{white-space:pre-wrap;overflow-wrap:anywhere}
-/* editor block rows: ✕ is the song rows' ✕ (44px slot, 22px from the edge); readiness sits after the title like "set" on songs */
+/* editor block rows: ✕ is the song rows' ✕ (44px slot, 22px from the edge); readiness sits after the title like "new" on songs */
 #direction-list .plan-inline{padding-right:0;gap:0}#direction-list .plan-inline button{width:44px;height:44px;display:inline-grid;place-items:center}
 #direction-list .plan-inline button[aria-label="Confirm skip reminder"]{width:auto;min-width:64px}
 #direction-list .plan-inline button svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}

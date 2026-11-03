@@ -135,7 +135,7 @@ var requests=[],response;function api(path,body){requests.push(body);return Prom
  const mixed=planGroups(planDraft),hour=mixed.find(g=>g.current);
  assert.deepEqual(hour.entries.map(e=>e.row.title),['Later song','Host edition','First song','Host edition']);
  assert.equal(hour.entries.find(e=>e.row.title==='First song').index,null);
- assert(html.includes('announced · set'));assert(!html.includes('Time pending'));assert(html.includes('Unknown time'));
+ assert(html.includes('announced · new'));assert(!html.includes('Time pending'));assert(html.includes('Unknown time'));
  assert(!html.includes('Future song'));assert.equal($('plan-later').hidden,false);
  assert(html.includes('data-plan-at="'+new Date(at+2400e3).toISOString()+'"'));
  assert(html.includes('data-plan-index="2" data-plan-key="clock:1"'),'Music entries must preserve host edit indices');
