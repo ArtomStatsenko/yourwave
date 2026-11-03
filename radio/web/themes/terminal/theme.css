@@ -369,6 +369,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 #tl .it button.tg{padding-right:0}#tl .tg .tm.ch{box-sizing:border-box;width:44px;padding:0;text-align:center}  /* the fold arrow sits in the same right slot as ↺ */
 .chart .n{text-align:left}.chart-tools button:first-child{padding-left:0}  /* the chart numbers and the first range start at the content edge */
 #tl .tg,#upcoming .tg{padding-left:0}#plan-edit{padding-right:0}  /* rows and the Edit link line up with the content edge */
+#direction-list .acts:not(:has(.rp,.unskip)){padding-right:44px}  /* the next song has no ✕: its dice still stands in the dice column */
 /* row actions (thumb, dice, ✕, ↺, queue disc) share one 44px slot, centred, so the icons of every row line up in two columns */
 .it .mk,.it .rp,#upcoming .rp,#upcoming .reroll-track,#direction-list .reroll-track{display:inline-grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;margin:-8px 0;padding:0;line-height:1}
 #upcoming .acts{gap:0;padding-right:44px}  /* the dice of next stands in the dice/thumb column, the right slot stays empty */#upcoming .tg{align-items:center}
