@@ -320,7 +320,7 @@ function soundsView(list,force){
   var key=JSON.stringify([soundList,soundMsg,soundBusy,soundPlaying]);if(key===soundKey&&!force)return;soundKey=key;
   var box=$('sound-list');if(!force&&box.contains(document.activeElement)&&document.activeElement.type==='file')return;
   function file(slot,name,own){var on=soundPlaying===slot+'/'+name;
-    return '<div class="sound-f"><span class="n">'+esc(name)+'</span><button type="button" data-sound-play="'+esc(slot)+'" data-name="'+esc(name)+'" aria-pressed="'+on+'">'+(on?'Stop':'Listen')+'</button>'+(own?'<button type="button" data-sound-remove="'+esc(slot)+'" data-name="'+esc(name)+'" aria-label="Remove '+esc(name)+'">Remove</button>':'')+'</div>'}
+    return '<div class="sound-f"><span class="n">'+esc(name)+'</span><button type="button" data-sound-play="'+esc(slot)+'" data-name="'+esc(name)+'" aria-pressed="'+on+'" aria-label="'+(on?'Stop ':'Listen to ')+esc(name)+'">'+(on?'Stop':'Listen')+'</button>'+(own?'<button type="button" data-sound-remove="'+esc(slot)+'" data-name="'+esc(name)+'" aria-label="Remove '+esc(name)+'">Remove</button>':'')+'</div>'}
   box.innerHTML=soundList.map(function(s){var own=s.own||[],base=s.base||[],busy=soundBusy===s.slot;
     return '<div class="sound" data-slot="'+esc(s.slot)+'"><div class="sound-h"><b>'+esc(s.title)+'</b><span class="l">'+esc(s.hint||'')+'</span></div>'
       +'<p class="l">'+(own.length?'Playing your '+(own.length===1?'file':own.length+' files')+':':base.length?'Playing Base:':'Nothing plays here until you add a file.')+'</p>'

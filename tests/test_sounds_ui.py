@@ -27,6 +27,7 @@ assert.match(html(),/Playing your file:/);assert.match(html(),/data-sound-remove
 assert.doesNotMatch(html(),/data-name="base.wav"/,'own files replace Base in the list');
 assert.match(html(),/Playing Base:/);assert.doesNotMatch(html(),/data-sound-remove="stinger_out"/,'Base files cannot be removed');
 assert.match(html(),/Nothing plays here until you add a file/);
+assert.match(html(),/aria-label="Listen to mine.mp3"/);
 assert.equal((html().match(/data-sound-file=/g)||[]).length,3);
 // upload: the file name is encoded, an error is one line under its slot only
 answers=[{ok:false,error:'Choose an MP3, M4A, FLAC or WAV file'}];
