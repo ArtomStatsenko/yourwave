@@ -137,7 +137,7 @@ assert.equal($('activity').hidden,false);
 items=[];timeline();
 assert.equal($('activity').hidden,true);
 assert.equal($('activity-log').innerHTML,'');
-// Normal listening shows next and the following two songs (step 1); the editor shows the whole future.
+// Normal listening shows only next; the later songs are in the editor.
 st={upcoming:[{kind:'music',stage:'queued',ref:'manual',title:'Manual'},
  {kind:'music',stage:'music',ref:'first',title:'First'}],
  direction_timezone:'UTC',upcoming_tracks:[{ref:'first',title:'First',set:true,at:'2026-10-25T22:10:00Z'},
@@ -145,7 +145,7 @@ st={upcoming:[{kind:'music',stage:'queued',ref:'manual',title:'Manual'},
 timeline();let future=$('upcoming').innerHTML;
 assert.equal((future.match(/title="Manual"/g)||[]).length,1,'Next is one row');
 assert(future.includes('>next</span>'));
-assert(future.includes('then · First'));assert(future.includes('then · Later'));assert(!future.includes('Last'),'two songs after next');
+assert(!future.includes('First')&&!future.includes('Later')&&!future.includes('Last'),'only next');
 st.announced_tracks=['manual','later'];timeline();future=$('upcoming').innerHTML;
 assert.equal((future.match(/announced-track/g)||[]).length,1);
 assert(future.includes('Manual<span class="l announced-track">'));
@@ -157,7 +157,7 @@ delete st.next_reroll;
 st.upcoming[0]={kind:'music',stage:'queued',ref:'replacement',title:'Replacement'};
 st.upcoming_tracks[0]={ref:'replacement',title:'Replacement'};
 timeline();future=$('upcoming').innerHTML;
-assert(future.includes('Replacement'));assert(future.includes('then · Later'));
+assert(future.includes('Replacement'));assert(!future.includes('Later'));
 assert.equal((future.match(/title="Replacement"/g)||[]).length,1,'Next must not be repeated in the future rows');
 assert(!future.includes('Replacement<span class="l announced-track">'));
 planDraft=null;timeline();future=$('upcoming').innerHTML;

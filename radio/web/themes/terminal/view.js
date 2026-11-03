@@ -320,8 +320,10 @@ function directionCatalog(){return api('/api/cmd',{cmd:'direction',action:'catal
 function rerollButton(){
   var r=st.next_reroll;if(!r)return '';
   if(rerollConfirm===r.ref)return '<span class="reroll-confirm" role="group" aria-label="Already announced on air. Replace next track?" title="Already announced on air"><button type="button" data-reroll="confirm" data-ref="'+esc(r.ref)+'">Confirm</button><button type="button" data-reroll="cancel">Cancel</button></span>';
-  var label='Choose another random track';
-  return '<button type="button" class="reroll-track" data-reroll data-plan-action="reroll" aria-label="'+label+'" title="'+esc(r.reason||'Replace next track now')+'" aria-busy="'+rerollBusy+'"'+(!r.available||rerollBusy?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
+  return diceButton('data-reroll data-plan-action="reroll"',r.reason||'Replace next track now',rerollBusy,!r.available||rerollBusy||trackReroll.busy!==null);
+}
+function diceButton(attrs,title,busy,disabled){
+  return '<button type="button" class="reroll-track" '+attrs+' aria-label="Choose another random track" title="'+esc(title)+'" aria-busy="'+busy+'"'+(disabled?' disabled':'')+'><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.3"/><circle cx="16" cy="8" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="8" cy="16" r="1.3"/><circle cx="16" cy="16" r="1.3"/></g></svg></button>';
 }
 // ---- waiting: while the station chooses (a reroll) or prepares (More news, a voice sample, a key check, the radio
 // starting), the waiting text pulses every 1.4 s in the theme's look, readable in between; the new text then arrives.
@@ -368,15 +370,45 @@ var CARET_WAIT=(function(){
 function quietPage(){return document.hidden||matchMedia('(prefers-reduced-motion:reduce)').matches}
 var waits=waiter({fx:function(){return window.RadioWaitFx||(document.documentElement.dataset.skin?CSS_WAIT:CARET_WAIT)},
   now:function(){return Date.now()},later:function(fn,ms){return setTimeout(fn,ms)},quiet:quietPage});
+// The editor's dice and ✕ on a later song (the next one has the next-track dice): one song replaced at a time;
+// its error shows under its row. busy: the index in upcoming_tracks being replaced.
+var trackReroll={busy:null,error:null};
+function rerollTrack(i){
+  var t=(st.upcoming_tracks||[])[i];if(!t||trackReroll.busy!==null||rerollBusy)return;
+  var id='track-title-'+i,el=$(id),old=el?el.textContent:t.title;
+  trackReroll={busy:i,error:null};directionView(true);
+  if(!quietPage())waits.watch(id,function(){return trackReroll.busy===i});
+  api('/api/cmd',{cmd:'reroll',ref:t.ref}).then(function(d){
+    var fx=window.RadioWaitFx||(document.documentElement.dataset.skin?CSS_WAIT:CARET_WAIT),now=$(id);
+    if(!d||!d.ok){trackReroll.error={i:i,text:d&&d.error||'Could not replace this song. Try again.'};if(now)fx.fail(now,old);return}
+    var next=d.status&&(d.status.upcoming_tracks||[])[i],text=next?next.title:old;
+    if(now&&text!==old&&!quietPage()){trackReroll.arriving=true;fx.arrive(now,old,text,function(){trackReroll.arriving=false;directionView(true)})}
+  }).catch(function(){trackReroll.error={i:i,text:'The radio is not answering.'}})
+    .finally(function(){trackReroll.busy=null;directionView(true);refresh()})}
+function skipTrack(i,skip){
+  var t=(st.upcoming_tracks||[])[i];if(!t)return;trackReroll.error=null;
+  api('/api/cmd',{cmd:skip?'skip':'unskip',ref:t.ref}).then(function(d){if(d&&d.ok===false)trackReroll.error={i:i,text:d.error}})
+    .catch(function(){trackReroll.error={i:i,text:'The radio is not answering.'}}).finally(refresh)}
+// One song in the editor (an upcoming_tracks row): its dice (the next song: the next-track dice), ✕ or Don't skip, and its error.
+function planTrackRow(r,title,time){var ti=+r.id.slice(6),tracks=st.upcoming_tracks||[],nr=st.next_reroll;
+  var isNext=!!nr&&nr.ref===r.ref&&tracks.findIndex(function(t){return t.ref===r.ref})===ti,busy=trackReroll.busy===ti;
+  var acts=r.skipped?'<button type="button" class="unskip" data-track-unskip="'+ti+'" aria-label="Don\'t skip '+esc(title)+'">Don\'t skip</button>':
+    isNext?rerollButton():diceButton('data-track-reroll="'+ti+'"','Replace this song',busy,trackReroll.busy!==null||rerollBusy)
+      +'<button type="button" class="rp" data-track-skip="'+ti+'" title="Skip" aria-label="Skip '+esc(title)+'">'+CROSS+'</button>';
+  var error=isNext?rerollError:trackReroll.error&&trackReroll.error.i===ti?trackReroll.error.text:'';
+  return '<div class="it music'+(r.skipped?' skipped':'')+'" data-plan-key="'+esc(r.id)+'"'+(r.at?' data-plan-at="'+esc(r.at)+'"':'')+'><div class="hd"><div class="tg"><span class="tm plan-time">'+esc(time)+'</span><span class="tx" title="'+esc(title)+'">'+'<span class="track-title" id="track-title-'+ti+'">'+esc(title)+'</span> <span class="l track-labels">'+(r.announced?'announced':'')+(r.set?(r.announced?' · ':'')+'set':'')+'</span></span></div><span class="acts">'+acts+'</span></div>'
+    +(error?'<p class="l err track-err">'+esc(error)+'</p>':'')+'</div>'}
 function rerollNext(action,ref){
-  if(action==='cancel'){rerollConfirm=null;timeline();return}
+  if(action==='cancel'){rerollConfirm=null;timeline();directionView();return}
   var r=st.next_reroll;
   if(rerollBusy||!r||!r.available)return;
   if(action==='confirm'&&(rerollConfirm!==r.ref||ref!==r.ref))return;
-  if(action!=='confirm'&&(st.announced_tracks||[]).includes(r.ref)&&!r.pending){rerollConfirm=r.ref;timeline();return}
+  if(action!=='confirm'&&(st.announced_tracks||[]).includes(r.ref)&&!r.pending){rerollConfirm=r.ref;timeline();directionView();return}
   rerollConfirm=null;rerollBusy=true;rerollError='';directionView();timeline();
   var row=$('next-title'),fx=null;
   if(row&&row.isConnected&&!quietPage()){rerollFx={old:row.textContent};waits.watch('next-title',function(){return rerollBusy})}
+  var ni=(st.upcoming_tracks||[]).findIndex(function(t){return t.ref===r.ref});
+  if(planDraft&&ni>=0&&!quietPage())waits.watch('track-title-'+ni,function(){return rerollBusy});  // the editor's row of it
   cmd('reroll-next',{ref:st.next_reroll.ref}).then(function(r){rerollError=r&&r.ok?'':r&&r.error||'Could not replace the next track. Try again.';
     if(!rerollFx)return;
     var el=$('next-title'),old=rerollFx.old,text=r&&r.ok&&r.status?RadioModel.upcoming(r.status,'').title:old;
@@ -396,6 +428,7 @@ function directionView(force){
   ['plan-done','direction-list','plan-later'].forEach(function(id){$(id).hidden=!editing});
   $('plan-undo').hidden=!editing||!planUndo;['plan-edit','plan-done','plan-undo','plan-later'].forEach(function(id){$(id).disabled=dirBusy});
   if(!enabled||!editing){if(typeof planPointer!=='undefined'&&planPointer)planStopPointer();return;}
+  if(trackReroll.arriving)return;  // a replaced song's new title is being written in: drawn after it
   if(!dirLoaded&&!dirBusy){dirLoaded=true;directionCatalog()}
   var box=$('direction-list');if(planInsertKey!==null&&!dirBusy)return;if(planDrag!==null&&!force||!force&&!dirBusy&&box.contains(document.activeElement)&&document.activeElement.type==='datetime-local')return;
   if(planDrag===null&&!dirBusy&&!planDraft.some(function(r){return r.dirty})){planDraft=JSON.parse(JSON.stringify(st.broadcast_plan.rows));planVersion=st.broadcast_plan.version}
@@ -405,7 +438,7 @@ function directionView(force){
   var focused=box.contains(document.activeElement)?document.activeElement:null,fr=focused&&focused.closest('[data-plan-index]'),focusId=fr&&fr.dataset.planKey,focusAction=focused&&focused.dataset.planAction,focusGap=focused&&focused.hasAttribute('data-plan-add')&&focused.parentNode.dataset.planGap,focusHour=focused&&focused.closest('summary')&&focused.closest('[data-hour]').dataset.hour;
   function clock(at){return at?planDragClock(at):'—'}
   function render(entry){var r=entry.row,i=entry.index,p=RadioModel.planRow(r),title=p.title;
-    if(r.kind==='music')return '<div class="it music" data-plan-key="'+esc(r.id)+'"'+(r.at?' data-plan-at="'+esc(r.at)+'"':'')+'><div class="hd"><div class="tg"><span class="tm plan-time">'+(r.at?'~':'')+esc(clock(r.at))+'</span><span class="tx" title="'+esc(title)+'">'+'<span class="track-title">'+esc(title)+'</span> <span class="l track-labels">'+(r.announced?'announced':'')+(r.set?(r.announced?' · ':'')+'set':'')+'</span></span></div></div></div>';
+    if(r.kind==='music')return planTrackRow(r,title,(r.at?'~':'')+clock(r.at));
     var editable=p.editable,skippable=p.skippable,detail=p.detail;
     var expected=p.expectedAt?(detail?' · ':'')+'expected ~'+clock(p.expectedAt):'';
     return '<div class="it '+esc(r.kind)+(r.skipped?' skipped':'')+'" data-plan-index="'+i+'" data-plan-key="'+esc(r.id)+'" data-plan-draggable="'+editable+'"><div class="hd"><div class="tg">'
@@ -439,7 +472,7 @@ function directionView(force){
       viewport.scrollTop+=this.getBoundingClientRect().top-top;
     };
   });
-  box.querySelectorAll('button,input').forEach(function(el){el.disabled=dirBusy});$('direction-add').disabled=dirBusy;
+  box.querySelectorAll('button,input').forEach(function(el){el.disabled=el.disabled||dirBusy});$('direction-add').disabled=dirBusy;
   $('plan-later').hidden=!planDraft.filter(function(r){return r.kind!=='music'}).concat(st.upcoming_tracks||[]).some(function(r){return !r.placeholder&&Date.parse(r.at)>=planNow()+planHorizon*3600e3});
   if(anchorKey){var restored=Array.from(box.querySelectorAll('[data-plan-key]')).find(function(el){return el.dataset.planKey===anchorKey});if(restored){var hour=restored.closest('[data-hour]');if(hour){hour.open=true;planHours[hour.dataset.hour]=true}viewport.scrollTop+=restored.getBoundingClientRect().top-anchorTop}}
   if(focusGap){var gapButton=findPlanGap(focusGap);if(gapButton)gapButton.querySelector('button').focus({preventScroll:true})}
@@ -593,7 +626,9 @@ $('direction-form').onsubmit=function(e){e.preventDefault();if(!planDraft||dirBu
   planDraft=JSON.parse(JSON.stringify(st.broadcast_plan.rows));planVersion=st.broadcast_plan.version;
   planDraft.push({id:'new:'+Date.now(),kind:b.kind,title:b.title,text:b.kind==='text'?$('direction-text').value:'',at:new Date($('direction-at').value).toISOString(),duration:30,status:'PENDING',dirty:true});planDraft.sort(function(a,b){return Date.parse(a.at)-Date.parse(b.at)});planSave().then(function(saved){if(saved){closePlanInsert();$('direction-text').value=''}})
 };
-$('direction-list').onclick=function(e){if(planSuppressClick){planSuppressClick=false;return}var add=e.target.closest('[data-plan-add]');if(add&&!dirBusy){openPlanInsert(add);return}if(e.target.closest('[data-reroll]')){rerollNext();return}var button=e.target.closest('[data-plan-action]');if(!button||!planDraft||dirBusy)return;var i=+button.closest('[data-plan-index]').dataset.planIndex,r=planDraft[i];
+$('direction-list').onclick=function(e){if(planSuppressClick){planSuppressClick=false;return}var add=e.target.closest('[data-plan-add]');if(add&&!dirBusy){openPlanInsert(add);return}var tr=e.target.closest('[data-track-reroll]');if(tr){rerollTrack(+tr.dataset.trackReroll);return}
+  var ts=e.target.closest('[data-track-skip],[data-track-unskip]');if(ts){skipTrack(+(ts.dataset.trackSkip||ts.dataset.trackUnskip),!!ts.dataset.trackSkip);return}
+  var rr=e.target.closest('[data-reroll]');if(rr){rerollNext(rr.dataset.reroll,rr.dataset.ref);return}var button=e.target.closest('[data-plan-action]');if(!button||!planDraft||dirBusy)return;var i=+button.closest('[data-plan-index]').dataset.planIndex,r=planDraft[i];
   if(button.dataset.planAction==='segments'){planOpen[r.id]=!planOpen[r.id];directionView()}else if(button.dataset.planAction==='time'){planTimeId=planTimeId===r.id?null:r.id;directionView()}else if(button.dataset.planAction==='skip'){if(r.kind==='reminder'&&!r.skipped&&planConfirm!==r.id){planConfirm=r.id;directionView();return}r.skipConfirmed=r.kind==='reminder'&&planConfirm===r.id;planConfirm=null;r.skipped=!r.skipped;r.dirty=true;planSave()}else planMove(i,i+(button.dataset.planAction==='up'?1:-1));
 };
 $('direction-list').onchange=function(e){if(!planDraft||e.target.type!=='datetime-local'||!e.target.value)return;var block=e.target.closest('[data-plan-index]');if(!block)return;var i=+block.dataset.planIndex;planDraft[i].at=new Date(e.target.value).toISOString();planDraft[i].estimated=false;planDraft[i].dirty=true;planSave()};
@@ -634,6 +669,7 @@ $('skip-undo').onclick=function(){var t=$('skip-toast'),r=futureRows.find(functi
 function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
 function segmentHtml(s){return s.url?sourceAnchor(s,s.text):esc(s.text)}
 // a thumbs up for one airing of a song (24px line icon, filled when given)
+var CROSS='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 var THUMB='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1H7zm0 0l3.2-6.2a1.7 1.7 0 0 1 3.2 1L12.6 10H18a2 2 0 0 1 2 2.4l-1.3 6a2 2 0 0 1-2 1.6H7"/></svg>';
 function markButton(x){return '<button type="button" class="mk" data-mark="'+esc(String(x.id))+'" aria-pressed="'+!!x.marked+'" aria-label="Thumbs up" title="Hear this more often">'+THUMB+'</button>'}
 var selectedRow=null;  // the row last tapped: its empty mark shows (on a touch screen there is no hover)
@@ -671,7 +707,6 @@ function timeline(){
   if(rerollConfirm&&(!st.next_reroll||st.next_reroll.ref!==rerollConfirm||!st.next_reroll.available||st.next_reroll.pending))rerollConfirm=null;
   var a=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.id;
   function trackLabels(tags){if(!tags)return '';return (tags.announced?'<span class="l announced-track"> · announced</span>':'')}
-  var CROSS='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   function atClock(at){return appearance.formatTime(new Date(at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'}))}
   var up=RadioModel.future(st,rerollError);futureRows=up.rows;
   var shown=up.rows.filter(function(r){return r.next});  // only the next row; later songs and blocks are edited in Edit
