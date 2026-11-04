@@ -57,7 +57,7 @@ def _build(db, hours: int, limit: int) -> list[dict]:
     since = store.iso(store.now() - timedelta(hours=hours))
     # Station IDs play but stay out of the timeline: a few seconds of call sign is not an entry worth a row.
     rows = db.execute("""SELECT id, at, type, ref, detail FROM events WHERE at>=? AND type IN
-                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','REPLAY','REMINDER','WEATHER','GAP','MUSIC_TEASER','CHART')
+                         ('SESSION_STARTED','MUSIC_STARTED','PACKAGE_STARTED','REPLAY','REMINDER','WEATHER','GAP','MUSIC_TEASER','CHART','COMMAND_FAILED')
                          ORDER BY id DESC LIMIT ?""", (since, limit)).fetchall()
     marked = {m[0] for m in db.execute("SELECT event_id FROM marks WHERE event_id>=?", (rows[-1]["id"] if rows else 0,))}
     out = []
@@ -124,6 +124,8 @@ def _build(db, hours: int, limit: int) -> list[dict]:
             e.update(kind='host', title='Coming up', parts=[{'text': r['detail'], 'links': []}])
         elif r["type"] == "GAP":
             e.update(kind="host", title=r["detail"] or "Loading gap")
+        elif r["type"] == "COMMAND_FAILED":  # an action the page asked for that did not work: Activity, not the player
+            e.update(kind="error", title=r["detail"] or "Something did not work", command=r["ref"])
         else:
             e.update(kind="session", title="broadcast started")
         out.append(e)

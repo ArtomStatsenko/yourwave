@@ -114,6 +114,58 @@ class SkipSetSongTests(unittest.TestCase):
         self.assertEqual((svc.fresh_queued.get('ytmusic:bbbbbbbbbbb'), svc.fresh_aside, svc.fresh_passed), ('9', {}, set()))
 
 
+class StationTests(unittest.TestCase):
+    def test_a_station_plays_youtube_music_and_stopping_restores_the_source(self):
+        from radio import settings, ytmusic
+        plugins.set_plugin('ytmusic', True)
+        self.addCleanup(plugins.set_plugin, 'ytmusic', False)
+        settings.set_setting('music_source', 'local')
+        self.addCleanup(settings.reset, 'music_source')
+        svc = Service(config.load(), tts=MockTTS(), output='x')
+        svc.engine = Mock(proc=None, command=AsyncMock(return_value='OK'))
+        svc.library = {'/m/a.mp3'}
+        with patch.object(svc, '_sync_music_source', AsyncMock()) as switch, \
+             patch('radio.daemon.ytmusic.start_station') as start, patch('radio.daemon.ytmusic.stop_station', return_value='local'), \
+             patch('radio.daemon.music.song', return_value=('Artist', 'Song')):
+            self.assertTrue(asyncio.run(svc._station({'action': 'start', 'kind': 'song', 'value': '/m/a.mp3'}))['ok'])
+            kind, value, _, restore = start.call_args.args
+            self.assertEqual((kind, value, restore), ('song', 'Artist Song', 'local'), 'a local song is found on YouTube by name')
+            self.assertEqual(settings.music_source(svc.cfg), 'ytmusic', 'heard at once')
+            switch.assert_awaited_once()
+            self.assertTrue(asyncio.run(svc._station({'action': 'stop'}))['ok'])
+            self.assertEqual(settings.music_source(svc.cfg), 'local')
+            self.assertFalse(asyncio.run(svc._station({'action': 'nope'}))['ok'])
+
+
+class StationStateTests(unittest.TestCase):
+    def test_station_songs_are_marked_start_now_waits_for_one_loaded_and_a_failed_command_goes_to_activity(self):
+        from radio.timeline import timeline
+        svc = Service(config.load(), tts=MockTTS(), output='x')
+        line = lambda ref: f'annotate:plan_queue="music":annotate:kind="music",ref="{ref}":{ref}'
+        plan = [{'ref': r, 'uri': line(r), 'kind': 'music', 'duration': 60} for r in ('ytmusic:aaaaaaaaaaa', '/m/local.mp3')]
+        svc.engine = Mock(proc=Mock(returncode=None), next_music=AsyncMock(return_value=''), music_plan=AsyncMock(return_value=plan),
+                          pending=AsyncMock(return_value=[]), upcoming_music=AsyncMock(return_value=[]))
+        svc.station_refs = {'ytmusic:aaaaaaaaaaa'}
+        status = asyncio.run(svc.dispatch('status'))['status']
+        self.assertFalse(status['station_ready'], 'its first song is not loaded yet: Start now waits')
+        self.assertEqual([t['station'] for t in status['upcoming_tracks']], [True, False])
+        svc.engine.next_music.return_value = 'ytmusic:aaaaaaaaaaa'
+        svc.plan_gen += 1
+        self.assertTrue(asyncio.run(svc.dispatch('status'))['status']['station_ready'])
+
+        class Pipe:
+            def __init__(self, text): self.text, self.out = text, b''
+            async def readline(self): return self.text.encode()
+            def write(self, data): self.out += data
+            async def drain(self): pass
+            def close(self): pass
+        pipe = Pipe('{"cmd": "station", "action": "nope"}\n')
+        asyncio.run(svc.handle_client(pipe, pipe))
+        self.assertIn(b'Choose start or stop', pipe.out)
+        errors = [x for x in timeline() if x['kind'] == 'error']  # the same (isolated) station database
+        self.assertEqual([(e['title'], e['command']) for e in errors], [('Choose start or stop', 'station')])
+
+
 class DroppedNewSongTests(unittest.TestCase):
     def test_a_new_song_that_does_not_load_is_not_put_ahead_again(self):
         svc = Service(config.load(), tts=MockTTS(), output='x')

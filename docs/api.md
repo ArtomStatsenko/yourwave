@@ -55,6 +55,7 @@ music_source_choice, hooks, charts, chart_set, sounds}`:
 - `charts`: songs ranked by thumbs up, `{week, month, all}` (last 7 days, 30 days, all time), each `[{place, ref, title,
   marks, plays, was}]`: most marks first, then by title; `plays` in the same window; `was` the place a day earlier
   (`null`: not in that chart).
+- A command that fails is also an Activity entry: `timeline` has `{kind: "error", title: <the error>, command}`, so a page can show the error briefly and leave it to Activity.
 - `sounds`: the sound slots, `[{slot, title, hint, own, base}]`: `own` and `base` are file names; a slot with any
   `own` files plays them instead of Base (`radio/sounds.py`).
 
@@ -74,6 +75,7 @@ are listed by `/api/capabilities`:
 | `reroll-next` | `ref` | Replace the next song with another random one |
 | `reroll` | `ref` | Replace any coming song (the next one as `reroll-next`) with a random song not in the plan; the others keep their places |
 | `sound_remove` | `slot`, `name` | Remove one of the station's own sounds; an empty slot plays Base again |
+| `station` | `action`, `kind`, `value`, `title` | YouTube Music stations. `action: moods` answers `{ok, moods: [{title, params}]}` (YouTube Music's moods and genres, kept a day). `action: start` with `kind: song` (`value`: a coming or aired song's `ref`, a video id, or "artist title") plays YouTube's radio from that song; with `kind: mood` (`value`: a mood's `params`, `title`: its name) a mix of the mood's playlists. The station's songs replace the connected playlist from the next song (a Local-only source switches to YouTube Music). `action: stop` goes back to the playlist and to the source it was started from. The snapshot's `ytmusic.station` is `{kind, value, title}` or null; `status.station_ready` is true once the next song is the station's and loaded (Start now is then a plain `next`); `upcoming_tracks[].station` marks the station's songs. Errors: "YouTube Music has no radio for this song; try another song or a mood", "Connect YouTube Music first", "Turn on YouTube Music in Sources first". |
 | `replay`, `unqueue` | `kind`, `ref` | Play an aired song again at the next boundary; take it off the queue |
 | `catchup` | | Prepare a "What I missed" host edition |
 | `direction` | `action`, `kind`, `ref`, `text`, `at`, `id`, `token`, `changes`, `version`, `remember_undo` | Air direction: catalog, insert, save the plan, undo |

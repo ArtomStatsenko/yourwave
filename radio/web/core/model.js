@@ -61,8 +61,8 @@ var RadioModel=(function(){
   // made one entry of each host appearance (event_ids: its events).
   function timeline(snapshot,running){
     var items=snapshot.timeline||[],status=snapshot.status||{};
-    var aired=items.filter(function(x){return x.kind!=='session'}).map(function(x){return entry(x,items,running,status)});
-    return {entries:aired,shown:HISTORY_SHOWN,activity:items.filter(function(x){return x.kind==='session'}),
+    var aired=items.filter(function(x){return x.kind!=='session'&&x.kind!=='error'}).map(function(x){return entry(x,items,running,status)});
+    return {entries:aired,shown:HISTORY_SHOWN,activity:items.filter(function(x){return x.kind==='session'||x.kind==='error'}),
       background:backgroundError(status.last_error)?status.last_error:''};
   }
 

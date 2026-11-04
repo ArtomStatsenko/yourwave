@@ -769,7 +769,7 @@ function timeline(){
     time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'})};
   if(!background)timeline.backgroundNotice=null;
   $('activity').hidden=!activity.length&&!background;
-  $('activity-log').innerHTML=(background?'<div class="tg"><span class="tm" title="First observed in this tab">'+esc(appearance.formatTime(timeline.backgroundNotice.time))+'</span><span class="tx">'+esc(background)+'</span></div>':'')+activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(appearance.formatTime(x.time))+'</span><span class="tx">Radio started</span></div>'}).join('');
+  $('activity-log').innerHTML=(background?'<div class="tg"><span class="tm" title="First observed in this tab">'+esc(appearance.formatTime(timeline.backgroundNotice.time))+'</span><span class="tx">'+esc(background)+'</span></div>':'')+activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(appearance.formatTime(x.time))+'</span><span class="tx">'+(x.kind==='error'?esc(x.title):'Radio started')+'</span></div>'}).join('');
   $('history-more').hidden=aired.length<=tl.shown;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
   var history=$('tl'),latest=aired.reduce(function(id,x){return Math.max(id,x.id)},0),previous=timeline.latest;
   timeline.latest=latest;

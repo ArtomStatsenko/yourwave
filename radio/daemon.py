@@ -147,6 +147,7 @@ class Service:
         self.fresh_aside: dict[str, int] = {}  # a new song skipped this time (Timeline ✕) -> its place among them, shown there
         self.fresh_passed: set[str] = set()  # new songs skipped this run: not put ahead again (the shuffle may play them)
         self.fresh_removing: dict[str, str] = {}  # skipped new songs whose request is still to be taken off the queue
+        self.station_refs: set[str] = set()  # the songs of the YouTube Music station that is on (ytmusic.station)
         self.energy_queued = set()
         self.energy_played = set()
         self.energy_seconds = 0.0
@@ -203,6 +204,7 @@ class Service:
             remote_m3u.write_text("#EXTM3U\n")
         self.library.update(remote)
         self.intro_rooms.update(remote)
+        self.station_refs = {'ytmusic:' + t['id'] for t in (ytmusic.station() or {}).get('tracks', [])}
         self.ytmusic_active = settings.music_source(self.cfg) != "local" and bool(remote)
         self.music_mixed = self.ytmusic_active and settings.music_source(self.cfg) == "mixed"
         if not self.ytmusic_active:
@@ -2227,11 +2229,14 @@ class Service:
 
     # ---- CLI ----
     async def handle_client(self, reader, writer) -> None:
+        req = {}
         try:
             req = json.loads(await reader.readline())
             resp = await self.dispatch(req.get("cmd", ""), req)
         except Exception as e:
             resp = {"ok": False, "error": str(e)}
+        if isinstance(resp, dict) and resp.get("ok") is False and resp.get("error"):  # the page shows it briefly; Activity keeps it
+            store.log_event(self.db, self.session, "COMMAND_FAILED", str(req.get("cmd", "") if isinstance(req, dict) else ""), str(resp["error"])[:300])
         writer.write((json.dumps(resp, ensure_ascii=False) + "\n").encode())
         await writer.drain()
         writer.close()
@@ -2685,6 +2690,42 @@ class Service:
             out.write_text("\n".join(["#EXTM3U", *lines]) + "\n", encoding='utf-8')
         return refs
 
+    async def _station(self, req):
+        action, kind, value = str(req.get('action', '')), str(req.get('kind', '')), str(req.get('value', '')).strip()
+        if action not in ('start', 'stop'):
+            return {'ok': False, 'error': 'Choose start or stop'}
+        if not plugins.on(self.cfg, 'ytmusic'):
+            return {'ok': False, 'error': 'Turn on YouTube Music in Sources first'}
+        log('station:', action, kind, value)
+        source = settings.music_source(self.cfg)
+        try:
+            if action == 'start':
+                title = str(req.get('title', '')).strip()[:80]
+                if kind == 'song' and value and not value.startswith('ytmusic:') and value in self.library:
+                    title = title or music.label(self.db, value)
+                    value = ' '.join(music.song(self.db, value) or ()) or Path(value).stem  # a local song: found on YouTube
+                await asyncio.to_thread(ytmusic.start_station, kind, value.removeprefix('ytmusic:'), title,
+                                        '' if source != 'local' else 'local')
+                if source == 'local':
+                    settings.set_setting('music_source', 'ytmusic')  # a station plays YouTube Music: heard at once
+            else:
+                if restore := ytmusic.stop_station():
+                    settings.set_setting('music_source', restore)
+        except ValueError as error:
+            return {'ok': False, 'error': str(error)}
+        self._live_settings()
+        if settings.music_source(self.cfg) != source:
+            await self._sync_music_source()  # the source switch reloads the YouTube songs too
+        else:
+            refs = self._write_remote_m3u()
+            self.library.update(refs)
+            self.intro_rooms.update(refs)
+            await self.engine.command('music.reload ' + str(config.RUN_DIR / 'ytmusic.m3u'))
+        await self._clear_fresh()  # new songs put ahead from the old list would come first
+        self.station_refs = {'ytmusic:' + t['id'] for t in (ytmusic.station() or {}).get('tracks', [])}
+        self.plan_gen += 1
+        return await self.dispatch('status')
+
     async def _sync_music_source(self):
         async with self.music_source_lock:
             await self._set_music_source()
@@ -2749,7 +2790,7 @@ class Service:
                             seconds = cached[1] if cached else 0
                         except OSError:
                             seconds = 0
-                result.append({'ref':ref,'title':music.label(self.db,ref),'set':bool(row.get('set')),
+                result.append({'ref':ref,'title':music.label(self.db,ref),'set':bool(row.get('set')),'station':ref in self.station_refs,
                                'at':iso(datetime.fromtimestamp(cursor,timezone.utc)) if cursor is not None else None})
                 profile = energy_rows.get(ref, {})
                 if profile:
@@ -2903,6 +2944,8 @@ class Service:
             return await self._reroll_next(str((req or {}).get('ref', '')))
         if cmd == 'reroll':
             return await self._reroll_song(str((req or {}).get('ref', '')))
+        if cmd == 'station':  # radio from a song or a mood in place of the YouTube Music playlist, or back to it
+            return await self._station(req or {})
         if cmd == 'chart_set':  # Play after this song: a chart set as a plan block now (it airs at the next song boundary)
             if not plugins.on(self.cfg, 'air_direction'):
                 return {'ok': False, 'error': 'Needs Air direction in Experiments'}
@@ -2955,6 +2998,7 @@ class Service:
                     ref = await asyncio.wait_for(self.engine.next_music(), .5)
                     self.next_track = ref or ""
                     status['next_reroll'] = self._reroll_state()
+                    status['station_ready'] = bool(ref) and ref in self.station_refs  # Start now: its first song is loaded
                     self.music_source_ready = bool(ref) and ref.startswith('ytmusic:') == (settings.music_source(self.cfg) == 'ytmusic')
                     status['music_source_state'] = self._music_source_state()
                     await self._forget_dropped_replays()

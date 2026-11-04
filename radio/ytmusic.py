@@ -1,6 +1,7 @@
 """YouTube Music playlists and temporary song files, using the installed yt-dlp."""
 import json
 import math
+import random
 import os
 import re
 import shutil
@@ -10,6 +11,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+import urllib.request
 from urllib.parse import parse_qs, urlparse
 
 from . import config, store
@@ -52,20 +54,137 @@ def unavailable() -> set[str]:
 
 
 def library():
+    """The connected playlist's songs, or a station's while one is on (station(): radio from a song, a mood)."""
+    data = {"tracks": [], "playlist": DEFAULT_PLAYLIST}
     try:
-        data = json.loads((directory() / "library.json").read_text())
-        if isinstance(data, dict) and isinstance(data.get("playlist"), str):
-            data["tracks"] = parse_tracks({"entries": data.get("tracks")})
-            return data
+        saved = json.loads((directory() / "library.json").read_text())
+        if isinstance(saved, dict) and isinstance(saved.get("playlist"), str):
+            data = {**saved, "tracks": parse_tracks({"entries": saved.get("tracks")})}
     except (OSError, ValueError):
         pass
-    return {"tracks": [], "playlist": DEFAULT_PLAYLIST}
+    if on := station():
+        data = {**data, "tracks": on["tracks"], "station": {k: on[k] for k in ("kind", "value", "title")}}
+    return data
 
 
 def status():
     data = library()
     return {"connected": (directory() / "cookies.txt").exists() and bool(data["tracks"]),
-            "tracks": len(data["tracks"]), "playlist": data["playlist"]}
+            "tracks": len(data["tracks"]), "playlist": data["playlist"], "station": data.get("station")}
+
+
+# ---- stations: YouTube Music's radio from a song, or a mood's playlists, in place of the connected playlist ----
+INNERTUBE = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false"
+CLIENT = {"clientName": "WEB_REMIX", "clientVersion": "1.20241111.01.00", "hl": "en", "gl": "US"}
+MOOD_PLAYLISTS = 4  # a mood station mixes this many of the mood's playlists
+STATION_TRACKS = 200
+
+
+def station():
+    try:
+        data = json.loads((directory() / "station.json").read_text())
+        return {**data, "tracks": parse_tracks({"entries": data["tracks"]})} if data.get("kind") in ("song", "mood") else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _browse(body: dict) -> dict:
+    """YouTube Music's own (undocumented) browse API, as its web page asks it; no account needed."""
+    req = urllib.request.Request(INNERTUBE, json.dumps({"context": {"client": CLIENT}, **body}).encode(),
+                                 {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0",
+                                  "Origin": "https://music.youtube.com"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.load(r)
+    except (OSError, ValueError):
+        raise ValueError("YouTube Music did not answer; try again") from None
+
+
+def _find(node, key):
+    if isinstance(node, dict):
+        if key in node:
+            yield node[key]
+        for value in node.values():
+            yield from _find(value, key)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _find(value, key)
+
+
+def moods() -> list[dict]:
+    """YouTube Music's moods and genres: [{title, params}], kept a day."""
+    cache = directory() / "moods.json"
+    try:
+        if time.time() - cache.stat().st_mtime < 24 * 3600:
+            return json.loads(cache.read_text())
+    except (OSError, ValueError):
+        pass
+    found = []
+    for button in _find(_browse({"browseId": "FEmusic_moods_and_genres"}), "musicNavigationButtonRenderer"):
+        try:
+            found.append({"title": button["buttonText"]["runs"][0]["text"],
+                          "params": button["clickCommand"]["browseEndpoint"]["params"]})
+        except (KeyError, IndexError, TypeError):
+            continue
+    if not found:
+        raise ValueError("YouTube Music returned no moods; try again later")
+    directory().mkdir(mode=0o700, parents=True, exist_ok=True)
+    cache.write_text(json.dumps(found, ensure_ascii=False))
+    return found
+
+
+def _mood_playlists(params: str) -> list[str]:
+    ids = []
+    for item in _find(_browse({"browseId": "FEmusic_moods_and_genres_category", "params": params}), "musicTwoRowItemRenderer"):
+        browse = item.get("navigationEndpoint", {}).get("browseEndpoint", {}).get("browseId", "")
+        if browse.startswith("VL") and browse[2:] not in ids:
+            ids.append(browse[2:])
+    return ids
+
+
+def _search(query: str) -> str:
+    """The first YouTube match for a song that is not on YouTube Music (a local file): its video id."""
+    vid = run(["--print", "id", "--no-playlist", "ytsearch1:" + query], directory() / "cookies.txt").strip()
+    if not ID.fullmatch(vid):
+        raise ValueError("No such song on YouTube")
+    return vid
+
+
+def start_station(kind: str, value: str, title: str = "", restore: str = "") -> dict:
+    """Radio from a song (kind song, value a video id or "artist - title") or a mood (kind mood, value its params):
+    its songs become the YouTube Music library until stop_station()."""
+    cookies = directory() / "cookies.txt"
+    if not cookies.exists():
+        raise ValueError("Connect YouTube Music first")
+    if kind == "song":
+        vid = value if ID.fullmatch(value) else _search(value)
+        pages = [f"https://www.youtube.com/watch?v={vid}&list=RDAMVM{vid}"]
+    elif kind == "mood":
+        pages = ["https://www.youtube.com/playlist?list=" + i for i in _mood_playlists(value)[:MOOD_PLAYLISTS]]
+    else:
+        raise ValueError("Choose a song or a mood")
+    entries = []
+    for page in pages:
+        data = json.loads(run(["--flat-playlist", "--dump-single-json", "--playlist-end", "100", page], cookies))
+        entries += data.get("entries") or []
+    if kind == "song" and len(entries) < 5:  # a little-known song: YouTube's "mix" is the song alone
+        raise ValueError("YouTube Music has no radio for this song; try another song or a mood")
+    tracks = parse_tracks({"entries": entries})
+    if kind == "mood":
+        random.shuffle(tracks)  # several playlists, not one after another
+    on = {"kind": kind, "value": value, "title": title or (tracks[0]["title"] if kind == "song" else kind),
+          "tracks": tracks[:STATION_TRACKS], "restore": (station() or {}).get("restore", restore)}
+    path = directory() / "station.json"
+    path.with_suffix(".tmp").write_text(json.dumps(on, ensure_ascii=False))
+    path.with_suffix(".tmp").replace(path)
+    return status()
+
+
+def stop_station() -> str:
+    """Back to the connected playlist; returns the music source to restore ("" to keep the current one)."""
+    restore = (station() or {}).get("restore", "")
+    (directory() / "station.json").unlink(missing_ok=True)
+    return restore
 
 
 def playlist_url(value):

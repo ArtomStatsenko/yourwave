@@ -15,6 +15,7 @@ OPERATIONS = {
     'chatgpt_login': [], 'chatgpt_logout': [], 'openrouter_login': [], 'openrouter_logout': [],
     'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'reroll': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'], 'chart_set': ['action', 'size', 'weekly', 'day', 'time'],
     'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'], 'sound_remove': ['slot', 'name'],
+    'station': ['action', 'kind', 'value', 'title'],
     'direction': ['action', 'kind', 'ref', 'text', 'at', 'id', 'token', 'changes', 'version', 'remember_undo'],
 }
 READS = ('status', 'snapshot', 'settings', 'plugins', 'experiments', 'timeline', 'queue', 'hooks', 'ytmusic', 'audio', 'capabilities')
@@ -241,6 +242,14 @@ def execute(body, *, sender=None, starter=None, port=8765):
             resp = send(cmd, timeout=10, size=body.get('size'))
         else:
             return reply({'ok': False, 'error': 'Choose save or play'}, 400)
+    elif cmd == 'station':  # moods are read here; start and stop change the air, so the station does them
+        if body.get('action') == 'moods':
+            try:
+                resp = {'ok': True, 'moods': ytmusic.moods()}
+            except ValueError as error:
+                return reply({'ok': False, 'error': str(error)}, 502)
+        else:
+            resp = send(cmd, timeout=120, **{k: body.get(k, '') for k in ('action', 'kind', 'value', 'title')})
     elif cmd in ('skip', 'unskip'):
         resp = send(cmd, timeout=90, ref=str(body.get('ref', '')))
     elif cmd in ("reroll-next", "reroll"):

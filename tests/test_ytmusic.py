@@ -52,6 +52,44 @@ class YouTubeMusicTests(unittest.TestCase):
         with patch("radio.ytmusic.time.time", return_value=time.time() + ytmusic.UNAVAILABLE_RECHECK_SEC + 1):
             self.assertEqual(ytmusic.unavailable(), set(), "a day later it is tried again")
 
+    def test_a_station_replaces_the_playlist_until_stopped(self):
+        self.connect()
+        entries = lambda *ids: json.dumps({"entries": [{"id": i, "title": "Song " + i, "artist": "A", "duration": 200} for i in ids]})
+        pages = []
+        def run(args, cookies, timeout=60):
+            pages.append(args[-1])
+            return entries(*(c * 11 for c in "ABEFG")) if "RDAMVM" in args[-1] else entries("CCCCCCCCCCC", "DDDDDDDDDDD")
+        with patch.object(ytmusic, "run", side_effect=run):
+            status = ytmusic.start_station("song", "dQw4w9WgXcQ", "Radio: Song one", restore="local")
+        self.assertEqual(pages, ["https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ"])
+        self.assertEqual((status["station"]["title"], status["tracks"]), ("Radio: Song one", 5))
+        self.assertEqual([t["id"] for t in ytmusic.library()["tracks"]], [c * 11 for c in "ABEFG"], "the station's songs play")
+        with patch.object(ytmusic, "run", side_effect=ytmusic.Unavailable("x")):
+            with self.assertRaises(ytmusic.Unavailable):
+                ytmusic.resolve("AAAAAAAAAAA")  # a station song may be fetched (it is not refused as unknown)
+        mood = {"contents": [{"musicTwoRowItemRenderer": {"navigationEndpoint": {"browseEndpoint": {"browseId": "VLPL1"}}}},
+                             {"musicTwoRowItemRenderer": {"navigationEndpoint": {"browseEndpoint": {"browseId": "VLPL2"}}}},
+                             {"musicTwoRowItemRenderer": {"navigationEndpoint": {"browseEndpoint": {"browseId": "MPREalbum"}}}}]}
+        pages.clear()
+        with patch.object(ytmusic, "_browse", return_value=mood), patch.object(ytmusic, "run", side_effect=run):
+            ytmusic.start_station("mood", "params", "Chill")
+        self.assertEqual(pages, ["https://www.youtube.com/playlist?list=PL1", "https://www.youtube.com/playlist?list=PL2"], "playlists only")
+        self.assertEqual(sorted(t["id"] for t in ytmusic.library()["tracks"]), ["CCCCCCCCCCC", "DDDDDDDDDDD"])
+        self.assertEqual(ytmusic.stop_station(), "local", "the source it was started from comes back")
+        self.assertEqual([t["id"] for t in ytmusic.library()["tracks"]], ["dQw4w9WgXcQ"])
+        self.assertIsNone(ytmusic.status()["station"])
+        with patch.object(ytmusic, "_browse", return_value={"x": [{"musicNavigationButtonRenderer": {
+                "buttonText": {"runs": [{"text": "Chill"}]}, "clickCommand": {"browseEndpoint": {"params": "p1"}}}}]}) as browse:
+            self.assertEqual(ytmusic.moods(), [{"title": "Chill", "params": "p1"}])
+            ytmusic.moods()
+        self.assertEqual(browse.call_count, 1, "kept a day")
+        with patch.object(ytmusic, "run", return_value=entries("dQw4w9WgXcQ")):
+            with self.assertRaisesRegex(ValueError, "no radio for this song"):
+                ytmusic.start_station("song", "dQw4w9WgXcQ")  # a little-known song: the mix is the song alone
+        (ytmusic.directory() / "cookies.txt").unlink()
+        with self.assertRaisesRegex(ValueError, "Connect YouTube Music first"):
+            ytmusic.start_station("song", "dQw4w9WgXcQ")
+
     def test_feature_can_be_enabled_before_connecting_in_settings(self):
         from radio import plugins
         self.assertFalse(ytmusic.status()['connected'])

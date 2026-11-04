@@ -113,6 +113,8 @@ The files live in `~/Library/Application Support/PersonalRadioClaude/sounds/<slo
 | LRCLIB · MusicBrainz · Wikidata | Lyrics timing for speech windows; verified music stories | Lyrics are automatic; enable Music stories |
 | Tailscale | The station on your phone | [mobile-listening.md](mobile-listening.md) |
 
+**Stations.** With YouTube Music connected, a station plays in place of your playlist: **radio from a song** (YouTube Music's own mix of similar songs, about a hundred; a local song is first found on YouTube by its name, and a little-known one may have no radio) or a **mood or genre** (Chill, Focus, Workout, Sad and the rest of YouTube Music's list: several of its playlists mixed). The host, editions and transitions stay as they are; the station starts at the next song. Stopping it returns to your playlist and to the music source you had.
+
 For YouTube Music:
 
 The Integrations switch only makes the feature available. It does not select a music source. **Settings → Music source** independently ticks Local, YouTube Music or both; YouTube Music appears only while its integration is enabled. Disabling the integration resets the selection to Local. Re-enabling leaves Local selected. Source changes take effect at a track boundary. With several sources ticked, their libraries alternate in one shuffle, also with Shuffle on (each source is shuffled on its own); local songs keep playing if YouTube Music is unreachable. Energy wave is off while mixing, and unplayed-first picks from both libraries.
