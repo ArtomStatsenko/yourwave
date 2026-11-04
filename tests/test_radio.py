@@ -1118,7 +1118,7 @@ class SchedulingTests(unittest.TestCase):
         grouped = {p["name"]: p for p in plugins.listing(self.cfg)}
         self.assertEqual(set(grouped), set(plugins.PLUGINS))
         self.assertEqual({n for n, p in grouped.items() if p["section"] == "integrations"},
-                         {"github_trending", "github_new", "horizon", "reminders_calendar", "reminders_todoist", "weather", "ytmusic", "music_facts"})
+                         {"github_trending", "github_new", "horizon", "reminders_calendar", "reminders_todoist", "weather", "ytmusic", "ytmusic_likes", "music_facts"})
         self.assertNotIn("voicestudio", grouped)
         self.assertNotIn("voice_over", grouped)
         self.assertNotIn("reroll_next", grouped)

@@ -1,4 +1,5 @@
 """Shared validated operations for the browser API and the native radio CLI."""
+import threading
 import time
 from . import catchup, charts, chartset, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, sounds, store, telegram, tts, ytmusic
 from .timeline import timeline
@@ -77,6 +78,18 @@ def read(name, *, sender=None, hours=12, limit=120):
             'audio_preset': config.audio_presets(), 'music_source_choice': settings.music_source(cfg),
             'hooks': read('hooks')['hooks'] if plugins.on(cfg, 'track_previews') else None, 'charts': read_charts(), 'chart_set': chartset.load(),
             'sounds': sounds.listing(cfg)}
+
+
+def _like(vid, on):
+    """The thumbs up as a YouTube Music like, in the background (the page does not wait); a failure goes to Activity."""
+    try:
+        ytmusic.like(vid, on)
+    except ValueError as error:
+        db = store.connect()
+        try:
+            store.log_event(db, '', 'COMMAND_FAILED', 'mark' if on else 'unmark', str(error))
+        finally:
+            db.close()
 
 
 def read_charts():
@@ -228,6 +241,8 @@ def execute(body, *, sender=None, starter=None, port=config.UI_PORT):
             else:
                 db.execute('DELETE FROM marks WHERE event_id=?', (int(body['id']),))
             resp = {'ok': True, 'id': int(body['id']), 'marked': cmd == 'mark'}
+            if event['ref'].startswith('ytmusic:') and plugins.on(cfg, 'ytmusic') and plugins.on(cfg, 'ytmusic_likes'):
+                threading.Thread(target=_like, args=(event['ref'].removeprefix('ytmusic:'), cmd == 'mark'), daemon=True).start()
         except (TypeError, ValueError) as error:
             return reply({'ok': False, 'error': 'Choose a song from the timeline' if isinstance(error, TypeError) else str(error)}, 400)
         finally:

@@ -11,6 +11,8 @@ PLUGINS = {
     "track_previews": ("Coming up", 'Close host editions with one later song hook, then introduce the first song. No standalone announcements between songs. Missing hooks use a short first-song introduction. Restart after installation.', lambda c: False),
     "ytmusic": ("YouTube Music", 'Make YouTube Music available as a music source. Select the active source in Settings.',
                 lambda c: False),
+    "ytmusic_likes": ("YouTube Music likes", 'A thumbs up on a YouTube Music song likes it on YouTube Music too; taking it back removes the like.',
+                      lambda c: True),
     "github_trending": ("GitHub: releases", 'Recent stable releases from projects discovered through GitHub Trending. Popularity alone is not news.',
                         lambda c: c["sources"]["github_trending"]["enabled"]),
     "github_new": ("GitHub: new projects", 'Newly created public projects, dated by creation time rather than discovery time.',
@@ -40,7 +42,7 @@ PLUGINS = {
 
 }
 SOURCE_PLUGIN = {"reddit": "reddit", "telegram": "telegram", "weather": "weather", "calendar": "reminders_calendar", "github_trending": "github_trending", "github_new": "github_new", "horizon": "horizon", "music_facts": "music_facts", "direction": "air_direction"}
-INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic"} - {"air_direction", "reddit", "telegram"}
+INTEGRATIONS = {*SOURCE_PLUGIN.values(), "reminders_calendar", "reminders_todoist", "weather", "ytmusic", "ytmusic_likes"} - {"air_direction", "reddit", "telegram"}
 
 EXPERIMENTS = {"holiday_previews", "reddit", "telegram", "air_direction", "gap_filler", "duo_hosts", "news_reactions", "host_opinions", "track_previews", "energy_wave"}
 

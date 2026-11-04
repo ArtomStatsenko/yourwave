@@ -113,6 +113,37 @@ def _find(node, key):
             yield from _find(value, key)
 
 
+def like(vid: str, on: bool = True) -> None:
+    """Likes a YouTube Music song (or takes the like back) with the connected session, as its web page does: the
+    session cookies and a SAPISIDHASH from the SAPISID cookie. Songs of another site (a link station) are skipped."""
+    track = next((t for t in library()["tracks"] if t["id"] == vid), None)
+    if not ID.fullmatch(vid) or track and track.get("url"):
+        return
+    cookies = {}
+    try:
+        for line in (directory() / "cookies.txt").read_text().splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 7 and parts[0].removeprefix("#HttpOnly_").endswith("youtube.com"):
+                cookies[parts[5]] = parts[6]
+    except OSError:
+        raise ValueError("Connect YouTube Music first") from None
+    sapisid = cookies.get("__Secure-3PAPISID") or cookies.get("SAPISID")
+    if not sapisid:
+        raise ValueError("The YouTube Music session has expired; reconnect it in Sources")
+    origin, now = "https://music.youtube.com", str(int(time.time()))
+    digest = hashlib.sha1(f"{now} {sapisid} {origin}".encode()).hexdigest()
+    req = urllib.request.Request(f"{origin}/youtubei/v1/like/{'like' if on else 'removelike'}?prettyPrint=false",
+                                 json.dumps({"context": {"client": CLIENT}, "target": {"videoId": vid}}).encode(),
+                                 {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Origin": origin,
+                                  "X-Origin": origin, "X-Goog-AuthUser": "0", "Authorization": f"SAPISIDHASH {now}_{digest}",
+                                  "Cookie": "; ".join(f"{k}={v}" for k, v in cookies.items())})
+    try:
+        with urllib.request.urlopen(req, timeout=15):
+            pass
+    except OSError:
+        raise ValueError("YouTube Music did not take the like; try again or reconnect it in Sources") from None
+
+
 def moods() -> list[dict]:
     """YouTube Music's moods and genres: [{title, params}], kept a day."""
     cache = directory() / "moods.json"

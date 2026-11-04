@@ -113,6 +113,33 @@ class YouTubeMusicTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "https://"):
             ytmusic.start_station("link", "file:///etc/passwd")
 
+    def test_a_like_is_sent_with_the_session_and_only_for_youtube_songs(self):
+        self.connect()
+        (ytmusic.directory() / "cookies.txt").write_text(
+            "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tsap\n"
+            "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tsid\n")
+        sent = []
+        class Answer:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        with patch("radio.ytmusic.urllib.request.urlopen", side_effect=lambda req, timeout: sent.append(req) or Answer()), \
+             patch("radio.ytmusic.time.time", return_value=1000):
+            ytmusic.like("dQw4w9WgXcQ", True)
+            ytmusic.like("dQw4w9WgXcQ", False)
+        import hashlib
+        like, remove = sent
+        self.assertTrue(like.full_url.startswith("https://music.youtube.com/youtubei/v1/like/like?"))
+        self.assertIn("/like/removelike?", remove.full_url)
+        self.assertEqual(json.loads(like.data)["target"], {"videoId": "dQw4w9WgXcQ"})
+        self.assertEqual(like.get_header("Authorization"),
+                         "SAPISIDHASH 1000_" + hashlib.sha1(b"1000 sap https://music.youtube.com").hexdigest())
+        self.assertEqual(like.get_header("Cookie"), "SAPISID=sap; SID=sid")
+        def refused(req, timeout):
+            raise OSError("401")
+        with patch("radio.ytmusic.urllib.request.urlopen", side_effect=refused):
+            with self.assertRaisesRegex(ValueError, "did not take the like"):
+                ytmusic.like("dQw4w9WgXcQ", True)
+
     def test_feature_can_be_enabled_before_connecting_in_settings(self):
         from radio import plugins
         self.assertFalse(ytmusic.status()['connected'])
