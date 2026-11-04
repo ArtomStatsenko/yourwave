@@ -127,7 +127,7 @@ var requests=[],response;function api(path,body){requests.push(body);return Prom
  assert.equal(folded.open,false);assert.equal($('broadcast-timeline').scrollTop,40);
  $('direction-list').querySelectorAll=()=>[];
  st.upcoming_tracks=[{ref:'first',title:'First song',at:new Date(at+600e3).toISOString(),set:true},
- {ref:'later',title:'Later song',at:new Date(at+2400e3).toISOString()},
+ {ref:'later',title:'Later song',at:new Date(at+2400e3).toISOString(),station:true},
  {ref:'future',title:'Future song',at:new Date(at+4*3600e3).toISOString()},
  {ref:'unknown',title:'Unknown time',at:null}];st.announced_tracks=['first'];
  const before=JSON.stringify(planDraft);directionView();html=$('direction-list').innerHTML;
@@ -135,7 +135,7 @@ var requests=[],response;function api(path,body){requests.push(body);return Prom
  const mixed=planGroups(planDraft),hour=mixed.find(g=>g.current);
  assert.deepEqual(hour.entries.map(e=>e.row.title),['Later song','Host edition','First song','Host edition']);
  assert.equal(hour.entries.find(e=>e.row.title==='First song').index,null);
- assert(html.includes('announced · new'));assert(!html.includes('Time pending'));assert(html.includes('Unknown time'));
+ assert(html.includes('announced · new'));assert(html.includes('>station<'));assert(!html.includes('Time pending'));assert(html.includes('Unknown time'));
  assert(!html.includes('Future song'));assert.equal($('plan-later').hidden,false);
  assert(html.includes('data-plan-at="'+new Date(at+2400e3).toISOString()+'"'));
  assert(html.includes('data-plan-index="2" data-plan-key="clock:1"'),'Music entries must preserve host edit indices');
