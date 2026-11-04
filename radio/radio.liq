@@ -305,6 +305,25 @@ else
   server.register("music.upcoming", fun (_) -> upcoming_music_refs(primary_music))
   music
 end
+# Internet radio (radio/live.py): a station's stream plays in place of the library. Each title change in the stream is
+# a new track (new_track_on_metadata), so the host's editions and inserts still come between songs. Off: url "".
+live_url = ref(environment.get(default="", "RADIO_LIVE_URL"))
+live_input = input.ffmpeg(id="live", start=live_url() != "", {live_url()})
+live = metadata.map(id="live_tags", insert_missing=true, update=true, fun (m) -> begin
+  title = string.trim(m["title"])
+  [("kind", "music"), ("ref", "live:" ^ (if title != "" then title else "stream" end))]
+end, live_input)
+live = buffer(id="live_buffer", live)  # the stream keeps its own clock; the air's crossfades need one they control
+server.register("live.set", fun (url) -> begin
+  url = string.trim(url)
+  live_url := url
+  live_input.stop()
+  if url != "" then live_input.start() end
+  "OK"
+end)
+server.register("live.ready", fun (_) -> if live_url() != "" and live.is_ready() then "true" else "false" end)
+# the library's music while no station plays, or while its stream is down
+music = switch(id="live_switch", track_sensitive=true, [({live_url() != "" and live.is_ready()}, live), ({true}, music)])
 news = request.queue(id="news")
 # Unplayed songs of the active music source take priority over shuffle. News and manual replays still come
 # first at a song boundary; this queue does not depend on a news break.

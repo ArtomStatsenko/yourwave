@@ -1,7 +1,7 @@
 """Shared validated operations for the browser API and the native radio CLI."""
 import threading
 import time
-from . import catchup, charts, chartset, chatgpt, config, editor, hooks, openrouter, plugins, public_news, reddit, settings, sounds, store, telegram, tts, ytmusic
+from . import catchup, charts, chartset, chatgpt, config, editor, hooks, live, openrouter, plugins, public_news, reddit, settings, sounds, store, telegram, tts, ytmusic
 from .timeline import timeline
 
 VOICE_SAMPLE = "Добрый вечер! Вы слушаете Персональное радио. Сейчас — коротко о новостях, а потом снова музыка."
@@ -16,7 +16,7 @@ OPERATIONS = {
     'chatgpt_login': [], 'chatgpt_logout': [], 'openrouter_login': [], 'openrouter_logout': [],
     'hook_review': ['id', 'approved'], 'reroll-next': ['ref'], 'reroll': ['ref'], 'mark': ['id'], 'unmark': ['id'], 'skip': ['ref'], 'unskip': ['ref'], 'chart_set': ['action', 'size', 'weekly', 'day', 'time'],
     'replay': ['kind', 'ref'], 'unqueue': ['kind', 'ref'], 'sound_remove': ['slot', 'name'],
-    'station': ['action', 'kind', 'value', 'title'],
+    'station': ['action', 'kind', 'value', 'title'], 'live': ['action', 'id', 'name', 'tag'],
     'direction': ['action', 'kind', 'ref', 'text', 'at', 'id', 'token', 'changes', 'version', 'remember_undo'],
 }
 READS = ('status', 'snapshot', 'settings', 'plugins', 'experiments', 'timeline', 'queue', 'hooks', 'ytmusic', 'audio', 'capabilities')
@@ -257,6 +257,15 @@ def execute(body, *, sender=None, starter=None, port=config.UI_PORT):
             resp = send(cmd, timeout=10, size=body.get('size'))
         else:
             return reply({'ok': False, 'error': 'Choose save or play'}, 400)
+    elif cmd == 'live':  # the catalog is read here; start and stop change the air, so the station does them
+        if body.get('action') in ('search', 'tags'):
+            try:
+                resp = ({'ok': True, 'stations': live.search(str(body.get('name', '')), str(body.get('tag', '')))}
+                        if body['action'] == 'search' else {'ok': True, 'tags': live.tags()})
+            except ValueError as error:
+                return reply({'ok': False, 'error': str(error)}, 502)
+        else:
+            resp = send(cmd, timeout=30, action=body.get('action', ''), id=body.get('id', ''))
     elif cmd == 'station':  # moods are read here; start and stop change the air, so the station does them
         if body.get('action') == 'moods':
             try:

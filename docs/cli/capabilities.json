@@ -169,6 +169,14 @@
         "title"
       ]
     },
+    "live": {
+      "fields": [
+        "action",
+        "id",
+        "name",
+        "tag"
+      ]
+    },
     "direction": {
       "fields": [
         "action",

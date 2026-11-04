@@ -154,6 +154,8 @@ def song(db, path) -> tuple[str, str] | None:
 
 def label(db, path) -> str:
     """How the UI shows a song: "Artist - Title" from the tags, else the file name."""
+    if str(path).startswith("live:"):  # a title from an internet radio stream ("Artist - Title" as it sends it)
+        return str(path)[5:]
     s = song(db, path)
     if not s and str(path).startswith("ytmusic:"):
         row = db.execute("SELECT title FROM tracks WHERE path=?", (str(path),)).fetchone()

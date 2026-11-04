@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import config, ytmusic
+from . import config, live, ytmusic
 
 LOG_KEEP_BYTES = 10_000_000  # liquidsoap.log is moved to .1 at a start once it is over this
 
@@ -72,7 +72,8 @@ class Liquidsoap:
                    RADIO_FALLBACK_M3U=str(self.fallback_m3u or ""), RADIO_START_PAUSED="1" if paused else "",
                    RADIO_YTMUSIC_COUNT=str(len(ytmusic.library()["tracks"])) if self.m3u.name == "ytmusic.m3u" else "0",
                    RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]),
-                   RADIO_SHUFFLE_CMD=shlex.join([sys.executable, "-m", "radio.shuffle"]))
+                   RADIO_SHUFFLE_CMD=shlex.join([sys.executable, "-m", "radio.shuffle"]),
+                   RADIO_LIVE_URL=(live.current() or {}).get("url", ""))
         self._end_orphan()
         self.proc = await asyncio.create_subprocess_exec(
             "liquidsoap", str(config.PKG_DIR / "radio.liq"), env=env,

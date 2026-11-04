@@ -113,7 +113,11 @@ The files live in `~/Library/Application Support/PersonalRadioClaude/sounds/<slo
 | LRCLIB · MusicBrainz · Wikidata | Lyrics timing for speech windows; verified music stories | Lyrics are automatic; enable Music stories |
 | Tailscale | The station on your phone | [mobile-listening.md](mobile-listening.md) |
 
-**Stations.** With YouTube Music connected, a station plays in place of your playlist: **radio from a song** (YouTube Music's own mix of similar songs, about a hundred; a local song is first found on YouTube by its name, and a little-known one may have no radio) or a **mood or genre** (Chill, Focus, Workout, Sad and the rest of YouTube Music's list: several of its playlists mixed). The host, editions and transitions stay as they are; the station starts at the next song. Stopping it returns to your playlist and to the music source you had.
+**Stations.** With YouTube Music connected, a station plays in place of your playlist: **radio from a song** (YouTube Music's own mix of similar songs, about a hundred; a local song is first found on YouTube by its name, and a little-known one may have no radio) or a **mood or genre** (Chill, Focus, Workout, Sad and the rest of YouTube Music's list: several of its playlists mixed). The host, editions and transitions stay as they are; the station starts at the next song. Stopping it returns to your playlist and to the music source you had. A station can also come from a **link**: a playlist, album, profile or mix on SoundCloud, Bandcamp, Mixcloud or NetEase (any site yt-dlp reads); these songs need no YouTube session.
+
+**Internet radio.** Choose a station from the [Radio Browser](https://www.radio-browser.info) catalog (search by name or tag, most listened first). It plays in place of your library from the next song; the host still comes between songs, because each title change in the stream ends a song. Right after a station starts, the first title it sends can arrive mid-song. Stopping it returns to your music at once.
+
+**YouTube Music likes.** With the switch on (Sources), a thumbs up on a YouTube Music song likes it on YouTube Music too, and taking it back removes the like. It needs a current YouTube session: reconnect in Sources when YouTube answers that you are signed out.
 
 For YouTube Music:
 

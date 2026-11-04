@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 from . import broadcast_clock, audio, config, content, direction, github_new, github_trending, horizon, host, music, music_facts, plugins, reminders, settings, store, timeline, weather, ytmusic
 from . import editor, public_news, reddit, telegram
-from . import catchup, chartset, energy, hooks, previews
+from . import catchup, chartset, energy, hooks, live, previews
 from .editor import Editor
 from .engine import Liquidsoap
 from .store import iso, now
@@ -855,6 +855,8 @@ class Service:
 
     @staticmethod
     def _song_seconds(ref: str) -> float:
+        if ref.startswith("live:"):
+            return 0.0  # an internet radio stream: its song ends when its title changes
         return ytmusic.duration(ref) if ref.startswith("ytmusic:") else audio.duration(Path(ref))
 
     # ---- content pipeline ----
@@ -1287,7 +1289,7 @@ class Service:
             return
         slot = self._clock_slot(now() + timedelta(seconds=max(0, remaining)))
         current = self.current
-        if not immediate and len(self.fresh_queued) < NEW_AHEAD and not self.energy_queued and self._new_set_due():
+        if not immediate and len(self.fresh_queued) < NEW_AHEAD and not self.energy_queued and self._new_set_due() and not live.current():
             new = await asyncio.to_thread(self._pick_new)
             async with self.handoff_lock:
                 if (generation != self.schedule_generation or self.current is not current
@@ -2697,6 +2699,9 @@ class Service:
         if not plugins.on(self.cfg, 'ytmusic'):
             return {'ok': False, 'error': 'Turn on YouTube Music in Sources first'}
         log('station:', action, kind, value)
+        if action == 'start' and live.current():  # one station at a time: the YouTube one replaces internet radio
+            live.stop()
+            await self.engine.command('live.set ')
         source = settings.music_source(self.cfg)
         try:
             if action == 'start':
@@ -2944,6 +2949,20 @@ class Service:
             return await self._reroll_next(str((req or {}).get('ref', '')))
         if cmd == 'reroll':
             return await self._reroll_song(str((req or {}).get('ref', '')))
+        if cmd == 'live':  # an internet radio station in place of the library, or back to it
+            if (req or {}).get('action') == 'stop':
+                live.stop()
+                await self.engine.command('live.set ')
+            else:
+                try:
+                    station = await asyncio.to_thread(live.choose, str((req or {}).get('id', '')))
+                except ValueError as error:
+                    return {'ok': False, 'error': str(error)}
+                await self._clear_fresh()  # new songs put ahead would come before the station
+                await self.engine.command('live.set ' + station['url'])
+                log('live station:', station['name'], station['url'])
+            self.plan_gen += 1
+            return await self.dispatch('status')
         if cmd == 'station':  # radio from a song or a mood in place of the YouTube Music playlist, or back to it
             return await self._station(req or {})
         if cmd == 'chart_set':  # Play after this song: a chart set as a plan block now (it airs at the next song boundary)
@@ -2999,6 +3018,8 @@ class Service:
                     self.next_track = ref or ""
                     status['next_reroll'] = self._reroll_state()
                     status['station_ready'] = bool(ref) and ref in self.station_refs  # Start now: its first song is loaded
+                    status['live'] = live.current()
+                    status['live_ready'] = bool(status['live']) and await asyncio.wait_for(self.engine.command('live.ready'), .5) == 'true'
                     self.music_source_ready = bool(ref) and ref.startswith('ytmusic:') == (settings.music_source(self.cfg) == 'ytmusic')
                     status['music_source_state'] = self._music_source_state()
                     await self._forget_dropped_replays()
