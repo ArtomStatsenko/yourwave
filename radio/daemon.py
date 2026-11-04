@@ -2237,7 +2237,8 @@ class Service:
             resp = await self.dispatch(req.get("cmd", ""), req)
         except Exception as e:
             resp = {"ok": False, "error": str(e)}
-        if isinstance(resp, dict) and resp.get("ok") is False and resp.get("error"):  # the page shows it briefly; Activity keeps it
+        if isinstance(resp, dict) and resp.get("ok") is False and resp.get("error") and req.get("cmd") not in ("status", "play"):
+            # an action that did not work: the page shows it briefly, Activity keeps it (not a poll while starting)
             store.log_event(self.db, self.session, "COMMAND_FAILED", str(req.get("cmd", "") if isinstance(req, dict) else ""), str(resp["error"])[:300])
         writer.write((json.dumps(resp, ensure_ascii=False) + "\n").encode())
         await writer.drain()
