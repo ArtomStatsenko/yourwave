@@ -76,6 +76,16 @@ class LiveRadioTests(unittest.TestCase):
         svc.engine.command.assert_any_await('live.set ')
         self.assertIsNone(live.current())
 
+    def test_an_untitled_bit_of_a_stream_is_not_a_song_in_the_history(self):
+        from radio import store
+        from radio.timeline import timeline
+        svc = Service(config.load(), tts=MockTTS(), output='x')
+        self.addCleanup(svc.db.close)
+        for ref in ('', 'live:stream', 'live:Artist - Song'):
+            svc.on_event({'kind': 'music', 'ref': ref})
+        store.log_event(svc.db, svc.session, 'MUSIC_STARTED', '')  # one logged before this rule
+        self.assertEqual([x['ref'] for x in timeline() if x['kind'] == 'music'], ['live:Artist - Song'])
+
     def test_liquidsoap_switches_to_the_stream_and_back(self):
         tone = config.DATA_DIR / 'tone.wav'
         stream = config.DATA_DIR / 'stream.wav'

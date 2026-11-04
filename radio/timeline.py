@@ -62,6 +62,8 @@ def _build(db, hours: int, limit: int) -> list[dict]:
     marked = {m[0] for m in db.execute("SELECT event_id FROM marks WHERE event_id>=?", (rows[-1]["id"] if rows else 0,))}
     out = []
     for r in rows:
+        if r["type"] == "MUSIC_STARTED" and r["ref"] in ("", "live:stream"):
+            continue  # an untitled bit of a stream (logged before this was skipped): not a song
         # id = the event row: stable across refreshes, so the UI can keep a row expanded by it.
         e = {"id": r["id"], "time": datetime.fromisoformat(r["at"]).astimezone().strftime("%H:%M"), "type": r["type"]}
         if r["type"] == "MUSIC_STARTED":

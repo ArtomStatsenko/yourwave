@@ -309,11 +309,12 @@ end
 # a new track (new_track_on_metadata), so the host's editions and inserts still come between songs. Off: url "".
 live_url = ref(environment.get(default="", "RADIO_LIVE_URL"))
 live_input = input.ffmpeg(id="live", start=live_url() != "", {live_url()})
+live = buffer(id="live_buffer", live_input)  # the stream keeps its own clock; the air's crossfades need one they control
+# tagged after the buffer: the buffer's own track ends (what it still holds when the station stops) are tagged too
 live = metadata.map(id="live_tags", insert_missing=true, update=true, fun (m) -> begin
   title = string.trim(m["title"])
   [("kind", "music"), ("ref", "live:" ^ (if title != "" then title else "stream" end))]
-end, live_input)
-live = buffer(id="live_buffer", live)  # the stream keeps its own clock; the air's crossfades need one they control
+end, live)
 server.register("live.set", fun (url) -> begin
   url = string.trim(url)
   live_url := url

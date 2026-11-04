@@ -845,7 +845,8 @@ class Service:
             self.db.execute("UPDATE packages SET status='SKIPPED' WHERE status IN ('PENDING','READY') AND item_id LIKE 'system:music-link:%'")
             self.current["duration"] = self._song_seconds(self.current["ref"])
             if not resumed:  # a resumed song once more was a second history row and a second play in the charts
-                store.log_event(self.db, self.session, "MUSIC_STARTED", self.current["ref"])
+                if self.current["ref"] not in ("", "live:stream"):  # a stream's untitled tail is not a song in the history
+                    store.log_event(self.db, self.session, "MUSIC_STARTED", self.current["ref"])
             if self.current['kind'] == 'music':
                 if not self.current['ref'].startswith('ytmusic:'):
                     self.energy_played.add(self.current['ref'])
