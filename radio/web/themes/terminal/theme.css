@@ -58,20 +58,20 @@ main>section{min-width:0}
 #sheet-grip{display:none}
 /* Narrow screens: the player is the screen; the tabs and their panels are a sheet that opens from the bottom edge */
 @media(max-width:1099px){
-  body{padding-bottom:0}
-  main{min-height:calc(100dvh - 32px);grid-template-rows:auto 1fr}
-  main>section:last-child{align-self:end;position:sticky;bottom:0;z-index:5;background:var(--bg);border-top:1px solid var(--accent);margin:0 -16px;padding:0 16px env(safe-area-inset-bottom,0px)}
-  #sheet-grip{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:52px;border:0;padding:0;background:none;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:16px;cursor:pointer}
-  body:not(.sheet-up):not(.program-editing) main>section:last-child>:not(#sheet-grip){display:none}
-  body.sheet-up main>section:last-child,body.program-editing main>section:last-child{position:static}
+  :root:not([data-layout="classic"]) body{padding-bottom:0}
+  :root:not([data-layout="classic"]) main{min-height:calc(100dvh - 32px);grid-template-rows:auto 1fr}
+  :root:not([data-layout="classic"]) main>section:last-child{align-self:end;position:sticky;bottom:0;z-index:5;background:var(--bg);border-top:1px solid var(--accent);margin:0 -16px;padding:0 16px env(safe-area-inset-bottom,0px)}
+  :root:not([data-layout="classic"]) #sheet-grip{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:52px;border:0;padding:0;background:none;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:16px;cursor:pointer}
+  :root:not([data-layout="classic"]) body:not(.sheet-up):not(.program-editing) main>section:last-child>:not(#sheet-grip){display:none}
+  :root:not([data-layout="classic"]) body.sheet-up main>section:last-child,:root:not([data-layout="classic"]) body.program-editing main>section:last-child{position:static}
 }
 /* Wide screens: the player is a rail that stays put, the tabs and their panels are the workspace beside it */
 @media(min-width:1100px){
-  main{max-width:1280px;grid-template-columns:minmax(300px,360px) minmax(0,1fr);column-gap:48px;align-items:start}
-  #np{position:sticky;top:32px}
-  .program-editing #np{position:sticky;top:32px;padding:0}
-  .program-editing #np .strip,.program-editing #ruler,.program-editing #music-source{display:revert}
-  .program-editing #np .title{font-size:inherit;line-height:inherit}
+  :root:not([data-layout="classic"]) main{max-width:1280px;grid-template-columns:minmax(300px,360px) minmax(0,1fr);column-gap:48px;align-items:start}
+  :root:not([data-layout="classic"]) #np{position:sticky;top:32px}
+  :root:not([data-layout="classic"]) .program-editing #np{position:sticky;top:32px;padding:0}
+  :root:not([data-layout="classic"]) .program-editing #np .strip,:root:not([data-layout="classic"]) .program-editing #ruler,:root:not([data-layout="classic"]) .program-editing #music-source{display:revert}
+  :root:not([data-layout="classic"]) .program-editing #np .title{font-size:inherit;line-height:inherit}
 }
 h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
 .l{font-size:16px;color:var(--muted)}

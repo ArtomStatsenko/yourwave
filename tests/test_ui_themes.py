@@ -211,7 +211,7 @@ sliders[0].value='0';sliders[0].type='range';listener({target:sliders[0]});asser
                 rows = re.findall(r'id="(appearance-(?:mode|accent)-row)" hidden', html)
                 harness = CORE + r"""
 const assert=require('node:assert/strict');
-const nodes={'theme-select':{},'theme-note':{}};ROWS.forEach(id=>nodes[id]={hidden:true});
+const nodes={'theme-select':{},'layout-select':{},'theme-note':{}};ROWS.forEach(id=>nodes[id]={hidden:true});
 const $=id=>nodes[id],esc=s=>s;
 const core=RadioCore.create({theme:NAME,location:{search:'',hash:''}});
 """ + picker + r"""

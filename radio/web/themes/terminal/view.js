@@ -1061,6 +1061,8 @@ function themePicker(){
   if($('appearance-mode-row'))$('appearance-mode-row').hidden=!me.modes.length;   // a theme with these rows (soft)
   if($('appearance-accent-row'))$('appearance-accent-row').hidden=!me.accent}
 $('theme-select').onchange=function(){core.setTheme(this.value)};
+try{$('layout-select').value=localStorage.getItem('radio.layout')||'panels'}catch(e){}
+$('layout-select').onchange=function(){var v=this.value;document.documentElement.dataset.layout=v;try{localStorage.setItem('radio.layout',v)}catch(e){}};
 core.subscribe(function(core,change){if(change==='capabilities')themePicker()});
 themePicker();
 // a Details box stays open across redraws (toggle does not bubble: caught on the way down)

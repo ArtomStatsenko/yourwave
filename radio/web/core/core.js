@@ -14,8 +14,10 @@ var RadioCore=(function(){
   // A page opened without ?theme= goes once to the theme this browser chose; the server still decides by ?theme=,
   // then [ui] theme, then terminal. Call it in the page's <head>, before anything is drawn. The address it goes to
   // carries ?theme=, so it never goes again (a theme that no longer exists is served as terminal there).
+  // The page layout (Settings → Appearance → Layout): panels (the player rail and tabs sheet, the default) or classic (one column)
+  function applyLayout(){try{document.documentElement.dataset.layout=localStorage.getItem('radio.layout')||'panels'}catch(e){}}
   function followSavedTheme(current,loc){
-    loc=loc||location;var saved=savedTheme(),asked=(loc.search.match(/[?&]theme=([^&#]*)/)||[])[1];
+    applyLayout();loc=loc||location;var saved=savedTheme(),asked=(loc.search.match(/[?&]theme=([^&#]*)/)||[])[1];
     // the saved theme is no longer installed: the server answered with another; this one is the choice now
     if(asked!==undefined&&saved&&decodeURIComponent(asked)===saved&&saved!==current)try{localStorage.setItem(THEME_KEY,current)}catch(e){}
     if(asked!==undefined||!saved||saved===current)return false;
@@ -222,5 +224,5 @@ var RadioCore=(function(){
     return core;
   }
 
-  return {create:create,lend:lend,KINDS:KINDS,followSavedTheme:followSavedTheme,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent};
+  return {create:create,lend:lend,KINDS:KINDS,followSavedTheme:followSavedTheme,applyLayout:applyLayout,playhead:playhead,contrast:contrast,onFill:onFill,textAccent:textAccent};
 })();
