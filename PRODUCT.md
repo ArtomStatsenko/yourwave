@@ -55,7 +55,7 @@ Every news source passes a shared Russian editorial policy before its material c
 
 ### Configuration and content
 
-- Integrations and Experiments contain feature flags and descriptions. Corresponding configuration belongs in Settings and appears only when its flag is enabled.
+- Integrations and Experiments contain feature flags and descriptions. A feature's own configuration sits in its row (behind the gear icon) and appears only when its flag is on; news detail sits with the news sources, the YouTube Music playlist with YouTube Music. Settings keeps what belongs to no single feature, in four sections: Appearance, Sounds, AI & Voice, Station.
 - Keep the Experiments tab available even when no experiments are present. Graduated features should not retain an experimental toggle.
 - Preserve both the repository's base audio preset and the user's local preset. Personal music, jingles, credentials and account data remain local.
 - Prefer reliable sources with simple integrations. Reuse cached and prepared material, minimize model tokens, and avoid model calls for schedule display and rearrangement.
