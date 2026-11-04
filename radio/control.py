@@ -127,10 +127,10 @@ def execute(body, *, sender=None, starter=None, port=config.UI_PORT):
     elif cmd == "chatgpt_login":  # OpenAI accepts only a 127.0.0.1 callback; the port may vary
         resp = {"ok": True, "url": chatgpt.login_url(f"http://127.0.0.1:{port}/auth/callback")}
     elif cmd == "voice_sample":  # one host line in the selected voice, played by the page
-        live = config.load()
-        settings.apply(live, settings.base(live))
+        current_cfg = config.load()
+        settings.apply(current_cfg, settings.base(current_cfg))
         try:
-            voice = tts.make_voice(live)
+            voice = tts.make_voice(current_cfg)
             if not voice.health():
                 raise OSError
             voice.synthesize(VOICE_SAMPLE, config.RUN_DIR / "voice-sample.wav")
@@ -177,9 +177,9 @@ def execute(body, *, sender=None, starter=None, port=config.UI_PORT):
                 if len(names) != 1 or body.get("action") not in ("add", "remove"):
                     raise ValueError(f"Add or remove one {noun} at a time.")
                 name = names[0]
-                live = config.load()
-                settings.apply(live, settings.base(live))
-                current = list(live["sources"][source][column])
+                current_cfg = config.load()
+                settings.apply(current_cfg, settings.base(current_cfg))
+                current = list(current_cfg["sources"][source][column])
                 if body["action"] == "add" and name not in current:
                     if len(current) >= 20:
                         raise ValueError("Use up to 20 entries. Remove one before adding another.")

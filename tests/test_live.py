@@ -49,6 +49,13 @@ class LiveRadioTests(unittest.TestCase):
         with patch.object(live, '_get', return_value=[]), self.assertRaisesRegex(ValueError, 'no longer in the catalog'):
             live.choose('gone')
 
+    def test_the_page_reads_the_catalog_itself(self):
+        from radio import control
+        with patch.object(live, 'search', return_value=[{'id': 'u1'}]) as search, patch.object(live, 'tags', return_value=['jazz']):
+            self.assertEqual(control.execute({'cmd': 'live', 'action': 'search', 'tag': 'jazz'})[0], {'ok': True, 'stations': [{'id': 'u1'}]})
+            self.assertEqual(control.execute({'cmd': 'live', 'action': 'tags'})[0], {'ok': True, 'tags': ['jazz']})
+        search.assert_called_once_with('', 'jazz')
+
     def test_the_station_plays_through_the_daemon_and_its_songs_have_no_file(self):
         svc = Service(config.load(), tts=MockTTS(), output='x')
         self.addCleanup(svc.db.close)
