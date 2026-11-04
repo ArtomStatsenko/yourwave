@@ -17,10 +17,10 @@ assert.equal(RadioModel.musicSourceLabel({state:'PLAYING',live:{name:'Groove Sal
 assert.equal(RadioModel.stationLabel({kind:'link',title:'Mix'}),'Station · Mix');
 const list=Array.from({length:37},(_, i)=>({title:'t'+i,params:'p'+i})),g=RadioModel.stationGroups(list);
 assert.equal(g.moods.length,11);assert.equal(g.genres.length,26);assert.equal(g.genres[0].title,'t11');
-// a song unfolds to "Radio from this song" only while stations are possible; an error is Activity, not history
+// a song row has the radio icon only while stations are possible; an error is Activity, not history
 const items=[{id:1,kind:'music',ref:'ytmusic:abc',title:'A'},{id:2,kind:'error',title:'Connect YouTube Music first',time:'x'}];
 let t=RadioModel.timeline({timeline:items,status:{},radio:true},true);
-assert.equal(t.entries.length,1);assert.equal(t.entries[0].radio,true);assert.equal(t.entries[0].expandable,true);assert.equal(t.activity[0].kind,'error');
+assert.equal(t.entries.length,1);assert.equal(t.entries[0].radio,true);assert.equal(t.entries[0].expandable,false,'the icon, not a fold-out');assert.equal(t.activity[0].kind,'error');
 t=RadioModel.timeline({timeline:items,status:{}},true);assert.equal(!!t.entries[0].radio,false);
 t=RadioModel.timeline({timeline:[{id:3,kind:'music',ref:'live:Artist - Song',title:'Song'}],status:{},radio:true},true);assert.equal(!!t.entries[0].radio,false,'a live song cannot be a seed');
 '''

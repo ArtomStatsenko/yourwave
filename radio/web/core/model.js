@@ -63,7 +63,7 @@ var RadioModel=(function(){
     var items=snapshot.timeline||[],status=snapshot.status||{};
     var aired=items.filter(function(x){return x.kind!=='session'&&x.kind!=='error'}).map(function(x){
       var e=entry(x,items,running,status);
-      if(snapshot.radio&&x.kind==='music'&&x.ref&&String(x.ref).indexOf('live:')!==0){e.expandable=true;e.radio=true}  // a song unfolds to "Radio from this song"
+      if(snapshot.radio&&x.kind==='music'&&x.ref&&String(x.ref).indexOf('live:')!==0)e.radio=true;  // a song row offers radio from it
       return e});
     return {entries:aired,shown:HISTORY_SHOWN,activity:items.filter(function(x){return x.kind==='session'||x.kind==='error'}),
       background:backgroundError(status.last_error)?status.last_error:''};

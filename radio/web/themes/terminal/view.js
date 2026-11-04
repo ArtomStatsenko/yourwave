@@ -706,6 +706,8 @@ function segmentHtml(s){return s.url?sourceAnchor(s,s.text):esc(s.text)}
 // a thumbs up for one airing of a song (24px line icon, filled when given)
 var CROSS='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 var THUMB='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1H7zm0 0l3.2-6.2a1.7 1.7 0 0 1 3.2 1L12.6 10H18a2 2 0 0 1 2 2.4l-1.3 6a2 2 0 0 1-2 1.6H7"/></svg>';
+var RADIO='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19a10 10 0 0 1 0-14"/></svg>';
+function radioButton(x){return '<button type="button" class="rs" data-station-song="'+esc(x.ref)+'" data-title="'+esc(x.text)+'" aria-label="Radio from this song: '+esc(x.text)+'" title="Radio from this song">'+RADIO+'</button>'}
 function markButton(x){return '<button type="button" class="mk" data-mark="'+esc(String(x.id))+'" aria-pressed="'+!!x.marked+'" aria-label="Thumbs up" title="Hear this more often">'+THUMB+'</button>'}
 var selectedRow=null;  // the row last tapped: its empty mark shows (on a touch screen there is no hover)
 function toggleMark(id){
@@ -723,7 +725,7 @@ function row(x){
   var id=String(x.id),c=x.current,ex=x.expandable,o=ex&&!!open[id];
   var inner='<span class="tm">'+(c?'now':esc(appearance.formatTime(x.time)))+'</span><span class="k'+(c?' on':'')+'">'+(c?'● ':'')+(String(x.kindLabel).toLowerCase()===String(x.text).toLowerCase()&&!c?'':x.kindLabel)+'</span><span class="tx">'+esc(x.text)+trackSource(x.kind==='music'?x.ref:'')+'</span>'+(ex?'<span class="tm ch">'+(o?'▴':'▾')+'</span>':'');
   var h='<div data-history-id="'+esc(id)+'" class="it '+x.kind+(c?' cur'+(st.state==='PAUSED'?' paused':''):'')+(selectedRow===id?' sel':'')+'"><div class="hd">'+(ex?'<button class="tg" data-id="'+id+'" aria-expanded="'+o+'">'+inner+'</button>':'<div class="tg">'+inner+'</div>');
-  if(x.kind==='music')h+=markButton(x);
+  if(x.kind==='music'){if(x.radio)h+=radioButton(x);h+=markButton(x)}
   if(x.kind==='music'&&x.replayable)
     h+=x.queued?'<button class="rp on" data-dq="'+id+'" title="Queued, number '+x.queuePlace+'. Press to remove" aria-label="Queued, number '+x.queuePlace+'. Remove from the queue"><span class="qd"><span class="qn">'+x.queuePlace+'</span><span class="qx">✕</span></span></button>':'<button class="rp" data-q="'+id+'" title="play again at the next song break" aria-label="play again">↺</button>';
   h+='</div>';
@@ -735,7 +737,6 @@ function row(x){
       if(d.description)h+='<p class="sub">'+linkedText(d.description)+'</p>';
       d.links.forEach(function(ln){if(ln.label)h+='<p>'+sourceAnchor(ln,ln.label)+'</p>';if(ln.stars)h+='<p class="l">'+esc(ln.stars)+'</p>'});
       if(d.oldStars)h+='<p class="l">'+esc(RadioModel.OLD_STARS_NOTE)+'</p>'});
-    if(x.radio)h+='<p><button type="button" class="pick-link" data-station-song="'+esc(x.ref)+'" data-title="'+esc(x.text)+'">Radio from this song</button></p>';
     h+='</div>'}
   return h+'</div>'}
 function backgroundError(message){return RadioModel.backgroundError(message)}

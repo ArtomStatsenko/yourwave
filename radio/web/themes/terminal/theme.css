@@ -415,6 +415,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .pick-live{flex-direction:column;align-items:flex-start;justify-content:center;padding:6px 4px}.pick-live .l{margin:0}
 @media(max-width:640px){#station-picker{position:fixed;top:auto;left:0;right:0;bottom:0;width:auto;max-height:75vh;border-width:1px 0 0;padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px))}}
 #tl .it:not(.music)>.hd>button.tg{margin-right:88px}  /* the fold arrow of a row without thumb and ↺ stands in the songs' arrow column (two 44px slots in) */
+.rs{display:grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;margin:-8px 0;padding:0;border:0;color:var(--muted)}
+.rs:hover{border:0;color:var(--accent)}.rs svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}.rs circle{fill:currentColor}
+.it .rs{visibility:hidden}.it:hover .rs,.it:focus-within .rs,.it.sel .rs{visibility:visible}  /* like the empty thumb: it shows on hover, focus or tap, its slot is always there */
+#tl:has(.rs) .it:not(.music)>.hd>button.tg{margin-right:132px}
 /* CRT screen (Settings → Appearance, on by default): layers over the page; colours, sizes and positions stay. Scan
    lines, a vignette and a glass glare (html::before) and a glow; phones and narrow windows get lighter lines and
    vignette and less glow. The bend is an SVG displacement map (#crt) on body, which then scrolls inside a screen-sized
