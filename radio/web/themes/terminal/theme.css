@@ -310,7 +310,7 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #plan-add button{font-size:16px;padding:6px 10px}
 #plan-add [hidden]{display:none}
 .it.cur .tm{color:var(--accent)}
-#history-more{width:100%}
+#history-more{border:0;min-height:44px;padding:0 4px;margin:0;color:var(--accent);text-decoration:underline;text-underline-offset:4px}  /* a link like Activity, not a boxed bar */
 @media(hover:none){.plan-gap>button{opacity:1}}
 @media(max-width:640px){.program-editing main{height:calc(100dvh - 40px)}#plan-add{padding-left:0}}
 @media(max-width:480px){#direction-list{--plan-time:48px}}
