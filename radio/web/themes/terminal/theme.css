@@ -417,7 +417,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 #tl .it:not(.music)>.hd>button.tg{margin-right:88px}  /* the fold arrow of a row without thumb and ↺ stands in the songs' arrow column (two 44px slots in) */
 .rs{display:grid;place-items:center;flex:none;align-self:center;width:44px;height:44px;min-height:44px;margin:-8px 0;padding:0;border:0;color:var(--muted)}
 .rs:hover{border:0;color:var(--accent)}.rs svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}.rs circle{fill:currentColor}
-.it .rs{visibility:hidden}.it:hover .rs,.it:focus-within .rs,.it.sel .rs{visibility:visible}  /* like the empty thumb: it shows on hover, focus or tap, its slot is always there */
+.it .rs{visibility:hidden}.it:hover .rs,.it:focus-within .rs{visibility:visible}@media(hover:none){.it.sel .rs{visibility:visible}}  /* like the empty thumb: it shows on hover, focus or tap, its slot is always there */
 #tl:has(.rs) .it:not(.music)>.hd>button.tg{margin-right:132px}
 /* CRT screen (Settings → Appearance, on by default): layers over the page; colours, sizes and positions stay. Scan
    lines, a vignette and a glass glare (html::before) and a glow; phones and narrow windows get lighter lines and
