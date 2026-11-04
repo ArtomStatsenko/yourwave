@@ -240,7 +240,7 @@ var RadioModel=(function(){
       listen=lc||own&&!run?(stopping?'Stopping…':starting||own?'Starting…':run?'Stop radio':'Start radio'):br?(o.listening?'Pause listening':'Listen'):(on?'Pause':'Play');
     return {on:on,running:run,browser:br,frame:ds,
       airGlyph:on?'●':status.state==='PAUSED'?'❚❚':'○',
-      airText:status.auto_paused?'waiting for a listener':on?(br&&!o.listening?'on air · not listening':'on air'):status.state==='PAUSED'?'paused':stopping?'stopping':'off air',
+      airText:status.auto_paused?'waiting for a listener':on?'on air':status.state==='PAUSED'?'paused':stopping?'stopping':'off air',
       // only a track-to-track change is a track title (a theme may animate it); messages appear at once
       title:run?(ds.current_kind==='news'||ds.current_kind==='teaser'?'Host edition':ds.current_title||'…'):stopping?'Stopping radio…':own?'Starting radio…':o.localControl?'Radio is off':'Start on your Mac',
       isTrack:run&&!!ds.current_title,
@@ -267,7 +267,7 @@ var RadioModel=(function(){
       if(source.phase==='error')return current+' · '+source.error;
       if(source.phase==='crossfade')return name(source.from)+' → '+current+' · crossfading';
       if(source.phase==='loading')return current+' · loading '+name(source.target);
-      if(source.phase==='waiting')return current+' → '+name(source.target)+' · '+(status.state==='PAUSED'?'after this track resumes':source.current?'after this track':'after the host');
+      if(source.phase==='waiting')return (source.current||status.state==='PAUSED'?current+' → ':'')+name(source.target)+' · '+(status.state==='PAUSED'?'after this track resumes':source.current?'after this track':'after the host');
       return current;
     }
     if(status.music_source==='ytmusic')return 'YouTube Music';

@@ -66,7 +66,7 @@ assert.equal(musicSourceLabel({state:'STOPPED'},true,{connected:true},'ytmusic')
 assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:'local',target:'ytmusic',phase:'loading'}},true,{}), 'Local music · loading YouTube Music');
 assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:'local',target:'ytmusic',phase:'waiting'}},true,{}), 'Local music → YouTube Music · after this track');
 assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:'ytmusic',from:'local',phase:'crossfade'}},true,{}), 'Local music → YouTube Music · crossfading');
-assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:null,target:'local',phase:'waiting'}},false,{}), 'Host on air → Local music · after the host');
+assert.equal(musicSourceLabel({state:'PLAYING',music_source_state:{current:null,target:'local',phase:'waiting'}},false,{}), 'Local music · after the host');
 
 """], check=True, capture_output=True, text=True)
 
