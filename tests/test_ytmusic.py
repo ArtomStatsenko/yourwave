@@ -150,6 +150,17 @@ class YouTubeMusicTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
 
+    def test_the_browser_jar_is_a_cookie_file_before_yt_dlp_reads_it(self):
+        out = Path(self.tmp.name) / "jar.txt"
+        out.write_text("")
+        def run(args, **kw):
+            self.assertTrue(out.read_text().startswith("# Netscape HTTP Cookie File"), "an empty file stops yt-dlp")
+            out.write_text(out.read_text() + ".youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tx\nexample.com\tTRUE\t/\tTRUE\t0\tA\tb\n")
+            return subprocess.CompletedProcess(args, 0, "", "")
+        with patch("radio.ytmusic.subprocess.run", side_effect=run):
+            ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
+        self.assertEqual(out.read_text().splitlines(), ["# Netscape HTTP Cookie File", ".youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tx"])
+
     def test_a_cookie_store_it_may_not_see_is_a_privacy_block_too(self):
         out = Path(self.tmp.name) / "jar.txt"
         out.write_text("")

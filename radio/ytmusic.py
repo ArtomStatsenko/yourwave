@@ -340,11 +340,13 @@ def browser_jar(browser, url, out):
     browser's store; macOS asks once for Keychain access to Chrome's key). Only youtube.com cookies are kept."""
     if browser not in BROWSERS:
         raise ValueError("Unknown browser")
+    # yt-dlp reads --cookies before it writes it: an empty file is "not a Netscape format cookies file" and it stops
+    Path(out).write_text("# Netscape HTTP Cookie File\n")
     try:
         p = subprocess.run(["yt-dlp", "--ignore-config", "--no-warnings", "--cookies-from-browser", browser,
                             "--cookies", str(out), "--skip-download", "--flat-playlist", "--playlist-end", "1", url],
                            capture_output=True, text=True, timeout=120)
-        lines = Path(out).read_text(errors="replace").splitlines()
+        lines = [ln for ln in Path(out).read_text(errors="replace").splitlines() if "\t" in ln]  # cookies, not the header
     except (OSError, subprocess.TimeoutExpired):
         lines, p = [], None
     err = (getattr(p, "stderr", "") or "").lower()  # only matched against, never shown: it may carry account details
