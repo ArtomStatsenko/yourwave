@@ -26,8 +26,8 @@ const media={actions:{},setActionHandler(name,fn){this.actions[name]=fn}};
 const c={$ ,Audio,window:{AudioContext,addEventListener(){}},navigator:{mediaSession:media},
   MediaMetadata:function(value){return value},KIND:{},
   document:{activeElement:null,documentElement:{dataset:{presentation:'calm'}}},localStorage:{getItem:()=>null,setItem(){}},requestAnimationFrame(){},
-  setTitle:t=>title=t,media(){},f:String,musicSourceLabel:()=>'',musicSourceOptions:()=>'',
-  st:{state:'STOPPED',output:'both'},stg:[],pls:[],ytStatus:{},musicChoice:'local',busy:false,
+  setTitle:t=>title=t,media(){},f:String,musicSourceLabel:()=>'',stationControls(){},musicSourceOptions:()=>'',
+  st:{state:'STOPPED',output:'both'},stg:[],pls:[],ytStatus:{},ytOn:false,said:'',currentRef:'',musicChoice:'local',busy:false,
   LOCAL_CONTROL:true,titleIsTrack:false,cmd:(...args)=>{commands.push(args);return Promise.resolve()},
   rerollNext(){},Date,console};
 vm.createContext(c);vm.runInContext(CORE+'\nvar core=RadioCore.create({localControl:true});\n'+AUDIO+'\n'+PLAYER+'\n'+HANDLERS,c);

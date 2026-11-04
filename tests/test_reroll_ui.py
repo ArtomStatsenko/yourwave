@@ -12,7 +12,7 @@ class RerollUiTests(unittest.TestCase):
         events = source[source.index("$('upcoming').onclick="):source.index("$('music-source-select').onchange=")]
         harness = r'''
 const assert=require('node:assert/strict');
-var st={},rerollConfirm=null,rerollBusy=false,rerollError='',historyExpanded=false,planDraft=null,items=[],calls=[];
+var ytOn=false,currentRef='',st={},rerollConfirm=null,rerollBusy=false,rerollError='',historyExpanded=false,planDraft=null,items=[],calls=[];
 var document={documentElement:{dataset:{}},activeElement:null},nodes={};
 function $(id){return nodes[id]||(nodes[id]={scrollTop:0,contains:()=>false,innerHTML:''})}
 function esc(s){return String(s)}function entryTitle(k,t){return t}function directionView(){}function row(){return ''}
