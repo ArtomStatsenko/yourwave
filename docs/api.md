@@ -6,7 +6,7 @@ command-line agent uses the same operations through `radio/control.py`.
 
 ## Where it listens
 
-- `http://127.0.0.1:8765/`: the desktop page. Start and stop work here.
+- `http://127.0.0.1:8775/`: the desktop page. Start and stop work here.
 - `127.0.0.1:<listen_port>` (optional, e.g. 8766): the phone page through private Tailscale Serve
   ([mobile-listening.md](mobile-listening.md)). Same API and token; `play` and `stop` answer 403 there.
 

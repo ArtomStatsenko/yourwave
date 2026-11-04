@@ -56,7 +56,7 @@ Model names and server addresses are configurable. Imported bulletins pass throu
 ./bin/radio ui
 ```
 
-On first launch, Yourwave creates a configuration pointing to the installed Base WAVs. Adjust `voice.server_dir` if needed, then start the station and enable browser listening at [localhost:8765](http://127.0.0.1:8765/).
+On first launch, Yourwave creates a configuration pointing to the installed Base WAVs. Adjust `voice.server_dir` if needed, then start the station and enable browser listening at [localhost:8775](http://127.0.0.1:8775/).
 
 To check the audio tools, music directory, and voice backend, including synthesis of a test phrase:
 

@@ -12,6 +12,7 @@ ASSETS_DIR = PKG_DIR.parent / "assets"
 RUN_DIR = DATA_DIR / "run"
 SOCK = RUN_DIR / "radio.sock"
 AUDIO_EXTS = {".mp3", ".m4a", ".flac", ".wav"}
+UI_PORT = 8775  # the desktop page (radio ui); 8765 is often taken by other local services
 SOUND_SLOTS = ("stinger_in", "stinger_out", "bed", "separator", "station_id", "reminder", "github_intro", "horizon_intro")
 
 

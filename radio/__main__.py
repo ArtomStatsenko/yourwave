@@ -229,7 +229,7 @@ def build_parser():
     src.set_defaults(fn=cmd_source)
     sub.add_parser("doctor").set_defaults(fn=cmd_doctor)
     u = sub.add_parser("ui", help="интерфейс в браузере")
-    u.add_argument("--port", type=int, default=8765)
+    u.add_argument("--port", type=int, default=config.UI_PORT)
     u.set_defaults(fn=lambda a: __import__("radio.ui").ui.serve(a.port))
     d = sub.add_parser("_daemon")
     d.add_argument("--output", default="device")

@@ -87,7 +87,7 @@ def read_charts():
         db.close()
 
 
-def execute(body, *, sender=None, starter=None, port=8765):
+def execute(body, *, sender=None, starter=None, port=config.UI_PORT):
     from .__main__ import send as native_send, start_daemon
     send, start_daemon = sender or native_send, starter or start_daemon
     cfg = config.load()

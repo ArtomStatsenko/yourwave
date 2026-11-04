@@ -11,7 +11,7 @@ The Mac runs the station and must stay awake and connected to the internet. The 
    ```
 
    Replace the example hostname with the exact Mac hostname. Use output mode `browser` or `both` so the station produces a stream.
-3. Restart the radio **UI**. The phone UI binds to `127.0.0.1:8766`; the local desktop UI stays at `127.0.0.1:8765`. Both share one station, stream and per-run API token.
+3. Restart the radio **UI**. The phone UI binds to `127.0.0.1:8766`; the local desktop UI stays at `127.0.0.1:8775`. Both share one station, stream and per-run API token.
 4. Run `tailscale serve --bg --https=443 http://127.0.0.1:8766`. If prompted, enable HTTPS through the Tailscale link using the owner's login. Leave the optional Funnel checkbox off. If port 443 already hosts another service, choose a free HTTPS port rather than replacing it; include that port in `control_host` and the phone URL.
 5. Open the local Mac UI (with the `browser` output this starts the station; with `both`, press **Start radio**), then open the HTTPS address on the phone. **Listen** and **Pause listening** affect only this device and never start the station. Next, editing and settings affect the shared station and every listener. **Start radio** and **Stop radio** (output `both` or `speakers`) are available only in the local Mac UI; the phone API rejects those commands too. With the `browser` output the station stops a minute after no page (Mac or phone) is open and nobody listens; only a Mac page starts it again.
 

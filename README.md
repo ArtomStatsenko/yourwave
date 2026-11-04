@@ -56,7 +56,7 @@ mkdir -p ~/Music/Radio                # put MP3, M4A, FLAC or WAV files here
 ./bin/radio ui
 ```
 
-The page opens at [127.0.0.1:8765](http://127.0.0.1:8765/) and starts the station. On first launch it writes your `config.toml`. Press **▶** to listen.
+The page opens at [127.0.0.1:8775](http://127.0.0.1:8775/) and starts the station. On first launch it writes your `config.toml`. Press **▶** to listen.
 
 **4. Check the setup**
 

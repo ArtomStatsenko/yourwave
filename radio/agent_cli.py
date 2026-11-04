@@ -202,7 +202,7 @@ def register(sub):
     call = command('call', help='invoke any shared API operation; secrets through --data @file or -')
     call.add_argument('operation', choices=sorted(control.OPERATIONS))
     call.add_argument('--data', default='{}', help='JSON object, @file or - for stdin')
-    call.add_argument('--port', type=int, default=8765, help='OAuth callback port')
+    call.add_argument('--port', type=int, default=config.UI_PORT, help='OAuth callback port')
     plan = command('plan')
     plan.add_argument('action', choices=['catalog', 'insert', 'up', 'down', 'skip', 'time', 'reset', 'save', 'undo'])
     plan.add_argument('--data', default='{}', help='JSON object, @file or -; fields match the planner API')
@@ -229,7 +229,7 @@ def register(sub):
             elif name == 'integrations' and action == 'ytmusic-connect':
                 p.add_argument('--playlist', default=''); p.add_argument('--cookie-file'); p.add_argument('--browser', default='', choices=['', 'chrome'])
             elif name == 'auth':
-                p.add_argument('service', choices=['chatgpt', 'openrouter']); p.add_argument('--port', type=int, default=8765)
+                p.add_argument('service', choices=['chatgpt', 'openrouter']); p.add_argument('--port', type=int, default=config.UI_PORT)
             elif name == 'keys':
                 p.add_argument('provider', choices=['openai', 'openrouter', 'deepseek', 'xai'])
                 if action == 'set':
@@ -240,9 +240,9 @@ def register(sub):
     p = command('reroll'); p.add_argument('ref')
     command('voice').add_argument('action', choices=['sample'])
     p = command('probe'); p.add_argument('--seconds', type=int, default=5)
-    p.add_argument('--url', default='http://127.0.0.1:8765/stream')
+    p.add_argument('--url', default=f'http://127.0.0.1:{config.UI_PORT}/stream')
     p.add_argument('--silent', action='store_true', help='always silent; accepted for explicit intent')
     command('api', help='serve the existing API without opening a browser').add_argument('action', choices=['serve'])
     # Port belongs to the server, not a separately configured second API implementation.
-    sub.choices['api'].add_argument('--port', type=int, default=8765)
+    sub.choices['api'].add_argument('--port', type=int, default=config.UI_PORT)
     command('repl', help='interactive shell using the same command handlers')

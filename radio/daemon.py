@@ -2704,10 +2704,10 @@ class Service:
                 if kind == 'song' and value and not value.startswith('ytmusic:') and value in self.library:
                     title = title or music.label(self.db, value)
                     value = ' '.join(music.song(self.db, value) or ()) or Path(value).stem  # a local song: found on YouTube
-                await asyncio.to_thread(ytmusic.start_station, kind, value.removeprefix('ytmusic:'), title,
-                                        '' if source != 'local' else 'local')
-                if source == 'local':
-                    settings.set_setting('music_source', 'ytmusic')  # a station plays YouTube Music: heard at once
+                restore = {'local': 'local', 'mixed': 'local,ytmusic'}.get(source, '')
+                await asyncio.to_thread(ytmusic.start_station, kind, value.removeprefix('ytmusic:'), title, restore)
+                if restore:
+                    settings.set_setting('music_source', 'ytmusic')  # the station alone, not between local songs
             else:
                 if restore := ytmusic.stop_station():
                     settings.set_setting('music_source', restore)

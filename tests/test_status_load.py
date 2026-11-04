@@ -135,6 +135,9 @@ class StationTests(unittest.TestCase):
             self.assertTrue(asyncio.run(svc._station({'action': 'stop'}))['ok'])
             self.assertEqual(settings.music_source(svc.cfg), 'local')
             self.assertFalse(asyncio.run(svc._station({'action': 'nope'}))['ok'])
+            settings.set_setting('music_source', 'local,ytmusic')  # mixed: the station plays alone, then mixed again
+            asyncio.run(svc._station({'action': 'start', 'kind': 'mood', 'value': 'p', 'title': 'Chill'}))
+            self.assertEqual((settings.music_source(svc.cfg), start.call_args.args[3]), ('ytmusic', 'local,ytmusic'))
 
 
 class StationStateTests(unittest.TestCase):

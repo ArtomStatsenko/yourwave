@@ -35,7 +35,7 @@ or `?theme=<name>` in the page address; `terminal` is the default and the refere
    (`/ui/themes/<name>/...`).
 3. In `view.js`, define `RadioTheme.mount(core, root)`: build or find the markup, subscribe, then
    `core.start()`.
-4. Open `http://127.0.0.1:8765/?theme=<name>`.
+4. Open `http://127.0.0.1:8775/?theme=<name>`.
 
 No inline `on...=""` handlers: a theme's functions live inside `mount()`, out of their reach. A test checks this.
 

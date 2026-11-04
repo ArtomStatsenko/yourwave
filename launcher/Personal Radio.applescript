@@ -3,7 +3,7 @@
 -- as "applet" under Automation: PlistBuddy -c "Add :CFBundleIdentifier string local.yourwave.launcher" and
 -- "Add :CFBundleDisplayName string Yourwave" on Contents/Info.plist, and codesign --force --sign - the app.
 -- Apps start without the Terminal PATH, so Homebrew (python3, liquidsoap, ffmpeg) and uv are added explicitly.
-set radioURL to "http://127.0.0.1:8765/"
+set radioURL to "http://127.0.0.1:8775/"
 set logFile to "$HOME/Library/Application Support/PersonalRadioClaude/logs/ui.log"
 do shell script "export PATH=/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH; " & ¬
 	"if ! curl -s -o /dev/null " & radioURL & "; then " & ¬
