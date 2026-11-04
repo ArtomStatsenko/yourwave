@@ -325,6 +325,16 @@ def parse_tracks(data):
 BROWSERS = ("chrome",)  # shortcut: only the user's browser; yt-dlp also reads brave, edge, firefox, safari...
 
 
+def _blocked(folder: Path) -> bool:
+    try:
+        os.listdir(folder)
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
 def browser_jar(browser, url, out):
     """Copies the YouTube sign-in from a browser the user is signed in with into a cookie file (yt-dlp reads the
     browser's store; macOS asks once for Keychain access to Chrome's key). Only youtube.com cookies are kept."""
@@ -338,6 +348,8 @@ def browser_jar(browser, url, out):
     except (OSError, subprocess.TimeoutExpired):
         lines, p = [], None
     err = (getattr(p, "stderr", "") or "").lower()  # only matched against, never shown: it may carry account details
+    if not lines and "could not find" in err and _blocked(Path.home() / "Library/Application Support/Google/Chrome"):
+        err += " not permitted"  # yt-dlp cannot list the folder it may not open, so it reports the store as missing
     if not lines and "not permitted" in err:  # macOS privacy: this app may not read another app's data
         raise ValueError(f"macOS blocked access to {browser.title()}'s data: in System Settings → Privacy & Security → "
                          "Full Disk Access, turn on Personal Radio, then connect again")

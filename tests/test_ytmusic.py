@@ -145,10 +145,18 @@ class YouTubeMusicTests(unittest.TestCase):
         out.write_text("")
         for stderr, message in (("PermissionError: [Errno 1] Operation not permitted: '/Users/x/Library/Application Support/Google/Chrome'",
                                  "Full Disk Access"), ("could not find chrome cookies database", "quit Chrome")):
-            with self.subTest(message=message), \
+            with self.subTest(message=message), patch.object(ytmusic, "_blocked", return_value=False), \
                  patch("radio.ytmusic.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", stderr)):
                 with self.assertRaisesRegex(ValueError, message):
                     ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
+
+    def test_a_cookie_store_it_may_not_see_is_a_privacy_block_too(self):
+        out = Path(self.tmp.name) / "jar.txt"
+        out.write_text("")
+        with patch.object(ytmusic, "_blocked", return_value=True), \
+             patch("radio.ytmusic.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", "could not find chrome cookies database")):
+            with self.assertRaisesRegex(ValueError, "Full Disk Access"):
+                ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
 
     def test_feature_can_be_enabled_before_connecting_in_settings(self):
         from radio import plugins
