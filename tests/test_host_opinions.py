@@ -116,6 +116,7 @@ var stg=[{key:'host_name',title:'Host name',hint:'About the host.',value:'Боб
 {key:'host_character',title:'Host character',hint:'Applies to new scripts.',paragraph:true,
 value:'</textarea><script>bad()</script>',default:'Default',min:0,max:1200,step:null,unit:''}];
 """ + helper + r"""
+var pls=[{name:'duo_hosts',on:true}];function pluginsView(){}
 settingsView(true);
 var html=$('settings').innerHTML;
 assert.ok(html.includes('<textarea rows="4" id="st-host_character"'));
@@ -127,10 +128,11 @@ assert.ok(!html.includes('Default:'));
 assert.ok(html.includes('aria-label="Reset Host character"'));
 assert.ok(html.indexOf('data-rs="host_character"')<html.indexOf('<textarea'));
 var hostDetails=html.match(/<details[^>]*id="help-host_name"[^>]*>([\s\S]*?)<\/details>/)[1];
-var cohostDetails=html.match(/<details[^>]*id="help-cohost_name"[^>]*>([\s\S]*?)<\/details>/)[1];
+var cohostHtml=featureSettings(pls[0]);
+assert.ok(!html.includes('st-cohost_name'));  // the co-host sits in the Two hosts row, not in the general list
 assert.ok(hostDetails.includes('id="st-host_character"'));
 assert.ok(!hostDetails.includes('id="st-cohost_character"'));
-assert.ok(cohostDetails.includes('id="st-cohost_character"'));
+assert.ok(cohostHtml.includes('id="st-cohost_name"')&&cohostHtml.includes('id="st-cohost_character"'));
 assert.equal((hostDetails.match(/<summary/g)||[]).length,1);
 assert.ok(!html.includes('id="help-host_name" open'));
 helpText.open.host_name=true;

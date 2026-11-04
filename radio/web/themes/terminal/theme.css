@@ -140,12 +140,14 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 #upcoming .unskip,#direction-list .unskip,.toast button{border:0;min-height:44px;padding:0 8px;font-size:16px;color:var(--accent);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}
 .toast{position:sticky;bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:12px;padding:4px 4px 4px 14px;
   border:1px solid var(--ink);background:var(--bg)}.toast[hidden]{display:none}
+#chart-more{border:0;min-height:44px;padding:0 4px;margin:0;color:var(--accent);text-decoration:underline;text-underline-offset:4px}#chart-set>summary,#hook-review>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--muted)}#chart-set[open]>summary,#hook-review[open]>summary{color:var(--ink)}
 #chart-set-open{border:0;padding:0 4px;min-height:44px;color:var(--accent);text-decoration:underline;text-underline-offset:4px}  /* reads as a link */
 /* charts: place, title with plays and marks and a bar against the leader, the move since yesterday, the marks */
 .chart-tools{display:flex;gap:16px;align-items:center;flex-wrap:wrap;min-height:44px}
-#chart-windows{display:flex;gap:4px;flex-wrap:wrap}
-#chart-windows button{border:0;min-height:44px;padding:0 8px;color:var(--muted);font-size:16px}
-#chart-windows button[aria-pressed="true"]{color:var(--ink);text-decoration:underline;text-underline-offset:6px}
+#chart-windows,#stg-sub{display:flex;gap:4px;flex-wrap:wrap}
+#stg-sub{margin:0 0 12px}
+#chart-windows button,#stg-sub button{border:0;min-height:44px;padding:0 8px;color:var(--muted);font-size:16px}
+#chart-windows button[aria-pressed="true"],#stg-sub button[aria-pressed="true"]{color:var(--ink);text-decoration:underline;text-underline-offset:6px}
 #chart-note{margin-left:auto}#chart-empty[hidden]{display:none}
 #chart-list{list-style:none;margin:0;padding:0}
 .chart:not(.it){display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;gap:12px;align-items:center;min-height:56px;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -184,9 +186,11 @@ button.tg{cursor:pointer}button.tg:hover{background:var(--surface);border:0}
 .pl .sw{flex:none;width:72px;font-size:16px;color:var(--muted)}.pl[aria-pressed="true"] .sw{color:var(--accent)}
 .pl .nm{flex:1;min-width:0;overflow-wrap:anywhere}.pl .ds{color:var(--muted);font-size:16px;flex:1;min-width:0}
 @media(max-width:640px){.pl{display:grid;grid-template-columns:72px minmax(0,1fr)}.pl .nm{min-width:0;overflow-wrap:anywhere}.pl .ds{grid-column:2}}
-.control-help{color:var(--muted);font-size:16px;line-height:24px}.control-help summary{cursor:pointer;min-height:36px;padding:6px 0}.control-help .l{margin:4px 0 8px;line-height:24px}
+.control-help{color:var(--muted);font-size:16px;line-height:24px}.control-help summary{cursor:pointer;min-width:44px;min-height:44px;display:inline-grid;place-items:center;list-style:none;font-size:20px;line-height:1;padding:0}.control-help summary::-webkit-details-marker{display:none}.control-help[open]>summary{color:var(--ink)}.control-help .l{margin:4px 0 8px;line-height:24px}
 .plugin-row{position:relative;border-bottom:1px solid var(--line)}
-.plugin-row>.pl,.plugin-row>.pl:hover{border:0;padding-right:100px}.plugin-row>.control-help>summary{position:absolute;right:0;top:6px}.plugin-row>.control-help>.l{margin-left:84px}
+.pl .nm{min-width:0}.pl .ps{display:block;color:var(--muted);font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}  /* a source's status is one muted line under its name; the full text sits under ⓘ */
+.control-help.txt>summary,.st>.control-help.txt>summary{position:static;display:block;min-width:0;font-size:16px;place-items:unset}.st:has(>.control-help){position:relative}.st>.control-help>summary{position:absolute;right:0;top:0}.st:has(>.control-help)>.hd2 .setting-actions{margin-right:44px}
+.plugin-row>.pl,.plugin-row>.pl:hover{border:0;padding-right:52px}.plugin-row>.control-help>summary{position:absolute;right:0;top:0}.plugin-row>.control-help>.l,.plugin-row>.control-help>.st,.plugin-row>.control-help>.host-character{margin-left:84px}@media(max-width:640px){.plugin-row>.control-help>.l,.plugin-row>.control-help>.st,.plugin-row>.control-help>.host-character{margin-left:0}}
 .plugin-warning{padding:0 0 8px 84px}
 #news-source-list .plugin-row{border:0}
 #vol{width:112px;accent-color:var(--accent)}
@@ -371,7 +375,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 #tl .tg,#upcoming .tg{padding-left:0}#plan-edit{padding-right:0}  /* rows and the Edit link line up with the content edge */
 #direction-list .acts:not(:has(.rp,.unskip)){padding-right:44px}  /* the next song has no ✕: its dice still stands in the dice column */
 /* Settings → Sounds: a slot is a title with its hint, the files that play now, an Upload button, one status line */
-#sounds .sound{padding:12px 0 4px;border-top:1px solid var(--line)}#sounds .sound-h{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+#sounds .sound{padding:0 0 4px;border-top:1px solid var(--line)}#sounds .sound-h{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;min-height:44px;cursor:pointer}
 #sounds .sound p{margin:4px 0}.sound-f{display:flex;align-items:center;gap:4px 12px;min-height:44px}.sound-f .n{flex:1;min-width:0;overflow-wrap:anywhere}
 .sound-f button,.sound-up span{min-height:44px;padding:0 8px;border:0;background:none;color:var(--accent);text-decoration:underline;text-underline-offset:4px;font:inherit;font-size:16px;cursor:pointer;display:inline-flex;align-items:center}
 .sound-up{position:relative}.sound-up input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}.sound-up input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}.sound-up input:disabled+span{opacity:.5}

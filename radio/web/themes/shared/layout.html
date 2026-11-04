@@ -61,56 +61,10 @@
       <h2 id="news-sources-heading">News sources</h2>
 
       <div id="news-source-list"></div>
+      <div id="news-settings"></div>
     </section>
     <h2>Weather, reminders &amp; music</h2>
     <div id="integration-plugins"></div>
-
-  </div>
-  <div id="experiments" role="tabpanel" aria-labelledby="tab-ex" hidden>
-    <div id="experiment-plugins"></div>
-    <section id="hook-review" hidden aria-label="Music hook review">
-      <h2>Music hooks</h2>
-      <p id="hook-counts" class="l" role="status"></p>
-      <audio id="hook-audio" controls hidden></audio>
-      <div id="hook-candidates"></div>
-      <p id="hook-feedback" class="l" role="status"></p>
-    </section>
-
-  </div>
-  <div id="charts" role="tabpanel" aria-labelledby="tab-ch" hidden>
-    <div class="chart-tools"><div id="chart-windows" role="group" aria-label="Chart period"></div><span id="chart-note" class="l"></span></div>
-    <ol id="chart-list" aria-label="Chart"></ol>
-    <p id="chart-empty" class="l" role="status"></p>
-    <section id="chart-set" class="st" aria-labelledby="chart-set-heading">
-      <h2 id="chart-set-heading">Chart set on air</h2>
-      <label for="chart-set-size">Size</label><select id="chart-set-size" aria-describedby="chart-set-caption"></select>
-      <p class="l" id="chart-set-caption"></p>
-      <p class="l" id="chart-set-note" hidden><span id="chart-set-note-text"></span> <button type="button" id="chart-set-open">Open Experiments</button></p>
-      <div class="row"><button type="button" id="chart-set-play" aria-describedby="chart-set-note-text">Play after this song</button></div>
-      <label for="chart-set-weekly"><input type="checkbox" role="switch" id="chart-set-weekly" aria-describedby="chart-set-note-text"> Every week</label>
-      <div class="row"><label for="chart-set-day">Day</label><select id="chart-set-day"></select><label for="chart-set-time">Time</label><input id="chart-set-time" type="time" step="60"></div>
-      <p class="l" id="chart-set-status" role="status" aria-live="polite"></p>
-    </section>
-  </div>
-  <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
-    <section class="st" id="appearance" aria-labelledby="appearance-heading"><!--appearance--></section>
-
-    <div class="st" id="music-source-control">
-      <span id="music-source-title">Music source</span>
-      <div id="music-source-select" role="group" aria-labelledby="music-source-title" aria-describedby="music-source"></div>
-    </div>
-    <div class="st">
-      <label for="audio-preset">Audio preset</label>
-      <select id="audio-preset"><option value="base">Base</option><option value="personal" disabled>Personal</option></select>
-      <div class="l" id="audio-preset-hint" role="status"></div>
-      <p class="l" id="base-audio-credit">Base audio: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700030" target="_blank" rel="noopener">Tech Live — Kevin MacLeod</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> · edited excerpts.</p>
-    </div>
-    <section class="st" id="sounds" aria-labelledby="sounds-heading">
-      <h2 id="sounds-heading">Sounds</h2>
-      <p class="l">Add your own jingles, station ID and other sounds. MP3, M4A, FLAC or WAV, up to 50 MB each. Your files play instead of the Base sound of that slot, in rotation if there are several.</p>
-      <div id="sound-list"></div>
-      <audio id="sound-audio" hidden></audio>
-    </section>
     <form id="yt-form" class="st" hidden>
       <label for="yt-playlist">YouTube Music playlist</label>
       <input id="yt-playlist" type="url" value="https://music.youtube.com/playlist?list=LM" required>
@@ -123,15 +77,71 @@
       <div class="row"><button id="yt-connect" type="submit">Connect or refresh</button></div>
       </details>
       <div class="l">Restart the station to apply.</div>
-      <details class="control-help"><summary>Import details</summary><p class="l">Imports up to 500 songs; unavailable songs are skipped. Local music plays if the playlist cannot play.</p></details>
+      <details class="control-help txt"><summary>Import details</summary><p class="l">Imports up to 500 songs; unavailable songs are skipped. Local music plays if the playlist cannot play.</p></details>
     </form>
+
+  </div>
+  <div id="experiments" role="tabpanel" aria-labelledby="tab-ex" hidden>
+    <div id="experiment-plugins"></div>
+    <details id="hook-review" class="st" hidden>
+      <summary>Music hooks</summary>
+      <p id="hook-counts" class="l" role="status"></p>
+      <audio id="hook-audio" controls hidden></audio>
+      <div id="hook-candidates"></div>
+      <p id="hook-feedback" class="l" role="status"></p>
+    </details>
+
+  </div>
+  <div id="charts" role="tabpanel" aria-labelledby="tab-ch" hidden>
+    <div class="chart-tools"><div id="chart-windows" role="group" aria-label="Chart period"></div><span id="chart-note" class="l"></span></div>
+    <ol id="chart-list" aria-label="Chart"></ol>
+    <p id="chart-empty" class="l" role="status"></p>
+    <button type="button" id="chart-more" hidden></button>
+    <details id="chart-set" class="st">
+      <summary id="chart-set-heading">Chart set on air</summary>
+      <label for="chart-set-size">Size</label><select id="chart-set-size" aria-describedby="chart-set-caption"></select>
+      <p class="l" id="chart-set-caption"></p>
+      <p class="l" id="chart-set-note" hidden><span id="chart-set-note-text"></span> <button type="button" id="chart-set-open">Open Experiments</button></p>
+      <div class="row"><button type="button" id="chart-set-play" aria-describedby="chart-set-note-text">Play after this song</button></div>
+      <label for="chart-set-weekly"><input type="checkbox" role="switch" id="chart-set-weekly" aria-describedby="chart-set-note-text"> Every week</label>
+      <div class="row"><label for="chart-set-day">Day</label><select id="chart-set-day"></select><label for="chart-set-time">Time</label><input id="chart-set-time" type="time" step="60"></div>
+      <p class="l" id="chart-set-status" role="status" aria-live="polite"></p>
+    </details>
+  </div>
+  <div id="stg" role="tabpanel" aria-labelledby="tab-st" hidden>
+    <div id="stg-sub" role="group" aria-label="Settings section"><button type="button" data-sub="appearance" aria-pressed="true">Appearance</button><button type="button" data-sub="sounds" aria-pressed="false">Sounds</button><button type="button" data-sub="ai" aria-pressed="false">AI &amp; Voice</button><button type="button" data-sub="station" aria-pressed="false">Station</button></div>
+    <div data-sub-panel="appearance">
+    <section class="st" id="appearance" aria-labelledby="appearance-heading"><!--appearance--></section>
+    </div>
+    <div data-sub-panel="sounds" hidden>
+    <div class="st">
+      <label for="audio-preset">Audio preset</label>
+      <select id="audio-preset"><option value="base">Base</option><option value="personal" disabled>Personal</option></select>
+      <div class="l" id="audio-preset-hint" role="status"></div>
+      <p class="l" id="base-audio-credit">Base audio: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700030" target="_blank" rel="noopener">Tech Live — Kevin MacLeod</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> · edited excerpts.</p>
+    </div>
+    <section class="st" id="sounds" aria-labelledby="sounds-heading">
+      <h2 id="sounds-heading">Sounds</h2>
+      <p class="l">Add your own jingles, station ID and other sounds. MP3, M4A, FLAC or WAV, up to 50 MB each. Your files play instead of the Base sound of that slot, in rotation if there are several.</p>
+      <div id="sound-list"></div>
+      <audio id="sound-audio" hidden></audio>
+    </section>
+    </div>
+    <div data-sub-panel="ai" hidden>
+      <div id="settings-ai"></div>
+    </div>
+    <div data-sub-panel="station" hidden>
+    <div class="st" id="music-source-control">
+      <span id="music-source-title">Music source</span>
+      <div id="music-source-select" role="group" aria-labelledby="music-source-title" aria-describedby="music-source"></div>
+    </div>
     <details class="st" id="playback-status"><summary>Playback status</summary>
   <div class="l row player-status"><span>speech <span id="sp"></span>/<span id="splim"></span> min this hour</span><div class="lim"><i id="spb"></i></div></div>
       <div class="l" id="yt-summary"></div>
     </details>
-    <div id="features"></div>
-    <div id="settings"></div>
-
+      <div id="features"></div>
+      <div id="settings"></div>
+    </div>
   </div>
 </section>
 </main>

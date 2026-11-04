@@ -211,17 +211,18 @@ function editSourceName(key,remove){
   }).catch(function(e){sourceFeedback[key]={state:'error',text:e.message}}).finally(function(){sourceManagerView(true);var f=$('source-'+key);if(f)f.focus()});
 }
 function isNewsSource(p){return ['horizon','github_trending','github_new','reddit','telegram'].includes(p.name)}
-function helpText(id,text,label,content){
+function helpText(id,text,label,content,icon){
   if(!text)return '';
   helpText.open=helpText.open||{};
-  return '<details class="control-help" id="help-'+esc(id)+'"'+(helpText.open[id]?' open':'')+'><summary id="help-toggle-'+esc(id)+'" aria-label="Details about '+esc(label)+'">Details</summary><div class="l" id="hint-'+esc(id)+'">'+esc(text)+'</div>'+(content||'')+'</details>';
+  return '<details class="control-help" id="help-'+esc(id)+'"'+(helpText.open[id]?' open':'')+'><summary id="help-toggle-'+esc(id)+'" aria-label="Details about '+esc(label)+'">'+(icon||'ⓘ')+'</summary><div class="l" id="hint-'+esc(id)+'">'+esc(text)+'</div>'+(content||'')+'</details>';
 }
 function resetButton(s){return s.value!==s.default?'<button type="button" class="rs" data-rs="'+esc(s.key)+'" aria-label="Reset '+esc(s.title||s.key)+'">Reset</button>':''}
 function hostCharacterView(s){return '<div class="host-character"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label>'+resetButton(s)+'</div><textarea rows="4" id="st-'+s.key+'" data-st="'+s.key+'" maxlength="'+s.max+'" aria-describedby="hint-'+s.key+'">'+esc(s.value)+'</textarea><div class="l" id="hint-'+s.key+'">'+esc(s.hint)+'</div></div>'}
 function pluginButton(p,source){
+  var own=featureSettings(p);
   var warning=p.unavailable_reason||({holiday_previews:'Requires Calendar and Host links · restart after installation',energy_wave:'Analyze the library first · restart after installation',track_previews:'Restart after installation',reddit:'Experimental · RSS support ends November 13, 2026',telegram:'Experimental · public channels only'})[p.name]||'';
-  return '<div class="plugin-row"><button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'" aria-describedby="hint-plugin-'+esc(p.name)+'" title="'+esc(p.description)+'"'+(p.available===false?' disabled':'')+'><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.name==='horizon'?'Technology news · Horizon':p.title)+'</span></button>'
-    +helpText('plugin-'+p.name,p.description,p.title,source?'<p class="l">'+(p.name==='reddit'?'Subreddits':'Channels')+' ('+source.value.length+')</p>'+sourceSettingView(source):'')+(warning?'<div class="l plugin-warning">'+esc(warning)+'</div>':'')+'</div>';
+  return '<div class="plugin-row"><button class="pl" data-pl="'+esc(p.name)+'" aria-pressed="'+p.on+'" aria-describedby="hint-plugin-'+esc(p.name)+'" title="'+esc(p.description)+'"'+(p.available===false?' disabled':'')+'><span class="sw">'+(p.on?'● on':'○ off')+'</span><span class="nm">'+esc(p.name==='horizon'?'Technology news · Horizon':p.title)+(p.status?'<span class="ps"> · '+esc(p.status)+'</span>':'')+'</span></button>'
+    +helpText('plugin-'+p.name,p.description,p.title,(p.status&&p.status.length>40?'<p class="l" role="status">'+esc(p.status)+'</p>':'')+(source?'<p class="l">'+(p.name==='reddit'?'Subreddits':'Channels')+' ('+source.value.length+')</p>'+sourceSettingView(source):'')+own,own?'⚙':'')+(warning?'<div class="l plugin-warning">'+esc(warning)+'</div>':'')+'</div>';
 }
 function sourceManagerView(force){
   var box=$('news-source-list'),f=document.activeElement;
@@ -230,24 +231,33 @@ function sourceManagerView(force){
     var key=p.name==='reddit'?'reddit_communities':p.name==='telegram'?'telegram_channels':null,s=stg.find(s=>s.key===key);
     var description=p.name==='reddit'?'Read selected subreddits through RSS.':p.name==='telegram'?'Read selected public channels through web previews.':p.description;
     var status=p.on?(st.sources&&st.sources[p.name]||''):'';
-    return '<section aria-label="'+esc(p.title)+'">'+pluginButton(Object.assign({},p,{description:description}),s)
-      +(status?'<p class="l" role="status">'+esc(status)+'</p>':'')+'</section>';
+    return '<section aria-label="'+esc(p.title)+'">'+pluginButton(Object.assign({},p,{description:description,status:status}),s)+'</section>';
   }).join('');
   if(f&&f.id&&$(f.id))$(f.id).focus({preventScroll:true});
 }
 function settingValue(s,value){return RadioModel.settingValue(s,value)}
-function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
-  var box=$('settings'),f=document.activeElement;
-  if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // preserve a sample in progress
-  if(!force&&(box.contains(f)&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
-  var m=RadioModel.settings(stg),prov=m.provider,model=m.model,voice=m.voice;
-  box.innerHTML=m.rows.filter(s=>!['host_character','cohost_character','music_shuffle'].includes(s.key)).map(function(s){if(s.type==='ai')return aiView(prov,model)+(voice?voiceView(voice):'');
+function settingRow(s,m,flat){
     var character=['host_name','cohost_name'].includes(s.key)?m.rows.find(c=>c.key===s.key.replace('_name','_character')):null;
     return '<div class="st"><div class="hd2"><label for="st-'+s.key+'">'+esc(s.title)+'</label><span class="setting-actions">'+(s.step===null?'':'<span class="v" id="sv-'+s.key+'">'+esc(s.valueText)+'</span>')+resetButton(s)+'</span></div>'
     +(s.type==='select'?'<select id="st-'+s.key+'" data-st="'+s.key+'">'+s.options.map(function(o){return '<option value="'+esc(o)+'"'+(o===s.value?' selected':'')+'>'+esc(s.labels&&s.labels[o]||o)+'</option>'}).join('')+'</select>':s.type==='paragraph'?'<textarea rows="4" id="st-'+s.key+'" data-st="'+s.key+'" maxlength="'+s.max+'" aria-describedby="hint-'+s.key+'">'+esc(s.value)+'</textarea>':s.type==='text'?'<input type="text" id="st-'+s.key+'" data-st="'+s.key+'" minlength="'+s.min+'" maxlength="'+s.max+'" value="'+esc(s.value)+'">'
       :'<input type="range"'+(s.type==='stepped'?' class="stepped-range"':'')+' id="st-'+s.key+'" data-st="'+s.key+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.value+'" aria-valuetext="'+esc(s.valueText)+'" aria-describedby="hint-'+s.key+'">')
     +(s.value_labels?'<div class="range-labels" aria-hidden="true">'+s.value_labels.map(function(label){return '<span>'+esc(label)+'</span>'}).join('')+'</div>':'')
-    +(s.note?'<div class="l" role="status">'+esc(s.note)+'</div>':'')+helpText(s.key,s.hint,s.title,character?hostCharacterView(character):'')+'</div>'}).join('');
+    +(s.note?'<div class="l" role="status">'+esc(s.note)+'</div>':'')+helpText(s.key,s.hint,s.title,character&&!flat?hostCharacterView(character):'')+'</div>'+(character&&flat?hostCharacterView(character):'')}
+// A setting that belongs to one feature sits in that feature's row (and only while the feature is on); news detail sits with the news sources.
+var FEATURE_ROWS={ytmusic_likes:['marked_boost'],duo_hosts:['cohost_name'],station_ids:['station_id_every_songs'],reminders_calendar:['lead_min']};
+function featureKeys(p){var k=FEATURE_ROWS[p.name]||[];if(p.name==='reminders_todoist'&&!pls.some(function(x){return x.name==='reminders_calendar'&&x.on}))k=['lead_min'];return k}
+function settingRouted(){var r={news_detail:1,cohost_character:1};Object.keys(FEATURE_ROWS).forEach(function(n){FEATURE_ROWS[n].forEach(function(k){r[k]=1})});return r}
+function featureSettings(p){var m=RadioModel.settings(stg);return p.on?featureKeys(p).map(function(k){var r=m.rows.find(function(x){return x.key===k});return r?settingRow(r,m,true):''}).join(''):''}
+function settingsView(force){  // force: after this page saved a value; the poll does not redraw under the user's hand
+  var box=$('settings'),f=document.activeElement;
+  if(!force&&(sample.st==='busy'||sample.st==='playing'))return;  // preserve a sample in progress
+  if(!force&&(f&&f.closest&&f.closest('#settings,#settings-ai,#news-settings,.plugin-row')&&['range','text','textarea','select-one','password'].includes(f.type)||$('llm-key')&&$('llm-key').value))return;  // not while dragging or typing
+  var m=RadioModel.settings(stg),prov=m.provider,model=m.model,voice=m.voice;
+  var routed=settingRouted(),rows=m.rows.filter(s=>!['host_character','cohost_character','music_shuffle'].includes(s.key)&&!routed[s.key]);
+  box.innerHTML=rows.filter(s=>s.type!=='ai').map(function(s){return settingRow(s,m)}).join('');
+  $('settings-ai').innerHTML=rows.filter(s=>s.type==='ai').map(function(){return aiView(prov,model)+(voice?voiceView(voice):'')}).join('');
+  var nd=m.rows.find(s=>s.key==='news_detail');$('news-settings').innerHTML=nd?settingRow(nd,m):'';
+  pluginsView(true);
   if(f&&f.id&&(force||f.id.startsWith('help-toggle-'))&&!box.contains(f)&&$(f.id))$(f.id).focus({preventScroll:true})}
 $('audio-preset').onchange=function(){
   api('/api/cmd',{cmd:'audio_preset',name:this.value}).then(function(d){
@@ -273,7 +283,8 @@ $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();
   var b=e.target.closest('[data-rs]');if(!b)return;
   var key=b.dataset.rs;
   api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true);var field=$('st-'+key);if(field)field.focus({preventScroll:true})}).catch(function(e){say(e.message);sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
-function pluginsView(){
+function pluginsView(force){
+  var af=document.activeElement;if(!force&&af&&af.closest&&af.closest('.plugin-row')&&af.dataset.st)return;  // not under a slider or field being used
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
   // one restart note for Audio preset and the playlist: under the playlist, or under the preset when the playlist is hidden
   if(!$('audio-preset-hint').said)$('audio-preset-hint').textContent=$('yt-form').hidden?'Restart the station to apply.':'';
@@ -289,7 +300,10 @@ function togglePlugin(e){var b=e.target.closest('[data-pl]');if(!b)return;
 ['integrations','experiments','features'].forEach(function(section){$(section).onclick=togglePlugin});
 $('integrations').oninput=$('stg').oninput;
 $('integrations').onkeydown=$('stg').onkeydown;
-$('integrations').onclick=function(e){var source=e.target.closest('[data-source-add],[data-source-remove]');if(source){editSourceName(source.dataset.sourceAdd||source.dataset.sourceRemove,source.dataset.name);return}togglePlugin(e)};
+$('integrations').onclick=function(e){var source=e.target.closest('[data-source-add],[data-source-remove]');if(source){editSourceName(source.dataset.sourceAdd||source.dataset.sourceRemove,source.dataset.name);return}if(e.target.closest('[data-rs]'))return $('stg').onclick(e);togglePlugin(e)};
+$('integrations').onchange=$('stg').onchange;
+$('experiments').oninput=$('stg').oninput;$('experiments').onchange=$('stg').onchange;
+$('experiments').onclick=function(e){if(e.target.closest('[data-rs]'))return $('stg').onclick(e);togglePlugin(e)};
 var hookDataKey='',hookObjectUrl=null;
 function hooksView(data){
   $('hook-review').hidden=!data;if(!data)return;
@@ -322,11 +336,12 @@ function soundsView(list,force){
   function file(slot,name,own){var on=soundPlaying===slot+'/'+name;
     return '<div class="sound-f"><span class="n">'+esc(name)+'</span><button type="button" data-sound-play="'+esc(slot)+'" data-name="'+esc(name)+'" aria-pressed="'+on+'" aria-label="'+(on?'Stop ':'Listen to ')+esc(name)+'">'+(on?'Stop':'Listen')+'</button>'+(own?'<button type="button" data-sound-remove="'+esc(slot)+'" data-name="'+esc(name)+'" aria-label="Remove '+esc(name)+'">Remove</button>':'')+'</div>'}
   box.innerHTML=soundList.map(function(s){var own=s.own||[],base=s.base||[],busy=soundBusy===s.slot;
-    return '<div class="sound" data-slot="'+esc(s.slot)+'"><div class="sound-h"><b>'+esc(s.title)+'</b><span class="l">'+esc(s.hint||'')+'</span></div>'
+    return '<details class="sound" data-slot="'+esc(s.slot)+'"'+(soundOpen[s.slot]?' open':'')+'><summary class="sound-h"><b>'+esc(s.title)+'</b><span class="l">'+(own.length?own.length+(own.length===1?' file · yours':' files · yours'):base.length?base.length+(base.length===1?' file · Base':' files · Base'):'empty')+'</span></summary><p class="l">'+esc(s.hint||'')+'</p>'
       +'<p class="l">'+(own.length?'Playing your '+(own.length===1?'file':own.length+' files')+':':base.length?'Playing Base:':'Nothing plays here until you add a file.')+'</p>'
       +(own.length?own.map(function(n){return file(s.slot,n,true)}).join(''):base.map(function(n){return file(s.slot,n,false)}).join(''))
       +'<div class="sound-f"><label class="sound-up"><input type="file" multiple accept=".mp3,.m4a,.flac,.wav,audio/*" data-sound-file="'+esc(s.slot)+'"'+(soundBusy?' disabled':'')+' aria-label="Upload files for '+esc(s.title)+'"><span>'+(busy?'Uploading…':'Upload')+'</span></label></div>'
-      +'<p class="l sound-msg" role="status" aria-live="polite">'+esc(soundMsg[s.slot]||'')+'</p></div>'}).join('')}
+      +'<p class="l sound-msg" role="status" aria-live="polite">'+esc(soundMsg[s.slot]||'')+'</p></details>'}).join('')}
+var soundOpen={};
 async function soundUpload(slot,files){
   soundBusy=slot;soundMsg[slot]='';soundsView(null,true);
   try{for(var i=0;i<files.length;i++){
@@ -947,14 +962,16 @@ core.subscribe(function(core,change){
 // Charts: drawn when the data or the window changes; rows that move slide to their new place (0.25 s, none with
 // reduced motion)
 var chartData={},chartWindow='week',chartShown='';
+var chartAll=false,CHART_SHOWN=10;  // the chart opens on its top ten; the rest is one tap away
 function chartsView(){
-  var c=RadioModel.charts(chartData,chartWindow),key=JSON.stringify([chartWindow,c.rows]);
+  var c=RadioModel.charts(chartData,chartWindow),shown=chartAll?c.rows:c.rows.slice(0,CHART_SHOWN),key=JSON.stringify([chartWindow,shown]);
   $('chart-windows').innerHTML=c.windows.map(function(w){return '<button type="button" data-window="'+w.key+'" aria-pressed="'+w.selected+'">'+esc(w.label)+'</button>'}).join('');
+  $('chart-more').hidden=c.rows.length<=CHART_SHOWN;$('chart-more').textContent=chartAll?'Show top '+CHART_SHOWN:'Show all '+c.rows.length;$('chart-more').setAttribute('aria-expanded',chartAll);
   $('chart-note').textContent=c.note;$('chart-empty').textContent=c.empty;$('chart-empty').hidden=!c.empty;
   if(key===chartShown)return;chartShown=key;
   var list=$('chart-list'),before={};
   list.querySelectorAll('[data-key]').forEach(function(li){before[li.dataset.key]=li.getBoundingClientRect().top});
-  list.innerHTML=c.rows.map(function(r){return '<li class="chart" data-key="'+esc(r.key)+'"><span class="n">'+r.place+'</span><div class="m"><span class="t">'+esc(r.title)+'</span><small>'+esc(r.detail)+'</small>'+
+  list.innerHTML=shown.map(function(r){return '<li class="chart" data-key="'+esc(r.key)+'"><span class="n">'+r.place+'</span><div class="m"><span class="t">'+esc(r.title)+'</span><small>'+esc(r.detail)+'</small>'+
     '<span class="s" aria-hidden="true"><i style="width:'+r.share+'%"></i></span></div><span class="mv '+r.move.dir+'" aria-label="'+esc(r.move.label)+'">'+esc(r.move.text)+'</span>'+
     '<span class="cm" aria-label="'+esc(r.marksLabel)+'">'+THUMB+'<span aria-hidden="true">'+r.marks+'</span></span></li>'}).join('');
   if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
@@ -985,6 +1002,12 @@ $('chart-set-play').onclick=function(){$('chart-set-status').textContent='Prepar
   api('/api/cmd',{cmd:'chart_set',action:'play',size:Number($('chart-set-size').value)}).then(function(d){
     $('chart-set-status').textContent=d&&d.ok?'The host is preparing it; it plays after this song':d&&d.error||'Could not start the chart set';refresh()})
   .catch(function(){$('chart-set-status').textContent='the radio is not answering'})};
+function subView(name){var ok=['appearance','sounds','ai','station'].includes(name)?name:'appearance';
+  [].forEach.call(document.querySelectorAll('#stg-sub button'),function(b){b.setAttribute('aria-pressed',b.dataset.sub===ok)});
+  [].forEach.call(document.querySelectorAll('[data-sub-panel]'),function(d){d.hidden=d.dataset.subPanel!==ok})}
+$('stg-sub').onclick=function(e){var b=e.target.closest('[data-sub]');if(!b)return;subView(b.dataset.sub);try{localStorage.setItem('radio.sub',b.dataset.sub)}catch(x){}};
+try{subView(localStorage.getItem('radio.sub'))}catch(x){}
+$('chart-more').onclick=function(){chartAll=!chartAll;chartsView()};
 $('chart-windows').onclick=function(e){var b=e.target.closest('[data-window]');if(b){chartWindow=b.dataset.window;chartsView()}};
 function selectTab(b){
   if(b.dataset.tab!=='tl'&&planDraft&&!dirBusy)$('plan-done').onclick();
@@ -1037,7 +1060,7 @@ $('theme-select').onchange=function(){core.setTheme(this.value)};
 core.subscribe(function(core,change){if(change==='capabilities')themePicker()});
 themePicker();
 // a Details box stays open across redraws (toggle does not bubble: caught on the way down)
-root.addEventListener('toggle',function(e){var d=e.target;if(d.classList&&d.classList.contains('control-help'))(helpText.open=helpText.open||{})[d.id.slice(5)]=d.open},true);
+root.addEventListener('toggle',function(e){var d=e.target;if(d.classList&&d.classList.contains('control-help'))(helpText.open=helpText.open||{})[d.id.slice(5)]=d.open;else if(d.classList&&d.classList.contains('sound'))soundOpen[d.dataset.slot]=d.open},true);
 core.start();
 /* ---- visualizer: audio-driven braille patterns under the title, drawn on the core's frames from
    core.audio.read(dw()). Without sound (not listening, a paused station, silence) it settles into a flat muted line

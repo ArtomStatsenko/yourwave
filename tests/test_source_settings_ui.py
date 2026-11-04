@@ -9,12 +9,12 @@ class SourceSettingsUiTests(unittest.TestCase):
     def test_source_manager_groups_news_controls_and_keeps_editing_state(self):
         source = theme_source()  # theme functions; the core and model run first
         script = source[source.index('function isNewsSource('):source.index('function settingValue(')]
-        script += source[source.index('function pluginsView()'):source.index("['integrations','experiments','features'].forEach(function(section){$(section).onclick")]
+        script += source[source.index('function pluginsView('):source.index("['integrations','experiments','features'].forEach(function(section){$(section).onclick")]
         result=subprocess.run(['node','-e',core_source()+script+r'''
 const assert=require('node:assert/strict');
 var document={activeElement:null,querySelector:()=>null},sourceOpen={},nodes={},st={sources:{reddit:'2 new'}},stg=[{key:'reddit_communities',value:['python']}];
 function $(id){return nodes[id]||(nodes[id]={innerHTML:'',contains:()=>false,querySelectorAll:()=>[]})}
-function esc(s){return String(s)}function sourceSettingView(){return '<input id="source-reddit_communities">'}
+function esc(s){return String(s)}function sourceSettingView(){return '<input id="source-reddit_communities">'}function featureSettings(){return ''}
 var pls=[{name:'horizon',title:'Horizon',on:false,section:'integrations',description:'General news'},
  {name:'reddit',title:'Reddit',on:true,section:'experiments',description:'Public posts'},
  {name:'news_reactions',title:'Reactions',on:false,section:'experiments',description:'Voice'},

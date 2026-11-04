@@ -94,16 +94,16 @@ class NewsDetailTests(unittest.TestCase):
         handler = source[source.index("$('stg').oninput="):source.index("$('stg').onchange=")]
         script = r"""
 const assert=require('node:assert/strict');
-var nodes={},document={activeElement:null},sample={st:'idle'};
+var nodes={},document={activeElement:null},sample={st:'idle'},pls=[];function pluginsView(){}
 function $(id){return nodes[id]||(nodes[id]={innerHTML:'',textContent:'',contains(){return false}})}
 function esc(x){return String(x)}
 var stg=[{key:'news_detail',title:'News detail',hint:'For new stories.',value:1,default:1,min:0,max:2,step:1,unit:'',value_labels:['Brief','Standard','Discussion']}];
 """ + helper + handler + r"""
 settingsView(true);
-assert.ok($('settings').innerHTML.includes('type="range"'));
-assert.ok($('settings').innerHTML.includes('aria-valuetext="Standard"'));
-assert.ok($('settings').innerHTML.includes('aria-describedby="hint-news_detail"'));
-assert.ok($('settings').innerHTML.includes('Brief</span><span>Standard</span><span>Discussion'));
+assert.ok($('news-settings').innerHTML.includes('type="range"'));
+assert.ok($('news-settings').innerHTML.includes('aria-valuetext="Standard"'));
+assert.ok($('news-settings').innerHTML.includes('aria-describedby="hint-news_detail"'));
+assert.ok($('news-settings').innerHTML.includes('Brief</span><span>Standard</span><span>Discussion'));
 var field={value:'2',dataset:{st:'news_detail'},attributes:{},closest(){return this},setAttribute(k,v){this.attributes[k]=v}};
 $('stg').oninput({target:field});
 assert.equal($('sv-news_detail').textContent,'Discussion');

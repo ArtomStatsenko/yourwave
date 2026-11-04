@@ -85,7 +85,7 @@
 :root[data-skin] .pl:disabled .sw{opacity:.4}
 @media(max-width:640px){:root[data-skin] .pl{display:flex}}
 :root[data-skin] .plugin-row>.pl,:root[data-skin] .plugin-row>.pl:hover{padding-right:0}
-:root[data-skin] .plugin-row>.control-help>summary{position:static}
+:root[data-skin] .plugin-row>.control-help>summary{right:68px;top:6px}  /* the icon sits left of the switch */
 :root[data-skin] .plugin-row>.control-help>.l,:root[data-skin] .plugin-warning,:root[data-skin] #news-source-list>section>p{margin-left:0;padding-left:0}
 :root[data-skin] input[role=switch]{appearance:none;position:relative;flex:none;width:56px;height:32px;margin:0;border-radius:32px;border:1px solid var(--line);
   background:color-mix(in srgb,var(--ink) 12%,transparent);cursor:pointer}

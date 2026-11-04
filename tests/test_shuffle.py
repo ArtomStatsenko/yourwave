@@ -60,7 +60,7 @@ class ShuffleTests(unittest.TestCase):
         click = source[source.index("$('sh').onclick="):source.index("\n", source.index("$('sh').onclick="))]
         harness = r'''
 const assert=require('node:assert/strict');
-const nodes={settings:{contains:()=>false},stg:{},sh:{}};
+const nodes={settings:{contains:()=>false},'settings-ai':{},'news-settings':{},stg:{},sh:{}};const pls=[],pluginsView=()=>{};
 const $=id=>{assert(nodes[id],id);return nodes[id]};
 const document={activeElement:null},sample={st:'idle'},esc=String;
 let busy=false,stg=[{key:'music_shuffle',value:1,hint:'Remaining library',step:1}],sent,players=0;
