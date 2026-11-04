@@ -1,4 +1,6 @@
 """YouTube Music playlists and temporary song files, using the installed yt-dlp."""
+import base64
+import hashlib
 import json
 import math
 import random
@@ -83,7 +85,7 @@ STATION_TRACKS = 200
 def station():
     try:
         data = json.loads((directory() / "station.json").read_text())
-        return {**data, "tracks": parse_tracks({"entries": data["tracks"]})} if data.get("kind") in ("song", "mood") else None
+        return {**data, "tracks": parse_tracks({"entries": data["tracks"]})} if data.get("kind") in ("song", "mood", "link") else None
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -153,16 +155,23 @@ def _search(query: str) -> str:
 def start_station(kind: str, value: str, title: str = "", restore: str = "") -> dict:
     """Radio from a song (kind song, value a video id or "artist - title") or a mood (kind mood, value its params):
     its songs become the YouTube Music library until stop_station()."""
+    directory().mkdir(mode=0o700, parents=True, exist_ok=True)
     cookies = directory() / "cookies.txt"
-    if not cookies.exists():
+    if not cookies.exists() and kind != "link":
         raise ValueError("Connect YouTube Music first")
     if kind == "song":
         vid = value if ID.fullmatch(value) else _search(value)
         pages = [f"https://www.youtube.com/watch?v={vid}&list=RDAMVM{vid}"]
+    elif kind == "link":  # a playlist, album, profile or mix on any site yt-dlp reads (SoundCloud, Bandcamp, Mixcloud...)
+        if not re.fullmatch(r"https://[^\s]+", value):
+            raise ValueError("Paste a link that starts with https://")
+        data = json.loads(run(["--flat-playlist", "--dump-single-json", "--playlist-end", str(STATION_TRACKS), value], None, timeout=90))
+        tracks = parse_tracks({"entries": [_linked(e) for e in (data.get("entries") or [data])]})
+        return _save_station(kind, value, title or data.get("title") or value, tracks, restore)
     elif kind == "mood":
         pages = ["https://www.youtube.com/playlist?list=" + i for i in _mood_playlists(value)[:MOOD_PLAYLISTS]]
     else:
-        raise ValueError("Choose a song or a mood")
+        raise ValueError("Choose a song, a mood or a link")
     entries = []
     for page in pages:
         data = json.loads(run(["--flat-playlist", "--dump-single-json", "--playlist-end", "100", page], cookies))
@@ -172,8 +181,26 @@ def start_station(kind: str, value: str, title: str = "", restore: str = "") -> 
     tracks = parse_tracks({"entries": entries})
     if kind == "mood":
         random.shuffle(tracks)  # several playlists, not one after another
-    on = {"kind": kind, "value": value, "title": title or (tracks[0]["title"] if kind == "song" else kind),
-          "tracks": tracks[:STATION_TRACKS], "restore": (station() or {}).get("restore", restore)}
+    return _save_station(kind, value, title or (tracks[0]["title"] if kind == "song" else kind), tracks, restore)
+
+
+# A plain or HLS audio link FFmpeg can read (Mixcloud's DASH manifest it cannot)
+LINK_FORMAT = "bestaudio[protocol^=http][protocol!*=dash]/bestaudio[protocol*=m3u8]/bestaudio"
+
+
+def _linked(entry: dict) -> dict:
+    """A song from another site, played like a YouTube one: an id of the same shape (from its link), and the link."""
+    url = entry.get("webpage_url") or entry.get("url") or ""
+    if not isinstance(url, str) or not url.startswith("https://") or ID.fullmatch(str(entry.get("id", ""))) and "youtube" in url:
+        return entry
+    vid = base64.urlsafe_b64encode(hashlib.sha256(url.encode()).digest()).decode()[:11]
+    title = entry.get("title") or url.rstrip("/").rsplit("/", 1)[-1].replace("-", " ").capitalize()  # SoundCloud lists links only
+    return {**entry, "id": vid, "url": url, "title": title, "artist": entry.get("artist") or entry.get("uploader") or ""}
+
+
+def _save_station(kind, value, title, tracks, restore):
+    on = {"kind": kind, "value": value, "title": title, "tracks": tracks[:STATION_TRACKS],
+          "restore": (station() or {}).get("restore", restore)}
     path = directory() / "station.json"
     path.with_suffix(".tmp").write_text(json.dumps(on, ensure_ascii=False))
     path.with_suffix(".tmp").replace(path)
@@ -213,13 +240,15 @@ def cookie_jar(value):
 
 
 def run(args, cookies, timeout=60):
+    """yt-dlp with the YouTube Music session (a copy of the jar), or none when cookies is None (other sites)."""
     try:
         # yt-dlp rewrites its jar on exit. Per-call copies keep parallel prefetch/refresh from racing.
         with tempfile.TemporaryDirectory(dir=directory()) as tmp:
             jar = Path(tmp) / "cookies.txt"
-            shutil.copyfile(cookies, jar)
-            jar.chmod(0o600)
-            p = subprocess.run(["yt-dlp", "--ignore-config", "--no-warnings", "--cookies", str(jar),
+            if cookies is not None:
+                shutil.copyfile(cookies, jar)
+                jar.chmod(0o600)
+            p = subprocess.run(["yt-dlp", "--ignore-config", "--no-warnings", *(["--cookies", str(jar)] if cookies is not None else []),
                                 "--socket-timeout", "10", "--retries", "0", "--extractor-retries", "0", *args],
                                capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired):
@@ -256,7 +285,7 @@ def parse_tracks(data):
         artist = entry.get("artist") or ""
         tracks.append({"id": vid, "title": " ".join(title.split()),
                        "artist": " ".join(artist.split()) if isinstance(artist, str) else "",
-                       "duration": duration})
+                       "duration": duration, **({"url": entry["url"]} if isinstance(entry.get("url"), str) and entry["url"].startswith("https://") else {})})
     if not tracks:
         raise ValueError("No playable songs in this playlist; choose another playlist")
     return tracks
@@ -368,22 +397,27 @@ def save_metadata(vid, data):
 
 
 def resolve(vid):
-    if not ID.fullmatch(vid) or not any(t["id"] == vid for t in library()["tracks"]):
+    track = next((t for t in library()["tracks"] if t["id"] == vid), None) if ID.fullmatch(vid) else None
+    if track is None:
         raise ValueError("Unknown YouTube Music song")
+    # another site: its link, no YouTube session, an audio format FFmpeg reads (an hour-long mix downloads in ~7 s)
+    page, cookies, fmt, suffix = (track["url"], None, LINK_FORMAT, ".m4a") if track.get("url") else \
+        ("https://www.youtube.com/watch?v=" + vid, directory() / "cookies.txt", "bestaudio", ".webm")
     root = directory() / "audio"
     root.mkdir(mode=0o700, exist_ok=True)
-    fd, name = tempfile.mkstemp(dir=root, suffix=".webm")
+    fd, name = tempfile.mkstemp(dir=root, suffix=suffix)
     os.close(fd)
     out = Path(name)
     try:
         # Chunked downloading avoids YouTube throttling Liquidsoap's full-file HTTP request.
-        metadata = run(["--no-playlist", "-f", "bestaudio", "--http-chunk-size", "1M", "--no-part",
-                        "--force-overwrites", "--no-progress", "--print", "after_move:%(.{artist,artists,track,title})j",
-                        "-o", str(out), "https://www.youtube.com/watch?v=" + vid], directory() / "cookies.txt", timeout=20)
+        metadata = run(["--no-playlist", "-f", fmt, "--http-chunk-size", "1M", "--no-part",
+                        "--force-overwrites", "--no-progress", "--print", "after_move:%(.{artist,artists,track,title,uploader})j",
+                        "-o", str(out), page], cookies, timeout=20)
         if not out.stat().st_size:
             raise ValueError("YouTube did not return audio")
         try:
-            save_metadata(vid, json.loads(metadata or "{}"))
+            meta = json.loads(metadata or "{}")
+            save_metadata(vid, {**meta, "artist": meta.get("artist") or (meta.get("uploader") if track.get("url") else None)})
         except (ValueError, TypeError, sqlite3.Error):
             pass  # missing credits must not discard an otherwise playable song
         return str(out.resolve())  # Liquidsoap owns and removes the file after the track.

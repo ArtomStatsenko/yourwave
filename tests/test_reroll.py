@@ -643,6 +643,32 @@ class RerollTests(unittest.TestCase):
              patch('radio.engine.ytmusic.library', return_value={'tracks': []}):
             asyncio.run(scenario(Liquidsoap(m3u, .1, str(config.DATA_DIR / 'swap-output.wav'))))
 
+    def test_a_pause_keeps_the_new_songs_and_replays_queued(self):
+        tone = config.DATA_DIR / 'pause-tone.wav'
+        with wave.open(str(tone), 'wb') as out:
+            out.setparams((2, 2, 44100, 0, 'NONE', 'not compressed'))
+            out.writeframes(b'\1\0\1\0' * 44100 * 30)
+        m3u = config.RUN_DIR / 'pause.m3u'
+        m3u.write_text(''.join(f'annotate:kind="music",ref="{n}":{tone}\n' for n in 'abc'))
+
+        async def scenario(engine):
+            try:
+                await engine.start(lambda e: None)
+                fresh = await engine.push_replay(tone, 'music', 'new', 0.0, '', '', 'fresh')
+                replay = await engine.push_replay(tone, 'music', 'again', 0.0, 'r1', '')
+                await asyncio.sleep(.5)
+                await engine.command('pause')
+                await asyncio.sleep(4)
+                self.assertEqual((await engine.pending('fresh'), await engine.pending('news')), ([fresh], [replay]))
+                await engine.command('resume')
+            finally:
+                await engine.stop()
+
+        self.clock.stop()
+        with patch.dict(os.environ, RADIO_FILE_SYNC='realtime'), \
+             patch('radio.engine.ytmusic.library', return_value={'tracks': []}):
+            asyncio.run(scenario(Liquidsoap(m3u, .1, str(config.DATA_DIR / 'pause-output.wav'))))
+
     def test_a_song_added_to_the_folder_joins_this_round_only_when_asked_and_moves_no_other(self):
         tone = config.DATA_DIR / 'add-tone.wav'
         with wave.open(str(tone), 'wb') as out:

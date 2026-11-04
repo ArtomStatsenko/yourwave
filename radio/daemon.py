@@ -195,7 +195,7 @@ class Service:
         if not files:
             m3u.write_text("#EXTM3U\n")
         remote_m3u = config.RUN_DIR / "ytmusic.m3u"
-        for stale in (ytmusic.directory() / "audio").glob("*.webm"):
+        for stale in [*(ytmusic.directory() / "audio").glob("*.webm"), *(ytmusic.directory() / "audio").glob("*.m4a")]:
             stale.unlink(missing_ok=True)
         try:
             remote = self._write_remote_m3u() if settings.music_source(self.cfg) != "local" else {}

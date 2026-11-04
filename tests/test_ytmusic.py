@@ -90,6 +90,29 @@ class YouTubeMusicTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Connect YouTube Music first"):
             ytmusic.start_station("song", "dQw4w9WgXcQ")
 
+    def test_a_link_station_plays_songs_from_another_site_without_the_youtube_session(self):
+        listed = {"title": "Soulhack", "entries": [{"id": "290", "url": "https://soundcloud.com/forss/city-ports"},
+                                                    {"id": "291", "url": "https://soundcloud.com/forss/funk-for-nerds", "title": "Funk"}]}
+        calls = []
+        def run(args, cookies, timeout=60):
+            calls.append((args, cookies))
+            if "--dump-single-json" in args:
+                return json.dumps(listed)
+            Path(args[args.index("-o") + 1]).write_bytes(b"audio")
+            return json.dumps({"title": "City Ports", "uploader": "Forss"})
+        with patch.object(ytmusic, "run", side_effect=run):
+            status = ytmusic.start_station("link", "https://soundcloud.com/forss/sets/soulhack")
+            tracks = ytmusic.library()["tracks"]
+            self.assertEqual((status["station"]["title"], [t["title"] for t in tracks]), ("Soulhack", ["City ports", "Funk"]))
+            self.assertTrue(all(ytmusic.ID.fullmatch(t["id"]) for t in tracks), "same id shape: the rest of the station is unchanged")
+            path = ytmusic.resolve(tracks[0]["id"])
+        args, cookies = calls[-1]
+        self.assertEqual((args[-1], cookies, args[args.index("-f") + 1]), ("https://soundcloud.com/forss/city-ports", None, ytmusic.LINK_FORMAT))
+        self.assertTrue(path.endswith(".m4a"))
+        Path(path).unlink()
+        with self.assertRaisesRegex(ValueError, "https://"):
+            ytmusic.start_station("link", "file:///etc/passwd")
+
     def test_feature_can_be_enabled_before_connecting_in_settings(self):
         from radio import plugins
         self.assertFalse(ytmusic.status()['connected'])
