@@ -55,6 +55,24 @@ body{margin:0;background:var(--bg);color:var(--ink);font:20px/30px var(--mono);p
 
 main{max-width:960px;min-width:0;margin:0 auto;display:grid;gap:24px}
 main>section{min-width:0}
+#sheet-grip{display:none}
+/* Narrow screens: the player is the screen; the tabs and their panels are a sheet that opens from the bottom edge */
+@media(max-width:1099px){
+  body{padding-bottom:0}
+  main{min-height:calc(100dvh - 32px);grid-template-rows:auto 1fr}
+  main>section:last-child{align-self:end;position:sticky;bottom:0;z-index:5;background:var(--bg);border-top:1px solid var(--accent);margin:0 -16px;padding:0 16px env(safe-area-inset-bottom,0px)}
+  #sheet-grip{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:52px;border:0;padding:0;background:none;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:16px;cursor:pointer}
+  body:not(.sheet-up):not(.program-editing) main>section:last-child>:not(#sheet-grip){display:none}
+  body.sheet-up main>section:last-child,body.program-editing main>section:last-child{position:static}
+}
+/* Wide screens: the player is a rail that stays put, the tabs and their panels are the workspace beside it */
+@media(min-width:1100px){
+  main{max-width:1280px;grid-template-columns:minmax(300px,360px) minmax(0,1fr);column-gap:48px;align-items:start}
+  #np{position:sticky;top:32px}
+  .program-editing #np{position:sticky;top:32px;padding:0}
+  .program-editing #np .strip,.program-editing #ruler,.program-editing #music-source{display:revert}
+  .program-editing #np .title{font-size:inherit;line-height:inherit}
+}
 h1,h2{margin:0;font-size:16px;font-weight:400;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
 .l{font-size:16px;color:var(--muted)}
 #np{display:grid;gap:8px}
@@ -423,6 +441,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .rs:hover{border:0;color:var(--accent)}.rs svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}.rs circle{fill:currentColor}
 .it .rs{visibility:hidden}.it:hover .rs,.it:focus-within .rs{visibility:visible}@media(hover:none){.it.sel .rs{visibility:visible}}  /* like the empty thumb: it shows on hover, focus or tap, its slot is always there */
 #tl:has(.rs) .it:not(.music)>.hd>button.tg{margin-right:132px}
+@media(max-width:640px){.it:not(.sel) .rs{display:none}#tl:has(.rs) .it:not(.music)>.hd>button.tg{margin-right:88px}}  /* a phone gives the title the room: the radio icon takes its slot only on the tapped row */
 /* CRT screen (Settings → Appearance, on by default): layers over the page; colours, sizes and positions stay. Scan
    lines, a vignette and a glass glare (html::before) and a glow; phones and narrow windows get lighter lines and
    vignette and less glow. The bend is an SVG displacement map (#crt) on body, which then scrolls inside a screen-sized

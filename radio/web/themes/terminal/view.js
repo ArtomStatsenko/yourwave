@@ -1013,7 +1013,10 @@ $('chart-windows').onclick=function(e){var b=e.target.closest('[data-window]');i
 function selectTab(b){
   if(b.dataset.tab!=='tl'&&planDraft&&!dirBusy)$('plan-done').onclick();
   document.querySelectorAll('[data-tab]').forEach(function(t){var on=t===b;t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1;$(t.getAttribute('aria-controls')).hidden=!on});
-  if(b.dataset.tab==='tl')$('plan-edit').removeAttribute('data-off');else $('plan-edit').setAttribute('data-off','')}
+  if(b.dataset.tab==='tl')$('plan-edit').removeAttribute('data-off');else $('plan-edit').setAttribute('data-off','');
+  if($('sheet-name'))$('sheet-name').textContent=b.textContent}
+// Narrow screens: the player is the screen, the tabs and their panels are a sheet that opens from the bottom
+$('sheet-grip').onclick=function(){var up=document.body.classList.toggle('sheet-up');this.setAttribute('aria-expanded',up);$('sheet-arrow').textContent=up?'⌄':'⌃'};
 $('tab-tl').parentNode.onclick=function(e){var b=e.target.closest('[data-tab]');if(b)selectTab(b)};
 $('tab-tl').parentNode.onkeydown=function(e){
   var tabs=Array.from(this.querySelectorAll('[data-tab]')),i=tabs.indexOf(e.target);if(i<0)return;
