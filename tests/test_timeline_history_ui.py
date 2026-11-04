@@ -12,7 +12,7 @@ class TimelineHistoryTests(unittest.TestCase):
         script+=theme_source()[theme_source().index('function backgroundError('):theme_source().index("$('history-more').onclick")]
         result=subprocess.run(['node','-e',core_source() + '\nfunction running(){return false}\n' + script+r'''
 const assert=require('node:assert/strict');
-var appearance={formatTime:x=>x},document={activeElement:null,documentElement:{dataset:{timelineEffect:'off'}}},nodes={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false;
+var ytOn=false,currentRef='',appearance={formatTime:x=>x},document={activeElement:null,documentElement:{dataset:{timelineEffect:'off'}}},nodes={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false;
 function $(id){return nodes[id]||(nodes[id]={scrollTop:0,contains:()=>false,innerHTML:''})}
 function row(x){return x.title}function entryTitle(k,t){return t}
 var items=[{id:1,kind:'music',title:'Song'}],st={last_error:'render reddit:item#1: editor hourly request limit reached <retry>'};
@@ -71,7 +71,7 @@ assert(RadioModel.isCurrent({id:9,event_ids:[4,3]},[{id:3,kind:'host'}],true),'A
         result = subprocess.run(['node', '-e', core_source() + '\nfunction running(){return false}\n' + render + r"""
 const assert=require('node:assert/strict');
 var appearance={formatTime:value=>value};
-var st={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false,items=[];
+var ytOn=false,currentRef='',st={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false,items=[];
 var document={documentElement:{dataset:{}},activeElement:null,hidden:false},nodes={},motion=false,animations=[],writes=0;
 function matchMedia(){return {matches:motion}}
 function $(id){return nodes[id]||(nodes[id]={scrollTop:0,contains:()=>false,innerHTML:''})}
@@ -111,7 +111,7 @@ assert.deepEqual(animations[0].frames,[{opacity:0},{opacity:1}]);
         result = subprocess.run(['node', '-e', core_source() + '\nfunction running(){return false}\n' + render + r'''
 const assert = require('node:assert/strict');
 var appearance={formatTime:value=>value};
-var st={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false;
+var ytOn=false,currentRef='',st={},planDraft=null,rerollError='',rerollConfirm=null,historyExpanded=false;
 var document={documentElement:{dataset:{}},activeElement:null},nodes={};
 function $(id){return nodes[id]||(nodes[id]={scrollTop:0,contains:()=>false,innerHTML:''})}
 function row(x){return x.title+'\n'}function entryTitle(k,t){return t}function esc(s){return String(s)}

@@ -393,6 +393,22 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 #upcoming .tg .tx{flex:1;min-width:0}#upcoming .tg .acts{margin-left:auto}
 #upcoming .tg{padding-right:0}
 
+/* stations: the source line is a button that opens the picker (a sheet at the bottom on a phone) */
+.air-caption{position:relative}
+.air-caption :is(#music-source,#station-stop,#station-now){border:0;background:none;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer;position:relative;min-height:0;box-shadow:none}
+.air-caption :is(#music-source,#station-stop,#station-now)::after{content:"";position:absolute;inset:-12px -6px}  /* a 44px target on a one-line button */
+.air-caption :is(#music-source,#station-stop,#station-now):hover{text-decoration:underline;text-underline-offset:4px}
+#station-stop{padding:0 8px;color:var(--muted)}#station-now{margin-left:8px;color:var(--accent);text-decoration:underline;text-underline-offset:4px}
+#station-now:disabled{opacity:.5;cursor:default}
+#station-picker{position:absolute;left:0;top:100%;z-index:20;width:min(560px,100%);max-height:70vh;overflow:auto;box-sizing:border-box;padding:8px 16px 16px;background:var(--bg);border:1px solid var(--line)}
+#station-picker .l{margin:12px 0 0}
+.pick-row,.pick-tile,.pick-link{font:inherit;font-size:16px;color:var(--ink);background:none;cursor:pointer}
+.pick-row{display:flex;align-items:center;width:100%;min-height:44px;padding:0 4px;border:0;border-bottom:1px solid var(--line);text-align:left}
+.pick-tiles{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.pick-tile{min-height:44px;padding:0 14px;border:1px solid var(--line)}
+.pick-link{min-height:44px;padding:0;border:0;color:var(--accent);text-decoration:underline;text-underline-offset:4px;text-align:left}
+.pick-row:disabled,.pick-tile:disabled{opacity:.5;cursor:default}
+@media(max-width:640px){#station-picker{position:fixed;top:auto;left:0;right:0;bottom:0;width:auto;max-height:75vh;border-width:1px 0 0;padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px))}}
 /* CRT screen (Settings → Appearance, on by default): layers over the page; colours, sizes and positions stay. Scan
    lines, a vignette and a glass glare (html::before) and a glow; phones and narrow windows get lighter lines and
    vignette and less glow. The bend is an SVG displacement map (#crt) on body, which then scrolls inside a screen-sized

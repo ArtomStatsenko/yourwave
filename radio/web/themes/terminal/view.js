@@ -7,7 +7,7 @@ var planOpen={},planHours={},planHorizon=3,planUndo=null,planInsertKey=null,hist
 var KIND=core.kinds;
 var dirBlocks=[],dirLoaded=false,dirBusy=false,planDraft=null,planVersion=null,planDrag=null,planTimeId=null,planConfirm=null;
 var planPointer=null,planExpandTimer=null,planFineTimer=null,planSuppressClick=false;
-var items=[],st={state:'STOPPED'},open={},busy=false,pls=[],stg=[],ytStatus={},musicChoice='local';
+var items=[],st={state:'STOPPED'},open={},busy=false,pls=[],stg=[],ytStatus={},musicChoice='local',ytOn=false,currentRef='',said='';
 function $(s){return document.getElementById(s)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function linkedText(s){return esc(s).replace(/https?:\/\/[^\s]+/gi,function(url){
@@ -115,7 +115,8 @@ function player(){
   $('fill').style.width=p.progress+'%';
   $('time').textContent=p.timeText;
   var ytEnabled=pls.some(function(p){return p.name==='ytmusic'&&p.on});
-  $('music-source').textContent=musicSourceLabel(ds,ytEnabled,ytStatus,musicChoice);
+  ytOn=ytEnabled;
+  $('music-source').textContent=musicSourceLabel(ds,ytEnabled,ytStatus,musicChoice);stationControls(ds);
   var select=$('music-source-select');
   if(select.dataset.ytEnabled!==String(ytEnabled)){select.innerHTML=musicSourceOptions(ytEnabled);select.dataset.ytEnabled=String(ytEnabled)}
   Array.prototype.forEach.call(select.querySelectorAll('input'),function(box){
@@ -136,7 +137,7 @@ function player(){
   $('nx').disabled=p.next.disabled;
   $('nx').textContent=p.next.text;$('nx').setAttribute('aria-busy',String(p.next.busy));
   $('nx').setAttribute('aria-label',p.next.label);$('nx').title=p.next.title;
-  $('er').textContent=p.error||shownError;  // a lost connection stays said until a poll works again
+  $('er').textContent=p.error||shownError||said;  // a lost connection stays said until a poll works again
 }
 var keyFb={cls:'',text:''},keyBusy=false;  // feedback under the API key field (never in the player's error line)
 function saveKey(provider,key,remove){
@@ -260,7 +261,7 @@ $('stg').onchange=function(e){var r=e.target.closest('[data-st]');if(!r)return;
   var s=stg.find(function(x){return x.key===r.dataset.st});if(s.multiline)return;var value=r.type==='checkbox'?+r.checked:s.step===null?r.value:+r.value;s.value=value;
   if(s.key==='llm_provider')keyFb={cls:'',text:''};
   if(s.key==='voice_engine'){voicePending=value;setTimeout(function(){voicePending=null},6000)}
-  api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){$('er').textContent=e.message||'could not save'})};
+  api('/api/cmd',{cmd:'setting',key:s.key,value:value}).then(function(d){if(d&&d.ok===false)throw Error(d.error);if(d&&d.settings)stg=d.settings;settingsView(true)}).catch(function(e){say(e.message||'could not save')})};
 $('stg').onkeydown=function(e){if(e.key==='Enter'&&e.target.dataset.sourceInput){e.preventDefault();editSourceName(e.target.dataset.sourceInput);return}if(e.key==='Enter'&&e.target.id==='llm-key'){e.preventDefault();var b=document.querySelector('[data-key]');if(b)saveKey(b.dataset.key,e.target.value)}};
 $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();return}
   var source=e.target.closest('[data-source-add],[data-source-remove]');if(source){editSourceName(source.dataset.sourceAdd||source.dataset.sourceRemove,source.dataset.name);return}
@@ -268,10 +269,10 @@ $('stg').onclick=function(e){if(e.target.closest('#voice-sample')){playSample();
   if(k){saveKey(k.dataset.key||k.dataset.keyRm,k.dataset.key?$('llm-key').value:'',!!k.dataset.keyRm);return}
   var a=e.target.closest('[data-act]');
   if(a){api('/api/cmd',{cmd:a.dataset.act}).then(function(d){if(d.url){location.href=d.url;return}  // same tab: no popup to block; the callback page links back
-      if(d.settings)stg=d.settings;settingsView(true)}).catch(function(){$('er').textContent='could not reach the radio'});return}
+      if(d.settings)stg=d.settings;settingsView(true)}).catch(function(){say('could not reach the radio')});return}
   var b=e.target.closest('[data-rs]');if(!b)return;
   var key=b.dataset.rs;
-  api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true);var field=$('st-'+key);if(field)field.focus({preventScroll:true})}).catch(function(e){$('er').textContent=e.message;sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
+  api('/api/cmd',{cmd:'settings_reset',key:key}).then(function(d){if(!d||!d.ok)throw Error(d&&d.error||'Could not reset this setting.');if(d.settings)stg=d.settings;delete sourceDrafts[key];delete sourceFeedback[key];settingsView(true);var field=$('st-'+key);if(field)field.focus({preventScroll:true})}).catch(function(e){say(e.message);sourceFeedback[key]={state:'error',text:e.message};settingsView(true)})};
 function pluginsView(){
   $('yt-form').hidden=!pls.some(function(p){return p.name==='ytmusic'&&p.on});
   // one restart note for Audio preset and the playlist: under the playlist, or under the preset when the playlist is hidden
@@ -696,8 +697,8 @@ function skipRow(key,skip){
   clearTimeout(skipToast);$('skip-toast').hidden=!skip;
   if(skip){$('skip-toast-text').textContent='Skipped · '+r.title;$('skip-toast').dataset.key=key;$('skip-toast').dataset.ref=r.ref||'';$('skip-toast').dataset.id=r.id||'';
     skipToast=setTimeout(function(){$('skip-toast').hidden=true},6000)}
-  ask.then(function(d){if(d&&d.ok===false){$('er').textContent=d.error;$('skip-toast').hidden=true}refresh()})
-    .catch(function(){$('er').textContent='the radio is not answering'})}
+  ask.then(function(d){if(d&&d.ok===false){say(d.error);$('skip-toast').hidden=true}refresh()})
+    .catch(function(){say('the radio is not answering')})}
 $('skip-undo').onclick=function(){var t=$('skip-toast'),r=futureRows.find(function(x){return x.skipped&&(x.ref&&x.ref===t.dataset.ref||x.id&&x.id===t.dataset.id)});
   if(r)skipRow(r.key,false);t.hidden=true}
 function sourceAnchor(ln,label){return '<a href="'+esc(ln.url)+'" title="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>'}
@@ -710,8 +711,8 @@ var selectedRow=null;  // the row last tapped: its empty mark shows (on a touch 
 function toggleMark(id){
   var x=items.find(function(i){return String(i.id)===String(id)});if(!x)return;
   x.marked=!x.marked;markView();timeline();
-  api('/api/cmd',{cmd:x.marked?'mark':'unmark',id:Number(id)}).then(function(r){if(r&&r.ok===false)$('er').textContent=r.error;refresh()})
-    .catch(function(){$('er').textContent='the radio is not answering';refresh()})}
+  api('/api/cmd',{cmd:x.marked?'mark':'unmark',id:Number(id)}).then(function(r){if(r&&r.ok===false)say(r.error);refresh()})
+    .catch(function(){say('the radio is not answering');refresh()})}
 // the player's thumb: for the song on air now (the timeline's current entry)
 function markView(){
   var now=RadioModel.timeline({timeline:items,status:st},running()).entries.find(function(x){return x.current});
@@ -734,6 +735,7 @@ function row(x){
       if(d.description)h+='<p class="sub">'+linkedText(d.description)+'</p>';
       d.links.forEach(function(ln){if(ln.label)h+='<p>'+sourceAnchor(ln,ln.label)+'</p>';if(ln.stars)h+='<p class="l">'+esc(ln.stars)+'</p>'});
       if(d.oldStars)h+='<p class="l">'+esc(RadioModel.OLD_STARS_NOTE)+'</p>'});
+    if(x.radio)h+='<p><button type="button" class="pick-link" data-station-song="'+esc(x.ref)+'" data-title="'+esc(x.text)+'">Radio from this song</button></p>';
     h+='</div>'}
   return h+'</div>'}
 function backgroundError(message){return RadioModel.backgroundError(message)}
@@ -764,12 +766,13 @@ function timeline(){
   if(rerollFocused){var button=$('upcoming').querySelector('[data-reroll="'+rerollAction+'"]')||$('upcoming').querySelector('[data-reroll]');if(button)button.focus({preventScroll:true})}
   }
   var sc=$('tl').scrollTop;
-  var tl=RadioModel.timeline({timeline:items,status:st},running()),aired=tl.entries,activity=tl.activity,background=tl.background;
+  var tl=RadioModel.timeline({timeline:items,status:st,radio:ytOn&&!!ytStatus.connected},running()),aired=tl.entries,activity=tl.activity,background=tl.background;
   if(background&&(!timeline.backgroundNotice||timeline.backgroundNotice.text!==background))timeline.backgroundNotice={text:background,
     time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:st.direction_timezone||'Asia/Ho_Chi_Minh'})};
   if(!background)timeline.backgroundNotice=null;
+  var playing=aired.find(function(x){return x.current&&x.kind==='music'});currentRef=playing?playing.ref:'';
   $('activity').hidden=!activity.length&&!background;
-  $('activity-log').innerHTML=(background?'<div class="tg"><span class="tm" title="First observed in this tab">'+esc(appearance.formatTime(timeline.backgroundNotice.time))+'</span><span class="tx">'+esc(background)+'</span></div>':'')+activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(appearance.formatTime(x.time))+'</span><span class="tx">'+(x.kind==='error'?esc(x.title):'Radio started')+'</span></div>'}).join('');
+  $('activity-log').innerHTML=(background?'<div class="tg"><span class="tm" title="First observed in this tab">'+esc(appearance.formatTime(timeline.backgroundNotice.time))+'</span><span class="tx">'+esc(background)+'</span></div>':'')+activity.map(function(x){return '<div class="tg"><span class="tm">'+esc(appearance.formatTime(x.time))+'</span><span class="tx'+(x.kind==='error'?' err':'')+'">'+(x.kind==='error'?esc(x.title):'Radio started')+'</span></div>'}).join('');
   $('history-more').hidden=aired.length<=tl.shown;$('history-more').textContent=historyExpanded?'Show less':'Show earlier';
   var history=$('tl'),latest=aired.reduce(function(id,x){return Math.max(id,x.id)},0),previous=timeline.latest;
   timeline.latest=latest;
@@ -802,15 +805,75 @@ $('tl').ondrop=function(e){e.preventDefault();planDrag=null};
 function cmd(name,extra){
   if(busy)return Promise.resolve(null);busy=true;nextBusy=name==='next';player();if(name==='next')catchUp();  // jump to the live edge at the press: the reply (100-200 ms) is not waited for
   var body={cmd:name};for(var k in extra||{})body[k]=extra[k];
-  return api('/api/cmd',body).then(function(r){if(r&&r.ok===false)$('er').textContent=r.error||'did not work';return r})
-    .catch(function(){$('er').textContent='the radio is not answering';return null})
+  return api('/api/cmd',body).then(function(r){if(r&&r.ok===false)say(r.error||'did not work');return r})
+    .catch(function(){say('the radio is not answering');return null})
     .then(function(r){busy=false;nextBusy=false;player();if(name==='next'&&r&&r.ok){catchUp();setTimeout(refresh,150);setTimeout(refresh,500)}refresh();return r})}
 function replay(id){
   var x=items.find(function(i){return String(i.id)===id});if(!x)return;
-  if(!running()){$('er').textContent='start the radio first';return}
+  if(!running()){say('start the radio first');return}
   cmd('replay',{kind:rk(x),ref:x.ref})}
 function unqueue(id){
   var x=items.find(function(i){return String(i.id)===id});if(x)cmd('unqueue',{kind:rk(x),ref:x.ref})}
+// ---- YouTube Music stations: the source line opens a picker; radio from a song or from a mood
+var pickerOpen=false,pickerBusy=false,pickerMoods=null,pickerError='',stationFresh=false,stationSeen={},saidTimer=null,hintTimer=null,recent=[];
+try{recent=JSON.parse(localStorage.getItem('radio-stations')||'[]').slice(0,4)}catch(e){}
+function say(text){said=text;$('er').textContent=text;clearTimeout(saidTimer);saidTimer=setTimeout(function(){if(said===text){said='';if($('er').textContent===text)$('er').textContent=''}},5000)}  // a failed command is said for a few seconds, then it stays in Activity
+function hint(text){$('hint').textContent=text;clearTimeout(hintTimer);hintTimer=setTimeout(function(){$('hint').textContent=''},6000)}
+function stationControls(ds){
+  var on=ytStatus.station||null;
+  $('station-stop').hidden=!on;
+  (ds.upcoming_tracks||[]).forEach(function(t){if(t.station)stationSeen[t.ref]=true});
+  if(!on||(currentRef&&stationSeen[currentRef]))stationFresh=false;
+  $('station-now').hidden=!(on&&stationFresh);$('station-now').disabled=!ds.station_ready||busy;  // the first station song is loaded: Start now is a plain Next
+}
+function remember(s){recent=[s].concat(recent.filter(function(r){return r.kind!==s.kind||r.value!==s.value})).slice(0,4);try{localStorage.setItem('radio-stations',JSON.stringify(recent))}catch(e){}}
+function pickerView(){
+  var box=$('station-body'),h='';
+  if(!ytOn||!ytStatus.connected){box.innerHTML='<p><button type="button" class="pick-link" data-station-sources>Connect YouTube Music in Sources</button></p>';return}
+  var off=pickerBusy?' disabled':'';
+  if(ytStatus.station)h+='<button type="button" class="pick-row" data-station-stop'+off+'>Stop the station</button>';
+  h+='<button type="button" class="pick-row" data-station-song="'+esc(currentRef)+'" data-title="'+esc($('ttl').textContent)+'"'+(currentRef&&!pickerBusy?'':' disabled')+'>Radio from the current song</button>';
+  if(recent.length)h+='<p class="l">Recent</p>'+recent.map(function(r,i){return '<button type="button" class="pick-row" data-station-recent="'+i+'"'+off+'>'+esc(RadioModel.stationLabel(r))+'</button>'}).join('');
+  if(pickerMoods){var g=RadioModel.stationGroups(pickerMoods),tiles=function(list,from){return '<div class="pick-tiles">'+list.map(function(m,i){return '<button type="button" class="pick-tile" data-station-mood="'+(from+i)+'"'+off+'>'+esc(m.title)+'</button>'}).join('')+'</div>'};
+    h+='<p class="l">Moods</p>'+tiles(g.moods,0)+'<p class="l">Genres</p>'+tiles(g.genres,g.moods.length)}
+  else h+='<p class="l" aria-live="polite">'+esc(pickerError||'Loading moods…')+'</p>';
+  box.innerHTML=h}
+function pickerToggle(show){
+  pickerOpen=show;$('station-picker').hidden=!show;$('music-source').setAttribute('aria-expanded',String(show));
+  if(!show)return;
+  pickerView();
+  if(!pickerMoods)api('/api/cmd',{cmd:'station',action:'moods'}).then(function(d){if(d&&d.ok&&d.moods)pickerMoods=d.moods;else pickerError=d&&d.error||'Could not load the moods';if(pickerOpen)pickerView()})
+    .catch(function(){pickerError='the radio is not answering';if(pickerOpen)pickerView()});
+  var first=$('station-body').querySelector('button:not(:disabled)');if(first)first.focus()}
+function pickerStart(args,title){
+  if(pickerBusy)return;  // building takes 5-8 s: more clicks do nothing
+  pickerBusy=true;pickerToggle(false);hint('');
+  if(!quietPage())waits.watch('music-source',function(){return pickerBusy});
+  api('/api/cmd',Object.assign({cmd:'station',action:'start',title:title},args)).then(function(d){
+    if(!d||d.ok===false){say(d&&d.error||'Could not start the station');return}
+    var on=d.status&&d.status.ytmusic&&d.status.ytmusic.station;
+    remember({kind:args.kind,value:args.value,title:on&&on.title||title});stationFresh=true;
+    hint('From the next song: radio from '+(on&&on.title||title))})
+  .catch(function(){say('the radio is not answering')})
+  .then(function(){pickerBusy=false;refresh()})}
+function stationStop(){
+  pickerToggle(false);
+  api('/api/cmd',{cmd:'station',action:'stop'}).then(function(d){if(d&&d.ok===false)say(d.error||'Could not stop the station')}).catch(function(){say('the radio is not answering')}).then(refresh)}
+$('music-source').onclick=function(){pickerToggle(!pickerOpen)};
+$('station-stop').onclick=stationStop;
+$('station-now').onclick=function(){stationFresh=false;cmd('next')};
+$('station-picker').onkeydown=function(e){if(e.key==='Escape'){pickerToggle(false);$('music-source').focus()}};
+document.addEventListener('click',function(e){if(pickerOpen&&!e.target.closest('.air-caption'))pickerToggle(false)});
+function stationClick(e){
+  var b=e.target.closest('[data-station-song],[data-station-recent],[data-station-mood],[data-station-stop],[data-station-sources]');
+  if(!b||b.disabled)return false;
+  if(b.hasAttribute('data-station-song'))pickerStart({kind:'song',value:b.dataset.stationSong},b.dataset.title||'');
+  else if(b.hasAttribute('data-station-recent')){var r=recent[+b.dataset.stationRecent];if(r)pickerStart({kind:r.kind,value:r.value},r.title)}
+  else if(b.hasAttribute('data-station-mood')){var m=pickerMoods[+b.dataset.stationMood];if(m)pickerStart({kind:'mood',value:m.params},m.title)}
+  else if(b.hasAttribute('data-station-stop'))stationStop();
+  else{pickerToggle(false);selectTab($('tab-in'))}
+  return true}
+$('station-picker').addEventListener('click',stationClick);
 var catchupBusy=false,catchupMessage='';
 function catchupView(info){
   var c=RadioModel.catchup(info,running(),catchupBusy,catchupMessage);
@@ -909,7 +972,7 @@ $('tab-tl').parentNode.onkeydown=function(e){
   else if(e.key==='Home')i=0;else if(e.key==='End')i=tabs.length-1;else return;
   e.preventDefault();selectTab(tabs[i]);tabs[i].focus()};
 $('mk').innerHTML=THUMB;$('mk').onclick=function(){toggleMark(this.dataset.id)};
-$('tl').onclick=function(e){var mk=e.target.closest('[data-mark]');if(mk){toggleMark(mk.dataset.mark);return}
+$('tl').onclick=function(e){if(stationClick(e))return;var mk=e.target.closest('[data-mark]');if(mk){toggleMark(mk.dataset.mark);return}
   var it=e.target.closest('[data-history-id]');
   if(it&&selectedRow!==it.dataset.historyId){var was=$('tl').querySelector('.it.sel');if(was)was.classList.remove('sel');selectedRow=it.dataset.historyId;it.classList.add('sel')}
   var q=e.target.closest('[data-q]');if(q){replay(q.dataset.q);return}

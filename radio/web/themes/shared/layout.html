@@ -8,8 +8,9 @@
     /_|_\</pre>
     <div class="air-caption"><div id="station-name" aria-hidden="true">Yourwave</div>
       <h1><span id="air">●</span> <span id="airtxt">on air</span></h1>
-      <span class="l" id="music-source" role="status" aria-live="polite"></span>
+      <button type="button" class="l" id="music-source" aria-haspopup="dialog" aria-expanded="false" aria-live="polite"></button><button type="button" class="l" id="station-stop" aria-label="Stop the station" title="Stop the station" hidden>×</button><button type="button" class="l" id="station-now" hidden>Start now</button>
       <span id="terminal-monitor" aria-hidden="true"></span>
+      <div id="station-picker" role="dialog" aria-label="Stations" hidden><div id="station-body"></div></div>
     </div>
   </div>
   <div class="title-row"><div class="title"><span id="ttl" aria-hidden="true"></span><span id="caret" class="caret" aria-hidden="true" hidden></span></div><button id="mk" class="mk" type="button" aria-pressed="false" aria-label="Thumbs up" title="Hear this more often" hidden></button></div>
@@ -19,6 +20,7 @@
     <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
     <div class="bar"><i id="fill"></i></div><span class="l" id="time"></span><div id="viz-controls" role="group" aria-label="Visualizer"><button id="vzprev" aria-label="Previous visual" title="Previous visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m8 2-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button><button id="vzb" aria-label="Enable visualizer" aria-pressed="true"></button><button id="vznext" aria-label="Next visual" title="Next visual"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
   <div class="l" id="voice-warn" aria-live="polite"></div>
+  <div class="row"><span class="l" id="hint" role="status" aria-live="polite"></span></div>
   <div class="row"><span class="l err" id="er"></span></div>
 </section>
 <section>

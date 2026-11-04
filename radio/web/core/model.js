@@ -61,7 +61,10 @@ var RadioModel=(function(){
   // made one entry of each host appearance (event_ids: its events).
   function timeline(snapshot,running){
     var items=snapshot.timeline||[],status=snapshot.status||{};
-    var aired=items.filter(function(x){return x.kind!=='session'&&x.kind!=='error'}).map(function(x){return entry(x,items,running,status)});
+    var aired=items.filter(function(x){return x.kind!=='session'&&x.kind!=='error'}).map(function(x){
+      var e=entry(x,items,running,status);
+      if(snapshot.radio&&x.kind==='music'&&x.ref){e.expandable=true;e.radio=true}  // a song unfolds to "Radio from this song"
+      return e});
     return {entries:aired,shown:HISTORY_SHOWN,activity:items.filter(function(x){return x.kind==='session'||x.kind==='error'}),
       background:backgroundError(status.last_error)?status.last_error:''};
   }
@@ -250,7 +253,13 @@ var RadioModel=(function(){
       error:backgroundError(status.last_error)?'':status.last_error||''};
   }
   // Where the music comes from now, in a few words (switching between YouTube Music and local files included).
+  // YouTube Music's station on: "Station · Chill" (a mood) or "Radio · Midnight City" (from a song)
+  function stationLabel(s){return (s.kind==='song'?'Radio':'Station')+' · '+(s.title||'')}
+  // the moods come first (11), the genres are the rest; names stay as YouTube gives them
+  var STATION_MOODS=11;
+  function stationGroups(list){list=list||[];return {moods:list.slice(0,STATION_MOODS),genres:list.slice(STATION_MOODS)}}
   function musicSourceLabel(status,enabled,yt,choice){
+    if(yt&&yt.station)return stationLabel(yt.station);
     var source=status.music_source_state;
     if(source&&status.state!=='STOPPED'){
       var name=function(s){return s==='ytmusic'?'YouTube Music':s==='mixed'?'Local + YouTube Music':'Local music'},current=source.current?name(source.current):'Host on air';
@@ -304,7 +313,7 @@ var RadioModel=(function(){
   }
   var CATCHUP_PREPARING='Preparing dated stories…';
 
-  return {KINDS:KINDS,num:num,clockText:clockText,player:player,musicSourceLabel:musicSourceLabel,catchup:catchup,CATCHUP_PREPARING:CATCHUP_PREPARING,settingValue:settingValue,settingType:settingType,settings:settings,ai:ai,keyChecked:keyChecked,
+  return {KINDS:KINDS,num:num,clockText:clockText,player:player,musicSourceLabel:musicSourceLabel,stationLabel:stationLabel,stationGroups:stationGroups,catchup:catchup,CATCHUP_PREPARING:CATCHUP_PREPARING,settingValue:settingValue,settingType:settingType,settings:settings,ai:ai,keyChecked:keyChecked,
     keySaved:keySaved,KEY_EMPTY:KEY_EMPTY,voice:voice,sampleFeedback:sampleFeedback,planReadiness:planReadiness,planNow:planNow,planGroups:planGroups,planGapTime:planGapTime,planRow:planRow,entryTitle:entryTitle,backgroundError:backgroundError,
     isCurrent:isCurrent,isQueued:isQueued,replayKind:replayKind,entryText:entryText,entryParts:entryParts,
     expandable:expandable,starsText:starsText,

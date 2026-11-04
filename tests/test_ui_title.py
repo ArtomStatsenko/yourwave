@@ -38,7 +38,7 @@ assert.equal(titleFrame('Long title', 'Long', 150, 100).text, 'Long');
 const assert = require('node:assert/strict');
 let busy=false,nextBusy=false,catchUps=0,result={ok:true};
 const catchUp=()=>catchUps++;  // the core keeps the stream open and seeks only inside buffered audio
-const api=()=>Promise.resolve(result),refresh=()=>{},player=()=>{},setTimeout=()=>{},$=()=>({textContent:''});
+const api=()=>Promise.resolve(result),refresh=()=>{},player=()=>{},setTimeout=()=>{},say=()=>{},$=()=>({textContent:''});
 (async()=>{
   const switching=cmd('next');assert.equal(nextBusy,true);
   await switching;assert.equal(nextBusy,false);
