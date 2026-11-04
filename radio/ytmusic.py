@@ -338,7 +338,10 @@ def browser_jar(browser, url, out):
     except (OSError, subprocess.TimeoutExpired):
         lines, p = [], None
     err = (getattr(p, "stderr", "") or "").lower()  # only matched against, never shown: it may carry account details
-    if not lines and ("could not find" in err or "not permitted" in err):
+    if not lines and "not permitted" in err:  # macOS privacy: this app may not read another app's data
+        raise ValueError(f"macOS blocked access to {browser.title()}'s data: in System Settings → Privacy & Security → "
+                         "Full Disk Access, turn on Personal Radio, then connect again")
+    if not lines and "could not find" in err:
         raise ValueError(f"Could not open {browser.title()}'s cookie store; quit {browser.title()} and try again")
     if not lines and ("keyring" in err or "keychain" in err or "safe storage" in err or "decrypt" in err):
         raise ValueError(f"macOS did not allow access to {browser.title()}'s key; connect again and choose Allow")

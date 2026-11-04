@@ -140,6 +140,16 @@ class YouTubeMusicTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "did not take the like"):
                 ytmusic.like("dQw4w9WgXcQ", True)
 
+    def test_a_macos_privacy_block_says_where_to_allow_it(self):
+        out = Path(self.tmp.name) / "jar.txt"
+        out.write_text("")
+        for stderr, message in (("PermissionError: [Errno 1] Operation not permitted: '/Users/x/Library/Application Support/Google/Chrome'",
+                                 "Full Disk Access"), ("could not find chrome cookies database", "quit Chrome")):
+            with self.subTest(message=message), \
+                 patch("radio.ytmusic.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", stderr)):
+                with self.assertRaisesRegex(ValueError, message):
+                    ytmusic.browser_jar("chrome", ytmusic.DEFAULT_PLAYLIST, out)
+
     def test_feature_can_be_enabled_before_connecting_in_settings(self):
         from radio import plugins
         self.assertFalse(ytmusic.status()['connected'])
