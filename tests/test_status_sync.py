@@ -63,3 +63,23 @@ const title=()=>core.snapshot.status.current_title;
         result = subprocess.run(['node', '-e', 'const SOURCE=' + json.dumps(source) + ';' + harness],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_what_is_heard_never_steps_back_when_the_buffer_refills(self):
+        source = (Path(__file__).resolve().parents[1] / 'radio/web/core/core.js').read_text()
+        harness = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+const c={};vm.createContext(c);vm.runInContext(SOURCE+';this.RadioCore=RadioCore',c);
+let body;const core=c.RadioCore.create({token:'t',fetch:async()=>({json:async()=>body})});
+let lag=0;core.audio.lag=()=>lag;
+const heard=()=>core.heard().s.current_title,poll=async t=>{body={status:{state:'PLAYING',current_title:t}};await core.refresh()};
+(async()=>{
+ await poll('Old');lag=.05;await new Promise(r=>setTimeout(r,100));
+ assert.equal(heard(),'Old');
+ await poll('New');assert.equal(heard(),'Old','the buffer still plays the old song');
+ lag=0;assert.equal(heard(),'New','"next" jumped to the live edge');
+ lag=2;assert.equal(heard(),'New','the refilled buffer must not bring the old song back');
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+        result = subprocess.run(['node', '-e', 'const SOURCE=' + json.dumps(source) + ';' + harness],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)

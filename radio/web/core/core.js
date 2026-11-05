@@ -197,7 +197,11 @@ var RadioCore=(function(){
     core.audio=createAudio(core,emit);
     // What this device hears now, {t: when it was the air, s: the status then}: a listener's buffer is a few
     // seconds behind the station, so the page shows the air that late. fallback: the status before any poll.
-    core.heard=function(fallback){var now=Date.now(),lg=core.audio.lag(),h=history.filter(function(e){return e.t<=now-lg*1000});
+    // Never back to an older status than one already shown: after "next" the jump to the live edge shows the new
+    // song, then the buffer refills (0 -> 2 s) and the old song came back for a moment (two title changes).
+    var heardT=0;
+    core.heard=function(fallback){var now=Date.now(),lg=core.audio.lag(),h=history.filter(function(e){return e.t<=now-lg*1000||e.t<=heardT});
+      if(h.length)heardT=h[h.length-1].t;
       return h[h.length-1]||history[0]||{t:now,s:fallback||(core.snapshot&&core.snapshot.status)||{state:'STOPPED'}}};
     // Seconds into the track this device hears, steady between polls (see playhead). fallback: as for heard().
     var head=null;
