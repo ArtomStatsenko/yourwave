@@ -48,6 +48,12 @@ class PronunciationTests(unittest.TestCase):
         self.assertIn('Linkin Park', text)
         self.assertEqual(set(config.DATA_DIR.rglob('*')), before)
 
+    def test_stress_marks_do_not_reach_the_voice(self):
+        with patch.object(self.ed, '_complete', return_value='{"carbonara": "Карбона\u0301ра"}'):
+            self.assertEqual(self.ed.speech('Играет Carbonara.'), 'Играет Карбонара.')
+        with patch.object(self.ed, '_complete', return_value='{"Mae Shi": "Мэ\u0301й Ши"}'):
+            self.assertEqual(self.ed.speech('Mae Shi'), 'Мэй Ши')
+
     def test_dictionary_wins_and_tags_urls_and_numbers_are_not_sent(self):
         text = '[laughter] GitHub, Claude Code, 2026. https://private.test/secret'
         with patch.object(self.ed, '_complete') as complete:
