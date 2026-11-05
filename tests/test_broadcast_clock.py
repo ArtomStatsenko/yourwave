@@ -138,6 +138,13 @@ class ClockPlayoutTests(unittest.TestCase):
         self.svc.engine.push_news.assert_not_awaited()
         self.assertEqual(self.svc.db.execute('SELECT status FROM packages WHERE id=?', (pid,)).fetchone()[0], 'READY')
 
+    def test_a_song_link_does_not_join_an_edition(self):
+        self.fixture.add_news('news')
+        self.fixture.add_news('system:music-link:s:1')
+        self.assertEqual([p['id'] for p in self.svc._pick_break()], ['news#1'])
+        self.svc.db.execute("UPDATE packages SET status='PLAYED' WHERE id='news#1'")
+        self.assertEqual([p['id'] for p in self.svc._pick_break()], ['system:music-link:s:1#1'], 'alone it still airs')
+
     def test_short_edition_has_smaller_content_budget(self):
         for n in range(3):
             self.fixture.add_news(str(n))

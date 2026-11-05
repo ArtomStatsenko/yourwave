@@ -2151,6 +2151,8 @@ class Service:
         ready.sort(key=lambda p: self._host_segment(p) != 'weather')
         if ready and ready[0]["id"].startswith("system:") and not self._host_segment(ready[0]):
             return [ready[0]] if ready[0]["speech_sec"] <= budget + 12 else []  # announcements air alone
+        # ...and never inside an edition: a song link there named the last song twice (the edition's back-sell too)
+        ready = [p for p in ready if not p["id"].startswith("system:") or self._host_segment(p)]
         picked, total = [], 0.0
         for p in ready:
             if total + p["speech_sec"] <= budget:
