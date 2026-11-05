@@ -74,7 +74,7 @@ class Liquidsoap:
                    RADIO_YTMUSIC_CMD=shlex.join([sys.executable, "-m", "radio.ytmusic"]),
                    RADIO_SHUFFLE_CMD=shlex.join([sys.executable, "-m", "radio.shuffle"]),
                    RADIO_LIVE_URL=(live.current() or {}).get("url", ""))
-        self._end_orphan()
+        await self._end_orphan()
         self.proc = await asyncio.create_subprocess_exec(
             "liquidsoap", str(config.PKG_DIR / "radio.liq"), env=env,
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
@@ -260,9 +260,10 @@ class Liquidsoap:
                 return
             await asyncio.sleep(.05)
 
-    def _end_orphan(self) -> None:
+    async def _end_orphan(self) -> None:
         """A Liquidsoap left by a daemon that died without stopping it still plays into the same output and the
-        same stream: two engines interleave as stutter. End it before starting this one."""
+        same stream: two engines interleave as stutter. End it before starting this one, and wait until it is gone:
+        on its way out it deletes liq.sock, which by then would be the new engine's socket (no command reaches it)."""
         try:
             pid = int(self.pidfile.read_text())
             command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
@@ -271,6 +272,13 @@ class Liquidsoap:
         if "liquidsoap" in command and str(config.PKG_DIR / "radio.liq") in command:
             os.kill(pid, signal.SIGTERM)
             print("ended a Liquidsoap left by a previous daemon:", pid, flush=True)
+            for i in range(60):
+                try:
+                    os.kill(pid, signal.SIGKILL if i == 50 else 0)  # 5 s to shut down, then killed
+                except ProcessLookupError:
+                    break
+                await asyncio.sleep(.1)
+            self.sock.unlink(missing_ok=True)
 
     async def stop(self) -> None:
         self.stopped = True

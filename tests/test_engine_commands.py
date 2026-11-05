@@ -1,9 +1,13 @@
 import asyncio
 import resource
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
+from radio import config
 from radio.engine import Liquidsoap
 
 
@@ -38,3 +42,27 @@ class EngineCommandTests(unittest.TestCase):
                     proc.terminate()
                     await proc.wait()
         asyncio.run(scenario())
+
+    def test_a_left_liquidsoap_is_gone_before_the_new_one_makes_its_socket(self):
+        """Liquidsoap deletes its socket file on its way out: an old one still shutting down deleted the new one's."""
+        with tempfile.TemporaryDirectory(prefix='radio-orphan-') as directory:
+            root = Path(directory)
+            engine = Liquidsoap(root / 'music.m3u', .1)
+            engine.sock, engine.pidfile = root / 'liq.sock', root / 'liquidsoap.pid'
+            # Stands in for the old engine (its command line names liquidsoap and radio.liq): slow to stop, then
+            # deletes the socket path. Started by a shell that exits, so it is nobody's child, like a dead daemon's.
+            old = ('import os,signal,sys,time\n'
+                   'def end(*_): time.sleep(.5); os.unlink(sys.argv[1]) if os.path.exists(sys.argv[1]) else 0; os._exit(0)\n'
+                   'signal.signal(signal.SIGTERM, end)\nopen(sys.argv[4], "w").write(str(os.getpid()))\ntime.sleep(30)\n')
+            ready = root / 'old.pid'
+            subprocess.run(['sh', '-c', '"$0" -c "$1" "$2" liquidsoap "$3" "$4" >/dev/null 2>&1 &',
+                            sys.executable, old, str(engine.sock), str(config.PKG_DIR / 'radio.liq'), str(ready)], check=True)
+            for _ in range(50):
+                if ready.exists() and ready.read_text():
+                    break
+                time.sleep(.1)
+            engine.pidfile.write_text(ready.read_text())
+            asyncio.run(engine._end_orphan())
+            engine.sock.write_text('')  # the new engine's socket
+            time.sleep(.8)
+            self.assertTrue(engine.sock.exists())
